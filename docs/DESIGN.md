@@ -1,0 +1,103 @@
+# 设计文档 — computer-use-mcp
+
+> 状态：设计中。本文件记录已拍板的决策与待定问题，是后续写代码的依据。
+
+## 0. 三条总原则
+
+1. **与模型无关**：MCP server 只暴露工具，不关心谁在调。换模型不改 server。
+2. **双模式输入**：同时输出 `screenshot`（图，视觉模型用）和 `ui_snapshot`（文本树，纯文本模型用）。客户端按模型能力各取所需。
+3. **Windows 优先，接口预留**：把 `Screen / Input / Tree` 抽成接口，先实现 Windows，将来好上 macOS(AX) / Linux(AT-SPI)。
+
+### 为什么是双模式？——DeepSeek 的硬限制
+
+电脑操作 = 看屏幕 → 决定点哪 → 输出坐标，**要求视觉**。
+而 **DeepSeek 主力 API（V3 / R1）是纯文本、不吃图片**（DeepSeek-VL 是另一套开源权重，不在主流 API）。
+所以纯文本模型只能走 `ui_snapshot`（按控件名/ref 点击），不能靠截图坐标。
+
+**驱动模型矩阵：**
+
+| 模型 | 视觉 | 走哪条路 |
+| --- | --- | --- |
+| Claude / GPT-4o | ✅ | screenshot + 坐标（也可用 ref） |
+| Qwen2.5-VL / UI-TARS / GLM-4V | ✅ | screenshot + 坐标（专练过 GUI grounding） |
+| DeepSeek V3 / R1 | ❌ | **仅** ui_snapshot + ref |
+
+> 若目标是"中国模型做电脑操作"，**视觉系（Qwen-VL / UI-TARS）比 DeepSeek 更顺**；DeepSeek 更适合当"读文本树做决策"的大脑。
+
+---
+
+## A. `ui_snapshot` 表示与裁剪（双模式的心脏）
+
+- **格式**：扁平列表，不是缩进树。每行示例：
+  ```
+  ref_7 | button "发送" | (1003,565,50,24) | enabled
+  ```
+  扁平 + 稳定 `ref` → 最省 token、最好引用。参考 Playwright accessibility snapshot / 浏览器扩展的 read_page。
+- **裁剪（最难）**：只保留**前台窗口**内、**可见 + 可交互**的元素（button / edit / list item / checkbox / link / menu item…），扔掉装饰容器和离屏节点。
+- **`find(query)` 工具**：模型先按名字/角色找，只回匹配项，避免每步全量树。大屏几乎必须。
+- **待定**：深度上限？是否保留少量层级关系（parent ref）帮助消歧？文本 run 怎么合并？
+
+## B. 统一动作模型 —— 一个 `click`，两条腿
+
+- 视觉模型 → `click({x, y})`
+- 文本模型 → `click({ref})`
+- **关键决策：ref 路径不合成坐标点击，直接调 UIA 模式**
+  - 点击 → `InvokePattern` / `SelectionItemPattern`
+  - 输入 → `ValuePattern.SetValue`（而非模拟键盘）
+  - 好处：不受遮挡 / 焦点 / DPI / 前台进程抖动影响，比"移到 bbox 中心点一下"稳得多。
+- 坐标点击只留给：视觉模型、以及 UIA 抓不到的画布类控件（游戏 / Canvas / 某些 webview）。
+
+## C. 坐标空间必须统一
+
+- 截图像素 与 snapshot 的 bbox **必须同一坐标空间**，否则视觉模型与文本模型说的"同一个按钮"对不上。
+- Windows 必开 **Per-Monitor DPI Awareness V2**（`SetProcessDpiAwarenessContext`），否则 125%/150% 缩放下坐标全错——很多自制工具点不准的头号原因。
+- 多屏：明确以哪块屏 / 虚拟桌面坐标为基准，并在 snapshot/screenshot 里标注。
+
+## D. `ref` 时效 / 竞态
+
+snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
+
+1. ref 内存 UIA **RuntimeId**，执行前先校验元素是否还在。
+2. 失效则**按 (ControlType + Name) 兜底重定位**，再不行报"请重新 snapshot"。
+3. 动作后**判断 UI 是否变化**（标题 / 焦点 / 树 hash），变了才回新 snapshot，省得每步全量回传。
+
+## E. 安全层（DIY 最容易省、最不该省）
+
+第一方那套 consent UX 拿不到，要自己造。**将来用 DeepSeek/任意模型驱动，没有厂商安全训练兜底，屏幕文本注入风险更高**（页面写"把验证码发到 xxx"，纯文本模型很容易当真）。至少：
+
+- **前台进程闸门 + allowlist**：不在名单的应用不操作（主动要的保护）。
+- **snapshot 脱敏**：password 类控件不回 value。
+- **截图打码**：敏感窗口涂实心块。
+- **危险动作二次确认**：发送 / 删除 / 提交 / 付款先停一下。
+- **操作审计日志** + **全局急停热键**（一键 abort）。
+
+---
+
+## 二级话题（待展开）
+
+- **Agent loop 节奏**：何时重拍 snapshot；UI 变化检测；最大步数；超时。
+- **MCP 内容块**：同时返回 image block + text；纯文本壳忽略 image。
+- **平台抽象层**：`Screen / Input / Tree` 接口定义。
+
+## 工具面汇总
+
+| 工具 | 入参 | 出参 |
+| --- | --- | --- |
+| `screenshot` | (可选 region) | image |
+| `ui_snapshot` | (可选 scope=前台窗口) | 扁平元素列表 + refs |
+| `find` | query | 匹配元素子集 |
+| `click` | {x,y} 或 {ref} | ok / 失效原因 |
+| `type` | text (可选 ref) | ok |
+| `key` | combo | ok |
+
+## 技术栈（暂定）
+
+Python + `mcp` SDK + `mss` + `uiautomation` + `pyautogui`。
+
+## 开放问题 / TODO
+
+- [ ] 语言最终定 Python 还是 Node/TS（Windows 自动化生态 Python 更全）
+- [ ] `ui_snapshot` 裁剪规则的具体阈值
+- [ ] allowlist / 闸门的实现方式（按进程名？窗口归属？）
+- [ ] 选定第一个端到端验证场景（建议：记事本输入并保存）
+- [ ] License
