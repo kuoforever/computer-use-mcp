@@ -12,7 +12,8 @@
 ## 状态
 
 🚧 **设计阶段（design phase）** —— 目前仓库只有设计文档，尚未实现。
-完整设计见 [docs/DESIGN.md](docs/DESIGN.md)。
+- 架构：通用核心 + 平台原生驱动（ports & adapters）
+- 完整设计见 [docs/DESIGN.md](docs/DESIGN.md)；驱动契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)
 
 ## 计划的工具面（tool surface）
 

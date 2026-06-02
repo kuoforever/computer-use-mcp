@@ -26,6 +26,24 @@
 
 ---
 
+## 架构：驱动契约（ports & adapters）
+
+**采纳跨平台驱动架构**：通用核心 + 平台原生驱动，边界是一份语言无关的契约（详见 [DRIVER_CONTRACT.md](DRIVER_CONTRACT.md)）。
+
+| 层 | 放什么 | 平台相关 |
+| --- | --- | --- |
+| **通用核心** | MCP 工具/schema、`ui_snapshot` 序列化、裁剪**策略**、`find` 语义、`ref` 表与生命周期、**安全层**（allowlist/闸门判定/脱敏/审计/二次确认）、agent loop、config | ❌ |
+| **平台驱动** | 截屏、枚举窗口+前台+**进程归属链**、取无障碍树、invoke/set-value/select、模拟键鼠、DPI/坐标归一 | ✅ 每平台一份 |
+
+**三条铁律**（详见契约）：① 裁剪下推到驱动；② 单一坐标空间（截图像素 = bbox = click 坐标）；③ 闸门"查归属链"是驱动原语、"判 allowlist"是核心。
+
+**落地形态（A/B）待定**——契约先定，实现分阶段：
+- **A**：核心 + Win 驱动都用 Python（进程内），最快出 v0。
+- **B**：核心 TS/Go + 平台原生 helper（Win=C#/FlaUI、Mac=Swift），最稳最未来化，但摊子大且核心语言改掉 Python。
+> 契约不变，A/B 换里子不伤上层。真要上 Mac 时再按平台逐个选。
+
+---
+
 ## A. `ui_snapshot` 表示与裁剪（双模式的心脏）
 
 - **格式**：扁平列表，不是缩进树。每行示例：
@@ -91,14 +109,17 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 | `type` | text (可选 ref) | ok |
 | `key` | combo | ok |
 
-## 技术栈（已定）
+## 技术栈（A 路径暂定）
+
+> 仅当 v0 走 **A 路径（进程内 Python）** 时适用；B 路径核心转 TS/Go、Win 驱动转 C#/FlaUI。
 
 **Python** + `mcp` SDK + `mss`(截图) + `uiautomation`(UIA) + `pyautogui`(鼠标键盘)。建议 venv，Python 3.11–3.13。
 > 选型理由：双模式命脉是 UIA 无障碍树，Python 生态最成熟；备选 C#/.NET+FlaUI 更稳但 MCP/跨平台弱，Node 的 UIA 绑定差。
 
 ## 决策记录（本轮拍板）
 
-- ✅ **语言 = Python**
+- ✅ **架构 = 驱动契约（ports & adapters）**，契约先定不写实现 —— 见"架构"节 + [DRIVER_CONTRACT.md](DRIVER_CONTRACT.md)
+- ⚠️ **语言 = Python（仅 A 路径）** —— 核心语言随 A/B 落地形态待定（B 路径核心转 TS/Go）
 - ✅ **ui_snapshot 裁剪 v0 默认** —— 见 A 节
 - ✅ **前台闸门 = 进程树判定 + 瞬时重试** —— 见 E 节
 - ✅ **首个端到端场景 = 记事本三步阶梯** —— 见下
@@ -113,7 +134,8 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 ## 仍待定 / TODO
 
+- [ ] **v0 落地形态 A/B**（决定核心语言：进程内 Python vs 原生 helper + TS/Go 核心）
+- [ ] 冻结 **Driver Contract v1**（待首个 Windows 驱动验证可行性后 freeze）
 - [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
 - [ ] allowlist 配置形态（toml / CLI 参数 / 环境变量）
-- [ ] 平台抽象层接口定义（Screen / Input / Tree）
 - [ ] License（暂私有，将来再议）
