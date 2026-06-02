@@ -35,6 +35,7 @@
   扁平 + 稳定 `ref` → 最省 token、最好引用。参考 Playwright accessibility snapshot / 浏览器扩展的 read_page。
 - **裁剪（最难）**：只保留**前台窗口**内、**可见 + 可交互**的元素（button / edit / list item / checkbox / link / menu item…），扔掉装饰容器和离屏节点。
 - **`find(query)` 工具**：模型先按名字/角色找，只回匹配项，避免每步全量树。大屏几乎必须。
+- **v0 裁剪默认值（已定）**：作用域 = 仅前台窗口；只收 可见(IsOffscreen=false) + 在窗口内 + 可交互（白名单 ControlType：Button / Edit / CheckBox / RadioButton / ComboBox / List / ListItem / MenuItem / Hyperlink / Tab / TabItem / Tree / TreeItem / Slider）；**元素上限 200**，超限提示用 `find()` 并**记录被截断数量**（不静默砍）；每元素 `ref | type | name(≤100字) | bbox | states`；**password 控件不回 value**。
 - **待定**：深度上限？是否保留少量层级关系（parent ref）帮助消歧？文本 run 怎么合并？
 
 ## B. 统一动作模型 —— 一个 `click`，两条腿
@@ -65,7 +66,7 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 第一方那套 consent UX 拿不到，要自己造。**将来用 DeepSeek/任意模型驱动，没有厂商安全训练兜底，屏幕文本注入风险更高**（页面写"把验证码发到 xxx"，纯文本模型很容易当真）。至少：
 
-- **前台进程闸门 + allowlist**：不在名单的应用不操作（主动要的保护）。
+- **前台进程闸门 + allowlist（已定实现方式）**：按**进程树**判定——前台窗口的进程，只要它**或任一祖先进程**在 allowlist 里就放行（授权 `weixin.exe`，其渲染子进程 `Wechatappex` 自动算自己人，避免本项目踩过的"子进程名授权不了"坑）。再加**瞬时抖动自动重试 1–2 次**（前台短暂变化时重试，而非直接报错）。
 - **snapshot 脱敏**：password 类控件不回 value。
 - **截图打码**：敏感窗口涂实心块。
 - **危险动作二次确认**：发送 / 删除 / 提交 / 付款先停一下。
@@ -90,14 +91,29 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 | `type` | text (可选 ref) | ok |
 | `key` | combo | ok |
 
-## 技术栈（暂定）
+## 技术栈（已定）
 
-Python + `mcp` SDK + `mss` + `uiautomation` + `pyautogui`。
+**Python** + `mcp` SDK + `mss`(截图) + `uiautomation`(UIA) + `pyautogui`(鼠标键盘)。建议 venv，Python 3.11–3.13。
+> 选型理由：双模式命脉是 UIA 无障碍树，Python 生态最成熟；备选 C#/.NET+FlaUI 更稳但 MCP/跨平台弱，Node 的 UIA 绑定差。
 
-## 开放问题 / TODO
+## 决策记录（本轮拍板）
 
-- [ ] 语言最终定 Python 还是 Node/TS（Windows 自动化生态 Python 更全）
-- [ ] `ui_snapshot` 裁剪规则的具体阈值
-- [ ] allowlist / 闸门的实现方式（按进程名？窗口归属？）
-- [ ] 选定第一个端到端验证场景（建议：记事本输入并保存）
-- [ ] License
+- ✅ **语言 = Python**
+- ✅ **ui_snapshot 裁剪 v0 默认** —— 见 A 节
+- ✅ **前台闸门 = 进程树判定 + 瞬时重试** —— 见 E 节
+- ✅ **首个端到端场景 = 记事本三步阶梯** —— 见下
+- ✅ **License = 暂不定 / 私有**（暂不放 LICENSE 文件）
+
+## 首个里程碑：记事本三步阶梯
+
+- **v0.0 只读冒烟**：`screenshot` + `ui_snapshot` 前台窗口，验证 bbox 与截图坐标对齐——先把最难的"坐标统一 / DPI"零风险验掉。
+- **v0.1**：记事本里用 UIA `ValuePattern` 输入一行文字。
+- **v0.2**：`Ctrl+S` → 处理"另存为"弹窗 → 按 `ref` 点"保存"（验多窗口 + ref 点击）。
+> Win11 新版记事本是 WinUI，UIA 树略复杂；若 v0.1 折腾，可临时退回经典记事本 / 纯 Win32 目标。
+
+## 仍待定 / TODO
+
+- [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
+- [ ] allowlist 配置形态（toml / CLI 参数 / 环境变量）
+- [ ] 平台抽象层接口定义（Screen / Input / Tree）
+- [ ] License（暂私有，将来再议）

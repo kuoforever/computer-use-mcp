@@ -25,7 +25,7 @@
 | `type(text)` | 输入文字（优先 ValuePattern.SetValue） |
 | `key(combo)` | 按键组合 |
 
-## 技术栈（暂定）
+## 技术栈（已定）
 
 Python + [`mcp`](https://github.com/modelcontextprotocol/python-sdk) SDK + `mss`(截图) + `uiautomation`(UIA) + `pyautogui`(鼠标键盘)。
 平台抽象层预留，Windows 优先，将来可扩展 macOS(AX) / Linux(AT-SPI)。
@@ -36,4 +36,4 @@ Python + [`mcp`](https://github.com/modelcontextprotocol/python-sdk) SDK + `mss`
 
 ## License
 
-TBD
+暂不定 / 私有 —— 目前不放 LICENSE 文件，纯本地项目；将来如开源再议。
