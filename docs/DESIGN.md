@@ -163,7 +163,8 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - **快照去重 ✅（待办②已结）**：同一视觉控件在两种 ControlType 下重复（菜单栏项 = `MenuItem` + `Button`，同 bbox 同名）→ 保留首个、合并 patterns。记事本 文件/编辑/查看 实测各 1。
 - **补齐原语 ✅**：`list_windows` 全量枚举（`EnumWindows`，含模态对话框等 owned 窗口）；`click(x,y)` 坐标点击（实测点「最小化」窗口真被最小化，再复原）；`activate_window`（`AttachThreadInput` 绕前台锁）。
 - **驱动现状**：契约 12 原语在 Windows 全部实现并验证。回归脚本 `scripts/smoke_v03.py`（去重 / 枚举 / 置前台 / 坐标点击 一把过）。
-- **仍欠**：核心 **ref 表与失效重定位**（`STALE_ELEMENT` → 按 `role+name` 重定位）尚未独立成层——下一步随 MCP server 一起建。
+- **核心 ref 表 ✅**：`core.py` 的 `Session` 持有 `ref ↔ native_id` 表（**跨快照累积**、稳定复用，narrowing `find()` 后旧 ref 仍可用）；`ui_snapshot` 文本序列化（`ref_N | role "name" | bbox | states | value`）、`find`、按 ref 的 `click/type`（失效则按 `role+name` 重定位重试一次，契约 §D）。回归 `scripts/smoke_core.py` 全过。
+- **下一步**：封装 **MCP server**（把 `Session` 暴露为 `ui_snapshot / screenshot / find / click / type / key` 工具）+ **安全层**（前台进程闸门 / allowlist 等，见 §E）。
 
 ## 仍待定 / TODO
 
