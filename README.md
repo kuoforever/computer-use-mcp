@@ -11,9 +11,10 @@
 
 ## 状态
 
-🚧 **设计阶段（design phase）** —— 目前仓库只有设计文档，尚未实现。
+🚦 **v0.0 已落地** —— 只读冒烟通过：`capture_screen` + `get_tree` 在 Win11 上坐标 / DPI 完全对齐，A 路径（进程内 Python）实测拍板。
 - 架构：通用核心 + 平台原生驱动（ports & adapters）
-- 完整设计见 [docs/DESIGN.md](docs/DESIGN.md)；驱动契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)
+- 已实现：`src/computer_use_mcp/`（contract / dpi / Windows 驱动）+ `scripts/smoke_v0.py`
+- 下一步：v0.1（UIA 写一行文字）。完整设计见 [docs/DESIGN.md](docs/DESIGN.md)；驱动契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)
 
 ## 计划的工具面（tool surface）
 

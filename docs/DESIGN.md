@@ -119,7 +119,7 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 ## 决策记录（本轮拍板）
 
 - ✅ **架构 = 驱动契约（ports & adapters）**，契约先定不写实现 —— 见"架构"节 + [DRIVER_CONTRACT.md](DRIVER_CONTRACT.md)
-- ⚠️ **语言 = Python（仅 A 路径）** —— 核心语言随 A/B 落地形态待定（B 路径核心转 TS/Go）
+- ✅ **落地形态 = A 路径（进程内 Python）** —— v0.0 实测拍板：`uiautomation` 在 Win11 WinUI 记事本上又快又稳，B 路径（C#/FlaUI + TS/Go 核心）的复杂度无必要。见下「v0.0 验证结果」
 - ✅ **ui_snapshot 裁剪 v0 默认** —— 见 A 节
 - ✅ **前台闸门 = 进程树判定 + 瞬时重试** —— 见 E 节
 - ✅ **首个端到端场景 = 记事本三步阶梯** —— 见下
@@ -127,15 +127,25 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 ## 首个里程碑：记事本三步阶梯
 
-- **v0.0 只读冒烟**：`screenshot` + `ui_snapshot` 前台窗口，验证 bbox 与截图坐标对齐——先把最难的"坐标统一 / DPI"零风险验掉。
+- ✅ **v0.0 只读冒烟（已通过）**：`capture_screen` + `get_tree`，验证 bbox 与截图坐标对齐——最难的"坐标统一 / DPI"零风险验掉。见下「v0.0 验证结果」。
 - **v0.1**：记事本里用 UIA `ValuePattern` 输入一行文字。
 - **v0.2**：`Ctrl+S` → 处理"另存为"弹窗 → 按 `ref` 点"保存"（验多窗口 + ref 点击）。
 > Win11 新版记事本是 WinUI，UIA 树略复杂；若 v0.1 折腾，可临时退回经典记事本 / 纯 Win32 目标。
 
+### v0.0 验证结果（2026-06）
+
+- **坐标统一 ✅**：27 个 UIA bbox 画到 mss 截图上，2560×1600 **零偏移**，框框严丝合缝落在记事本控件上。
+- **DPI ✅**：`SetProcessDpiAwarenessContext` 开 per-monitor-v2 生效，无错位/缩放偏差。
+- **A 路径可行 ✅**：`mss` + `uiautomation` + `psutil` 进程内协作，拿下 WinUI 记事本树（27 元素，类型/名字/bbox 全对）。
+- **按句柄定位（白捡）✅**：记事本非前台（前台是任务栏）仍能按 `hwnd` 快照——印证「UIA 模式不靠焦点」，v0.1 写字的路子已提前验通。
+- 代码：`src/computer_use_mcp/{contract,dpi,drivers/windows}.py` + `scripts/smoke_v0.py`。
+
+**v0.1 已知坑**（实测发现）：① 正文编辑区是 `Document` 控件，不在 v0 白名单（仅 `Edit`）——写字需纳入；② 菜单项 `文件/编辑/查看` 各冒 `MenuItem`+`Button` 两份，快照需去重。
+
 ## 仍待定 / TODO
 
-- [ ] **v0 落地形态 A/B**（决定核心语言：进程内 Python vs 原生 helper + TS/Go 核心）
-- [ ] 冻结 **Driver Contract v1**（待首个 Windows 驱动验证可行性后 freeze）
+- [x] **v0 落地形态 A/B** → **A（进程内 Python）**，v0.0 实测拍板
+- [ ] 冻结 **Driver Contract v1**（首个 Windows 驱动已验证可行；契约够用，拟在 v0.2 走完后 freeze）
 - [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
 - [ ] allowlist 配置形态（toml / CLI 参数 / 环境变量）
 - [ ] License（暂私有，将来再议）
