@@ -114,8 +114,11 @@ class Node:
 
 
 # Default interactive control-type whitelist (normalized, no "Control" suffix).
+# "Document" is the editable text surface (e.g. the Notepad editor) — it carries
+# a writable ValuePattern, so an agent acts on it; it is a single node, not a
+# subtree, so it does not bloat the snapshot.
 DEFAULT_CONTROL_TYPES: tuple[str, ...] = (
-    "Button", "Edit", "CheckBox", "RadioButton", "ComboBox",
+    "Button", "Edit", "Document", "CheckBox", "RadioButton", "ComboBox",
     "List", "ListItem", "MenuItem", "Hyperlink",
     "Tab", "TabItem", "Tree", "TreeItem", "Slider",
 )

@@ -128,8 +128,8 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 ## 首个里程碑：记事本三步阶梯
 
 - ✅ **v0.0 只读冒烟（已通过）**：`capture_screen` + `get_tree`，验证 bbox 与截图坐标对齐——最难的"坐标统一 / DPI"零风险验掉。见下「v0.0 验证结果」。
-- **v0.1**：记事本里用 UIA `ValuePattern` 输入一行文字。
-- **v0.2**：`Ctrl+S` → 处理"另存为"弹窗 → 按 `ref` 点"保存"（验多窗口 + ref 点击）。
+- ✅ **v0.1（已通过）**：UIA `ValuePattern.SetValue` 往记事本写一行（含中文），读回校验一致——且写进**被遮挡、无焦点**的窗口，全程不靠像素。见下「v0.1 验证结果」。
+- **v0.2（进行中）**：`Ctrl+S` → 处理"另存为"弹窗 → 按 `ref` 点"保存"（验多窗口 + ref 点击）。
 > Win11 新版记事本是 WinUI，UIA 树略复杂；若 v0.1 折腾，可临时退回经典记事本 / 纯 Win32 目标。
 
 ### v0.0 验证结果（2026-06）
@@ -140,7 +140,13 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - **按句柄定位（白捡）✅**：记事本非前台（前台是任务栏）仍能按 `hwnd` 快照——印证「UIA 模式不靠焦点」，v0.1 写字的路子已提前验通。
 - 代码：`src/computer_use_mcp/{contract,dpi,drivers/windows}.py` + `scripts/smoke_v0.py`。
 
-**v0.1 已知坑**（实测发现）：① 正文编辑区是 `Document` 控件，不在 v0 白名单（仅 `Edit`）——写字需纳入；② 菜单项 `文件/编辑/查看` 各冒 `MenuItem`+`Button` 两份，快照需去重。
+### v0.1 验证结果（2026-06）
+
+- **`ValuePattern.SetValue` ✅**：往 WinUI 记事本 `Document`（`文本编辑器`）写入「你好，世界 — hello from computer-use-mcp v0.1」，`Value` 读回一致、状态栏「40 个字符」吻合。
+- **焦点/遮挡无关 ✅**：目标记事本被 Google Slides 压在底下、非前台，仍写入成功——坐标点击会点到幻灯片上，`ValuePattern` 不受影响。这就是选它的命门理由。
+- **ref 解析 + 失效校验 ✅**：`native_id ↔ 控件` 每次 `get_tree` 重建缓存，动作前用 RuntimeId 复核，变了报 `STALE_ELEMENT`（契约 §D）。
+- 已落地动作：`set_value` / `invoke` / `select` / `type`(SendKeys 兜底)；`click` / `key` 留 v0.2。
+- 处理①：`Document` 已纳入默认白名单（可写编辑面，单节点不膨胀）。**仍待办②**：菜单项 `MenuItem`+`Button` 重复，快照需去重。
 
 ## 仍待定 / TODO
 

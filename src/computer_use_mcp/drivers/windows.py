@@ -23,6 +23,8 @@ import uiautomation as auto
 from ..contract import (
     CONTRACT_VERSION,
     DRIVER_ERROR,
+    NOT_INVOKABLE,
+    STALE_ELEMENT,
     Display,
     Driver,
     DriverError,
@@ -53,6 +55,10 @@ class WindowsDriver(Driver):
     def __init__(self) -> None:
         # Backstop: real entrypoints set this earlier, before uiautomation import.
         self.dpi_mode = enable_dpi_awareness()
+        # native_id -> live UIA control, repopulated each get_tree(); actions
+        # resolve refs through it. The core owns ref<->native_id; this is the
+        # driver-side native_id<->handle half of that mapping.
+        self._node_cache: dict[str, object] = {}
 
     # --- capabilities --------------------------------------------------------
 
@@ -171,6 +177,7 @@ class WindowsDriver(Driver):
     # --- tree ----------------------------------------------------------------
 
     def get_tree(self, opts: PruneOpts) -> TreeResult:
+        self._node_cache = {}
         root = self._root_for_scope(opts)
         win_rect = self._rect_of(root)
         wanted = set(opts.resolved_types())
@@ -196,6 +203,8 @@ class WindowsDriver(Driver):
                 truncated += 1
                 continue
             nodes.append(node)
+            if node.native_id:
+                self._node_cache[node.native_id] = ctrl
         return TreeResult(nodes=nodes, truncated=truncated)
 
     def find(self, opts: PruneOpts, query: str) -> TreeResult:
@@ -296,22 +305,73 @@ class WindowsDriver(Driver):
         except Exception:
             return default
 
-    # --- actions (v0.1+) -----------------------------------------------------
+    # --- actions -------------------------------------------------------------
+
+    def _resolve(self, native_id: str):
+        """Map a native_id back to its live control, re-validating identity so a
+        changed UI surfaces as STALE_ELEMENT rather than acting on the wrong node
+        (Driver Contract section D)."""
+        ctrl = self._node_cache.get(native_id)
+        if ctrl is None:
+            return None
+        if self._native_id(ctrl) != native_id:
+            return None
+        return ctrl
 
     def invoke(self, native_id: str) -> Result:
-        raise NotImplementedError("invoke: v0.1")
+        ctrl = self._resolve(native_id)
+        if ctrl is None:
+            return Result.fail(STALE_ELEMENT, native_id)
+        pattern = self._safe(lambda: ctrl.GetInvokePattern(), None)
+        if pattern is None:
+            return Result.fail(NOT_INVOKABLE, "no InvokePattern")
+        try:
+            pattern.Invoke()
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
 
     def set_value(self, native_id: str, text: str) -> Result:
-        raise NotImplementedError("set_value: v0.1")
+        """Set a control's value via ValuePattern — focus-independent, robust to
+        occlusion/DPI, and preferred over simulated typing (Driver Contract)."""
+        ctrl = self._resolve(native_id)
+        if ctrl is None:
+            return Result.fail(STALE_ELEMENT, native_id)
+        pattern = self._safe(lambda: ctrl.GetValuePattern(), None)
+        if pattern is None:
+            return Result.fail(NOT_INVOKABLE, "no ValuePattern")
+        if self._safe(lambda: bool(pattern.IsReadOnly), False):
+            return Result.fail(NOT_INVOKABLE, "value is read-only")
+        try:
+            pattern.SetValue(text)
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
 
     def select(self, native_id: str) -> Result:
-        raise NotImplementedError("select: v0.1")
-
-    def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
-        raise NotImplementedError("click: v0.1")
-
-    def key(self, combo: str) -> Result:
-        raise NotImplementedError("key: v0.1")
+        ctrl = self._resolve(native_id)
+        if ctrl is None:
+            return Result.fail(STALE_ELEMENT, native_id)
+        pattern = self._safe(lambda: ctrl.GetSelectionItemPattern(), None)
+        if pattern is None:
+            return Result.fail(NOT_INVOKABLE, "no SelectionItemPattern")
+        try:
+            pattern.Select()
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
 
     def type(self, text: str) -> Result:
-        raise NotImplementedError("type: v0.1")
+        # Keyboard fallback for surfaces without a writable ValuePattern; targets
+        # whatever holds focus, so callers must focus first.
+        try:
+            auto.SendKeys(text, waitTime=0.0)
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
+
+    def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
+        raise NotImplementedError("click: v0.2 (coordinate input)")
+
+    def key(self, combo: str) -> Result:
+        raise NotImplementedError("key: v0.2 (Ctrl+S etc.)")
