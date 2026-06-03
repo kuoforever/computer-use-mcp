@@ -129,7 +129,7 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 - ✅ **v0.0 只读冒烟（已通过）**：`capture_screen` + `get_tree`，验证 bbox 与截图坐标对齐——最难的"坐标统一 / DPI"零风险验掉。见下「v0.0 验证结果」。
 - ✅ **v0.1（已通过）**：UIA `ValuePattern.SetValue` 往记事本写一行（含中文），读回校验一致——且写进**被遮挡、无焦点**的窗口，全程不靠像素。见下「v0.1 验证结果」。
-- **v0.2（进行中）**：`Ctrl+S` → 处理"另存为"弹窗 → 按 `ref` 点"保存"（验多窗口 + ref 点击）。
+- ✅ **v0.2（已通过）**：`key("Ctrl+S")` → 「另存为」弹窗 → 按 `ref` `set_value` 文件名 + `invoke`「保存」→ 文件落盘校验一致。见下「v0.2 验证结果」。
 > Win11 新版记事本是 WinUI，UIA 树略复杂；若 v0.1 折腾，可临时退回经典记事本 / 纯 Win32 目标。
 
 ### v0.0 验证结果（2026-06）
@@ -148,10 +148,19 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - 已落地动作：`set_value` / `invoke` / `select` / `type`(SendKeys 兜底)；`click` / `key` 留 v0.2。
 - 处理①：`Document` 已纳入默认白名单（可写编辑面，单节点不膨胀）。**仍待办②**：菜单项 `MenuItem`+`Button` 重复，快照需去重。
 
+### v0.2 验证结果（2026-06）—— 🎉 三步阶梯走通
+
+- **键盘动作 ✅**：`key("Ctrl+S")`（用 `keybd_event`；`uiautomation.SendKeys` 的 `{Ctrl}s` 组合实测无效，弃用）。发键前用 **AttachThreadInput** 强制前台，绕过 `SetForegroundWindow` 前台锁。
+- **多窗口定位 ✅（关键发现）**：「另存为」是经典 `#32770` 公共对话框，**模态、归 Notepad 所有**——它**不在桌面根的兄弟列表里**，只作为 Notepad 窗口的子 `WindowControl` 出现，但会抢到前台。所以「`list_windows` 只枚举根子节点」会漏；定位靠「前台窗口 **或** 目标窗口的子 `#32770`」双查。
+- **按 ref 驱动对话框 ✅**：`scope=对话框 hwnd` 快照 → `set_value`(文件名 Edit) 填全路径 → `invoke`(「保存(S)」按钮)。
+- **落盘校验 ✅**：`out/v02_saved.txt` 内容与写入一致（含中文，UTF-8）。
+- 代码：`scripts/smoke_v02.py` + 驱动 `key()`。
+- **契约状态**：`capabilities / capture_screen / get_tree / find / foreground_owner_chain / set_value / invoke / select / type / key` 全部端到端跑通；仅 `click`(坐标点击) 与 `list_windows` 全量枚举待补。**Contract v1 可冻结。**
+
 ## 仍待定 / TODO
 
 - [x] **v0 落地形态 A/B** → **A（进程内 Python）**，v0.0 实测拍板
-- [ ] 冻结 **Driver Contract v1**（首个 Windows 驱动已验证可行；契约够用，拟在 v0.2 走完后 freeze）
+- [ ] 冻结 **Driver Contract v1**（v0.2 已走完，全部读/写原语端到端验证；**可冻结**——仅 `click` / `list_windows` 全量待补）
 - [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
 - [ ] allowlist 配置形态（toml / CLI 参数 / 环境变量）
 - [ ] License（暂私有，将来再议）

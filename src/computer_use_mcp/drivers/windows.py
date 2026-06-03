@@ -50,6 +50,15 @@ _PATTERN_PROBES = (
     ("selectionitem", "GetSelectionItemPattern"),
 )
 
+# key() combo parsing -> virtual-key codes
+_MOD_KEYS = {"ctrl": 0x11, "control": 0x11, "shift": 0x10, "alt": 0x12, "win": 0x5B}
+_NAMED_KEYS = {
+    "enter": 0x0D, "return": 0x0D, "esc": 0x1B, "escape": 0x1B, "tab": 0x09,
+    "space": 0x20, "backspace": 0x08, "delete": 0x2E, "del": 0x2E,
+    "home": 0x24, "end": 0x23, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
+}
+_KEYEVENTF_KEYUP = 0x0002
+
 
 class WindowsDriver(Driver):
     def __init__(self) -> None:
@@ -370,8 +379,44 @@ class WindowsDriver(Driver):
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
 
-    def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
-        raise NotImplementedError("click: v0.2 (coordinate input)")
+    @staticmethod
+    def _vk(token: str) -> int | None:
+        t = token.strip().lower()
+        if t in _MOD_KEYS:
+            return _MOD_KEYS[t]
+        if t in _NAMED_KEYS:
+            return _NAMED_KEYS[t]
+        if len(t) == 1 and t.isalnum():
+            return ord(t.upper())
+        if len(t) >= 2 and t[0] == "f" and t[1:].isdigit() and 1 <= int(t[1:]) <= 24:
+            return 0x70 + int(t[1:]) - 1
+        return None
 
     def key(self, combo: str) -> Result:
-        raise NotImplementedError("key: v0.2 (Ctrl+S etc.)")
+        """Send a key chord like 'Ctrl+S' to the foreground window via
+        keybd_event. Modifiers held while the non-modifier keys are tapped."""
+        tokens = [p for p in combo.replace(" ", "").split("+") if p]
+        if not tokens:
+            return Result.fail(DRIVER_ERROR, "empty combo")
+        mods: list[int] = []
+        keys: list[int] = []
+        for tok in tokens:
+            vk = self._vk(tok)
+            if vk is None:
+                return Result.fail(DRIVER_ERROR, f"unknown key {tok!r} in {combo!r}")
+            (mods if tok.strip().lower() in _MOD_KEYS else keys).append(vk)
+        user32 = ctypes.windll.user32
+        try:
+            for m in mods:
+                user32.keybd_event(m, 0, 0, 0)
+            for k in keys:
+                user32.keybd_event(k, 0, 0, 0)
+                user32.keybd_event(k, 0, _KEYEVENTF_KEYUP, 0)
+            for m in reversed(mods):
+                user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0)
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
+
+    def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
+        raise NotImplementedError("click: coordinate input (later milestone)")
