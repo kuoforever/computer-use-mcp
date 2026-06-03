@@ -157,10 +157,18 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - 代码：`scripts/smoke_v02.py` + 驱动 `key()`。
 - **契约状态**：`capabilities / capture_screen / get_tree / find / foreground_owner_chain / set_value / invoke / select / type / key` 全部端到端跑通；仅 `click`(坐标点击) 与 `list_windows` 全量枚举待补。**Contract v1 可冻结。**
 
+### 地基冻结（2026-06）—— Contract v1.0 + 快照打磨
+
+- **Driver Contract v1.0 冻结 ✅**：版本号 `1.0.0`；增原语 `activate_window`；`list_windows` 明确含 owned 窗口。见 DRIVER_CONTRACT.md changelog。
+- **快照去重 ✅（待办②已结）**：同一视觉控件在两种 ControlType 下重复（菜单栏项 = `MenuItem` + `Button`，同 bbox 同名）→ 保留首个、合并 patterns。记事本 文件/编辑/查看 实测各 1。
+- **补齐原语 ✅**：`list_windows` 全量枚举（`EnumWindows`，含模态对话框等 owned 窗口）；`click(x,y)` 坐标点击（实测点「最小化」窗口真被最小化，再复原）；`activate_window`（`AttachThreadInput` 绕前台锁）。
+- **驱动现状**：契约 12 原语在 Windows 全部实现并验证。回归脚本 `scripts/smoke_v03.py`（去重 / 枚举 / 置前台 / 坐标点击 一把过）。
+- **仍欠**：核心 **ref 表与失效重定位**（`STALE_ELEMENT` → 按 `role+name` 重定位）尚未独立成层——下一步随 MCP server 一起建。
+
 ## 仍待定 / TODO
 
 - [x] **v0 落地形态 A/B** → **A（进程内 Python）**，v0.0 实测拍板
-- [ ] 冻结 **Driver Contract v1**（v0.2 已走完，全部读/写原语端到端验证；**可冻结**——仅 `click` / `list_windows` 全量待补）
+- [x] 冻结 **Driver Contract v1.0**（2026-06，记事本三步阶梯验证后；增 `activate_window` 原语、`list_windows` 含 owned 窗口）
 - [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
 - [ ] allowlist 配置形态（toml / CLI 参数 / 环境变量）
 - [ ] License（暂私有，将来再议）

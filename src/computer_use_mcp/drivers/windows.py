@@ -81,6 +81,13 @@ class WindowsDriver(Driver):
                 "foreground_owner_chain",
                 "get_tree",
                 "find",
+                "invoke",
+                "set_value",
+                "select",
+                "type",
+                "key",
+                "click",
+                "activate_window",
             ],
             "dpi_mode": self.dpi_mode,
         }
@@ -140,7 +147,10 @@ class WindowsDriver(Driver):
         return int(pid.value)
 
     def foreground_owner_chain(self) -> list[ProcRef]:
-        pid = self._pid_of_hwnd(self._foreground_hwnd())
+        return self._chain_for_pid(self._pid_of_hwnd(self._foreground_hwnd()))
+
+    @staticmethod
+    def _chain_for_pid(pid: int) -> list[ProcRef]:
         chain: list[ProcRef] = []
         try:
             proc: psutil.Process | None = psutil.Process(pid)
@@ -152,24 +162,41 @@ class WindowsDriver(Driver):
         return chain
 
     def list_windows(self) -> list[Window]:
-        # v0.0: foreground window only. Full top-level enumeration is v0.1+.
-        return [self._foreground_window_meta()]
+        """All visible top-level windows in Z-order (front first), including
+        owned windows such as dialogs — which UIA nests under their owner but
+        Win32 EnumWindows lists flat (the v0.2 Save As #32770 finding)."""
+        user32 = ctypes.windll.user32
+        fg = self._foreground_hwnd()
+        out: list[Window] = []
 
-    def _foreground_window_meta(self) -> Window:
-        hwnd = self._foreground_hwnd()
-        ctrl = auto.ControlFromHandle(hwnd)
-        chain = self.foreground_owner_chain()
-        owner = chain[0] if chain else ProcRef(0, "")
-        bounds = self._rect_of(ctrl) if ctrl else Rect(0, 0, 0, 0)
-        title = self._safe(lambda: ctrl.Name, "") if ctrl else ""
-        return Window(
-            id=str(hwnd),
-            title=title or "",
-            bounds=bounds,
-            owner=owner,
-            owner_chain=chain,
-            is_foreground=True,
-        )
+        @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+        def _collect(hwnd, _lparam):
+            h = int(hwnd or 0)
+            if not h or not user32.IsWindowVisible(h):
+                return True
+            cls = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(h, cls, 256)
+            length = user32.GetWindowTextLengthW(h)
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(h, buf, length + 1)
+            title = buf.value
+            if not title and cls.value != "#32770":
+                return True  # skip untitled non-dialog windows (hosts/tooltips)
+            rect = wintypes.RECT()
+            user32.GetWindowRect(h, ctypes.byref(rect))
+            bounds = Rect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
+            if bounds.w <= 0 or bounds.h <= 0:
+                return True
+            chain = self._chain_for_pid(self._pid_of_hwnd(h))
+            out.append(Window(
+                id=str(h), title=title, bounds=bounds,
+                owner=chain[0] if chain else ProcRef(0, ""),
+                owner_chain=chain, is_foreground=(h == fg),
+            ))
+            return True
+
+        user32.EnumWindows(_collect, 0)
+        return out
 
     def _root_for_scope(self, opts: PruneOpts):
         """Resolve PruneOpts.scope to the UIA control to walk: the foreground
@@ -192,6 +219,7 @@ class WindowsDriver(Driver):
         wanted = set(opts.resolved_types())
 
         nodes: list[Node] = []
+        seen: dict[tuple, int] = {}
         truncated = 0
         visited = 0
         stack: list[tuple[object, int]] = [(root, 0)]
@@ -208,9 +236,21 @@ class WindowsDriver(Driver):
             node = self._maybe_node(ctrl, wanted, win_rect, opts)
             if node is None:
                 continue
+            # de-dup: one visual control can surface under two control types
+            # (e.g. a menu-bar item as both MenuItem and Button at the same
+            # bbox) -> keep the first, merge the duplicate's patterns into it.
+            dedup_key = (node.bbox.as_tuple(), node.name) if node.name else None
+            if dedup_key is not None and dedup_key in seen:
+                kept = nodes[seen[dedup_key]]
+                for pat in node.patterns:
+                    if pat not in kept.patterns:
+                        kept.patterns.append(pat)
+                continue
             if len(nodes) >= opts.max_nodes:
                 truncated += 1
                 continue
+            if dedup_key is not None:
+                seen[dedup_key] = len(nodes)
             nodes.append(node)
             if node.native_id:
                 self._node_cache[node.native_id] = ctrl
@@ -418,5 +458,58 @@ class WindowsDriver(Driver):
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
 
+    def activate_window(self, window_id: str) -> Result:
+        """Bring a window to the foreground (a prerequisite for keyboard input).
+        Uses AttachThreadInput to bypass the SetForegroundWindow lock that
+        otherwise blocks a background process from raising another window."""
+        try:
+            hwnd = int(window_id)
+        except (TypeError, ValueError):
+            return Result.fail(DRIVER_ERROR, f"bad window_id {window_id!r}")
+        user32 = ctypes.windll.user32
+        user32.GetForegroundWindow.restype = ctypes.c_void_p
+        try:
+            fg = int(user32.GetForegroundWindow() or 0)
+            if fg == hwnd:
+                return Result.success()
+            fg_thread = user32.GetWindowThreadProcessId(fg, None)
+            tgt_thread = user32.GetWindowThreadProcessId(hwnd, None)
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            attached = bool(fg_thread != tgt_thread
+                            and user32.AttachThreadInput(fg_thread, tgt_thread, True))
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
+            if attached:
+                user32.AttachThreadInput(fg_thread, tgt_thread, False)
+            if int(user32.GetForegroundWindow() or 0) == hwnd:
+                return Result.success()
+            return Result.fail(DRIVER_ERROR, "could not bring window to foreground")
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
+
     def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
-        raise NotImplementedError("click: coordinate input (later milestone)")
+        """Coordinate click in the shared pixel space (DPI-aware). For ref-based
+        actions prefer invoke/set_value — those are focus/occlusion independent."""
+        downup = {
+            "left": (0x0002, 0x0004),
+            "right": (0x0008, 0x0010),
+            "middle": (0x0020, 0x0040),
+        }.get(button.lower())
+        if downup is None:
+            return Result.fail(DRIVER_ERROR, f"unknown button {button!r}")
+        mod_vks = [self._vk(m) for m in (modifiers or [])]
+        if any(v is None for v in mod_vks):
+            return Result.fail(DRIVER_ERROR, f"unknown modifier in {modifiers!r}")
+        user32 = ctypes.windll.user32
+        try:
+            user32.SetCursorPos(int(x), int(y))
+            for m in mod_vks:
+                user32.keybd_event(m, 0, 0, 0)
+            down, up = downup
+            user32.mouse_event(down, 0, 0, 0, 0)
+            user32.mouse_event(up, 0, 0, 0, 0)
+            for m in reversed(mod_vks):
+                user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0)
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))

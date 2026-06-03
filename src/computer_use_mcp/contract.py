@@ -11,7 +11,7 @@ import abc
 from dataclasses import dataclass, field
 from typing import Literal
 
-CONTRACT_VERSION = "1.0.0-draft"
+CONTRACT_VERSION = "1.0.0"
 
 # --- error codes ------------------------------------------------------------
 
@@ -205,3 +205,6 @@ class Driver(abc.ABC):
 
     @abc.abstractmethod
     def type(self, text: str) -> Result: ...
+
+    @abc.abstractmethod
+    def activate_window(self, window_id: str) -> Result: ...

@@ -11,10 +11,10 @@
 
 ## 状态
 
-🚦 **v0.0 已落地** —— 只读冒烟通过：`capture_screen` + `get_tree` 在 Win11 上坐标 / DPI 完全对齐，A 路径（进程内 Python）实测拍板。
-- 架构：通用核心 + 平台原生驱动（ports & adapters）
-- 已实现：`src/computer_use_mcp/`（contract / dpi / Windows 驱动）+ `scripts/smoke_v0.py`
-- 下一步：v0.1（UIA 写一行文字）。完整设计见 [docs/DESIGN.md](docs/DESIGN.md)；驱动契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)
+🚦 **记事本三步阶梯走通 + Contract v1.0 冻结** —— 截屏/读树坐标对齐、UIA 写字、`Ctrl+S` 存盘按 `ref` 点「保存」全部端到端通过；驱动契约 12 原语在 Windows 实现并验证。
+- 架构：通用核心 + 平台原生驱动（ports & adapters）；契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)
+- 已实现：Windows 驱动（`src/computer_use_mcp/`）+ 冒烟脚本 `scripts/smoke_v0.py … smoke_v03.py`
+- 下一步：核心 **ref 表** → 封装 **MCP server**（暴露 ui_snapshot / screenshot / find / click / type / key）。完整进度见 [docs/DESIGN.md](docs/DESIGN.md)
 
 ## 计划的工具面（tool surface）
 
