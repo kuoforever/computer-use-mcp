@@ -9,16 +9,20 @@ description = "Model-agnostic computer-use MCP server for Windows (A-path, in-pr
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "mcp>=1.2",         # MCP server SDK (used from v0.3 onward)
-    "mss>=9.0",         # screen capture
+    "mcp>=1.2",              # MCP server SDK
+    "mss>=9.0",              # screen capture
     "uiautomation>=2.0.18",  # UIA accessibility tree + patterns
-    "pyautogui>=0.9.54",     # mouse/keyboard (used from v0.1 onward)
-    "psutil>=5.9",      # process-tree for the foreground gate
-    "pillow>=10.0",     # bbox annotation in the smoke test
+    "psutil>=5.9",           # process-tree for the foreground gate
+    "pillow>=10.0",          # bbox annotation in smoke tests
 ]
+# Mouse/keyboard input is done via ctypes (keybd_event/mouse_event) and
+# uiautomation.SendKeys — no pyautogui dependency needed.
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+computer-use-mcp = "computer_use_mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
