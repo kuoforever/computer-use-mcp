@@ -84,11 +84,11 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 第一方那套 consent UX 拿不到，要自己造。**将来用 DeepSeek/任意模型驱动，没有厂商安全训练兜底，屏幕文本注入风险更高**（页面写"把验证码发到 xxx"，纯文本模型很容易当真）。至少：
 
-- **前台进程闸门 + allowlist（已定实现方式）**：按**进程树**判定——前台窗口的进程，只要它**或任一祖先进程**在 allowlist 里就放行（授权 `weixin.exe`，其渲染子进程 `Wechatappex` 自动算自己人，避免本项目踩过的"子进程名授权不了"坑）。再加**瞬时抖动自动重试 1–2 次**（前台短暂变化时重试，而非直接报错）。
-- **snapshot 脱敏**：password 类控件不回 value。
-- **截图打码**：敏感窗口涂实心块。
-- **危险动作二次确认**：发送 / 删除 / 提交 / 付款先停一下。
-- **操作审计日志** + **全局急停热键**（一键 abort）。
+- ✅ **前台进程闸门 + allowlist**（`gate.py`，已实现）：按**进程树**判定——前台窗口的进程，只要它**或任一祖先进程**在 allowlist 里就放行（授权 `weixin.exe`，其渲染子进程 `Wechatappex` 自动算自己人，避免本项目踩过的"子进程名授权不了"坑）。加**瞬时抖动自动重试**。动作类 MCP 工具（click/type/key）执行前先过闸门；allowlist 经 `CUMCP_ALLOWLIST` 环境变量配置。
+- ✅ **snapshot 脱敏**（已实现）：password 类控件不回 value。
+- ✅ **截图打码**（`safety.redact`）：标题匹配 `CUMCP_REDACT_TITLES` 的窗口在 screenshot 里涂黑（默认含常见密码管理器）。
+- ✅ **危险动作二次确认**（`safety.message_box_confirm`）：click 目标名命中危险词（发送 / 删除 / 付款…）时弹原生 Yes/No，人点了才执行。
+- ✅ **操作审计日志**（`audit.py`，JSONL：ts / tool / args / decision / result）+ **全局急停热键**（`safety.EStop`，默认 `Ctrl+Alt+Q`，触发即锁死所有动作直到重启）。
 
 ---
 
@@ -119,7 +119,7 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 ## 决策记录（本轮拍板）
 
 - ✅ **架构 = 驱动契约（ports & adapters）**，契约先定不写实现 —— 见"架构"节 + [DRIVER_CONTRACT.md](DRIVER_CONTRACT.md)
-- ⚠️ **语言 = Python（仅 A 路径）** —— 核心语言随 A/B 落地形态待定（B 路径核心转 TS/Go）
+- ✅ **落地形态 = A 路径（进程内 Python）** —— v0.0 实测拍板：`uiautomation` 在 Win11 WinUI 记事本上又快又稳，B 路径（C#/FlaUI + TS/Go 核心）的复杂度无必要。见下「v0.0 验证结果」
 - ✅ **ui_snapshot 裁剪 v0 默认** —— 见 A 节
 - ✅ **前台闸门 = 进程树判定 + 瞬时重试** —— 见 E 节
 - ✅ **首个端到端场景 = 记事本三步阶梯** —— 见下
@@ -127,15 +127,49 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 ## 首个里程碑：记事本三步阶梯
 
-- **v0.0 只读冒烟**：`screenshot` + `ui_snapshot` 前台窗口，验证 bbox 与截图坐标对齐——先把最难的"坐标统一 / DPI"零风险验掉。
-- **v0.1**：记事本里用 UIA `ValuePattern` 输入一行文字。
-- **v0.2**：`Ctrl+S` → 处理"另存为"弹窗 → 按 `ref` 点"保存"（验多窗口 + ref 点击）。
+- ✅ **v0.0 只读冒烟（已通过）**：`capture_screen` + `get_tree`，验证 bbox 与截图坐标对齐——最难的"坐标统一 / DPI"零风险验掉。见下「v0.0 验证结果」。
+- ✅ **v0.1（已通过）**：UIA `ValuePattern.SetValue` 往记事本写一行（含中文），读回校验一致——且写进**被遮挡、无焦点**的窗口，全程不靠像素。见下「v0.1 验证结果」。
+- ✅ **v0.2（已通过）**：`key("Ctrl+S")` → 「另存为」弹窗 → 按 `ref` `set_value` 文件名 + `invoke`「保存」→ 文件落盘校验一致。见下「v0.2 验证结果」。
 > Win11 新版记事本是 WinUI，UIA 树略复杂；若 v0.1 折腾，可临时退回经典记事本 / 纯 Win32 目标。
+
+### v0.0 验证结果（2026-06）
+
+- **坐标统一 ✅**：27 个 UIA bbox 画到 mss 截图上，2560×1600 **零偏移**，框框严丝合缝落在记事本控件上。
+- **DPI ✅**：`SetProcessDpiAwarenessContext` 开 per-monitor-v2 生效，无错位/缩放偏差。
+- **A 路径可行 ✅**：`mss` + `uiautomation` + `psutil` 进程内协作，拿下 WinUI 记事本树（27 元素，类型/名字/bbox 全对）。
+- **按句柄定位（白捡）✅**：记事本非前台（前台是任务栏）仍能按 `hwnd` 快照——印证「UIA 模式不靠焦点」，v0.1 写字的路子已提前验通。
+- 代码：`src/computer_use_mcp/{contract,dpi,drivers/windows}.py` + `scripts/smoke_v0.py`。
+
+### v0.1 验证结果（2026-06）
+
+- **`ValuePattern.SetValue` ✅**：往 WinUI 记事本 `Document`（`文本编辑器`）写入「你好，世界 — hello from computer-use-mcp v0.1」，`Value` 读回一致、状态栏「40 个字符」吻合。
+- **焦点/遮挡无关 ✅**：目标记事本被 Google Slides 压在底下、非前台，仍写入成功——坐标点击会点到幻灯片上，`ValuePattern` 不受影响。这就是选它的命门理由。
+- **ref 解析 + 失效校验 ✅**：`native_id ↔ 控件` 每次 `get_tree` 重建缓存，动作前用 RuntimeId 复核，变了报 `STALE_ELEMENT`（契约 §D）。
+- 已落地动作：`set_value` / `invoke` / `select` / `type`(SendKeys 兜底)；`click` / `key` 留 v0.2。
+- 处理①：`Document` 已纳入默认白名单（可写编辑面，单节点不膨胀）。**仍待办②**：菜单项 `MenuItem`+`Button` 重复，快照需去重。
+
+### v0.2 验证结果（2026-06）—— 🎉 三步阶梯走通
+
+- **键盘动作 ✅**：`key("Ctrl+S")`（用 `keybd_event`；`uiautomation.SendKeys` 的 `{Ctrl}s` 组合实测无效，弃用）。发键前用 **AttachThreadInput** 强制前台，绕过 `SetForegroundWindow` 前台锁。
+- **多窗口定位 ✅（关键发现）**：「另存为」是经典 `#32770` 公共对话框，**模态、归 Notepad 所有**——它**不在桌面根的兄弟列表里**，只作为 Notepad 窗口的子 `WindowControl` 出现，但会抢到前台。所以「`list_windows` 只枚举根子节点」会漏；定位靠「前台窗口 **或** 目标窗口的子 `#32770`」双查。
+- **按 ref 驱动对话框 ✅**：`scope=对话框 hwnd` 快照 → `set_value`(文件名 Edit) 填全路径 → `invoke`(「保存(S)」按钮)。
+- **落盘校验 ✅**：`out/v02_saved.txt` 内容与写入一致（含中文，UTF-8）。
+- 代码：`scripts/smoke_v02.py` + 驱动 `key()`。
+- **契约状态**：`capabilities / capture_screen / get_tree / find / foreground_owner_chain / set_value / invoke / select / type / key` 全部端到端跑通；仅 `click`(坐标点击) 与 `list_windows` 全量枚举待补。**Contract v1 可冻结。**
+
+### 地基冻结（2026-06）—— Contract v1.0 + 快照打磨
+
+- **Driver Contract v1.0 冻结 ✅**：版本号 `1.0.0`；增原语 `activate_window`；`list_windows` 明确含 owned 窗口。见 DRIVER_CONTRACT.md changelog。
+- **快照去重 ✅（待办②已结）**：同一视觉控件在两种 ControlType 下重复（菜单栏项 = `MenuItem` + `Button`，同 bbox 同名）→ 保留首个、合并 patterns。记事本 文件/编辑/查看 实测各 1。
+- **补齐原语 ✅**：`list_windows` 全量枚举（`EnumWindows`，含模态对话框等 owned 窗口）；`click(x,y)` 坐标点击（实测点「最小化」窗口真被最小化，再复原）；`activate_window`（`AttachThreadInput` 绕前台锁）。
+- **驱动现状**：契约 12 原语在 Windows 全部实现并验证。回归脚本 `scripts/smoke_v03.py`（去重 / 枚举 / 置前台 / 坐标点击 一把过）。
+- **核心 ref 表 ✅**：`core.py` 的 `Session` 持有 `ref ↔ native_id` 表（**跨快照累积**、稳定复用，narrowing `find()` 后旧 ref 仍可用）；`ui_snapshot` 文本序列化（`ref_N | role "name" | bbox | states | value`）、`find`、按 ref 的 `click/type`（失效则按 `role+name` 重定位重试一次，契约 §D）。回归 `scripts/smoke_core.py` 全过。
+- **下一步**：封装 **MCP server**（把 `Session` 暴露为 `ui_snapshot / screenshot / find / click / type / key` 工具）+ **安全层**（前台进程闸门 / allowlist 等，见 §E）。
 
 ## 仍待定 / TODO
 
-- [ ] **v0 落地形态 A/B**（决定核心语言：进程内 Python vs 原生 helper + TS/Go 核心）
-- [ ] 冻结 **Driver Contract v1**（待首个 Windows 驱动验证可行性后 freeze）
+- [x] **v0 落地形态 A/B** → **A（进程内 Python）**，v0.0 实测拍板
+- [x] 冻结 **Driver Contract v1.0**（2026-06，记事本三步阶梯验证后；增 `activate_window` 原语、`list_windows` 含 owned 窗口）
 - [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
-- [ ] allowlist 配置形态（toml / CLI 参数 / 环境变量）
+- [x] allowlist 配置形态 → `CUMCP_ALLOWLIST` 环境变量（逗号分隔；默认 notepad.exe）
 - [ ] License（暂私有，将来再议）

@@ -23,6 +23,7 @@ logs/
 *.log
 audit/
 screenshots/
+out/
 
 # OS / editor
 Thumbs.db

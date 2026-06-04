@@ -1,4 +1,4 @@
-# Driver Contract v1（驱动契约）
+# Driver Contract v1.0（驱动契约 · 已冻结 2026-06）
 
 > 这是**通用核心**与**平台原生驱动**之间唯一的边界。把这十几个原语和数据结构定死，上层（MCP / snapshot / 安全 / loop）一行不用改，下层每平台各实现一份。**契约即架构本体**——语言、进程内/外都是契约之下的可替换细节。
 
@@ -54,7 +54,7 @@ PruneOpts { scope: "foreground" | window_id | "all",
 ```
 capabilities()                  -> { contract_version, platform, features[] }
 capture_screen(region?: Rect)   -> Image
-list_windows()                  -> [Window]
+list_windows()                  -> [Window]                 # 所有可见顶层窗口(含 owned 对话框)，Z 序靠前在先
 foreground_owner_chain()        -> [{ pid, name }]          # 闸门便捷查询
 get_tree(opts: PruneOpts)       -> { nodes: [Node], truncated: int }   # truncated = 被 max_nodes 砍掉数
 find(opts: PruneOpts, query)    -> { nodes: [Node], truncated: int }
@@ -64,6 +64,7 @@ select(native_id)               -> Result
 click(x, y, button?, modifiers?)-> Result                   # 坐标=共享空间
 key(combo)                      -> Result
 type(text)                      -> Result
+activate_window(window_id)      -> Result                   # 置前台(键盘输入前提；绕 SetForegroundWindow 锁)
 ```
 
 **错误码**：`STALE_ELEMENT`（native_id 解析不到了）、`NOT_INVOKABLE`、`OUT_OF_BOUNDS`、`PERMISSION_DENIED`、`DRIVER_ERROR`。
@@ -86,4 +87,5 @@ type(text)                      -> Result
 
 ## Changelog
 
-- **v1（draft）**：首版草案。`capture_screen / list_windows / foreground_owner_chain / get_tree / find / invoke / set_value / select / click / key / type` + 上述数据结构。**未冻结**，实现首个 Windows 驱动验证可行性后再 freeze 为 v1.0。
+- **v1（draft）**：首版草案。`capture_screen / list_windows / foreground_owner_chain / get_tree / find / invoke / set_value / select / click / key / type` + 上述数据结构。
+- **v1.0（frozen, 2026-06）**：经 Windows 驱动 + 记事本三步阶梯端到端验证后冻结。相对草案的增补：① 新增原语 `activate_window(window_id)`——键盘动作需先置前台，实测 `SetForegroundWindow` 前台锁需 `AttachThreadInput` 绕过；② 明确 `list_windows` 须含 **owned 窗口**：模态对话框在 UIA 里挂在属主之下、不在桌面根，但有独立顶层句柄（v0.2「另存为」`#32770` 实测）。数据结构不变。后续任何签名/结构变更一律升版本并记录于此。
