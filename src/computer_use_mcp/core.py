@@ -70,6 +70,12 @@ class Session:
     def activate(self, window_id: str) -> Result:
         return self.driver.activate_window(window_id)
 
+    def describe_ref(self, ref: str) -> str | None:
+        """Human/keyword-checkable description of a ref's target, e.g. for the
+        dangerous-action gate. None if the ref is unknown."""
+        node = self._by_ref.get(ref)
+        return f'{node.role} "{node.name}"' if node else None
+
     def _press(self, native_id: str, node: Node, button: str) -> Result:
         if "invoke" in node.patterns:
             return self.driver.invoke(native_id)

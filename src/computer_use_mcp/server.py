@@ -1,14 +1,20 @@
-"""MCP server — exposes the Session over MCP, gated by the foreground allowlist.
+"""MCP server — exposes the Session over MCP behind the full safety layer.
 
 Tools:
-  ui_snapshot / find / screenshot / list_windows   perception (ungated; passwords
-                                                    are redacted in the snapshot)
-  activate_window / click / type / key              action (state-changing tools
-                                                    pass the foreground gate first)
+  ui_snapshot / find / list_windows      perception (ungated; passwords redacted)
+  screenshot                             perception; sensitive windows blacked out
+  activate_window / click / type / key   action
 
-Run:  computer-use-mcp                 (console script, stdio transport)
-      python -m computer_use_mcp.server
-Config: CUMCP_ALLOWLIST="notepad.exe,weixin.exe"  (comma-separated; default notepad)
+Every action passes, in order: e-stop check -> foreground allowlist gate ->
+(for dangerous-named clicks) human confirmation -> execute -> audit. A global
+panic hotkey (default Ctrl+Alt+Q) latches the server off.
+
+Run:    computer-use-mcp                  (console script, stdio)
+Config (env):
+  CUMCP_ALLOWLIST="notepad.exe,weixin.exe"   actions allowed only for these (front)
+  CUMCP_REDACT_TITLES="1Password,Bitwarden"  window-title substrings to black out
+  CUMCP_ESTOP="ctrl+alt+q"                   panic hotkey
+  CUMCP_AUDIT="audit/actions.jsonl"          audit log path
 """
 from __future__ import annotations
 
@@ -17,44 +23,72 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
+from .audit import AuditLog
 from .core import Session
 from .dpi import enable_dpi_awareness
 from .gate import Gate
+from .safety import DANGEROUS_WORDS, EStop, is_dangerous, message_box_confirm, redact
 
 DEFAULT_ALLOWLIST = ("notepad.exe",)
+DEFAULT_REDACT_TITLES = ("1Password", "Bitwarden", "KeePass", "Authenticator")
 
 
-def load_allowlist() -> list[str]:
-    env = os.environ.get("CUMCP_ALLOWLIST", "")
-    if env.strip():
-        return [a for a in env.split(",") if a.strip()]
-    return list(DEFAULT_ALLOWLIST)
+def _env_list(name: str, default) -> list[str]:
+    raw = os.environ.get(name, "")
+    return [x for x in raw.split(",") if x.strip()] if raw.strip() else list(default)
 
 
 def _fmt(res) -> str:
     return "ok" if res.ok else f"ERROR {res.code}: {res.message}".rstrip()
 
 
-def build_server(allowlist=None, driver=None) -> FastMCP:
+def build_server(
+    allowlist=None,
+    driver=None,
+    *,
+    confirmer=None,
+    audit_path=None,
+    estop=None,
+    start_estop=True,
+    dangerous_words=DANGEROUS_WORDS,
+    redact_titles=None,
+) -> FastMCP:
     enable_dpi_awareness()
     if driver is None:
         from .drivers.windows import WindowsDriver
 
         driver = WindowsDriver()
     session = Session(driver)
-    gate = Gate(allowlist if allowlist is not None else load_allowlist(), driver)
+    gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
+    audit = AuditLog(audit_path or os.environ.get("CUMCP_AUDIT", "audit/actions.jsonl"))
+    confirm = confirmer or message_box_confirm
+    rtitles = redact_titles if redact_titles is not None else _env_list("CUMCP_REDACT_TITLES", DEFAULT_REDACT_TITLES)
+    if estop is None:
+        estop = EStop(os.environ.get("CUMCP_ESTOP", "ctrl+alt+q"))
+        if start_estop:
+            estop.start()
 
     mcp = FastMCP(
         "computer-use-mcp",
         instructions=(
-            "Model-agnostic computer-use for Windows. Read the screen with "
-            "ui_snapshot (flat list of element refs) or screenshot (for vision "
-            "models), then act with click/type/key. State-changing actions are "
-            "restricted to allowlisted apps — " + gate.describe()
+            "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
+            "or screenshot, act with click/type/key. Actions are restricted to "
+            f"allowlisted apps ({gate.describe()}); dangerous clicks (send/delete/"
+            "pay…) ask the human; a panic hotkey can abort everything."
         ),
     )
 
-    # --- perception (ungated; passwords redacted in the snapshot) ---
+    def _guard(tool: str, args: dict) -> tuple[bool, str]:
+        if estop.engaged:
+            audit.record(tool, args, "estop", "aborted")
+            return False, "ABORTED: e-stop engaged (restart the server to clear)"
+        allowed, reason = gate.foreground_allowed()
+        if not allowed:
+            audit.record(tool, args, "gate_denied", reason)
+            return False, f"DENIED by gate: {reason}"
+        return True, ""
+
+    # --- perception ---------------------------------------------------------
 
     @mcp.tool(description="Flat list of interactive elements with refs, for scope "
                           "('foreground' | a window id | 'all').")
@@ -65,10 +99,6 @@ def build_server(allowlist=None, driver=None) -> FastMCP:
     def find(query: str, scope: str = "foreground") -> str:
         return session.find(query, scope=scope)
 
-    @mcp.tool(description="PNG screenshot of the primary screen, for vision models.")
-    def screenshot() -> MCPImage:
-        return MCPImage(data=session.screenshot().png, format="png")
-
     @mcp.tool(description="List visible top-level windows: id, owner process, title, * if foreground.")
     def list_windows() -> str:
         lines = [
@@ -77,36 +107,71 @@ def build_server(allowlist=None, driver=None) -> FastMCP:
         ]
         return "\n".join(lines) or "(no windows)"
 
-    # --- action (gated) ---
+    @mcp.tool(description="PNG screenshot of the primary screen, for vision models. "
+                          "Windows whose title matches the redaction list are blacked out.")
+    def screenshot() -> MCPImage:
+        png = session.screenshot().png
+        if rtitles:
+            regions = [
+                w.bounds.as_tuple()
+                for w in session.driver.list_windows()
+                if w.title and any(t.lower() in w.title.lower() for t in rtitles)
+            ]
+            if regions:
+                png = redact(png, regions)
+                audit.record("screenshot", {}, "redacted", f"{len(regions)} window(s)")
+        return MCPImage(data=png, format="png")
+
+    # --- action -------------------------------------------------------------
 
     @mcp.tool(description="Bring a window (id from list_windows) to the foreground.")
     def activate_window(window_id: str) -> str:
-        return _fmt(session.activate(window_id))
+        if estop.engaged:
+            audit.record("activate_window", {"window_id": window_id}, "estop", "aborted")
+            return "ABORTED: e-stop engaged"
+        out = _fmt(session.activate(window_id))
+        audit.record("activate_window", {"window_id": window_id}, "ok", out)
+        return out
 
     @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "
-                          "or at coordinates x,y. Requires an allowlisted app in the foreground.")
+                          "or at coordinates x,y. Allowlisted app must be in front; dangerous "
+                          "targets (send/delete/pay…) ask the human first.")
     def click(ref: str | None = None, x: int | None = None, y: int | None = None) -> str:
-        allowed, reason = gate.foreground_allowed()
-        if not allowed:
-            return f"DENIED by gate: {reason}"
-        return _fmt(session.click(ref=ref, x=x, y=y))
+        args = {"ref": ref, "x": x, "y": y}
+        ok, msg = _guard("click", args)
+        if not ok:
+            return msg
+        desc = session.describe_ref(ref) if ref else None
+        if desc and is_dangerous(desc, dangerous_words):
+            if not confirm(f"computer-use-mcp 请求点击：\n\n{desc}\n\n允许执行吗？"):
+                audit.record("click", args, "user_denied", desc)
+                return f"DENIED by user (dangerous: {desc})"
+        out = _fmt(session.click(ref=ref, x=x, y=y))
+        audit.record("click", args, "ok", out)
+        return out
 
     @mcp.tool(name="type",
               description="Type text into an element by ref (ValuePattern) or to the focused "
-                          "control. Requires an allowlisted app in the foreground.")
+                          "control. Allowlisted app must be in the foreground.")
     def type_text(text: str, ref: str | None = None) -> str:
-        allowed, reason = gate.foreground_allowed()
-        if not allowed:
-            return f"DENIED by gate: {reason}"
-        return _fmt(session.type(text, ref=ref))
+        args = {"text": text, "ref": ref}
+        ok, msg = _guard("type", args)
+        if not ok:
+            return msg
+        out = _fmt(session.type(text, ref=ref))
+        audit.record("type", args, "ok", out)
+        return out
 
     @mcp.tool(description="Send a key chord like 'Ctrl+S' to the foreground window. "
-                          "Requires an allowlisted app in the foreground.")
+                          "Allowlisted app must be in the foreground.")
     def key(combo: str) -> str:
-        allowed, reason = gate.foreground_allowed()
-        if not allowed:
-            return f"DENIED by gate: {reason}"
-        return _fmt(session.key(combo))
+        args = {"combo": combo}
+        ok, msg = _guard("key", args)
+        if not ok:
+            return msg
+        out = _fmt(session.key(combo))
+        audit.record("key", args, "ok", out)
+        return out
 
     return mcp
 
