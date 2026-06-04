@@ -11,10 +11,10 @@
 
 ## 状态
 
-✅ **MCP server 跑通（可连接使用）** —— 记事本三步阶梯端到端 + Contract v1.0 冻结 + 核心 ref 表 + MCP server 8 工具 + 前台进程闸门 allowlist，全部实测通过。
+✅ **MCP server + 完整安全层（可连接使用）** —— 记事本三步阶梯 + Contract v1.0 冻结 + 核心 ref 表 + MCP server 8 工具 + 安全层（闸门 / 确认 / 审计 / 急停 / 打码），全部实测通过。
 - 架构：MCP server → 核心 `Session`（ref 表）→ 平台驱动（ports & adapters）；契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)
-- 已实现：`src/computer_use_mcp/`（contract / dpi / core / gate / server + Windows 驱动）；冒烟 `scripts/smoke_*.py` 全过
-- 仍欠（安全层余项）：危险动作二次确认、审计日志、急停热键、敏感窗口截图打码。进度见 [docs/DESIGN.md](docs/DESIGN.md)
+- 已实现：`src/computer_use_mcp/`（contract / dpi / core / gate / safety / audit / server + Windows 驱动）；冒烟 `scripts/smoke_*.py` 全过
+- 后续可选：真 app 实测（微信/浏览器）、快照层级、多屏坐标、macOS/Linux 驱动。进度见 [docs/DESIGN.md](docs/DESIGN.md)
 
 ## 工具面（已实现 8 个）
 
@@ -56,7 +56,7 @@ computer-use-mcp                         # 启动（stdio transport）
 
 - ✅ **前台进程闸门 + allowlist**（进程树判定 + 瞬时重试）—— `gate.py`，动作类工具先过闸门
 - ✅ **snapshot 脱敏**：password 控件不回 value
-- ⬜ 危险动作二次确认、操作审计日志、全局急停热键、敏感窗口截图打码 —— 余项，详见 DESIGN
+- ✅ **危险动作二次确认**（原生 Yes/No）、**操作审计日志**（JSONL）、**急停热键**（默认 Ctrl+Alt+Q）、**敏感窗口截图打码**（`CUMCP_REDACT_TITLES`）
 
 ## License
 

@@ -86,9 +86,9 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 
 - ✅ **前台进程闸门 + allowlist**（`gate.py`，已实现）：按**进程树**判定——前台窗口的进程，只要它**或任一祖先进程**在 allowlist 里就放行（授权 `weixin.exe`，其渲染子进程 `Wechatappex` 自动算自己人，避免本项目踩过的"子进程名授权不了"坑）。加**瞬时抖动自动重试**。动作类 MCP 工具（click/type/key）执行前先过闸门；allowlist 经 `CUMCP_ALLOWLIST` 环境变量配置。
 - ✅ **snapshot 脱敏**（已实现）：password 类控件不回 value。
-- ⬜ **截图打码**：敏感窗口涂实心块。
-- ⬜ **危险动作二次确认**：发送 / 删除 / 提交 / 付款先停一下。
-- ⬜ **操作审计日志** + **全局急停热键**（一键 abort）。
+- ✅ **截图打码**（`safety.redact`）：标题匹配 `CUMCP_REDACT_TITLES` 的窗口在 screenshot 里涂黑（默认含常见密码管理器）。
+- ✅ **危险动作二次确认**（`safety.message_box_confirm`）：click 目标名命中危险词（发送 / 删除 / 付款…）时弹原生 Yes/No，人点了才执行。
+- ✅ **操作审计日志**（`audit.py`，JSONL：ts / tool / args / decision / result）+ **全局急停热键**（`safety.EStop`，默认 `Ctrl+Alt+Q`，触发即锁死所有动作直到重启）。
 
 ---
 
