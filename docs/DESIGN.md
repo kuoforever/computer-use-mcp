@@ -131,6 +131,18 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - **真并行**：交给「独立 Session / VM」（Win = RDP / 第二 session，Linux = Xvfb，Mac = VM），不在单桌面硬凿假并行。
 - **闸门要不要松**：想支持「你干活时 agent 后台代劳」，`gate` 需改成按**动作目标窗口**的 owner-chain 授权而非前台 —— 有明确安全代价（agent 会动你看不见的窗口），单独拍板。
 
+### F.5 后台自动操作者路线
+
+目标场景如「用户在主桌面全屏游戏，agent 后台操作另一个应用」时，要分层处理：
+
+| 路线 | 判断 | 适用动作 |
+| --- | --- | --- |
+| **v1.1 受限后台 UIA worker** | 可做，作为最小升级路线 | 只允许按 ref 的 `SetValue` / `Invoke` / `Select`，目标窗口 owner-chain 必须命中 allowlist，默认 opt-in |
+| **v2 独立 Session / VM worker** | 正确的真并行路线 | 截图、坐标点击、键盘、激活窗口都在 agent 自己的桌面里完成 |
+| **同桌面完整后台操作者** | 不成立 | 物理鼠标、焦点、主屏截图都是共享资源，不能和用户全屏游戏稳定并行 |
+
+因此后续计划应先验证 v1.1：给 `server.py` 的动作路径增加动作分级和目标窗口授权，只放开后台 ref 动作；坐标 click、`key`、无 ref `type`、`activate_window` 继续要求前台/人机让路。v2 再做独立 worker 桌面，不把隐藏 desktop / VM 复杂度塞进当前 driver。
+
 ---
 
 ## 二级话题（待展开）
@@ -215,5 +227,6 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - [x] allowlist 配置形态 → `CUMCP_ALLOWLIST` 环境变量（逗号分隔；默认 notepad.exe）
 - [ ] License（暂私有，将来再议）
 - [ ] **并发/隔离模型**（§F）：串行+让路 vs 独立 Session/VM；闸门是否改按「动作目标」授权
+- [ ] **后台自动操作者路线**（§F.5）：先做受限后台 UIA worker，再评估独立 Session/VM worker
 - [ ] **bug**：最小化 / root area=0 窗口 → `get_tree` 整张快照被 `intersects` 滤空（§F.3）
 - [ ] 隔离路线下 `capture_screen` 需从「抓主屏帧缓冲」改为「按窗口 / 按 DISPLAY 抓」（§F.3）

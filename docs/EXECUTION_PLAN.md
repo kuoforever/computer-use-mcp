@@ -2,7 +2,7 @@
 
 > 当前阶段：Windows v1 技术闭环已完成，下一步不是继续堆功能，而是把它从“可演示 Alpha”推进到“真实应用可稳定使用的 MVP”。
 
-本计划按“能最快降低不确定性、最少扩大架构面”的顺序排。默认只做 Windows 路径；macOS / Linux、隐藏桌面 / VM、后台目标授权都先不展开。
+本计划按“能最快降低不确定性、最少扩大架构面”的顺序排。默认只做 Windows 路径；macOS / Linux、隐藏桌面 / VM 作为 v2 路线记录，不作为当前阶段默认开工项。
 
 ---
 
@@ -124,16 +124,95 @@
 
 ---
 
-## 4. 暂不做
+## 4. 后台自动操作者升级路线
+
+目标场景：用户在主桌面全屏游戏或正常工作时，agent 在后台替用户操作另一个应用。
+
+这里必须拆成两个目标，不能混成一个“后台开关”：
+
+| 目标 | 可行性 | 边界 |
+| --- | --- | --- |
+| **受限后台 UIA worker** | 高 | 只做 `SetValue` / `Invoke` / `Select` 这类 ref 动作；不动鼠标、不抢焦点、不发全局键盘 |
+| **真隔离后台操作者** | 高，但要独立运行环境 | agent 需要自己的前台、鼠标、键盘、截图；应走 RDP / 第二 Session / VM / Xvfb |
+| **同桌面完整后台操作者** | 不成立 | 坐标点击、全局键盘、主屏截图都共享同一个桌面资源，会和用户直接争用 |
+
+### P7. v1.1：受限后台 ref 动作
+
+**目标**：允许 agent 在用户看其他应用时，对后台 allowlist 窗口执行安全的 ref 动作。
+
+建议实现：
+
+- 动作分级：
+  - `background_safe`：按 ref 的 `SetValue` / `Invoke` / `Select`。
+  - `foreground_required`：坐标 `click(x,y)`、`key()`、无 ref `type()`、`activate_window()`。
+- 新增 gate 模式：从“前台进程 allowlist”扩展为“动作目标窗口 owner-chain allowlist”。
+- 默认关闭，需要显式环境变量开启，例如 `CUMCP_BACKGROUND_REF_ACTIONS=1`。
+- 后台动作必须进入 audit，日志里明确记录 `background_ref_action=true`、目标 hwnd、目标进程链。
+
+验收标准：
+
+- 用户前台在非 allowlist 应用时，agent 可以对后台 allowlist 窗口执行 ref `SetValue` / `Invoke`。
+- 坐标点击、全局按键、无 ref 输入、激活窗口仍被拒绝。
+- 拒绝信息能说明是 `FOREGROUND_REQUIRED`，而不是笼统失败。
+- 安全文档明确说明：开启后 agent 可能操作用户看不见的后台窗口。
+
+### P8. v1.2：后台感知增强
+
+**目标**：让后台窗口可被更可靠地读取，但不承诺视觉截图等同于前台。
+
+建议方向：
+
+- 先完成 P0 / P1：最小化窗口快照、浏览器 a11y warmup。
+- 研究 Windows 窗口级截图：`PrintWindow` / DWM thumbnail / app-specific fallback。
+- `screenshot` 继续默认主屏帧缓冲；窗口级截图如果实现，应作为显式能力或参数，不能悄悄改变语义。
+
+验收标准：
+
+- 后台窗口 `ui_snapshot` 比当前更稳定。
+- 对无法截图的后台窗口返回明确错误或降级说明。
+- 不通过抢前台来伪造后台截图。
+
+### P9. v2：独立 worker 桌面 / Session
+
+**目标**：实现“用户全屏游戏，agent 像另一个操作者一样完整操作电脑”的真后台能力。
+
+优先路线：
+
+1. Windows RDP / 第二登录 Session / VM。
+2. Linux Xvfb / 独立 DISPLAY。
+3. macOS VM / 第二台机。
+
+设计影响：
+
+- worker 需要自己的 driver 实例、截图源、输入源、allowlist、安全审计。
+- `capture_screen` 不能假设主屏帧缓冲。
+- MCP server 需要区分“本机桌面 worker”和“隔离 worker”。
+- 这属于运行环境编排，不应塞进当前 Windows driver 的普通分支里。
+
+### P10. v2.x：Windows 隐藏 Desktop 实验
+
+**目标**：评估 `CreateDesktop` / `SwitchDesktop` 这类 Windows 内核 Desktop 对象能否作为轻量隔离层。
+
+风险：
+
+- 现代浏览器、GPU 窗口、输入法、权限/UAC、剪贴板、窗口创建位置都可能踩坑。
+- 截图和 UIA 访问方式会明显不同于当前主桌面路径。
+- 工程复杂度接近“自己维护一个 hVNC/隐藏桌面自动化栈”。
+
+结论：只作为实验路线，不作为 v2 首选。
+
+---
+
+## 5. 暂不做
 
 - **macOS / Linux driver**：等 Windows MVP 稳定后再做，避免同时调三套 accessibility 栈。
-- **隐藏桌面 / VM 真并行**：这是运行环境能力，不应塞进 v1 driver 抽象。
-- **按动作目标窗口授权的 gate**：价值明确，但安全边界变化大，必须单独评审。
+- **隐藏桌面真并行**：这是运行环境能力，不应塞进 v1 driver 抽象；优先考虑 RDP / VM / 第二 Session。
+- **默认开启后台动作**：后台 ref 动作必须显式 opt-in，不能作为默认行为。
 - **大规模重构 contract**：当前 contract 已能支撑 Windows v1，优先用实现经验驱动下一次版本变化。
 
 ---
 
-## 5. 推荐开工顺序
+## 6. 推荐开工顺序
 
 ```powershell
 git status --short --branch
@@ -149,3 +228,5 @@ $env:PYTHONUTF8 = "1"
 ```
 
 完成 P0 后再进入 P1。不要同时开 P0/P1/P2，三者都碰感知/前台边界，混在一个提交里会降低可回滚性。
+
+如果要验证“后台自动操作者”方向，先开 P7，不要直接做 P9/P10。P7 能用最小改动验证核心价值：标准 UIA app 是否值得支持后台 ref 操作。
