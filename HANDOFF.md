@@ -128,6 +128,8 @@ docs/     DESIGN.md（决策记录+验证结果）、DRIVER_CONTRACT.md（契约
 
 ## 7. 待办 / 下一步（按价值排序）
 
+可直接执行的开工计划见 [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md)。下面是长期 backlog。
+
 1. **浏览器内容页压测**（最有信息量）：在 Chrome 打开内容重的页面，跑 `out/probe_browser.py`，看 `max_nodes=200` 截断、`find()` 省 token、同名元素歧义。→ 这才是「要不要 parent ref 层级」的真实依据。
 2. **固化「浏览器快照热身」**：在内容页确认坑 7② 的模式后，让 `Session.ui_snapshot` 对浏览器读两次（或暴露 warmup 开关 / force-accessibility）。
 3. **微信进程树闸门实测**：`weixin.exe` → 渲染子进程 `Wechatappex`，验证祖先放行逻辑（gate.py 的招牌场景，至今没真测过）。
@@ -135,14 +137,14 @@ docs/     DESIGN.md（决策记录+验证结果）、DRIVER_CONTRACT.md（契约
 5. **多屏坐标空间**（坑 8）：虚拟桌面跨屏、per-monitor scale。
 6. **macOS / Linux 驱动**：契约已冻结，照 DRIVER_CONTRACT.md 的平台映射各实现一份（Mac=AX/pyobjc 或 Swift，Linux=AT-SPI）。
 7. **测试硬化**：把 on-device smokes 收敛成可重复的 pytest（目前依赖真实桌面、手跑）。
-8. **杂项**：`git push`（main 领先 origin，未推）、删已合并的 `feat/v0.0-windows-driver` 分支、定 License、`ui_snapshot` 深度上限/文本 run 合并。
+8. **杂项**：删已合并的 `feat/v0.0-windows-driver` 分支、定 License、`ui_snapshot` 深度上限/文本 run 合并。
 
 ---
 
 ## 8. Git 状态 & 约定
 
 - 主线在 **`main`**；v1 这批工作以 `--no-ff` 合并（merge commit `d243456`）。
-- `main` **领先 `origin/main` 约 10 个 commit，尚未 push**。
+- 开工前用 `git status --short --branch` 确认本地与远端状态，避免把 `out/` 探针或真实桌面副产物混入提交。
 - 已合并分支 `feat/v0.0-windows-driver` 还在（可删）。
 - 约定：在 default 分支上动手前先开分支；提交信息末尾带 `Co-Authored-By` trailer；一次性探针写 `out/`（gitignored），正式回归冒烟写 `scripts/`。
 

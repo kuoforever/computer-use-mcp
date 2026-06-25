@@ -90,6 +90,47 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - ✅ **危险动作二次确认**（`safety.message_box_confirm`）：click 目标名命中危险词（发送 / 删除 / 付款…）时弹原生 Yes/No，人点了才执行。
 - ✅ **操作审计日志**（`audit.py`，JSONL：ts / tool / args / decision / result）+ **全局急停热键**（`safety.EStop`，默认 `Ctrl+Alt+Q`，触发即锁死所有动作直到重启）。
 
+## F. 并发与隔离（人机同机时的前台争用）— open question
+
+> 这是 **open question，不是已拍板决策**。起因：一次浏览器压测探针与真人同时操作时翻车——探针读 UIA 树的十几秒里用户切了窗口 → Chrome 丢前台、被压成最小化 → `BoundingRectangle` 面积 0 → 整张快照被 `win_rect.intersects` 滤空（读出 0 节点）。这暴露了一个之前没正经想过的维度。
+
+**根本约束**：一个桌面只有**一个前台窗口 + 一只鼠标指针**，是物理稀缺资源。人和 agent 同处一个桌面时，「真·同时操作」的矛盾全在这。
+
+### F.1 三种 regime（同一桌面下）
+
+| regime | 机制 | 与人共存？ |
+| --- | --- | --- |
+| ① **后台无焦点动作** | ref 路径 `SetValue`/`Invoke`/`Select`，不动鼠标、不要求目标前台（v0.1 已证：写进被遮挡的记事本） | **本可共存**，但被当前闸门挡死（↓） |
+| ② **要光标/焦点的动作** | 坐标 `click(x,y)`（`SetCursorPos`+`mouse_event` 挪物理指针）、`key`/无 ref `type`（注入焦点窗口）、`activate_window`（`AttachThreadInput` 抢前台） | **直接争用**，单桌面无解 |
+| ③ **并发感知** | `get_tree`/`screenshot` 不过闸门、随时可读 | **脆**（见 F.3） |
+
+**关键发现 —— 闸门把动作绑死在前台**：`server.py` 的 `_guard` 只查「前台窗口进程树在不在 allowlist」（`gate.foreground_allowed()`），**不看动作目标**。于是 regime ① 那条本可后台代劳的路也被否：你在看非 allowlist 的 app 时，agent 给后台 allowlist app `SetValue` 会被 `DENIED by gate`。这是安全特性（防 agent 在你看不见的窗口乱动），但也正是它让「人机真并行」做不成。另：`activate_window` **不过闸门**（只查急停），是唯一能改前台又不受 allowlist 约束的动作。
+
+### F.2 隔离能力跨平台严重不对等
+
+要「真并行」，唯一干净的办法是**别共享桌面** —— 给 agent 自己的前台+光标。但这能力各平台代价天差地别，**不该在 driver 层做成统一抽象**：
+
+| 平台 | 「整理窗口」层（共享光标/前台，**不隔离**） | 「真隔离」原语（独立输入队列 + 前台 + 光标） |
+| --- | --- | --- |
+| Windows | 虚拟桌面（Task View / `Win+Ctrl+D`） | ① **Session**（RDP / 第二个登录用户，可同时 live）② **Desktop 内核对象**（`CreateDesktop`/`SwitchDesktop`）= 「隐藏桌面」 |
+| macOS | Spaces（Mission Control） | **几乎没有**：无 `CreateDesktop` 等价物；后台 GUI 会话非可驱动的活表面 → 实质要 VM / 第二台机 |
+| Linux | 工作区（GNOME/KDE workspaces） | **最强**：Xvfb（无显示虚拟 X）/ 多 X server（`:0` `:1`）/ Xephyr / Wayland headless / 多 seat（`loginctl`） |
+
+- **迷思**：三平台的「虚拟桌面 / Spaces / 工作区」是同一类**窗口整理器**，底下共享那唯一的光标+前台，对「人 vs agent 争前台」**毫无帮助**。
+- **Windows 两个 "desktop" 要分清**：虚拟桌面（壳功能，不隔离）≠ Desktop 内核对象（`CreateDesktop`，有独立输入队列+前台+光标；UAC 安全桌面 / 锁屏即是）。后者才是隔离原语，也就是自动化 / hVNC 的「隐藏桌面」技法。
+- 层级：**Session > Window Station > Desktop**。
+
+### F.3 对现有代码的隐含改动
+
+- **`capture_screen` 的隐含约束**：现在用 `mss` 抓主屏**帧缓冲**，只能看见当前**显示**的 desktop。一旦走隔离路线（隐藏 desktop / Xvfb / 后台 session），截图必须改成**按窗口 / 按 DISPLAY 抓**（Win 用 `PrintWindow`；Linux 指定对应 `DISPLAY`）。契约层应预留这点。
+- **待修 bug —— 最小化 / area=0 窗口清空快照**：`get_tree` 里 root 矩形面积为 0 时，`_maybe_node` 的 `win_rect.intersects(bbox)` 把**所有**节点滤掉 → 空快照。感知**不该靠抢前台绕过**（那是 regime ② 的行为）；应显式处理最小化窗口（跳过 intersects 兜底 / 或还原但不夺焦）。探针 `out/probe_browser_stress.py` 里「每次读前强制 activate」是**测量用 hack，不可进生产**。
+
+### F.4 倾向（待拍板）
+
+- **v1**：老实做「**串行 + 让路**」。同桌面下用 `GetLastInputInfo` 检测「人最近 N 秒有无真输入」，有则 agent 退避 regime ② 类动作、只做 ① 类无焦点活；急停（§E）是硬刹车。
+- **真并行**：交给「独立 Session / VM」（Win = RDP / 第二 session，Linux = Xvfb，Mac = VM），不在单桌面硬凿假并行。
+- **闸门要不要松**：想支持「你干活时 agent 后台代劳」，`gate` 需改成按**动作目标窗口**的 owner-chain 授权而非前台 —— 有明确安全代价（agent 会动你看不见的窗口），单独拍板。
+
 ---
 
 ## 二级话题（待展开）
@@ -164,7 +205,7 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - **补齐原语 ✅**：`list_windows` 全量枚举（`EnumWindows`，含模态对话框等 owned 窗口）；`click(x,y)` 坐标点击（实测点「最小化」窗口真被最小化，再复原）；`activate_window`（`AttachThreadInput` 绕前台锁）。
 - **驱动现状**：契约 12 原语在 Windows 全部实现并验证。回归脚本 `scripts/smoke_v03.py`（去重 / 枚举 / 置前台 / 坐标点击 一把过）。
 - **核心 ref 表 ✅**：`core.py` 的 `Session` 持有 `ref ↔ native_id` 表（**跨快照累积**、稳定复用，narrowing `find()` 后旧 ref 仍可用）；`ui_snapshot` 文本序列化（`ref_N | role "name" | bbox | states | value`）、`find`、按 ref 的 `click/type`（失效则按 `role+name` 重定位重试一次，契约 §D）。回归 `scripts/smoke_core.py` 全过。
-- **下一步**：封装 **MCP server**（把 `Session` 暴露为 `ui_snapshot / screenshot / find / click / type / key` 工具）+ **安全层**（前台进程闸门 / allowlist 等，见 §E）。
+- **MCP server + 安全层 ✅**：`Session` 已暴露为 MCP 工具；动作路径已接入前台进程闸门 / allowlist / 危险确认 / 审计 / 急停 / 截图打码（见 §E）。
 
 ## 仍待定 / TODO
 
@@ -173,3 +214,6 @@ snapshot 拍完 → 模型决定 → 执行，之间 UI 可能已变。策略：
 - [ ] `ui_snapshot` 深度上限、是否保留层级关系、文本 run 合并
 - [x] allowlist 配置形态 → `CUMCP_ALLOWLIST` 环境变量（逗号分隔；默认 notepad.exe）
 - [ ] License（暂私有，将来再议）
+- [ ] **并发/隔离模型**（§F）：串行+让路 vs 独立 Session/VM；闸门是否改按「动作目标」授权
+- [ ] **bug**：最小化 / root area=0 窗口 → `get_tree` 整张快照被 `intersects` 滤空（§F.3）
+- [ ] 隔离路线下 `capture_screen` 需从「抓主屏帧缓冲」改为「按窗口 / 按 DISPLAY 抓」（§F.3）
