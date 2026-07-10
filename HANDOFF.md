@@ -134,8 +134,6 @@ VMware worker prototype variables:
 | --- | --- | --- |
 | `CUMCP_VMRUN` | Optional explicit path to `vmrun.exe` | common VMware install paths |
 | `CUMCP_WORKER_VMX` | Existing Windows worker VM `.vmx` path | required for VM commands |
-| `CUMCP_VM_GUEST_USER` | Guest Windows username for VMware Tools commands | required for `run-worker` |
-| `CUMCP_VM_GUEST_PASSWORD` | Guest Windows password for VMware Tools commands | required for `run-worker` |
 
 急停：按住热键 → 锁死所有动作直到**重启 server**（latch）。
 
@@ -148,9 +146,8 @@ VMware worker prototype variables:
 1. **本机全权限控制模式**：显式授权 agent 接管当前桌面；保留急停和审计。
 2. **VM worker 原型**：在独立 Windows VM 内运行完整 MCP worker，验证不影响主机游戏 / 工作。
    Current route: VMware Workstation Pro. Use `scripts/vmware_worker.py doctor`,
-   `start --wait-tools`, and `run-worker` after the Windows guest has been
-   manually created, VMware Tools is installed, and the repo is cloned inside the
-   guest.
+   `start --wait-tools` after the Windows guest has been manually created and
+   VMware Tools is installed.
 3. **通用进程树闸门实测**：选择任意真实多进程 app 验证祖先进程放行；微信仅为可选样本。
 4. **多屏坐标空间**：虚拟桌面跨屏、per-monitor scale。
 5. **macOS / Linux 驱动**：契约已冻结，照 DRIVER_CONTRACT.md 的平台映射各实现一份（Mac=AX/pyobjc 或 Swift，Linux=AT-SPI）。

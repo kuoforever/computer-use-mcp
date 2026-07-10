@@ -250,9 +250,8 @@ The target design splits local control and background workers into three routes:
 
 The current P8 prototype uses VMware Workstation Pro as the VM runtime. Host
 orchestration is intentionally thin: `scripts/vmware_worker.py` starts an
-existing `.vmx`, waits for VMware Tools, and invokes the worker in the guest.
-It is not a VM image builder and it is not the final transport layer between the
-host agent and guest MCP server.
+existing `.vmx` and waits for VMware Tools. It is not a VM image builder or a
+transport layer between the host agent and guest MCP server.
 
 不支持的路线：
 Unsupported routes:

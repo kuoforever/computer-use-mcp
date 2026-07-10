@@ -183,11 +183,11 @@ Target scenario: the user is gaming full-screen or working on the main desktop w
 - 先验证 worker 内端到端 MCP 操作，再设计主机编排。
   Validate end-to-end MCP control inside the worker before designing host orchestration.
 - VMware Workstation Pro is the first host-side prototype target for this repo.
-  `scripts/vmware_worker.py` checks `vmrun.exe`, starts an existing `.vmx`, waits
-  for VMware Tools, and can invoke `computer-use-mcp` inside the guest.
-- The script does not create or license a Windows VM, does not store guest
-  credentials, and does not yet implement host-to-guest MCP transport. Those are
-  separate setup and P9 orchestration concerns.
+  `scripts/vmware_worker.py` checks `vmrun.exe`, starts an existing `.vmx`, and
+  waits for VMware Tools.
+- The script does not create or license a Windows VM and does not implement
+  host-to-guest MCP transport. Those are separate setup and P9 orchestration
+  concerns.
 
 ### P9. v2：隔离 worker 编排 / Isolated worker orchestration
 
