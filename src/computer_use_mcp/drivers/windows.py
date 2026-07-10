@@ -58,6 +58,8 @@ _NAMED_KEYS = {
     "home": 0x24, "end": 0x23, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
 }
 _KEYEVENTF_KEYUP = 0x0002
+_BROWSER_PROCESS_NAMES = frozenset({"chrome.exe", "chromium.exe", "msedge.exe"})
+_BROWSER_SNAPSHOT_WARMUP_SECONDS = 1.0
 
 
 class WindowsDriver(Driver):
@@ -148,6 +150,22 @@ class WindowsDriver(Driver):
 
     def foreground_owner_chain(self) -> list[ProcRef]:
         return self._chain_for_pid(self._pid_of_hwnd(self._foreground_hwnd()))
+
+    def snapshot_warmup_delay(self, scope: str) -> float:
+        """Return a delay after a disposable browser UIA walk, if needed.
+
+        Chromium-family browsers frequently materialize renderer accessibility
+        only after their first UIA traversal. This method deliberately resolves
+        the requested handle and never activates a window.
+        """
+        if scope == "all":
+            return 0.0
+        try:
+            hwnd = self._foreground_hwnd() if scope == "foreground" else int(scope)
+            name = psutil.Process(self._pid_of_hwnd(hwnd)).name().casefold()
+        except (TypeError, ValueError, psutil.Error):
+            return 0.0
+        return _BROWSER_SNAPSHOT_WARMUP_SECONDS if name in _BROWSER_PROCESS_NAMES else 0.0
 
     @staticmethod
     def _chain_for_pid(pid: int) -> list[ProcRef]:

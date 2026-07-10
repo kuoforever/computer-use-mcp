@@ -11,10 +11,13 @@ tools: ``ui_snapshot`` / ``screenshot`` / ``find`` / ``click`` / ``type`` / ``ke
 """
 from __future__ import annotations
 
+import time
+
 from .contract import (
     DRIVER_ERROR,
     STALE_ELEMENT,
     Driver,
+    DriverError,
     Image,
     Node,
     PruneOpts,
@@ -35,6 +38,16 @@ class Session:
     # --- perception ----------------------------------------------------------
 
     def ui_snapshot(self, scope: str = "foreground", max_nodes: int = 200) -> str:
+        # Browser accessibility trees may be populated lazily by the first UIA
+        # walk. Drivers that know this applies can request a best-effort warmup
+        # without widening the frozen Driver contract.
+        warmup_delay = getattr(self.driver, "snapshot_warmup_delay", lambda _scope: 0.0)(scope)
+        if warmup_delay > 0:
+            try:
+                self.driver.get_tree(PruneOpts(scope=scope, max_nodes=max_nodes))
+            except DriverError:
+                pass
+            time.sleep(warmup_delay)
         tree = self.driver.get_tree(PruneOpts(scope=scope, max_nodes=max_nodes))
         return self._ingest(tree, scope)
 
