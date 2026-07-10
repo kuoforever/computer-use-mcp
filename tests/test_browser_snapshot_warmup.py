@@ -29,6 +29,12 @@ class FakeDriver:
         )], truncated=0)
 
 
+class IncompleteBrowserDriver(FakeDriver):
+    def snapshot_incomplete_reason(self, scope: str, _tree: TreeResult) -> str | None:
+        assert scope == "123"
+        return "browser content controls are not exposed yet"
+
+
 class BrowserSnapshotWarmupTests(unittest.TestCase):
     def test_browser_snapshot_warms_up_before_returning_result(self) -> None:
         driver = FakeDriver(warmup_delay=1.0)
@@ -46,3 +52,10 @@ class BrowserSnapshotWarmupTests(unittest.TestCase):
 
         self.assertEqual(driver.calls, 1)
         sleep.assert_not_called()
+
+    def test_incomplete_browser_snapshot_is_explicit(self) -> None:
+        driver = IncompleteBrowserDriver(warmup_delay=0.0)
+
+        snapshot = Session(driver).ui_snapshot(scope="123")
+
+        self.assertIn("# incomplete: browser content controls are not exposed yet", snapshot)

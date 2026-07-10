@@ -188,6 +188,22 @@ class WindowsDriver(Driver):
             return 0.0
         return _BROWSER_SNAPSHOT_WARMUP_SECONDS if name in _BROWSER_PROCESS_NAMES else 0.0
 
+    def snapshot_incomplete_reason(self, scope: str, tree: TreeResult) -> str | None:
+        """Identify the Chromium frame-only tree without taking foreground.
+
+        A browser renderer can defer page accessibility indefinitely while it is
+        backgrounded. Do not activate it just to build the tree; make that
+        limitation visible to the caller instead of presenting a silent partial
+        snapshot as complete.
+        """
+        if self.snapshot_warmup_delay(scope) <= 0:
+            return None
+        documents = sum(node.role == "Document" for node in tree.nodes)
+        hyperlinks = sum(node.role == "Hyperlink" for node in tree.nodes)
+        if documents <= 2 and hyperlinks == 0:
+            return "browser content controls are not exposed yet; retry after the page is active"
+        return None
+
     @staticmethod
     def _chain_for_pid(pid: int) -> list[ProcRef]:
         chain: list[ProcRef] = []
