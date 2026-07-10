@@ -248,8 +248,13 @@ The target design splits local control and background workers into three routes:
 | 本机全权限模式<br>Full-control local mode | 完整截图、点击、键盘、前台控制<br>Full screenshots, clicks, keyboard, and foreground control | 显式授权；影响当前桌面<br>Explicit authorization; affects the current desktop |
 | 独立 worker 环境<br>Isolated worker environment | 完整截图、点击、键盘、前台控制<br>Full screenshots, clicks, keyboard, and foreground control | VM / 独立 Session / Xvfb；不影响主桌面<br>VM / independent session / Xvfb; does not affect the main desktop |
 
-不支持的路线：
+The current P8 prototype uses VMware Workstation Pro as the VM runtime. Host
+orchestration is intentionally thin: `scripts/vmware_worker.py` starts an
+existing `.vmx`, waits for VMware Tools, and invokes the worker in the guest.
+It is not a VM image builder and it is not the final transport layer between the
+host agent and guest MCP server.
 
+不支持的路线：
 Unsupported routes:
 
 - 同一桌面里完整后台操作者。
