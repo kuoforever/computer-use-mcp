@@ -215,7 +215,11 @@ class WindowsDriver(Driver):
     def get_tree(self, opts: PruneOpts) -> TreeResult:
         self._node_cache = {}
         root = self._root_for_scope(opts)
-        win_rect = self._rect_of(root)
+        root_rect = self._rect_of(root)
+        # Minimized and lazily materialized windows can report a 0-area root
+        # BoundingRectangle while descendants are still addressable through UIA.
+        # Only use the root rect as a clipping boundary when it is meaningful.
+        clip_rect = root_rect if root_rect.w > 0 and root_rect.h > 0 else None
         wanted = set(opts.resolved_types())
 
         nodes: list[Node] = []
@@ -233,7 +237,7 @@ class WindowsDriver(Driver):
                     stack.append((child, depth + 1))
             if ctrl is root:
                 continue  # the window frame itself is not an element
-            node = self._maybe_node(ctrl, wanted, win_rect, opts)
+            node = self._maybe_node(ctrl, wanted, clip_rect, opts)
             if node is None:
                 continue
             # de-dup: one visual control can surface under two control types
@@ -264,16 +268,23 @@ class WindowsDriver(Driver):
 
     # --- node construction ---------------------------------------------------
 
-    def _maybe_node(self, ctrl, wanted: set[str], win_rect: Rect, opts: PruneOpts) -> Node | None:
+    def _maybe_node(self, ctrl, wanted: set[str], clip_rect: Rect | None, opts: PruneOpts) -> Node | None:
         role = self._role(ctrl)
         if role not in wanted:
             return None
-        if self._safe(lambda: bool(ctrl.IsOffscreen), False) and not opts.include_offscreen:
+        # If the root has no usable bbox, UIA often marks every descendant as
+        # offscreen. Keep returning ref-addressable nodes instead of collapsing
+        # perception to an indistinguishable empty snapshot.
+        if (
+            clip_rect is not None
+            and self._safe(lambda: bool(ctrl.IsOffscreen), False)
+            and not opts.include_offscreen
+        ):
             return None
         bbox = self._rect_of(ctrl)
         if bbox.w <= 0 or bbox.h <= 0:
             return None
-        if not win_rect.intersects(bbox):
+        if clip_rect is not None and not clip_rect.intersects(bbox):
             return None
 
         name = self._safe(lambda: ctrl.Name or "", "")
