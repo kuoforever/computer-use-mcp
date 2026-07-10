@@ -109,7 +109,7 @@ def redact(png_bytes: bytes, regions) -> bytes:
     im = Image.open(io.BytesIO(png_bytes)).convert("RGB")
     draw = ImageDraw.Draw(im)
     for x, y, w, h in regions:
-        draw.rectangle([x, y, x + w, y + h], fill=(0, 0, 0))
+        draw.rectangle([x, y, x + w - 1, y + h - 1], fill=(0, 0, 0))
     out = io.BytesIO()
     im.save(out, format="PNG")
     return out.getvalue()
