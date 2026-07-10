@@ -151,6 +151,27 @@ class WindowsDriver(Driver):
     def foreground_owner_chain(self) -> list[ProcRef]:
         return self._chain_for_pid(self._pid_of_hwnd(self._foreground_hwnd()))
 
+    @staticmethod
+    def last_input_tick() -> int:
+        """Return the 32-bit timestamp from GetLastInputInfo."""
+        class LASTINPUTINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+        info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
+        user32 = ctypes.windll.user32
+        if not user32.GetLastInputInfo(ctypes.byref(info)):
+            raise OSError(ctypes.get_last_error(), "GetLastInputInfo failed")
+        return int(info.dwTime)
+
+    def last_input_idle_seconds(self) -> float:
+        """Return seconds since the last keyboard or mouse input Win32 reports.
+
+        GetLastInputInfo is a single Win32 query, not a hook or a listener.
+        Its tick count is 32-bit, so subtraction is intentionally modulo 2^32.
+        """
+        now = int(ctypes.windll.kernel32.GetTickCount64()) & 0xFFFFFFFF
+        return ((now - self.last_input_tick()) & 0xFFFFFFFF) / 1000.0
+
     def snapshot_warmup_delay(self, scope: str) -> float:
         """Return a delay after a disposable browser UIA walk, if needed.
 

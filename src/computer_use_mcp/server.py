@@ -15,6 +15,7 @@ Config (env):
   CUMCP_REDACT_TITLES="1Password,Bitwarden"  window-title substrings to black out
   CUMCP_ESTOP="ctrl+alt+q"                   panic hotkey
   CUMCP_AUDIT="audit/actions.jsonl"          audit log path
+  CUMCP_HUMAN_IDLE_SECONDS="2.5"             yield after recent local input
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from .audit import AuditLog
 from .core import Session
 from .dpi import enable_dpi_awareness
 from .gate import Gate
+from .human_activity import DEFAULT_IDLE_SECONDS, HumanActivity
 from .safety import DANGEROUS_WORDS, EStop, is_dangerous, message_box_confirm, redact
 
 DEFAULT_ALLOWLIST = ("notepad.exe",)
@@ -36,6 +38,13 @@ DEFAULT_REDACT_TITLES = ("1Password", "Bitwarden", "KeePass", "Authenticator")
 def _env_list(name: str, default) -> list[str]:
     raw = os.environ.get(name, "")
     return [x for x in raw.split(",") if x.strip()] if raw.strip() else list(default)
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except ValueError:
+        return default
 
 
 def _fmt(res) -> str:
@@ -52,6 +61,7 @@ def build_server(
     start_estop=True,
     dangerous_words=DANGEROUS_WORDS,
     redact_titles=None,
+    human_activity=None,
 ) -> FastMCP:
     enable_dpi_awareness()
     if driver is None:
@@ -60,6 +70,9 @@ def build_server(
         driver = WindowsDriver()
     session = Session(driver)
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
+    activity = human_activity or HumanActivity(
+        driver, _env_float("CUMCP_HUMAN_IDLE_SECONDS", DEFAULT_IDLE_SECONDS)
+    )
     audit = AuditLog(audit_path or os.environ.get("CUMCP_AUDIT", "audit/actions.jsonl"))
     confirm = confirmer or message_box_confirm
     rtitles = redact_titles if redact_titles is not None else _env_list("CUMCP_REDACT_TITLES", DEFAULT_REDACT_TITLES)
@@ -78,15 +91,26 @@ def build_server(
         ),
     )
 
-    def _guard(tool: str, args: dict) -> tuple[bool, str]:
+    def _guard(tool: str, args: dict, *, require_foreground: bool = True) -> tuple[bool, str]:
         if estop.engaged:
             audit.record(tool, args, "estop", "aborted")
             return False, "ABORTED: e-stop engaged (restart the server to clear)"
+        activity_reason = activity.blocking_reason()
+        if activity_reason:
+            audit.record(tool, args, "human_active", activity_reason)
+            return False, f"HUMAN_ACTIVE: {activity_reason}"
+        if not require_foreground:
+            return True, ""
         allowed, reason = gate.foreground_allowed()
         if not allowed:
             audit.record(tool, args, "gate_denied", reason)
             return False, f"DENIED by gate: {reason}"
         return True, ""
+
+    def _record_action(tool: str, args: dict, out: str) -> str:
+        activity.note_agent_action()
+        audit.record(tool, args, "ok", out)
+        return out
 
     # --- perception ---------------------------------------------------------
 
@@ -126,12 +150,11 @@ def build_server(
 
     @mcp.tool(description="Bring a window (id from list_windows) to the foreground.")
     def activate_window(window_id: str) -> str:
-        if estop.engaged:
-            audit.record("activate_window", {"window_id": window_id}, "estop", "aborted")
-            return "ABORTED: e-stop engaged"
-        out = _fmt(session.activate(window_id))
-        audit.record("activate_window", {"window_id": window_id}, "ok", out)
-        return out
+        args = {"window_id": window_id}
+        ok, msg = _guard("activate_window", args, require_foreground=False)
+        if not ok:
+            return msg
+        return _record_action("activate_window", args, _fmt(session.activate(window_id)))
 
     @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "
                           "or at coordinates x,y. Allowlisted app must be in front; dangerous "
@@ -146,9 +169,7 @@ def build_server(
             if not confirm(f"computer-use-mcp 请求点击：\n\n{desc}\n\n允许执行吗？"):
                 audit.record("click", args, "user_denied", desc)
                 return f"DENIED by user (dangerous: {desc})"
-        out = _fmt(session.click(ref=ref, x=x, y=y))
-        audit.record("click", args, "ok", out)
-        return out
+        return _record_action("click", args, _fmt(session.click(ref=ref, x=x, y=y)))
 
     @mcp.tool(name="type",
               description="Type text into an element by ref (ValuePattern) or to the focused "
@@ -158,9 +179,7 @@ def build_server(
         ok, msg = _guard("type", args)
         if not ok:
             return msg
-        out = _fmt(session.type(text, ref=ref))
-        audit.record("type", args, "ok", out)
-        return out
+        return _record_action("type", args, _fmt(session.type(text, ref=ref)))
 
     @mcp.tool(description="Send a key chord like 'Ctrl+S' to the foreground window. "
                           "Allowlisted app must be in the foreground.")
@@ -169,9 +188,7 @@ def build_server(
         ok, msg = _guard("key", args)
         if not ok:
             return msg
-        out = _fmt(session.key(combo))
-        audit.record("key", args, "ok", out)
-        return out
+        return _record_action("key", args, _fmt(session.key(combo)))
 
     return mcp
 
