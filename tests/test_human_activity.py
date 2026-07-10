@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,3 +73,39 @@ class HumanActivityTests(unittest.TestCase):
         self.assertTrue(activate.startswith("HUMAN_ACTIVE:"))
         self.assertEqual(driver.key_calls, 0)
         self.assertEqual(driver.activate_calls, 0)
+
+    def test_full_control_mode_bypasses_gate_and_human_yield_but_audits(self) -> None:
+        driver = FakeDriver(idle_seconds=0.1)
+        with tempfile.TemporaryDirectory() as directory:
+            audit_path = Path(directory) / "audit.jsonl"
+            server = build_server(
+                allowlist=["calc.exe"],
+                driver=driver,
+                estop=EStop(),
+                start_estop=False,
+                audit_path=str(audit_path),
+                control_mode="full_control_local",
+            )
+            key = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+            audit = json.loads(audit_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(key, "ok")
+        self.assertEqual(driver.key_calls, 1)
+        self.assertEqual(audit["args"]["control_mode"], "full_control_local")
+
+    def test_full_control_mode_still_honors_estop(self) -> None:
+        driver = FakeDriver(idle_seconds=10.0)
+        estop = EStop()
+        estop.engage()
+        with tempfile.TemporaryDirectory() as directory:
+            server = build_server(
+                driver=driver,
+                estop=estop,
+                start_estop=False,
+                audit_path=str(Path(directory) / "audit.jsonl"),
+                control_mode="full_control_local",
+            )
+            key = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+
+        self.assertTrue(key.startswith("ABORTED:"))
+        self.assertEqual(driver.key_calls, 0)

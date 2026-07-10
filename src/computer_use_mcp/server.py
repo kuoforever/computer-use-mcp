@@ -5,9 +5,10 @@ Tools:
   screenshot                             perception; sensitive windows blacked out
   activate_window / click / type / key   action
 
-Every action passes, in order: e-stop check -> foreground allowlist gate ->
-(for dangerous-named clicks) human confirmation -> execute -> audit. A global
-panic hotkey (default Ctrl+Alt+Q) latches the server off.
+In ``safe_local`` mode, actions pass e-stop -> human activity -> foreground
+allowlist -> dangerous confirmation -> execute -> audit. ``full_control_local``
+explicitly bypasses the allowlist and human-yield checks, but never e-stop or
+audit. A global panic hotkey (default Ctrl+Alt+Q) latches the server off.
 
 Run:    computer-use-mcp                  (console script, stdio)
 Config (env):
@@ -16,6 +17,8 @@ Config (env):
   CUMCP_ESTOP="ctrl+alt+q"                   panic hotkey
   CUMCP_AUDIT="audit/actions.jsonl"          audit log path
   CUMCP_HUMAN_IDLE_SECONDS="2.5"             yield after recent local input
+  CUMCP_MODE="safe_local"                    safe_local | full_control_local
+  CUMCP_DANGEROUS_CONFIRM="1"                require confirmation for dangerous clicks
 """
 from __future__ import annotations
 
@@ -33,6 +36,8 @@ from .safety import DANGEROUS_WORDS, EStop, is_dangerous, message_box_confirm, r
 
 DEFAULT_ALLOWLIST = ("notepad.exe",)
 DEFAULT_REDACT_TITLES = ("1Password", "Bitwarden", "KeePass", "Authenticator")
+SAFE_LOCAL = "safe_local"
+FULL_CONTROL_LOCAL = "full_control_local"
 
 
 def _env_list(name: str, default) -> list[str]:
@@ -45,6 +50,20 @@ def _env_float(name: str, default: float) -> float:
         return float(os.environ.get(name, default))
     except ValueError:
         return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _control_mode(value: str) -> str:
+    mode = value.strip().lower()
+    if mode not in {SAFE_LOCAL, FULL_CONTROL_LOCAL}:
+        raise ValueError(f"CUMCP_MODE must be {SAFE_LOCAL!r} or {FULL_CONTROL_LOCAL!r}")
+    return mode
 
 
 def _fmt(res) -> str:
@@ -62,6 +81,8 @@ def build_server(
     dangerous_words=DANGEROUS_WORDS,
     redact_titles=None,
     human_activity=None,
+    control_mode=None,
+    dangerous_confirmation=None,
 ) -> FastMCP:
     enable_dpi_awareness()
     if driver is None:
@@ -72,6 +93,12 @@ def build_server(
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
     activity = human_activity or HumanActivity(
         driver, _env_float("CUMCP_HUMAN_IDLE_SECONDS", DEFAULT_IDLE_SECONDS)
+    )
+    mode = _control_mode(control_mode or os.environ.get("CUMCP_MODE", SAFE_LOCAL))
+    require_dangerous_confirmation = (
+        _env_bool("CUMCP_DANGEROUS_CONFIRM", mode == SAFE_LOCAL)
+        if dangerous_confirmation is None
+        else bool(dangerous_confirmation)
     )
     audit = AuditLog(audit_path or os.environ.get("CUMCP_AUDIT", "audit/actions.jsonl"))
     confirm = confirmer or message_box_confirm
@@ -85,31 +112,35 @@ def build_server(
         "computer-use-mcp",
         instructions=(
             "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
-            "or screenshot, act with click/type/key. Actions are restricted to "
-            f"allowlisted apps ({gate.describe()}); dangerous clicks (send/delete/"
-            "pay…) ask the human; a panic hotkey can abort everything."
+            "or screenshot, act with click/type/key. "
+            f"Operating mode={mode}. A panic hotkey can abort every action."
         ),
     )
 
+    def _audit_args(args: dict) -> dict:
+        return {**args, "control_mode": mode}
+
     def _guard(tool: str, args: dict, *, require_foreground: bool = True) -> tuple[bool, str]:
         if estop.engaged:
-            audit.record(tool, args, "estop", "aborted")
+            audit.record(tool, _audit_args(args), "estop", "aborted")
             return False, "ABORTED: e-stop engaged (restart the server to clear)"
+        if mode == FULL_CONTROL_LOCAL:
+            return True, ""
         activity_reason = activity.blocking_reason()
         if activity_reason:
-            audit.record(tool, args, "human_active", activity_reason)
+            audit.record(tool, _audit_args(args), "human_active", activity_reason)
             return False, f"HUMAN_ACTIVE: {activity_reason}"
         if not require_foreground:
             return True, ""
         allowed, reason = gate.foreground_allowed()
         if not allowed:
-            audit.record(tool, args, "gate_denied", reason)
+            audit.record(tool, _audit_args(args), "gate_denied", reason)
             return False, f"DENIED by gate: {reason}"
         return True, ""
 
     def _record_action(tool: str, args: dict, out: str) -> str:
         activity.note_agent_action()
-        audit.record(tool, args, "ok", out)
+        audit.record(tool, _audit_args(args), "ok", out)
         return out
 
     # --- perception ---------------------------------------------------------
@@ -165,9 +196,9 @@ def build_server(
         if not ok:
             return msg
         desc = session.describe_ref(ref) if ref else None
-        if desc and is_dangerous(desc, dangerous_words):
+        if require_dangerous_confirmation and desc and is_dangerous(desc, dangerous_words):
             if not confirm(f"computer-use-mcp 请求点击：\n\n{desc}\n\n允许执行吗？"):
-                audit.record("click", args, "user_denied", desc)
+                audit.record("click", _audit_args(args), "user_denied", desc)
                 return f"DENIED by user (dangerous: {desc})"
         return _record_action("click", args, _fmt(session.click(ref=ref, x=x, y=y)))
 
