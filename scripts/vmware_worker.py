@@ -1,0 +1,156 @@
+"""VMware Workstation host-side helper for an isolated computer-use worker.
+
+This script intentionally assumes the Windows guest VM already exists. Creating
+and licensing a Windows image is a human-owned step; the helper only checks,
+starts, and invokes commands in that existing VM through vmrun / VMware Tools.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+DEFAULT_VMRUN_PATHS = (
+    r"C:\Program Files\VMware\VMware Workstation\vmrun.exe",
+    r"C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe",
+)
+
+
+def find_vmrun(explicit: str | None = None) -> Path:
+    candidates: list[str] = []
+    if explicit:
+        candidates.append(explicit)
+
+    env_path = os.environ.get("CUMCP_VMRUN")
+    if env_path:
+        candidates.append(env_path)
+
+    path_hit = shutil.which("vmrun.exe") or shutil.which("vmrun")
+    if path_hit:
+        candidates.append(path_hit)
+
+    candidates.extend(DEFAULT_VMRUN_PATHS)
+
+    for candidate in candidates:
+        path = Path(candidate).expanduser()
+        if path.is_file():
+            return path
+
+    raise SystemExit(
+        "vmrun.exe was not found. Set CUMCP_VMRUN or install VMware Workstation Pro."
+    )
+
+
+def run_vmrun(vmrun: Path, args: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
+    cmd = [str(vmrun), "-T", "ws", *args]
+    return subprocess.run(cmd, text=True, capture_output=True, check=check)
+
+
+def print_result(result: subprocess.CompletedProcess[str]) -> None:
+    if result.stdout:
+        print(result.stdout.rstrip())
+    if result.stderr:
+        print(result.stderr.rstrip(), file=sys.stderr)
+
+
+def require_vmx(path: str | None) -> Path:
+    if not path:
+        raise SystemExit("A VMX path is required. Pass --vmx or set CUMCP_WORKER_VMX.")
+    vmx = Path(path).expanduser()
+    if not vmx.is_file():
+        raise SystemExit(f"VMX file was not found: {vmx}")
+    return vmx
+
+
+def check_tools(vmrun: Path, vmx: Path) -> str:
+    result = run_vmrun(vmrun, ["checkToolsState", str(vmx)], check=False)
+    output = (result.stdout or result.stderr).strip()
+    if result.returncode != 0:
+        return f"unknown ({output})" if output else "unknown"
+    return output or "unknown"
+
+
+def wait_for_tools(vmrun: Path, vmx: Path, timeout: int) -> str:
+    deadline = time.monotonic() + timeout
+    last_state = "unknown"
+    while time.monotonic() < deadline:
+        last_state = check_tools(vmrun, vmx)
+        if "running" in last_state.lower():
+            return last_state
+        time.sleep(2)
+    raise SystemExit(f"VMware Tools did not become ready within {timeout}s; last state: {last_state}")
+
+
+def command_doctor(args: argparse.Namespace) -> int:
+    vmrun = find_vmrun(args.vmrun)
+    print(f"vmrun: {vmrun}")
+
+    version = run_vmrun(vmrun, [], check=False)
+    version_text = "\n".join(part for part in (version.stdout, version.stderr) if part)
+    for line in version_text.splitlines():
+        if "vmrun version" in line.lower():
+            print(line.strip())
+            break
+
+    running = run_vmrun(vmrun, ["list"], check=False)
+    print_result(running)
+
+    if args.vmx or os.environ.get("CUMCP_WORKER_VMX"):
+        vmx = require_vmx(args.vmx or os.environ.get("CUMCP_WORKER_VMX"))
+        print(f"vmx: {vmx}")
+        print(f"tools: {check_tools(vmrun, vmx)}")
+    return 0
+
+
+def command_start(args: argparse.Namespace) -> int:
+    vmrun = find_vmrun(args.vmrun)
+    vmx = require_vmx(args.vmx or os.environ.get("CUMCP_WORKER_VMX"))
+    mode = "nogui" if args.nogui else "gui"
+
+    result = run_vmrun(vmrun, ["start", str(vmx), mode], check=False)
+    if result.returncode != 0 and "already powered on" not in (result.stderr + result.stdout).lower():
+        print_result(result)
+        return result.returncode
+    print_result(result)
+
+    if args.wait_tools:
+        state = wait_for_tools(vmrun, vmx, args.timeout)
+        print(f"tools: {state}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Manage a VMware Workstation Windows VM used as an isolated worker."
+    )
+    parser.add_argument("--vmrun", help="Path to vmrun.exe. Defaults to CUMCP_VMRUN or common install paths.")
+    parser.add_argument("--vmx", help="Path to the worker VM .vmx file. Defaults to CUMCP_WORKER_VMX.")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    doctor = subparsers.add_parser("doctor", help="Check vmrun, running VMs, and optional Tools state.")
+    doctor.set_defaults(func=command_doctor)
+
+    start = subparsers.add_parser("start", help="Start the worker VM.")
+    start.add_argument("--nogui", action="store_true", help="Start without opening the VMware UI.")
+    start.add_argument("--wait-tools", action="store_true", help="Wait until VMware Tools is running.")
+    start.add_argument("--timeout", type=int, default=120, help="Seconds to wait for VMware Tools.")
+    start.set_defaults(func=command_start)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

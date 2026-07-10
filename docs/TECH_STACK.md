@@ -116,6 +116,9 @@ A full background operator needs its own foreground, mouse, keyboard, and screen
 
 - VM 编排。
   VM orchestration.
+- VMware Workstation Pro host control through `vmrun.exe` is the first Windows
+  Home prototype path. The helper operates an existing `.vmx`; VM image
+  creation and Windows installation remain manual setup.
 - Linux Xvfb / Xephyr / 独立 X server。
   Linux Xvfb, Xephyr, or independent X server.
 - Windows `PrintWindow` / DWM thumbnail / app-specific fallback，用于窗口级截图。

@@ -158,8 +158,23 @@ $env:CUMCP_DANGEROUS_CONFIRM = "1"
 .\.venv\Scripts\computer-use-mcp.exe
 ```
 
-在支持 MCP 的 agent 壳里登记为 stdio server：
+### VMware isolated worker prototype
 
+For true background operation on Windows Home, the first isolated-worker route is
+VMware Workstation Pro with an existing Windows guest VM. Create and prepare the
+guest manually, then use the host helper to check and start it.
+
+```powershell
+# Host: point the helper at an existing VMware .vmx file.
+$env:CUMCP_WORKER_VMX = "D:\VMs\cumcp-worker\cumcp-worker.vmx"
+.\.venv\Scripts\python.exe scripts\vmware_worker.py doctor
+.\.venv\Scripts\python.exe scripts\vmware_worker.py start --wait-tools
+```
+
+Run the MCP server inside the guest using its own MCP client. Host-to-guest MCP
+transport and multi-worker orchestration are later P9 work.
+
+在支持 MCP 的 agent 壳里登记为 stdio server：
 Register it as a stdio server in an MCP-capable agent shell:
 
 ```json
