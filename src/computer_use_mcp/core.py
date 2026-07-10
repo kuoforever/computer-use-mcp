@@ -11,10 +11,13 @@ tools: ``ui_snapshot`` / ``screenshot`` / ``find`` / ``click`` / ``type`` / ``ke
 """
 from __future__ import annotations
 
+import time
+
 from .contract import (
     DRIVER_ERROR,
     STALE_ELEMENT,
     Driver,
+    DriverError,
     Image,
     Node,
     PruneOpts,
@@ -35,8 +38,21 @@ class Session:
     # --- perception ----------------------------------------------------------
 
     def ui_snapshot(self, scope: str = "foreground", max_nodes: int = 200) -> str:
+        # Browser accessibility trees may be populated lazily by the first UIA
+        # walk. Drivers that know this applies can request a best-effort warmup
+        # without widening the frozen Driver contract.
+        warmup_delay = getattr(self.driver, "snapshot_warmup_delay", lambda _scope: 0.0)(scope)
+        if warmup_delay > 0:
+            try:
+                self.driver.get_tree(PruneOpts(scope=scope, max_nodes=max_nodes))
+            except DriverError:
+                pass
+            time.sleep(warmup_delay)
         tree = self.driver.get_tree(PruneOpts(scope=scope, max_nodes=max_nodes))
-        return self._ingest(tree, scope)
+        incomplete_reason = getattr(
+            self.driver, "snapshot_incomplete_reason", lambda _scope, _tree: None
+        )(scope, tree)
+        return self._ingest(tree, scope, footer=incomplete_reason)
 
     def find(self, query: str, scope: str = "foreground", max_nodes: int = 200) -> str:
         tree = self.driver.find(PruneOpts(scope=scope, max_nodes=max_nodes), query)
@@ -86,7 +102,13 @@ class Session:
 
     # --- ref table + lifecycle ----------------------------------------------
 
-    def _ingest(self, tree: TreeResult, scope: str, header: str | None = None) -> str:
+    def _ingest(
+        self,
+        tree: TreeResult,
+        scope: str,
+        header: str | None = None,
+        footer: str | None = None,
+    ) -> str:
         # The ref table ACCUMULATES across snapshots/finds, so a ref stays
         # resolvable even after a narrowing find() that doesn't list it again;
         # staleness is caught at action time and relocated. The returned text
@@ -104,6 +126,8 @@ class Session:
         out.extend(lines)
         if tree.truncated:
             out.append(f"# … {tree.truncated} more truncated — narrow with find()")
+        if footer:
+            out.append(f"# incomplete: {footer}")
         if not lines:
             out.append("# (no interactive elements in scope)")
         return "\n".join(out)

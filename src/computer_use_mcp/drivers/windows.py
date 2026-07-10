@@ -58,6 +58,8 @@ _NAMED_KEYS = {
     "home": 0x24, "end": 0x23, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
 }
 _KEYEVENTF_KEYUP = 0x0002
+_BROWSER_PROCESS_NAMES = frozenset({"chrome.exe", "chromium.exe", "msedge.exe"})
+_BROWSER_SNAPSHOT_WARMUP_SECONDS = 1.0
 
 
 class WindowsDriver(Driver):
@@ -150,6 +152,59 @@ class WindowsDriver(Driver):
         return self._chain_for_pid(self._pid_of_hwnd(self._foreground_hwnd()))
 
     @staticmethod
+    def last_input_tick() -> int:
+        """Return the 32-bit timestamp from GetLastInputInfo."""
+        class LASTINPUTINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+        info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
+        user32 = ctypes.windll.user32
+        if not user32.GetLastInputInfo(ctypes.byref(info)):
+            raise OSError(ctypes.get_last_error(), "GetLastInputInfo failed")
+        return int(info.dwTime)
+
+    def last_input_idle_seconds(self) -> float:
+        """Return seconds since the last keyboard or mouse input Win32 reports.
+
+        GetLastInputInfo is a single Win32 query, not a hook or a listener.
+        Its tick count is 32-bit, so subtraction is intentionally modulo 2^32.
+        """
+        now = int(ctypes.windll.kernel32.GetTickCount64()) & 0xFFFFFFFF
+        return ((now - self.last_input_tick()) & 0xFFFFFFFF) / 1000.0
+
+    def snapshot_warmup_delay(self, scope: str) -> float:
+        """Return a delay after a disposable browser UIA walk, if needed.
+
+        Chromium-family browsers frequently materialize renderer accessibility
+        only after their first UIA traversal. This method deliberately resolves
+        the requested handle and never activates a window.
+        """
+        if scope == "all":
+            return 0.0
+        try:
+            hwnd = self._foreground_hwnd() if scope == "foreground" else int(scope)
+            name = psutil.Process(self._pid_of_hwnd(hwnd)).name().casefold()
+        except (TypeError, ValueError, psutil.Error):
+            return 0.0
+        return _BROWSER_SNAPSHOT_WARMUP_SECONDS if name in _BROWSER_PROCESS_NAMES else 0.0
+
+    def snapshot_incomplete_reason(self, scope: str, tree: TreeResult) -> str | None:
+        """Identify the Chromium frame-only tree without taking foreground.
+
+        A browser renderer can defer page accessibility indefinitely while it is
+        backgrounded. Do not activate it just to build the tree; make that
+        limitation visible to the caller instead of presenting a silent partial
+        snapshot as complete.
+        """
+        if self.snapshot_warmup_delay(scope) <= 0:
+            return None
+        documents = sum(node.role == "Document" for node in tree.nodes)
+        hyperlinks = sum(node.role == "Hyperlink" for node in tree.nodes)
+        if documents <= 2 and hyperlinks == 0:
+            return "browser content controls are not exposed yet; retry after the page is active"
+        return None
+
+    @staticmethod
     def _chain_for_pid(pid: int) -> list[ProcRef]:
         chain: list[ProcRef] = []
         try:
@@ -215,7 +270,11 @@ class WindowsDriver(Driver):
     def get_tree(self, opts: PruneOpts) -> TreeResult:
         self._node_cache = {}
         root = self._root_for_scope(opts)
-        win_rect = self._rect_of(root)
+        root_rect = self._rect_of(root)
+        # Minimized and lazily materialized windows can report a 0-area root
+        # BoundingRectangle while descendants are still addressable through UIA.
+        # Only use the root rect as a clipping boundary when it is meaningful.
+        clip_rect = root_rect if root_rect.w > 0 and root_rect.h > 0 else None
         wanted = set(opts.resolved_types())
 
         nodes: list[Node] = []
@@ -233,7 +292,7 @@ class WindowsDriver(Driver):
                     stack.append((child, depth + 1))
             if ctrl is root:
                 continue  # the window frame itself is not an element
-            node = self._maybe_node(ctrl, wanted, win_rect, opts)
+            node = self._maybe_node(ctrl, wanted, clip_rect, opts)
             if node is None:
                 continue
             # de-dup: one visual control can surface under two control types
@@ -264,16 +323,23 @@ class WindowsDriver(Driver):
 
     # --- node construction ---------------------------------------------------
 
-    def _maybe_node(self, ctrl, wanted: set[str], win_rect: Rect, opts: PruneOpts) -> Node | None:
+    def _maybe_node(self, ctrl, wanted: set[str], clip_rect: Rect | None, opts: PruneOpts) -> Node | None:
         role = self._role(ctrl)
         if role not in wanted:
             return None
-        if self._safe(lambda: bool(ctrl.IsOffscreen), False) and not opts.include_offscreen:
+        # If the root has no usable bbox, UIA often marks every descendant as
+        # offscreen. Keep returning ref-addressable nodes instead of collapsing
+        # perception to an indistinguishable empty snapshot.
+        if (
+            clip_rect is not None
+            and self._safe(lambda: bool(ctrl.IsOffscreen), False)
+            and not opts.include_offscreen
+        ):
             return None
         bbox = self._rect_of(ctrl)
         if bbox.w <= 0 or bbox.h <= 0:
             return None
-        if not win_rect.intersects(bbox):
+        if clip_rect is not None and not clip_rect.intersects(bbox):
             return None
 
         name = self._safe(lambda: ctrl.Name or "", "")

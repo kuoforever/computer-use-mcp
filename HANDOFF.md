@@ -1,8 +1,10 @@
 # HANDOFF — computer-use-mcp
 
 > 给下一个接手的 agent（可能是 Codex）/ 人的冷启动文档。最后更新：2026-06。
-> 深度设计见 [docs/DESIGN.md](docs/DESIGN.md)、契约见 [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)。
-> 本文件是**入口**：先读这一篇，再按需翻那两篇。
+> Cold-start handoff notes for the next agent or human maintainer. Last updated: 2026-06.
+>
+> 本文件记录**当前状态、历史验证和已知坑**，不按目标态重写。目标态双语文档见 [README.md](README.md)、[docs/DESIGN.md](docs/DESIGN.md)、[docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md)、[docs/TECH_STACK.md](docs/TECH_STACK.md)、[docs/QUALITY_ATTRIBUTES.md](docs/QUALITY_ATTRIBUTES.md)。
+> This file records the **current state, historical validation, and known pitfalls**. It is not rewritten as a target-state document. For bilingual target-state docs, see [README.md](README.md), [docs/DESIGN.md](docs/DESIGN.md), [docs/DRIVER_CONTRACT.md](docs/DRIVER_CONTRACT.md), [docs/TECH_STACK.md](docs/TECH_STACK.md), and [docs/QUALITY_ATTRIBUTES.md](docs/QUALITY_ATTRIBUTES.md).
 
 ---
 
@@ -82,7 +84,7 @@ src/computer_use_mcp/
 └── server.py     FastMCP server，把 Session 暴露成 8 工具，动作裹 _guard(急停+闸门)+危险确认+审计。entry: main()。
 scripts/  smoke_v0 v01 v02 v03 core server safety   每层一个 on-device 冒烟
 out/      gitignored：截图产物、audit_test.jsonl、一次性 probe_*.py
-docs/     DESIGN.md（决策记录+验证结果）、DRIVER_CONTRACT.md（契约 v1.0）
+docs/     DESIGN.md（目标架构 / target architecture）、DRIVER_CONTRACT.md（契约 / contract）、TECH_STACK.md（技术栈 / tech stack）、QUALITY_ATTRIBUTES.md（质量属性 / quality attributes）、EXECUTION_PLAN.md（实施路线 / implementation route）
 ```
 
 ---
@@ -110,6 +112,7 @@ docs/     DESIGN.md（决策记录+验证结果）、DRIVER_CONTRACT.md（契约
 9. **ref 生命周期**：Session 的 ref 表**跨快照累积、不清空**，所以 `find()` 收窄后旧 ref 仍可用；动作时若 `STALE_ELEMENT` 才按 `(role, name)` 重定位重试一次。
 10. **动作解析依赖上一次 get_tree 的缓存**：跨窗口操作要先对目标窗口 `get_tree(scope=hwnd)` 再动作（driver 的 `_node_cache` 每次 get_tree 重建）。
 11. **git CRLF 警告无害**（仓库存 LF，Windows 工作区 CRLF，提交时正常化）。
+12. **同桌面后台 ref 动作不可承诺**：受控 Notepad 探针在 `GetLastInputInfo` tick 未变化时确认 `ValuePattern.SetValue` 会切换前台。不要把 `SetValue` / `Invoke` / `Select` 当作通用无焦点副作用能力；完整后台操作必须放进独立 VM / Session。
 
 ---
 
@@ -121,6 +124,9 @@ docs/     DESIGN.md（决策记录+验证结果）、DRIVER_CONTRACT.md（契约
 | `CUMCP_REDACT_TITLES` | screenshot 里要涂黑的窗口标题子串 | 常见密码管理器 |
 | `CUMCP_ESTOP` | 急停热键组合 | `ctrl+alt+q` |
 | `CUMCP_AUDIT` | 审计日志路径 | `audit/actions.jsonl` |
+| `CUMCP_HUMAN_IDLE_SECONDS` | 人类最近输入后的让路阈值（秒） | `2.5` |
+| `CUMCP_MODE` | `safe_local`（默认）或 `full_control_local` | `safe_local` |
+| `CUMCP_DANGEROUS_CONFIRM` | 是否要求危险点击确认；安全模式默认开，全权限模式默认关 | 依模式而定 |
 
 急停：按住热键 → 锁死所有动作直到**重启 server**（latch）。
 
@@ -130,14 +136,11 @@ docs/     DESIGN.md（决策记录+验证结果）、DRIVER_CONTRACT.md（契约
 
 可直接执行的开工计划见 [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md)。下面是长期 backlog。
 
-1. **浏览器内容页压测**（最有信息量）：在 Chrome 打开内容重的页面，跑 `out/probe_browser.py`，看 `max_nodes=200` 截断、`find()` 省 token、同名元素歧义。→ 这才是「要不要 parent ref 层级」的真实依据。
-2. **固化「浏览器快照热身」**：在内容页确认坑 7② 的模式后，让 `Session.ui_snapshot` 对浏览器读两次（或暴露 warmup 开关 / force-accessibility）。
-3. **微信进程树闸门实测**：`weixin.exe` → 渲染子进程 `Wechatappex`，验证祖先放行逻辑（gate.py 的招牌场景，至今没真测过）。
-4. **快照层级 / parent ref**（由 #1 驱动；DESIGN「消歧」待定项）。
-5. **多屏坐标空间**（坑 8）：虚拟桌面跨屏、per-monitor scale。
-6. **macOS / Linux 驱动**：契约已冻结，照 DRIVER_CONTRACT.md 的平台映射各实现一份（Mac=AX/pyobjc 或 Swift，Linux=AT-SPI）。
-7. **测试硬化**：把 on-device smokes 收敛成可重复的 pytest（目前依赖真实桌面、手跑）。
-8. **杂项**：删已合并的 `feat/v0.0-windows-driver` 分支、定 License、`ui_snapshot` 深度上限/文本 run 合并。
+1. **本机全权限控制模式**：显式授权 agent 接管当前桌面；保留急停和审计。
+2. **VM worker 原型**：在独立 Windows VM 内运行完整 MCP worker，验证不影响主机游戏 / 工作。
+3. **通用进程树闸门实测**：选择任意真实多进程 app 验证祖先进程放行；微信仅为可选样本。
+4. **多屏坐标空间**：虚拟桌面跨屏、per-monitor scale。
+5. **macOS / Linux 驱动**：契约已冻结，照 DRIVER_CONTRACT.md 的平台映射各实现一份（Mac=AX/pyobjc 或 Swift，Linux=AT-SPI）。
 
 ---
 
