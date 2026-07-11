@@ -1,6 +1,8 @@
 """Bounded provider-neutral Agent workflow for the local desktop bridge."""
 from __future__ import annotations
 
+import asyncio
+import sys
 from dataclasses import dataclass, field, replace
 from uuid import uuid4
 
@@ -15,6 +17,7 @@ from .tool_registry import (
     validate_tool_result,
     verify_discovered_tools,
 )
+from .trace import RunPhase, RunRecorder, TraceError
 from .types import (
     ApprovalPort,
     DesktopMCPPort,
@@ -231,9 +234,16 @@ class AgentRunner:
 
         prepared = self.prepare(task, run_id=run_id)
         state = prepared.state
+        recorder = RunRecorder(self.config.state_dir, state.run_id)
+        recorder_started = False
+        desktop_closed = False
         try:
+            recorder.start(state)
+            recorder_started = True
+            recorder.record(state, RunPhase.OBSERVING)
             discovered = await self.ports.desktop.discover_tools()
             verify_discovered_tools(discovered)
+            recorder.record(state, RunPhase.PLANNING)
             turn_index = 0
             while True:
                 if state.budgets.model_turns_used >= state.budgets.max_model_turns:
@@ -250,7 +260,15 @@ class AgentRunner:
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
                 state = self._consume_model_turn(state, turn)
+                recorder.record(state, RunPhase.PLANNING)
                 if not turn.tool_calls:
+                    await self.ports.desktop.close()
+                    desktop_closed = True
+                    recorder.record(
+                        state,
+                        RunPhase.SUCCESS,
+                        final_text_length=len(turn.text),
+                    )
                     return RunOutcome(text=turn.text, state=state)
 
                 for call in turn.tool_calls:
@@ -260,6 +278,7 @@ class AgentRunner:
                         raise RunFailure(str(exc), state) from exc
                     except ToolValidationError as exc:
                         raise RunFailure("SCHEMA_MISMATCH", state) from exc
+                    recorder.record(state, RunPhase.EXECUTING)
                     spec = get_tool_spec(call.name)
                     if self.policy.disposition(spec) is not PolicyDisposition.ALLOW:
                         denied = ToolResult(
@@ -277,6 +296,34 @@ class AgentRunner:
                     state = self._record_result(state, result)
                     if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
                         raise RunFailure("UNKNOWN_OUTCOME", state)
+                    if result.ok:
+                        recorder.record(state, RunPhase.OBSERVING)
+                    recorder.record(state, RunPhase.PLANNING)
+        except asyncio.CancelledError:
+            if recorder_started:
+                recorder.record(state, RunPhase.CANCELLED, failure_code="CANCELLED")
+            raise
+        except RunFailure as failure:
+            if recorder_started:
+                terminal = (
+                    RunPhase.UNKNOWN_OUTCOME
+                    if failure.code == "UNKNOWN_OUTCOME"
+                    else RunPhase.FAILED
+                )
+                recorder.record(failure.state, terminal, failure_code=failure.code)
+            raise
+        except TraceError:
+            raise
+        except Exception:
+            if recorder_started:
+                recorder.record(state, RunPhase.FAILED, failure_code="RUN_FAILED")
+            raise
         finally:
+            had_active_error = sys.exc_info()[0] is not None
             prepared.close()
-            await self.ports.desktop.close()
+            if not desktop_closed:
+                try:
+                    await self.ports.desktop.close()
+                except Exception:
+                    if not had_active_error:
+                        raise

@@ -1,0 +1,332 @@
+"""Redacted JSONL traces and atomic safe run checkpoints."""
+from __future__ import annotations
+
+import json
+import os
+import re
+import tempfile
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import Enum
+from pathlib import Path
+from typing import Mapping
+
+from .types import JSONValue, LedgerEvent, LedgerEventKind, RunState, to_json_value
+
+
+TRACE_VERSION = 1
+CHECKPOINT_VERSION = 1
+MAX_CHECKPOINT_BYTES = 64 * 1024
+MAX_TRACE_LINE_BYTES = 1024 * 1024
+
+
+class TraceError(RuntimeError):
+    """Fixed trace/checkpoint failure that never embeds persisted content."""
+
+
+class RunPhase(str, Enum):
+    CREATED = "CREATED"
+    OBSERVING = "OBSERVING"
+    PLANNING = "PLANNING"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
+    EXECUTING = "EXECUTING"
+    VERIFYING = "VERIFYING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    UNKNOWN_OUTCOME = "UNKNOWN_OUTCOME"
+    CANCELLED = "CANCELLED"
+
+
+TERMINAL_PHASES = frozenset(
+    {RunPhase.SUCCESS, RunPhase.FAILED, RunPhase.UNKNOWN_OUTCOME, RunPhase.CANCELLED}
+)
+_TRANSITIONS = {
+    RunPhase.CREATED: {RunPhase.OBSERVING, RunPhase.FAILED, RunPhase.CANCELLED},
+    RunPhase.OBSERVING: {
+        RunPhase.PLANNING,
+        RunPhase.FAILED,
+        RunPhase.UNKNOWN_OUTCOME,
+        RunPhase.CANCELLED,
+    },
+    RunPhase.PLANNING: {
+        RunPhase.EXECUTING,
+        RunPhase.SUCCESS,
+        RunPhase.FAILED,
+        RunPhase.CANCELLED,
+    },
+    RunPhase.WAITING_APPROVAL: {
+        RunPhase.EXECUTING,
+        RunPhase.FAILED,
+        RunPhase.CANCELLED,
+    },
+    RunPhase.EXECUTING: {
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.VERIFYING,
+        RunPhase.FAILED,
+        RunPhase.UNKNOWN_OUTCOME,
+        RunPhase.CANCELLED,
+    },
+    RunPhase.VERIFYING: {
+        RunPhase.PLANNING,
+        RunPhase.SUCCESS,
+        RunPhase.FAILED,
+        RunPhase.UNKNOWN_OUTCOME,
+        RunPhase.CANCELLED,
+    },
+}
+_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
+
+
+def validate_transition(current: RunPhase, target: RunPhase) -> None:
+    if not isinstance(current, RunPhase) or not isinstance(target, RunPhase):
+        raise ValueError("run phases must be RunPhase values")
+    if current in TERMINAL_PHASES or target not in _TRANSITIONS[current]:
+        raise TraceError("ILLEGAL_RUN_PHASE_TRANSITION")
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _safe_event(event: LedgerEvent, sequence: int, run_id: str) -> dict[str, JSONValue]:
+    item: dict[str, JSONValue] = {
+        "trace_version": TRACE_VERSION,
+        "sequence": sequence,
+        "run_id": run_id,
+        "kind": event.kind.value,
+    }
+    if event.kind is LedgerEventKind.USER_TASK:
+        item["task_length"] = event.payload["task_length"]
+    elif event.kind is LedgerEventKind.MODEL_TURN:
+        for field_name in ("text_length", "tool_call_count", "input_tokens", "output_tokens"):
+            item[field_name] = event.payload[field_name]
+    elif event.kind is LedgerEventKind.TOOL_CALL:
+        assert event.safe_argument_summary is not None
+        item["tool"] = event.safe_argument_summary.tool_name
+        item["arguments"] = to_json_value(event.safe_argument_summary.values)
+        item["redacted_fields"] = list(event.safe_argument_summary.redacted_fields)
+    elif event.kind is LedgerEventKind.TOOL_RESULT:
+        assert event.tool_result is not None
+        item["tool"] = event.tool_result.tool_name
+        item["status"] = event.tool_result.status.value
+        item["dispatch"] = event.tool_result.dispatch.value
+        item["text_length"] = len(event.tool_result.sanitized_text)
+        item["image_count"] = len(event.tool_result.images)
+        if event.tool_result.code is not None:
+            item["code"] = event.tool_result.code
+    elif event.kind is LedgerEventKind.OBSERVATION:
+        item["tool"] = event.payload["tool_name"]
+        item["observation_epoch"] = event.payload["observation_epoch"]
+    elif event.kind is LedgerEventKind.POLICY_DECISION:
+        assert event.policy_decision is not None
+        item["decision"] = event.policy_decision.kind.value
+    elif event.kind is LedgerEventKind.RECOVERY:
+        item["status"] = event.payload.get("status")
+    return item
+
+
+def _checkpoint(
+    state: RunState,
+    phase: RunPhase,
+    *,
+    failure_code: str | None = None,
+    final_text_length: int | None = None,
+) -> dict[str, JSONValue]:
+    budget = state.budgets
+    payload: dict[str, JSONValue] = {
+        "checkpoint_version": CHECKPOINT_VERSION,
+        "run_id": state.run_id,
+        "phase": phase.value,
+        "policy_version": state.policy_version,
+        "recovery_status": state.recovery_status.value,
+        "task_length": len(state.task),
+        "observation_epoch": state.observation_epoch,
+        "verified_observation_epoch": state.verified_observation_epoch,
+        "event_count": len(state.event_log),
+        "budgets": {
+            "max_model_turns": budget.max_model_turns,
+            "max_tool_calls": budget.max_tool_calls,
+            "max_side_effects": budget.max_side_effects,
+            "model_turns_used": budget.model_turns_used,
+            "tool_calls_used": budget.tool_calls_used,
+            "side_effects_used": budget.side_effects_used,
+        },
+        "updated_at": _now(),
+    }
+    if failure_code is not None:
+        payload["failure_code"] = failure_code
+    if final_text_length is not None:
+        payload["final_text_length"] = final_text_length
+    if phase is RunPhase.SUCCESS:
+        payload["resume_allowed"] = False
+        payload["recovery_action"] = "none"
+    elif phase is RunPhase.UNKNOWN_OUTCOME:
+        payload["resume_allowed"] = False
+        payload["recovery_action"] = "human_reobserve_then_start_new_run"
+    else:
+        payload["resume_allowed"] = False
+        payload["recovery_action"] = "inspect_trace_then_start_new_run"
+    return payload
+
+
+def _atomic_json(path: Path, payload: Mapping[str, JSONValue]) -> None:
+    encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    if len(encoded) > MAX_CHECKPOINT_BYTES:
+        raise TraceError("CHECKPOINT_TOO_LARGE")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        descriptor, raw_path = tempfile.mkstemp(prefix=".state-", suffix=".tmp", dir=path.parent)
+        temporary = Path(raw_path)
+        with os.fdopen(descriptor, "wb") as file:
+            file.write(encoded)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary, path)
+        temporary = None
+    except OSError as exc:
+        raise TraceError("CHECKPOINT_WRITE_FAILED") from exc
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+
+
+@dataclass
+class RunRecorder:
+    """Own one run's append-only redacted trace and atomic checkpoint."""
+
+    state_dir: Path
+    run_id: str
+    phase: RunPhase = RunPhase.CREATED
+    _event_count: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state_dir, Path) or not self.state_dir.is_absolute():
+            raise ValueError("state_dir must be an absolute Path")
+        if not isinstance(self.run_id, str) or _RUN_ID.fullmatch(self.run_id) is None:
+            raise ValueError("run_id must be a path-safe identifier")
+
+    @property
+    def run_dir(self) -> Path:
+        return self.state_dir / "runs" / self.run_id
+
+    @property
+    def checkpoint_path(self) -> Path:
+        return self.run_dir / "state.json"
+
+    @property
+    def trace_path(self) -> Path:
+        return self.state_dir / "traces" / f"{self.run_id}.jsonl"
+
+    def start(self, state: RunState) -> None:
+        if self.checkpoint_path.exists() or self.trace_path.exists():
+            raise TraceError("RUN_RECORD_ALREADY_EXISTS")
+        self.record(state, RunPhase.CREATED)
+
+    def record(
+        self,
+        state: RunState,
+        phase: RunPhase,
+        *,
+        failure_code: str | None = None,
+        final_text_length: int | None = None,
+    ) -> None:
+        if state.run_id != self.run_id:
+            raise TraceError("RUN_RECORD_IDENTITY_MISMATCH")
+        if phase is not self.phase:
+            validate_transition(self.phase, phase)
+        new_events = state.event_log[self._event_count :]
+        if self._event_count > len(state.event_log):
+            raise TraceError("RUN_EVENT_LOG_REWIND")
+        self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with self.trace_path.open("ab") as file:
+                for offset, event in enumerate(new_events, start=self._event_count + 1):
+                    encoded = (
+                        json.dumps(
+                            _safe_event(event, offset, self.run_id),
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        + "\n"
+                    ).encode()
+                    if len(encoded) > MAX_TRACE_LINE_BYTES:
+                        raise TraceError("TRACE_EVENT_TOO_LARGE")
+                    file.write(encoded)
+                file.flush()
+                os.fsync(file.fileno())
+        except OSError as exc:
+            raise TraceError("TRACE_WRITE_FAILED") from exc
+        _atomic_json(
+            self.checkpoint_path,
+            _checkpoint(
+                state,
+                phase,
+                failure_code=failure_code,
+                final_text_length=final_text_length,
+            ),
+        )
+        self._event_count = len(state.event_log)
+        self.phase = phase
+
+
+def _read_json(path: Path, maximum: int, error_code: str) -> object:
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise TraceError(error_code) from exc
+    if not data or len(data) > maximum:
+        raise TraceError(error_code)
+    try:
+        return json.loads(data)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise TraceError(error_code) from exc
+
+
+def read_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
+    """Read one bounded checkpoint and trace without trusting persisted fields."""
+
+    recorder = RunRecorder(state_dir=state_dir, run_id=run_id)
+    checkpoint = _read_json(
+        recorder.checkpoint_path, MAX_CHECKPOINT_BYTES, "CHECKPOINT_READ_FAILED"
+    )
+    if not isinstance(checkpoint, dict):
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    if checkpoint.get("run_id") != run_id or checkpoint.get("checkpoint_version") != 1:
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    events: list[JSONValue] = []
+    try:
+        with recorder.trace_path.open("rb") as file:
+            for sequence, line in enumerate(file, start=1):
+                if not line or len(line) > MAX_TRACE_LINE_BYTES:
+                    raise TraceError("TRACE_READ_FAILED")
+                try:
+                    event = json.loads(line)
+                except (UnicodeError, json.JSONDecodeError) as exc:
+                    raise TraceError("TRACE_READ_FAILED") from exc
+                if (
+                    not isinstance(event, dict)
+                    or event.get("run_id") != run_id
+                    or event.get("sequence") != sequence
+                    or event.get("trace_version") != TRACE_VERSION
+                ):
+                    raise TraceError("TRACE_READ_FAILED")
+                events.append(to_json_value(event))
+    except OSError as exc:
+        raise TraceError("TRACE_READ_FAILED") from exc
+    if checkpoint.get("event_count") != len(events):
+        raise TraceError("RUN_RECORD_INCOMPLETE")
+    return {"state": to_json_value(checkpoint), "events": events}
+
+
+__all__ = [
+    "RunPhase",
+    "RunRecorder",
+    "TraceError",
+    "read_run_record",
+    "validate_transition",
+]

@@ -26,6 +26,7 @@ not a line-by-line mirror of every reference page.
 | I need completed work and remaining priorities | [Roadmap](EXECUTION_PLAN.md) |
 | I need the planned full Agent Host scope and delivery gates | [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md) |
 | I am implementing or reviewing the Agent Host Phase 0-3 foundation and MCP bridge | [Agent Host contract](AGENT.md) and [evaluation contract](EVALUATION.md) |
+| I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 
 ## Documentation ownership
@@ -42,6 +43,7 @@ not a line-by-line mirror of every reference page.
 | Roadmap | Completed milestones and future priorities |
 | Agent implementation plan | Planned dual-provider Agent Host, safety boundaries, and release gates |
 | Agent Host contract / evaluation | Implemented provider-neutral foundation, desktop bridge, trust boundaries, and evaluation gates |
+| Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
 
 Do not use the roadmap or design documents to infer that a capability is

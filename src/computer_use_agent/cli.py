@@ -39,6 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
     evaluate.add_argument("--report", type=Path)
+
+    trace = commands.add_parser("trace", help="Inspect one redacted run record.")
+    trace.add_argument("run_id")
+    trace.add_argument("--config", required=True, type=Path)
     return parser
 
 
@@ -132,6 +136,14 @@ def _run_eval(cases: Path, report_path: Path | None) -> int:
     return 0 if report.passed else 1
 
 
+def _show_trace(path: Path, run_id: str) -> int:
+    from .trace import read_run_record
+
+    config = load_agent_config(path)
+    _print_json(read_run_record(config.state_dir, run_id))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -147,6 +159,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_live(args.config, args.task)
         if args.command == "eval":
             return _run_eval(args.cases, args.report)
+        if args.command == "trace":
+            return _show_trace(args.config, args.run_id)
     except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
