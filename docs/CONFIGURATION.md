@@ -78,8 +78,10 @@ $env:CUMCP_DANGEROUS_CONFIRM = "1"
 ## Audit and recovery
 
 Each action records its tool name, a bounded argument summary, decision, result,
-and control mode in the JSONL audit file. Inspect it with a text editor or a
-JSON-aware log viewer.
+and control mode in the JSONL audit file. For `type`, the audit record contains
+only `text_present`, `text_length`, and `ref_supplied`; it never contains typed
+text, a typed-text prefix, arbitrary type arguments, or a driver result message.
+Inspect it with a text editor or a JSON-aware log viewer.
 
 Hold the configured e-stop hotkey to abort future actions. The e-stop is
 latched; restart the MCP server to clear it.

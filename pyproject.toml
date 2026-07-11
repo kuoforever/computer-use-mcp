@@ -23,6 +23,7 @@ dev = ["pytest>=8", "ruff>=0.5"]
 
 [project.scripts]
 computer-use-mcp = "computer_use_mcp.server:main"
+computer-use-agent = "computer_use_agent.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
