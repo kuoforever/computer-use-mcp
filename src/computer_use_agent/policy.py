@@ -1,0 +1,47 @@
+"""Phase-2 host policy foundation with no dispatch behavior."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+
+from .config import APPROVED_ACTIONS_MODE, PolicyConfig
+from .tool_registry import ToolSpec
+from .types import RunBudget, ToolEffect
+
+
+class PolicyDisposition(str, Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+    APPROVAL_REQUIRED = "approval_required"
+
+
+@dataclass(frozen=True)
+class HostPolicy:
+    """Immutable projection of reviewed policy configuration."""
+
+    version: str
+    config: PolicyConfig
+
+    @classmethod
+    def from_config(cls, version: str, config: PolicyConfig) -> "HostPolicy":
+        if not isinstance(version, str) or not version.strip():
+            raise ValueError("policy version must be a non-empty string")
+        if not isinstance(config, PolicyConfig):
+            raise ValueError("config must be a PolicyConfig")
+        return cls(version=version, config=config)
+
+    def initial_budget(self) -> RunBudget:
+        return RunBudget(
+            max_model_turns=self.config.max_model_turns,
+            max_tool_calls=self.config.max_tool_calls,
+            max_side_effects=self.config.max_side_effects,
+        )
+
+    def disposition(self, tool: ToolSpec) -> PolicyDisposition:
+        if tool.required_safety_baselines:
+            return PolicyDisposition.DENY
+        if tool.effect is ToolEffect.OBSERVATION:
+            return PolicyDisposition.ALLOW
+        if self.config.mode != APPROVED_ACTIONS_MODE:
+            return PolicyDisposition.DENY
+        return PolicyDisposition.APPROVAL_REQUIRED

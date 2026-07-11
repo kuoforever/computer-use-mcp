@@ -128,7 +128,12 @@ def build_server(
             return True, ""
         activity_reason = activity.blocking_reason()
         if activity_reason:
-            audit.record(tool, _audit_args(args), "human_active", activity_reason)
+            audit.record(
+                tool,
+                _audit_args(args),
+                "human_active",
+                activity_reason,
+            )
             return False, f"HUMAN_ACTIVE: {activity_reason}"
         if not require_foreground:
             return True, ""

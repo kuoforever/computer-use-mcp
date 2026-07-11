@@ -127,6 +127,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Implement a platform driver | [Driver Contract](docs/DRIVER_CONTRACT.md) |
 | Test or maintain the project | [Development](docs/DEVELOPMENT.md) and [Maintainer handoff](HANDOFF.md) |
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
+| Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
 
 ## License
 

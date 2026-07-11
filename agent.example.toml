@@ -1,0 +1,33 @@
+# Phase-2 foundation example. This file contains no API keys.
+# Provider adapters read credentials from their own process environment and never
+# pass them to the local MCP child.
+
+[agent]
+# Use a user-local directory, not this repository.
+state_dir = "C:/Users/your-user/AppData/Local/computer-use-agent"
+policy_version = "phase2"
+
+[provider]
+# Supported values: "openai" or "anthropic". Adapters are added in later phases.
+name = "openai"
+model = "your-model-id"
+
+[mcp]
+# The future bridge executes this absolute program directly with shell=False.
+executable = "C:/Users/your-user/computer-use-mcp/.venv/Scripts/computer-use-mcp.exe"
+args = []
+cwd = "C:/Users/your-user/computer-use-mcp"
+# This is a reviewed child-environment override, not an inherited environment.
+# The host adds safe_local mode, enabled confirmation, a 2.5-second human-idle
+# threshold, and its fixed e-stop. Only the documented safe CUMCP controls are
+# accepted; do not put API keys, tokens, audit paths, or redaction controls here.
+environment = { CUMCP_MODE = "safe_local", CUMCP_ALLOWLIST = "notepad.exe" }
+
+[policy]
+# The default denies all side-effecting tools. Even approved_actions retains a
+# local host approval for every action in the safety MVP.
+mode = "read_only"
+require_approval_for_actions = true
+max_model_turns = 12
+max_tool_calls = 32
+max_side_effects = 8
