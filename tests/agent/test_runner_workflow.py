@@ -14,7 +14,7 @@ from computer_use_agent.config import (
     ProviderConfig,
 )
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
-from computer_use_agent.runner import AgentRunner, RunnerBudgetError, RunnerError, RunnerPorts
+from computer_use_agent.runner import AgentRunner, RunFailure, RunnerError, RunnerPorts
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -198,7 +198,7 @@ def test_model_turn_budget_stops_before_an_extra_provider_call(
         )
     )
 
-    with pytest.raises(RunnerBudgetError, match="MODEL_TURN_BUDGET_EXHAUSTED"):
+    with pytest.raises(RunFailure, match="MODEL_TURN_BUDGET_EXHAUSTED"):
         asyncio.run(
             _runner(
                 _config(tmp_path, monkeypatch, max_model_turns=1), provider, desktop

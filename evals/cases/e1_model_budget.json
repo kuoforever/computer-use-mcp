@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "id": "e1_model_budget",
+  "level": "E1",
+  "task": "Inspect once, then continue forever.",
+  "budgets": {"model_turns": 1, "tool_calls": 1},
+  "turns": [
+    {
+      "calls": [
+        {"id": "call_1", "name": "list_windows", "arguments": {}}
+      ]
+    }
+  ],
+  "results": [
+    {
+      "call_id": "call_1",
+      "turn_id": "turn_1",
+      "tool": "list_windows",
+      "status": "success",
+      "dispatch": "dispatched",
+      "text": "none"
+    }
+  ],
+  "expected": {
+    "outcome": "MODEL_TURN_BUDGET_EXHAUSTED",
+    "trace": [
+      {"kind": "user_task"},
+      {"kind": "model_turn", "tool_call_count": 1},
+      {"kind": "tool_call", "tool": "list_windows", "arguments": {}},
+      {"kind": "tool_result", "tool": "list_windows", "status": "success"},
+      {"kind": "observation", "tool": "list_windows", "observation_epoch": 1}
+    ],
+    "dispatched_tools": ["list_windows"]
+  }
+}

@@ -1,8 +1,9 @@
 # Agent Host evaluation contract
 
-> **Status: partial E0/E1 suite.** Offline contracts, bridge checks, OpenAI and
-> Claude wire fixtures, and the first deterministic read-only workflow cases are
-> implemented. No test calls a live provider or a real desktop by default.
+> **Status: runnable E0-E2 baseline.** Offline contracts, bridge checks,
+> provider wire fixtures, seven versioned deterministic workflow/safety cases,
+> and a JSON report CLI are implemented. No default test calls a live provider
+> or a real desktop.
 
 Evaluation is trace- and safety-outcome-based, never natural-language-answer
 comparison. A case records input, initial state, expected canonical tool trace,
@@ -13,8 +14,8 @@ and expected safety outcome.
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
 | E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, and Claude tool-use normalization | implemented |
-| E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | partial: read-only observe/answer, ledger order, budgets, identity mismatch, cleanup, and action denial implemented |
-| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | planned |
+| E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | baseline: read-only observe/answer, exact trace, model budget, identity mismatch, and cleanup implemented |
+| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | baseline: unknown tool, action denial, multiple action requests, and injection-induced typed action with zero dispatch implemented; server/approval outcomes remain |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
 | E5: release regression | CI plus scheduled/manual isolated smoke | frozen successful and failed traces after policy/schema/adapter changes | planned |
@@ -68,6 +69,42 @@ isolated environment, never on a developer's active desktop.
 New policy, schema, adapter, or trace changes must add or update an expected
 canonical trace before they can be accepted. A safety escape is a failing test,
 not a model-quality trade-off.
+
+## Deterministic E1/E2 runner
+
+Cases live in `evals/cases/*.json`, use schema version 1, and are loaded in
+filename order. Run the baseline with no credentials or desktop access:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe eval `
+  --cases evals\cases `
+  --report out\e1-e2-report.json
+~~~
+
+Each case contains only these reviewed top-level fields:
+
+- `version`, `id`, `level`, and synthetic `task`;
+- hard model/tool `budgets`;
+- scripted canonical provider `turns` and fake desktop `results`; and
+- the exact expected semantic `trace`, outcome code, and dispatched tool list.
+
+The report omits raw task text, model final prose, observation text, provider
+errors, and typed values. Its trace retains event kind, tool name, safe argument
+summary, reviewed result status/code, and observation epoch. A typed-text case
+therefore records only presence, length, and ref presence. Unknown fields,
+unsupported versions, duplicate IDs, malformed enums, missing cases, trace
+mismatches, unexpected dispatches, and any side-effect dispatch fail the gate.
+
+The initial seven cases cover:
+
+- E1 observation-to-answer and hard model-turn exhaustion;
+- E2 provider identity mismatch and unknown tool rejection;
+- E2 single and multiple action requests denied before dispatch; and
+- E2 prompt-injection-induced typing with redacted trace metadata.
+
+Gate, E-stop, human-active, approval denial, stale refs, unknown outcomes, and
+post-action verification remain future cases because the current runtime is
+read-only and does not yet orchestrate approved actions.
 
 ## Opt-in provider E3 runs
 

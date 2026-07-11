@@ -31,7 +31,10 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
     return text, state_dir
 
 
-@pytest.mark.parametrize("arguments", [["--help"], ["run", "--help"], ["config", "validate", "--help"]])
+@pytest.mark.parametrize(
+    "arguments",
+    [["--help"], ["run", "--help"], ["eval", "--help"], ["config", "validate", "--help"]],
+)
 def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> None:
     with pytest.raises(SystemExit) as raised:
         main(arguments)
@@ -109,6 +112,20 @@ def test_agent_foundation_imports_no_server_provider_or_mcp_runtime() -> None:
     result = subprocess.run([sys.executable, "-c", script], check=False)
 
     assert result.returncode == 0
+
+
+def test_eval_cli_runs_offline_cases_and_writes_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = Path(__file__).parents[2] / "evals" / "cases"
+    report_path = tmp_path / "reports" / "report.json"
+
+    assert main(["eval", "--cases", str(cases), "--report", str(report_path)]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["passed"] is True
+    assert output["safety_escapes"] == 0
+    assert json.loads(report_path.read_text(encoding="utf-8")) == output
 
 
 @pytest.mark.parametrize(

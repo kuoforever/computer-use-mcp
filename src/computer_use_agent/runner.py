@@ -41,6 +41,19 @@ class RunnerBudgetError(RunnerError):
     """Raised when a model or tool-call hard bound is reached."""
 
 
+class RunFailure(RunnerError):
+    """A reviewed failure code plus the canonical state reached before stopping."""
+
+    def __init__(self, code: str, state: RunState) -> None:
+        if not isinstance(code, str) or not code:
+            raise ValueError("failure code must be a non-empty string")
+        if not isinstance(state, RunState):
+            raise ValueError("state must be a RunState")
+        super().__init__(code)
+        self.code = code
+        self.state = state
+
+
 @dataclass(frozen=True)
 class RunOutcome:
     """Completed read-only run output and its final in-memory audit state."""
@@ -224,7 +237,7 @@ class AgentRunner:
             turn_index = 0
             while True:
                 if state.budgets.model_turns_used >= state.budgets.max_model_turns:
-                    raise RunnerBudgetError("MODEL_TURN_BUDGET_EXHAUSTED")
+                    raise RunFailure("MODEL_TURN_BUDGET_EXHAUSTED", state)
                 turn_index += 1
                 turn_id = f"turn_{turn_index}"
                 turn = await self.ports.provider.create_turn(
@@ -235,13 +248,18 @@ class AgentRunner:
                     tools=REVIEWED_TOOLS,
                 )
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
-                    raise RunnerError("PROVIDER_TURN_IDENTITY_MISMATCH")
+                    raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
                 state = self._consume_model_turn(state, turn)
                 if not turn.tool_calls:
                     return RunOutcome(text=turn.text, state=state)
 
                 for call in turn.tool_calls:
-                    state = self._record_call(state, call)
+                    try:
+                        state = self._record_call(state, call)
+                    except RunnerBudgetError as exc:
+                        raise RunFailure(str(exc), state) from exc
+                    except ToolValidationError as exc:
+                        raise RunFailure("SCHEMA_MISMATCH", state) from exc
                     spec = get_tool_spec(call.name)
                     if self.policy.disposition(spec) is not PolicyDisposition.ALLOW:
                         denied = ToolResult(
@@ -252,13 +270,13 @@ class AgentRunner:
                             code="POLICY_DENIED",
                         )
                         state = self._record_result(state, denied)
-                        raise RunnerError("POLICY_DENIED")
+                        raise RunFailure("POLICY_DENIED", state)
                     authorized_call = replace(call, status=ToolCallStatus.AUTHORIZED)
                     result = await self.ports.desktop.call_tool(authorized_call)
                     validate_tool_result(authorized_call, result)
                     state = self._record_result(state, result)
                     if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
-                        raise RunnerError("UNKNOWN_OUTCOME")
+                        raise RunFailure("UNKNOWN_OUTCOME", state)
         finally:
             prepared.close()
             await self.ports.desktop.close()

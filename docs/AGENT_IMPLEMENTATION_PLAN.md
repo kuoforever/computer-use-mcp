@@ -22,7 +22,7 @@ desktop Agent. The status below is based on source inspection plus
 | OpenAI / Claude providers | Implemented read-only text slice | Responses `function_call_output` and Messages `tool_result` adapters, optional SDK extras, offline wire fixtures, CLI routing, and explicitly gated fake-MCP E3 cases exist. Live E3 evidence is environment/operator supplied. |
 | Workflow and recovery | Partial | The read-only observe/answer loop executes and cleans up deterministically. Transition persistence, resume/cancel, action verification, and conservative crash recovery remain. |
 | Context, memory, and trace | Contract/design only | Ledger types and state paths exist, but `context.py`, `memory.py`, and `trace.py`, their stores, redaction pipeline, and CLI commands do not. |
-| Evaluation and CI | Partial | E0 and initial E1 coverage run offline. Explicitly gated OpenAI and Claude E3 cases use a harmless fake MCP child; they are not default CI gates. `evals/cases`, reports, broader E1/E2, isolated desktop smokes, and CI configuration remain. |
+| Evaluation and CI | Partial | E0 plus a seven-case E1/E2 baseline run offline through `agent eval`, compare exact semantic traces, write JSON reports, and require zero safety escapes. Explicitly gated provider E3 cases use a harmless fake MCP child. Broader action/server outcomes, isolated desktop smokes, and CI configuration remain. |
 
 The OpenAI text-observation slice is runnable but experimental. Documentation
 must distinguish it from the complete safety MVP until both providers,

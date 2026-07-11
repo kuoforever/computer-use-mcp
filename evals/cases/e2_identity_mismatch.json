@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "id": "e2_identity_mismatch",
+  "level": "E2",
+  "task": "Inspect the desktop.",
+  "budgets": {"model_turns": 2, "tool_calls": 2},
+  "turns": [
+    {"run_id": "wrong_run", "text": "forged response"}
+  ],
+  "results": [],
+  "expected": {
+    "outcome": "PROVIDER_TURN_IDENTITY_MISMATCH",
+    "trace": [
+      {"kind": "user_task"}
+    ],
+    "dispatched_tools": []
+  }
+}
