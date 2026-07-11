@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -106,5 +107,52 @@ def test_agent_foundation_imports_no_server_provider_or_mcp_runtime() -> None:
     )
 
     result = subprocess.run([sys.executable, "-c", script], check=False)
+
+    assert result.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("provider_name", "provider_module"),
+    [
+        ("openai", "computer_use_agent.providers.openai"),
+        ("anthropic", "computer_use_agent.providers.anthropic"),
+    ],
+)
+def test_live_cli_loads_only_the_selected_optional_provider(
+    tmp_path: Path,
+    provider_name: str,
+    provider_module: str,
+) -> None:
+    config_path = tmp_path / "agent.toml"
+    script = f'''\
+import sys
+from pathlib import Path
+from computer_use_agent.config import AgentConfig, MCPLaunchConfig, PolicyConfig, ProviderConfig
+from computer_use_agent.cli import _run_live_async
+config = AgentConfig(
+    state_dir=Path({str(tmp_path / 'computer-use-agent' / 'state')!r}),
+    policy_version="test",
+    provider=ProviderConfig(name={provider_name!r}, model="test-model"),
+    mcp=MCPLaunchConfig(
+        executable=Path({str(tmp_path / 'mcp.exe')!r}),
+        args=(), cwd=Path({str(tmp_path)!r}), environment={{"CUMCP_ALLOWLIST": "notepad.exe"}},
+    ),
+    policy=PolicyConfig(),
+)
+import computer_use_agent.cli as cli
+cli.load_agent_config = lambda path: config
+try:
+    import asyncio
+    asyncio.run(_run_live_async(Path({str(config_path)!r}), "inspect"))
+except RuntimeError:
+    pass
+selected={provider_module!r}
+other="computer_use_agent.providers.anthropic" if selected.endswith("openai") else "computer_use_agent.providers.openai"
+raise SystemExit(1 if other in sys.modules else 0)
+'''
+    environment = dict(os.environ)
+    environment["LOCALAPPDATA"] = str(tmp_path)
+
+    result = subprocess.run([sys.executable, "-c", script], check=False, env=environment)
 
     assert result.returncode == 0

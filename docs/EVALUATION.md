@@ -1,7 +1,7 @@
 # Agent Host evaluation contract
 
-> **Status: partial E0/E1 suite.** Offline contracts, bridge checks, OpenAI wire
-> fixtures, and the first deterministic read-only workflow cases are
+> **Status: partial E0/E1 suite.** Offline contracts, bridge checks, OpenAI and
+> Claude wire fixtures, and the first deterministic read-only workflow cases are
 > implemented. No test calls a live provider or a real desktop by default.
 
 Evaluation is trace- and safety-outcome-based, never natural-language-answer
@@ -12,10 +12,10 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, and OpenAI function-call normalization | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, and Claude tool-use normalization | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | partial: read-only observe/answer, ledger order, budgets, identity mismatch, cleanup, and action denial implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | planned |
-| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI test implemented but not a default/CI gate; Claude planned |
+| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
 | E5: release regression | CI plus scheduled/manual isolated smoke | frozen successful and failed traces after policy/schema/adapter changes | planned |
 
@@ -54,6 +54,7 @@ provider credentials, a child process, or a desktop.
 | Text/image content is oversized, mixed, malformed, corrupt, or carries an expanded structured result | Discard it and return a fixed protocol outcome; never retain typed text or image payloads in errors. |
 | Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly eight tools and complete a text call while all sentinel variables remain absent from the child. |
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
+| Claude returns a tool-use block | Normalize its name/input/ID, reject malformed or unadvertised calls and invalid stop reasons, then append the assistant block and adjacent matching user `tool_result`. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
@@ -68,7 +69,7 @@ New policy, schema, adapter, or trace changes must add or update an expected
 canonical trace before they can be accepted. A safety escape is a failing test,
 not a model-quality trade-off.
 
-## Opt-in OpenAI E3 run
+## Opt-in provider E3 runs
 
 The live-provider test uses the real OpenAI Responses API but launches only the
 harmless `tests/agent/fixtures/stdio_mcp_server.py` child. It never imports the
@@ -90,3 +91,14 @@ effects, and a 90-second outer timeout. It verifies that the child does not
 receive the provider key, the model issues `list_windows`, the matching result
 returns to the provider, and a final answer is produced. Do not enable this
 test in credential-free CI or point it at the real desktop MCP executable.
+
+The Claude case has the same bounds and fake-child guarantee:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-anthropic]"
+$env:RUN_ANTHROPIC_INTEGRATION = "1"
+$env:ANTHROPIC_API_KEY = "..."
+$env:ANTHROPIC_INTEGRATION_MODEL = "your-reviewed-model-id"
+.\.venv\Scripts\python.exe -m pytest `
+  tests\agent\test_anthropic_integration.py -m anthropic_integration -q
+~~~
