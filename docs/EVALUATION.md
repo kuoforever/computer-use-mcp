@@ -15,7 +15,7 @@ and expected safety outcome.
 | E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, and OpenAI function-call normalization | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | partial: read-only observe/answer, ledger order, budgets, identity mismatch, cleanup, and action denial implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | planned |
-| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | planned |
+| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI test implemented but not a default/CI gate; Claude planned |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
 | E5: release regression | CI plus scheduled/manual isolated smoke | frozen successful and failed traces after policy/schema/adapter changes | planned |
 
@@ -67,3 +67,26 @@ isolated environment, never on a developer's active desktop.
 New policy, schema, adapter, or trace changes must add or update an expected
 canonical trace before they can be accepted. A safety escape is a failing test,
 not a model-quality trade-off.
+
+## Opt-in OpenAI E3 run
+
+The live-provider test uses the real OpenAI Responses API but launches only the
+harmless `tests/agent/fixtures/stdio_mcp_server.py` child. It never imports the
+Windows driver or controls the desktop. It is skipped unless all three explicit
+inputs are present, and the model must be chosen explicitly so cost and behavior
+are not changed by a repository default:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-openai]"
+$env:RUN_OPENAI_INTEGRATION = "1"
+$env:OPENAI_API_KEY = "..."
+$env:OPENAI_INTEGRATION_MODEL = "your-reviewed-model-id"
+.\.venv\Scripts\python.exe -m pytest `
+  tests\agent\test_openai_integration.py -m openai_integration -q
+~~~
+
+The case is bounded to three model turns, one observation tool call, zero side
+effects, and a 90-second outer timeout. It verifies that the child does not
+receive the provider key, the model issues `list_windows`, the matching result
+returns to the provider, and a final answer is produced. Do not enable this
+test in credential-free CI or point it at the real desktop MCP executable.

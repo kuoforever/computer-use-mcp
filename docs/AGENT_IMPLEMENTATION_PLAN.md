@@ -22,7 +22,7 @@ desktop Agent. The status below is based on source inspection plus
 | OpenAI / Claude providers | Partial | OpenAI Responses normalization and call/result continuation fixtures exist behind an optional SDK extra. Claude and live opt-in provider tests remain. |
 | Workflow and recovery | Partial | The read-only observe/answer loop executes and cleans up deterministically. Transition persistence, resume/cancel, action verification, and conservative crash recovery remain. |
 | Context, memory, and trace | Contract/design only | Ledger types and state paths exist, but `context.py`, `memory.py`, and `trace.py`, their stores, redaction pipeline, and CLI commands do not. |
-| Evaluation and CI | Partial | E0 unit/integration coverage exists under `tests/`; `evals/cases`, reports, E1/E2 workflow suites, provider integration tests, isolated desktop smokes, and CI configuration remain. |
+| Evaluation and CI | Partial | E0 and initial E1 coverage run offline. An explicitly gated OpenAI E3 case uses a harmless fake MCP child; it is not a default CI gate. `evals/cases`, reports, broader E1/E2, Claude E3, isolated desktop smokes, and CI configuration remain. |
 
 The OpenAI text-observation slice is runnable but experimental. Documentation
 must distinguish it from the complete safety MVP until both providers,

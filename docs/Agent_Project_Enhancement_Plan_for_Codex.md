@@ -37,7 +37,7 @@ computer-use-mcp → Desktop Execution
 | Context Manager | 仅契约 | 有事件类型，没有 reducer、token/context budget 压缩实现。 |
 | SQLite Memory | 未实现 | 只有配置中的数据库路径，没有 schema、存取、过期、删除和秘密拒绝实现。 |
 | Trace | 未实现 | 没有 JSONL writer、redaction pipeline 或 `agent trace <run_id>`。 |
-| Evaluation | 部分实现 | E0 测试已覆盖 contract/config/audit/bridge；尚无 `evals/cases`、report、E1/E2、provider integration 和隔离桌面 smoke。 |
+| Evaluation | 部分实现 | E0 与首批只读 E1 已覆盖；OpenAI E3 opt-in 用例使用真实 Responses API 和无桌面副作用的 fake MCP child。尚无 `evals/cases`、report、完整 E1/E2、Claude E3 和隔离桌面 smoke。 |
 
 因此，原文中的 “OpenAI / Claude adapter、observe → act → verify、SQLite
 Memory、Trace” 均应理解为目标设计，不能作为当前已运行能力对外描述。

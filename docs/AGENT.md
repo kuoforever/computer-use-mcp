@@ -76,6 +76,10 @@ not passed to the MCP child. Use a non-sensitive desktop and narrow MCP
 allowlist. `provider.name="anthropic"` and `policy.mode="approved_actions"`
 currently fail closed.
 
+An opt-in E3 test exercises the same OpenAI adapter against the harmless stdio
+fixture rather than the real desktop. See [Evaluation](EVALUATION.md) for its
+three environment gates, explicit model selection, bounds, and invocation.
+
 `RunLock` holds a non-blocking OS file lock for the full lease at the canonical
 user-local application root, so different configured state subdirectories
 still serialize access to the same desktop. Concurrent and unknown/stale owner

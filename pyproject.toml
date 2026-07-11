@@ -31,3 +31,8 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+markers = [
+    "openai_integration: opt-in live OpenAI Responses API test with a harmless fake MCP child",
+]
