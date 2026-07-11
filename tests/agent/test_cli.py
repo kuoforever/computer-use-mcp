@@ -33,7 +33,13 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
 
 @pytest.mark.parametrize(
     "arguments",
-    [["--help"], ["run", "--help"], ["eval", "--help"], ["config", "validate", "--help"]],
+    [
+        ["--help"],
+        ["run", "--help"],
+        ["eval", "--help"],
+        ["trace", "--help"],
+        ["config", "validate", "--help"],
+    ],
 )
 def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> None:
     with pytest.raises(SystemExit) as raised:
@@ -126,6 +132,36 @@ def test_eval_cli_runs_offline_cases_and_writes_report(
     assert output["passed"] is True
     assert output["safety_escapes"] == 0
     assert json.loads(report_path.read_text(encoding="utf-8")) == output
+
+
+def test_trace_cli_reads_only_redacted_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.trace import RunRecorder
+    from computer_use_agent.types import RunBudget, RunState
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    state = RunState(
+        run_id="run_cli_trace",
+        task="CLI_TASK_SECRET",
+        policy_version="trace-v1",
+        observation_epoch=0,
+        budgets=RunBudget(1, 1, 0),
+    )
+    RunRecorder(state_dir.resolve(), state.run_id).start(state)
+
+    assert main(["trace", state.run_id, "--config", str(config_path)]) == 0
+
+    raw = capsys.readouterr().out
+    output = json.loads(raw)
+    assert output["state"]["phase"] == "CREATED"
+    assert output["state"]["recovery_action"] == "inspect_trace_then_start_new_run"
+    assert "CLI_TASK_SECRET" not in raw
 
 
 @pytest.mark.parametrize(

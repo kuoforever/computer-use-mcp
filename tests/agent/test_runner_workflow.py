@@ -15,6 +15,7 @@ from computer_use_agent.config import (
 )
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.runner import AgentRunner, RunFailure, RunnerError, RunnerPorts
+from computer_use_agent.trace import read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -97,8 +98,9 @@ def test_read_only_observe_then_answer_is_bounded_and_canonical(
     )
     desktop = FakeDesktopMCP(results=deque([result]))
 
+    config = _config(tmp_path, monkeypatch)
     outcome = asyncio.run(
-        _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
+        _runner(config, provider, desktop).run(
             "Inspect open windows", run_id="run_1"
         )
     )
@@ -127,6 +129,11 @@ def test_read_only_observe_then_answer_is_bounded_and_canonical(
     assert desktop.close_calls == 1
     assert len(provider.calls) == 2
     assert provider.calls[1]["ledger"][-1].kind is LedgerEventKind.OBSERVATION
+    record = read_run_record(config.state_dir, "run_1")
+    assert record["state"]["phase"] == "SUCCESS"
+    assert record["state"]["final_text_length"] == len(outcome.text)
+    assert record["state"]["resume_allowed"] is False
+    assert len(record["events"]) == len(outcome.state.event_log)
     lock_path = _config(tmp_path, monkeypatch).application_state_dir / "active-run.lock"
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
 
@@ -153,16 +160,20 @@ def test_read_only_action_is_recorded_as_denied_and_never_dispatched(
         )
     )
     desktop = FakeDesktopMCP()
+    config = _config(tmp_path, monkeypatch)
 
     with pytest.raises(RunnerError, match="POLICY_DENIED"):
         asyncio.run(
-            _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
+            _runner(config, provider, desktop).run(
                 "Click something", run_id="run_2"
             )
         )
 
     assert desktop.tool_calls == []
     assert desktop.close_calls == 1
+    record = read_run_record(config.state_dir, "run_2")
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "POLICY_DENIED"
 
 
 def test_model_turn_budget_stops_before_an_extra_provider_call(
@@ -235,3 +246,39 @@ def test_provider_identity_mismatch_fails_before_desktop_dispatch(
 
     assert desktop.tool_calls == []
     assert desktop.close_calls == 1
+
+
+def test_success_is_not_checkpointed_when_desktop_close_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CloseFailingDesktop(FakeDesktopMCP):
+        async def close(self) -> None:
+            self.close_calls += 1
+            raise RuntimeError("raw-close-error")
+
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id="run_close_failure",
+                    turn_id="turn_1",
+                    provider_response_id="response_1",
+                    text="would have succeeded",
+                )
+            ]
+        )
+    )
+    desktop = CloseFailingDesktop()
+    config = _config(tmp_path, monkeypatch)
+
+    with pytest.raises(RuntimeError, match="raw-close-error"):
+        asyncio.run(
+            _runner(config, provider, desktop).run(
+                "Inspect", run_id="run_close_failure"
+            )
+        )
+
+    record = read_run_record(config.state_dir, "run_close_failure")
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "RUN_FAILED"
+    assert "final_text_length" not in record["state"]

@@ -19,7 +19,7 @@ computer-use-mcp → Desktop Execution
 
 ## 当前实现审计（2026-07-11）
 
-以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `144 passed`，
+以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `179 passed, 2 skipped`，
 `ruff check src tests` 通过。当前 Agent Host 是**已测试的安全基础层**，还不是
 可运行的 LLM 桌面 Agent。
 
@@ -33,10 +33,10 @@ computer-use-mcp → Desktop Execution
 | Host Policy | 部分实现 | 已有 read-only/action 分类和初始预算；尚无审批编排、预算消耗、动作串行化和 observation freshness 执行循环。 |
 | OpenAI / Claude adapter | 已实现只读文本竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry；已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
 | observe → act → verify | 未实现 | Runner 目前只创建初始 RunState 并管理锁，没有模型循环、工具调度、验证和最终结果。 |
-| State persistence / recovery | 未实现 | 没有状态转换表、原子持久化、resume/cancel 命令和异常恢复流程。 |
+| State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、失败/取消/未知结果终态和保守恢复建议；为避免错误重放，当前 `resume_allowed=false`，尚无 resume/cancel 命令。 |
 | Context Manager | 仅契约 | 有事件类型，没有 reducer、token/context budget 压缩实现。 |
 | SQLite Memory | 未实现 | 只有配置中的数据库路径，没有 schema、存取、过期、删除和秘密拒绝实现。 |
-| Trace | 未实现 | 没有 JSONL writer、redaction pipeline 或 `agent trace <run_id>`。 |
+| Trace | 已实现检查基线 | 已有 bounded redacted JSONL、严格 reader、任务/观察/截图/typed value 排除和 `agent trace <run_id>`；延迟、成本、完整 metrics 与 report 聚合仍待补齐。 |
 | Evaluation | 已有可运行基线 | `evals/cases` 含 7 个版本化 E1/E2 case，`agent eval` 对比精确语义 trace、工具下发列表和安全结果，可写 JSON report，并要求 safety escape 为 0；OpenAI/Claude E3 为显式门禁。尚缺动作/服务端结果的完整 E2、CI gate 和隔离桌面 smoke。 |
 
 因此，原文中的 “OpenAI / Claude adapter、observe → act → verify、SQLite

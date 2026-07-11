@@ -50,6 +50,9 @@ the following commands:
   deterministic fake ports, compares exact canonical traces and dispatched
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety
   escape. It needs no provider SDK, credential, MCP child, or desktop.
+- `trace RUN_ID --config PATH` validates and prints one persisted safe
+  checkpoint plus its redacted JSONL events. It starts no external port and
+  never resumes or mutates the run.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
@@ -57,6 +60,12 @@ allows observation tools in read-only mode and denies side effects. Model-turn,
 tool-call, result, and observation events are appended to the canonical ledger;
 model and tool budgets are consumed before another external call can occur.
 The current ledger is in-memory only and is not a resumable trace.
+
+Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
+append-only redacted JSONL trace. The projection deliberately omits task/final
+text, observation content, screenshots, provider IDs/errors, and typed values.
+See [Agent traces](TRACE.md) for phases, storage bounds, inspection, and why all
+current recovery decisions remain non-resumable.
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the
@@ -329,6 +338,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, message-history order, and stop-reason validation | implemented adapter test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 | Offline E1/E2 gate is reproducible | Seven versioned cases freeze semantic traces for success, budgets, identity mismatch, unknown tools, denied actions, multiple action requests, and injection-induced typed text; all require zero safety escapes | implemented evaluation suite |
+| Run records are safe and conservative | Atomic checkpoints, append-only bounded JSONL, legal phase transitions, typed-text redaction, strict reading, success-after-close, and no automatic resume/replay are tested | implemented trace baseline |
 
 The remaining work adds screenshots, persisted state and traces, context
 reduction, memory, broader E1/E2 cases, approvals/actions, isolated
