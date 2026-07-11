@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from pathlib import Path
 from typing import Sequence
 
 from .config import ConfigError, load_agent_config
-from .runner import AgentRunner
+from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
 from .types import AGENT_CONTRACT_VERSION
 
@@ -26,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate = config_commands.add_parser("validate", help="Validate TOML without starting anything.")
     validate.add_argument("--config", required=True, type=Path)
 
-    run = commands.add_parser("run", help="Prepare a run; provider execution is not available yet.")
+    run = commands.add_parser("run", help="Run the bounded read-only Agent workflow.")
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--task", required=True)
     run.add_argument(
@@ -75,6 +76,45 @@ def _run_dry(path: Path, task: str) -> int:
     return 0
 
 
+async def _run_live_async(path: Path, task: str) -> int:
+    from .approvals import ReadOnlyApprovalPort
+    from .desktop_mcp import StdioDesktopMCP
+    from .providers.openai import OpenAIProviderError, OpenAIResponsesProvider
+
+    config = load_agent_config(path)
+    if config.provider.name != "openai":
+        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+    try:
+        provider = OpenAIResponsesProvider.from_environment(config.provider.model)
+    except OpenAIProviderError:
+        raise
+    desktop = StdioDesktopMCP(config.mcp)
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=provider,
+            desktop=desktop,
+            approvals=ReadOnlyApprovalPort(),
+        ),
+    )
+    outcome = await runner.run(task)
+    _print_json(
+        {
+            "run_id": outcome.state.run_id,
+            "text": outcome.text,
+            "usage": {
+                "model_turns": outcome.state.budgets.model_turns_used,
+                "tool_calls": outcome.state.budgets.tool_calls_used,
+            },
+        }
+    )
+    return 0
+
+
+def _run_live(path: Path, task: str) -> int:
+    return asyncio.run(_run_live_async(path, task))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -85,14 +125,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "config" and args.config_command == "validate":
             return _validate_config(args.config)
         if args.command == "run":
-            if not args.dry_run:
-                print(
-                    "run is unavailable until a provider adapter and bounded workflow are implemented",
-                    file=sys.stderr,
-                )
-                return 2
-            return _run_dry(args.config, args.task)
-    except (ConfigError, RunLockError, OSError, ValueError) as exc:
+            if args.dry_run:
+                return _run_dry(args.config, args.task)
+            return _run_live(args.config, args.task)
+    except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     parser.error("unsupported command")

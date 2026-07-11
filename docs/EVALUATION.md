@@ -1,7 +1,8 @@
 # Agent Host evaluation contract
 
-> **Status: planned evaluation suite.** Phases 0-3 supply the offline contract
-> and bridge checks described below; they do not run providers or desktop automation.
+> **Status: partial E0/E1 suite.** Offline contracts, bridge checks, OpenAI wire
+> fixtures, and the first deterministic read-only workflow cases are
+> implemented. No test calls a live provider or a real desktop by default.
 
 Evaluation is trace- and safety-outcome-based, never natural-language-answer
 comparison. A case records input, initial state, expected canonical tool trace,
@@ -11,8 +12,8 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, and scripted stdio lifecycle | Phase 0-3 checks implemented |
-| E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | planned |
+| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, and OpenAI function-call normalization | implemented |
+| E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | partial: read-only observe/answer, ledger order, budgets, identity mismatch, cleanup, and action denial implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | planned |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | planned |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
@@ -52,6 +53,10 @@ provider credentials, a child process, or a desktop.
 | A call times out, exits, throws, or is cancelled after SDK dispatch begins | Return `unknown_outcome`, close that generation, never replay the call, and require full discovery before a new call. |
 | Text/image content is oversized, mixed, malformed, corrupt, or carries an expanded structured result | Discard it and return a fixed protocol outcome; never retain typed text or image payloads in errors. |
 | Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly eight tools and complete a text call while all sentinel variables remain absent from the child. |
+| OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
+| Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
+| Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
+| Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
 
 ## CI boundary
 

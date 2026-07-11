@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+agent-openai = ["openai>=1.68,<3"]
 
 [project.scripts]
 computer-use-mcp = "computer_use_mcp.server:main"
