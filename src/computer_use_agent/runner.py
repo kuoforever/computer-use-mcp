@@ -1,25 +1,57 @@
-"""Side-effect-free AgentRunner foundation for later workflow phases."""
+"""Bounded provider-neutral Agent workflow for the local desktop bridge."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from uuid import uuid4
 
-from .config import AgentConfig
-from .policy import HostPolicy
+from .config import AgentConfig, READ_ONLY_MODE
+from .policy import HostPolicy, PolicyDisposition
 from .run_lock import RunLock
+from .tool_registry import (
+    REVIEWED_TOOLS,
+    ToolValidationError,
+    get_tool_spec,
+    validate_tool_arguments,
+    validate_tool_result,
+    verify_discovered_tools,
+)
 from .types import (
     ApprovalPort,
     DesktopMCPPort,
+    DispatchCertainty,
     LedgerEvent,
     LedgerEventKind,
     ModelProviderPort,
+    ModelTurn,
+    RecoveryStatus,
     RunState,
+    SafeArgumentSummary,
+    ToolCall,
+    ToolCallStatus,
+    ToolResult,
+    ToolResultStatus,
 )
+
+
+class RunnerError(RuntimeError):
+    """A fixed workflow failure that does not embed task or desktop content."""
+
+
+class RunnerBudgetError(RunnerError):
+    """Raised when a model or tool-call hard bound is reached."""
+
+
+@dataclass(frozen=True)
+class RunOutcome:
+    """Completed read-only run output and its final in-memory audit state."""
+
+    text: str
+    state: RunState
 
 
 @dataclass(frozen=True)
 class RunnerPorts:
-    """Injected external boundaries; Phase 2 never calls them."""
+    """Injected external boundaries used by the bounded workflow."""
 
     provider: ModelProviderPort
     desktop: DesktopMCPPort
@@ -54,7 +86,7 @@ class PreparedRun:
 
 
 class AgentRunner:
-    """Build bounded initial state without invoking a provider or desktop."""
+    """Prepare and execute a bounded provider-neutral read-only workflow."""
 
     def __init__(self, config: AgentConfig, ports: RunnerPorts | None = None) -> None:
         if not isinstance(config, AgentConfig):
@@ -89,3 +121,144 @@ class AgentRunner:
         lock = RunLock(self.config.application_state_dir)
         lock.acquire()
         return PreparedRun(state=state, _lock=lock)
+
+    @staticmethod
+    def _event_id(state: RunState) -> str:
+        return f"{state.run_id}:event:{len(state.event_log) + 1}"
+
+    @staticmethod
+    def _append(state: RunState, event: LedgerEvent, **changes: object) -> RunState:
+        return replace(state, event_log=state.event_log + (event,), **changes)
+
+    def _consume_model_turn(self, state: RunState, turn: ModelTurn) -> RunState:
+        if state.budgets.model_turns_used >= state.budgets.max_model_turns:
+            raise RunnerBudgetError("MODEL_TURN_BUDGET_EXHAUSTED")
+        budget = replace(state.budgets, model_turns_used=state.budgets.model_turns_used + 1)
+        return self._append(
+            state,
+            LedgerEvent(
+                event_id=self._event_id(state),
+                kind=LedgerEventKind.MODEL_TURN,
+                payload={
+                    "provider_response_id": turn.provider_response_id,
+                    "text_length": len(turn.text),
+                    "tool_call_count": len(turn.tool_calls),
+                    "input_tokens": turn.usage.input_tokens,
+                    "output_tokens": turn.usage.output_tokens,
+                },
+            ),
+            budgets=budget,
+        )
+
+    def _record_call(self, state: RunState, call: ToolCall) -> RunState:
+        if state.budgets.tool_calls_used >= state.budgets.max_tool_calls:
+            raise RunnerBudgetError("TOOL_CALL_BUDGET_EXHAUSTED")
+        spec = get_tool_spec(call.name)
+        normalized = validate_tool_arguments(call.name, call.arguments)
+        if dict(call.arguments) != normalized:
+            raise ToolValidationError("tool arguments are not in canonical form")
+        budget = replace(state.budgets, tool_calls_used=state.budgets.tool_calls_used + 1)
+        return self._append(
+            state,
+            LedgerEvent(
+                event_id=self._event_id(state),
+                kind=LedgerEventKind.TOOL_CALL,
+                identity=call.identity,
+                safe_argument_summary=SafeArgumentSummary.from_tool_call(
+                    call, sensitive_arguments=spec.sensitive_arguments
+                ),
+            ),
+            budgets=budget,
+        )
+
+    def _record_result(self, state: RunState, result: ToolResult) -> RunState:
+        observation_epoch = state.observation_epoch
+        verified_epoch = state.verified_observation_epoch
+        if result.ok:
+            observation_epoch += 1
+            verified_epoch = observation_epoch
+        state = self._append(
+            state,
+            LedgerEvent(
+                event_id=self._event_id(state),
+                kind=LedgerEventKind.TOOL_RESULT,
+                identity=result.identity,
+                tool_result=result,
+            ),
+            observation_epoch=observation_epoch,
+            verified_observation_epoch=verified_epoch,
+            recovery_status=(
+                RecoveryStatus.UNKNOWN_OUTCOME
+                if result.status is ToolResultStatus.UNKNOWN_OUTCOME
+                else state.recovery_status
+            ),
+        )
+        if result.ok:
+            state = self._append(
+                state,
+                LedgerEvent(
+                    event_id=self._event_id(state),
+                    kind=LedgerEventKind.OBSERVATION,
+                    payload={
+                        "tool_name": result.tool_name,
+                        "observation_epoch": observation_epoch,
+                    },
+                    identity=result.identity,
+                ),
+            )
+        return state
+
+    async def run(self, task: str, *, run_id: str | None = None) -> RunOutcome:
+        """Run a bounded read-only model/tool loop and release lock and desktop."""
+
+        if self.ports is None:
+            raise RunnerError("RUNNER_PORTS_REQUIRED")
+        if self.config.policy.mode != READ_ONLY_MODE:
+            raise RunnerError("READ_ONLY_RUNTIME_REQUIRED")
+
+        prepared = self.prepare(task, run_id=run_id)
+        state = prepared.state
+        try:
+            discovered = await self.ports.desktop.discover_tools()
+            verify_discovered_tools(discovered)
+            turn_index = 0
+            while True:
+                if state.budgets.model_turns_used >= state.budgets.max_model_turns:
+                    raise RunnerBudgetError("MODEL_TURN_BUDGET_EXHAUSTED")
+                turn_index += 1
+                turn_id = f"turn_{turn_index}"
+                turn = await self.ports.provider.create_turn(
+                    run_id=state.run_id,
+                    turn_id=turn_id,
+                    task=state.task,
+                    ledger=state.event_log,
+                    tools=REVIEWED_TOOLS,
+                )
+                if turn.run_id != state.run_id or turn.turn_id != turn_id:
+                    raise RunnerError("PROVIDER_TURN_IDENTITY_MISMATCH")
+                state = self._consume_model_turn(state, turn)
+                if not turn.tool_calls:
+                    return RunOutcome(text=turn.text, state=state)
+
+                for call in turn.tool_calls:
+                    state = self._record_call(state, call)
+                    spec = get_tool_spec(call.name)
+                    if self.policy.disposition(spec) is not PolicyDisposition.ALLOW:
+                        denied = ToolResult(
+                            identity=call.identity,
+                            tool_name=call.name,
+                            status=ToolResultStatus.REJECTED,
+                            dispatch=DispatchCertainty.NOT_DISPATCHED,
+                            code="POLICY_DENIED",
+                        )
+                        state = self._record_result(state, denied)
+                        raise RunnerError("POLICY_DENIED")
+                    authorized_call = replace(call, status=ToolCallStatus.AUTHORIZED)
+                    result = await self.ports.desktop.call_tool(authorized_call)
+                    validate_tool_result(authorized_call, result)
+                    state = self._record_result(state, result)
+                    if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+                        raise RunnerError("UNKNOWN_OUTCOME")
+        finally:
+            prepared.close()
+            await self.ports.desktop.close()

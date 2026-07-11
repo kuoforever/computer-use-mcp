@@ -1,14 +1,14 @@
-# Phase-3 desktop-bridge example. This file contains no API keys.
+# Experimental OpenAI read-only Agent example. This file contains no API keys.
 # Provider adapters read credentials from their own process environment and never
 # pass them to the local MCP child.
 
 [agent]
 # Use a user-local directory, not this repository.
 state_dir = "C:/Users/your-user/AppData/Local/computer-use-agent"
-policy_version = "phase3"
+policy_version = "readonly-v1"
 
 [provider]
-# Supported values: "openai" or "anthropic". Adapters are added in later phases.
+# The runnable slice currently supports "openai" only; "anthropic" fails closed.
 name = "openai"
 model = "your-model-id"
 

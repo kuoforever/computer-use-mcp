@@ -1,8 +1,10 @@
 # Agent Host contract and safety boundary
 
-> **Status: Phase 2 foundation.** The provider-neutral contract, safety
-> baseline, CLI skeleton, injected runner ports, deterministic fakes, and local
-> run lock are implemented. Provider calls and MCP desktop execution are not.
+> **Status: experimental read-only vertical slice.** The provider-neutral
+> contract, local stdio bridge, bounded runner, and OpenAI Responses adapter are
+> implemented. The CLI can inspect desktop text through three observation
+> tools. Screenshot return, Claude, actions/approvals, persistence, trace, and
+> recovery remain unavailable.
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
@@ -28,24 +30,51 @@ CLI / local operator
 The host may make this boundary stricter; it cannot bypass any server-side
 allowlist, human-activity check, confirmation, e-stop, or audit behavior.
 
-## Phase-2 foundation behavior
+## Current CLI behavior
 
 The `computer-use-agent` entry point and `python -m computer_use_agent` expose
-only safe foundation commands:
+the following commands:
 
 - `config validate --config PATH` parses and validates TOML without creating
   state directories, reading provider credentials, or starting another process.
 - `run --config PATH --task TEXT --dry-run` acquires the local run lock, creates
   a bounded initial `RunState`, prints task length and other safe metadata, and
   releases the lock. It calls no provider, MCP, approval, or desktop port.
-- `run` without `--dry-run` fails closed before reading configuration or
-  acquiring a lock because provider adapters and the bounded workflow are not present.
+- `run --config PATH --task TEXT` uses the optional OpenAI adapter and local
+  stdio MCP bridge to execute a bounded read-only loop. It exposes only
+  `ui_snapshot`, `find`, and `list_windows` to the model. Every returned call is
+  validated and host-authorized before serialized dispatch. The CLI returns
+  final text, run ID, and model/tool counts as JSON.
 
-`AgentRunner` accepts the three external ports through `RunnerPorts`; Phase 2
-retains but never invokes them. Its first ledger event contains only task
+`AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
-allows observation tools in read-only mode, denies side effects, and continues
-to deny tools with an unverified required safety baseline.
+allows observation tools in read-only mode and denies side effects. Model-turn,
+tool-call, result, and observation events are appended to the canonical ledger;
+model and tool budgets are consumed before another external call can occur.
+The current ledger is in-memory only and is not a resumable trace.
+
+The OpenAI adapter uses Responses API function tools with
+`parallel_tool_calls=false`. It preserves the provider `call_id` in the
+canonical identity and returns a matching `function_call_output` with
+`previous_response_id`. Provider, protocol, and policy failures use fixed error
+codes rather than echoing task, UI, or API error text. Only text observation
+tools are advertised because screenshot-to-provider continuation has not been
+implemented. A model-generated action or unadvertised tool fails closed.
+
+Install and run the experimental slice with:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
+$env:OPENAI_API_KEY = "..."
+.\.venv\Scripts\computer-use-agent.exe config validate --config agent.toml
+.\.venv\Scripts\computer-use-agent.exe run --config agent.toml --task "List the open windows"
+~~~
+
+The task and returned desktop text are disclosed to the configured OpenAI
+model. The API key is read by the provider SDK from the host environment and is
+not passed to the MCP child. Use a non-sensitive desktop and narrow MCP
+allowlist. `provider.name="anthropic"` and `policy.mode="approved_actions"`
+currently fail closed.
 
 `RunLock` holds a non-blocking OS file lock for the full lease at the canonical
 user-local application root, so different configured state subdirectories
@@ -252,7 +281,7 @@ as general secret detection.
 Configuration parsing has no side effects: it does not create state directories,
 start a provider, start an MCP child, or interact with a desktop.
 
-## Phase 0-3 acceptance matrix
+## Current acceptance matrix
 
 The executable contract tests are in `tests/agent/`; broader evaluation
 sequencing is in [Evaluation](EVALUATION.md).
@@ -267,17 +296,19 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Approval and ledger cannot replay or retain typed text | Run/turn-qualified call identity, request/digest binding, deep immutability, and redacted typed-text summaries are tested | implemented contract test |
 | Result and recovery content is bounded and typed | Screenshot-only PNG output has parsed dimensions; text tools reject images; type results use only reviewed codes; action and transport failures differ; unknown outcomes cannot be `ready` | implemented contract test |
 | Default host mode is read-only | Default `PolicyConfig` denies action mode selection by omission | implemented contract test |
-| No runtime capability introduced | Contract package imports without provider SDK, MCP child, or desktop | implemented contract test |
-| CLI foundation is offline | Help/config validation need no key or state write; non-dry run fails closed; dry-run emits safe metadata only | implemented foundation test |
-| Runner ports are inert in Phase 2 | Preparing state calls no provider, MCP, or approval fake | implemented foundation test |
+| Optional runtime dependency | Contract and CLI imports need no provider SDK; OpenAI is imported only by a live run | implemented contract test |
+| CLI offline commands | Help/config validation need no key or state write; dry-run emits safe metadata only | implemented foundation test |
+| Runner preparation is inert | Preparing state calls no provider, MCP, or approval fake | implemented foundation test |
 | One local run owns the desktop application root | OS-held lock spans state subdirectories, rejects concurrent/unknown owners, and verifies its token before writing a released marker | implemented foundation test |
 | Desktop child authority is fixed | Real stdio fixture starts an absolute executable/argv/cwd without a shell, excludes provider/cloud secrets, and must exactly match all eight schemas | implemented bridge test |
 | Invalid bridge calls never dispatch | Requested/non-authorized status, unknown tools, and malformed arguments return reviewed rejections with zero session calls | implemented bridge test |
 | MCP failure certainty is preserved | Startup timeout is not-dispatched; timeout, EOF, exception, or cancellation after `call_tool` entry is unknown and invalidates the generation without replay | implemented bridge test |
 | Child restart is explicit | A broken generation rejects further calls until full discovery succeeds on a new incremented generation | implemented bridge test |
 | MCP results are bounded and converted | Text size, fixed action error codes, typed-text erasure, exact structured mirrors, full PNG integrity, dimensions, pixels, MIME, and content cardinality are tested | implemented bridge test |
+| OpenAI call/result correlation | Fixture proves function call normalization and matching `function_call_output` continuation with the original call ID | implemented adapter test |
+| Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 
-The remaining phases add provider adapters, the actual bounded workflow,
-memory, traces, offline workflow evaluations, isolated desktop smoke tests, and
-release review. Until then, this foundation must not be presented as a usable
-desktop Agent Host.
+The remaining work adds Claude, screenshots, persisted state and traces,
+context reduction, memory, broader E1/E2 cases, approvals/actions, isolated
+desktop smokes, and release review. The current slice is experimental and
+read-only; it must not be presented as the complete safety MVP.

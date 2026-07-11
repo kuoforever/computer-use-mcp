@@ -1,32 +1,33 @@
 # Full Agent Safety MVP Implementation Plan
 
-> **Status: in progress.** Phases 0-3 (contract, safety baseline, foundation,
-> and local stdio desktop bridge) are implemented. Provider adapters, the full
-> bounded workflow, memory, trace/evaluation CI, and release review remain.
+> **Status: in progress.** Phases 0-3 and the first OpenAI read-only vertical
+> slice are implemented. Claude, screenshots, approved actions, persistence,
+> memory, trace/evaluation CI, and release review remain.
 > This work does not weaken the MCP server's runtime safety guarantees.
 
 ## Implementation audit (2026-07-11)
 
 The repository currently provides a tested foundation, not a runnable LLM
 desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (144 passed) and `python -m ruff check src tests` (passed).
+`python -m pytest -q` (152 passed) and `python -m ruff check src tests` (passed).
 
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
 | Reviewed desktop tools | Implemented | All eight tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
-| Configuration and CLI foundation | Implemented | Strict TOML validation, safe child environment construction, user-local state paths, run lock, `config validate`, and `run --dry-run` work without credentials or desktop access. Non-dry `run` deliberately fails closed. |
+| Configuration and CLI | Implemented read-only slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, and an OpenAI non-dry run are wired. Live validation remains opt-in. |
 | Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
-| Host policy | Partial | Read-only/action disposition and initial budgets exist. Approval orchestration, budget consumption, observation freshness, serialization, and the complete model/tool loop are not implemented. |
-| OpenAI / Claude providers | Not implemented | Ports and common schemas exist; there are no provider modules, optional SDK extras, normalization loops, or live opt-in tests. |
-| Workflow and recovery | Not implemented | There is no executable `observe -> act -> verify` runner, transition validator, persisted run state, resume command, or cancellation path. `AgentRunner` currently prepares initial state and acquires/releases the run lock only. |
+| Host policy | Partial | Read-only disposition, model/tool budget consumption, serialized calls, action denial, and observation epochs run. Approval orchestration and side-effect freshness rules remain. |
+| OpenAI / Claude providers | Partial | OpenAI Responses normalization and call/result continuation fixtures exist behind an optional SDK extra. Claude and live opt-in provider tests remain. |
+| Workflow and recovery | Partial | The read-only observe/answer loop executes and cleans up deterministically. Transition persistence, resume/cancel, action verification, and conservative crash recovery remain. |
 | Context, memory, and trace | Contract/design only | Ledger types and state paths exist, but `context.py`, `memory.py`, and `trace.py`, their stores, redaction pipeline, and CLI commands do not. |
 | Evaluation and CI | Partial | E0 unit/integration coverage exists under `tests/`; `evals/cases`, reports, E1/E2 workflow suites, provider integration tests, isolated desktop smokes, and CI configuration remain. |
 
-Documentation must continue to call the Agent Host **not runnable** until a
-non-dry CLI run can complete a provider turn, a reviewed read-only MCP call,
-the matching provider continuation, and a final answer under host budgets.
+The OpenAI text-observation slice is runnable but experimental. Documentation
+must distinguish it from the complete safety MVP until both providers,
+persistence, trace/evaluation gates, approved action verification, and isolated
+desktop evidence exist.
 
 ## Goal
 

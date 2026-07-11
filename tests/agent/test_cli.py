@@ -85,7 +85,7 @@ def test_dry_run_outputs_only_safe_metadata_and_releases_the_lock(
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
 
 
-def test_non_dry_run_fails_closed_before_reading_config_or_creating_a_lock(
+def test_non_dry_run_with_missing_config_fails_before_creating_a_lock(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     missing = tmp_path / "does-not-exist.toml"
@@ -93,7 +93,7 @@ def test_non_dry_run_fails_closed_before_reading_config_or_creating_a_lock(
     assert main(["run", "--config", str(missing), "--task", "secret"]) == 2
 
     captured = capsys.readouterr()
-    assert "unavailable" in captured.err
+    assert "does-not-exist" in captured.err
     assert not missing.exists()
 
 
