@@ -79,15 +79,18 @@ def _run_dry(path: Path, task: str) -> int:
 async def _run_live_async(path: Path, task: str) -> int:
     from .approvals import ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
-    from .providers.openai import OpenAIProviderError, OpenAIResponsesProvider
 
     config = load_agent_config(path)
-    if config.provider.name != "openai":
-        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
-    try:
+    if config.provider.name == "openai":
+        from .providers.openai import OpenAIResponsesProvider
+
         provider = OpenAIResponsesProvider.from_environment(config.provider.model)
-    except OpenAIProviderError:
-        raise
+    elif config.provider.name == "anthropic":
+        from .providers.anthropic import AnthropicMessagesProvider
+
+        provider = AnthropicMessagesProvider.from_environment(config.provider.model)
+    else:
+        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
     desktop = StdioDesktopMCP(config.mcp)
     runner = AgentRunner(
         config,

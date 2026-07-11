@@ -31,13 +31,13 @@ computer-use-mcp → Desktop Execution
 | CLI / 配置 / Run Lock | 已实现基础 | `config validate`、`run --dry-run`、安全子进程环境和单运行锁可用；非 dry-run 会主动失败关闭。 |
 | 本地 stdio MCP Bridge | 已实现 | 固定直接启动、bounded transport、工具发现、generation 重建、超时/取消/未知结果分类、文本与 PNG 转换均有离线及真实 stdio fixture 测试。 |
 | Host Policy | 部分实现 | 已有 read-only/action 分类和初始预算；尚无审批编排、预算消耗、动作串行化和 observation freshness 执行循环。 |
-| OpenAI / Claude adapter | 仅设计 | 有统一 port 和 schema，但没有 provider 模块、SDK optional extras、wire-format 转换或集成测试。 |
+| OpenAI / Claude adapter | 已实现只读文本竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry；已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
 | observe → act → verify | 未实现 | Runner 目前只创建初始 RunState 并管理锁，没有模型循环、工具调度、验证和最终结果。 |
 | State persistence / recovery | 未实现 | 没有状态转换表、原子持久化、resume/cancel 命令和异常恢复流程。 |
 | Context Manager | 仅契约 | 有事件类型，没有 reducer、token/context budget 压缩实现。 |
 | SQLite Memory | 未实现 | 只有配置中的数据库路径，没有 schema、存取、过期、删除和秘密拒绝实现。 |
 | Trace | 未实现 | 没有 JSONL writer、redaction pipeline 或 `agent trace <run_id>`。 |
-| Evaluation | 部分实现 | E0 与首批只读 E1 已覆盖；OpenAI E3 opt-in 用例使用真实 Responses API 和无桌面副作用的 fake MCP child。尚无 `evals/cases`、report、完整 E1/E2、Claude E3 和隔离桌面 smoke。 |
+| Evaluation | 部分实现 | E0 与首批只读 E1 已覆盖；OpenAI/Claude E3 opt-in 用例使用真实 provider API 和无桌面副作用的 fake MCP child。尚无 `evals/cases`、report、完整 E1/E2 和隔离桌面 smoke。 |
 
 因此，原文中的 “OpenAI / Claude adapter、observe → act → verify、SQLite
 Memory、Trace” 均应理解为目标设计，不能作为当前已运行能力对外描述。

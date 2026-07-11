@@ -1,7 +1,7 @@
 # Full Agent Safety MVP Implementation Plan
 
 > **Status: in progress.** Phases 0-3 and the first OpenAI read-only vertical
-> slice are implemented. Claude, screenshots, approved actions, persistence,
+> slice for both OpenAI and Claude are implemented. Screenshots, approved actions, persistence,
 > memory, trace/evaluation CI, and release review remain.
 > This work does not weaken the MCP server's runtime safety guarantees.
 
@@ -19,10 +19,10 @@ desktop Agent. The status below is based on source inspection plus
 | Configuration and CLI | Implemented read-only slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, and an OpenAI non-dry run are wired. Live validation remains opt-in. |
 | Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
 | Host policy | Partial | Read-only disposition, model/tool budget consumption, serialized calls, action denial, and observation epochs run. Approval orchestration and side-effect freshness rules remain. |
-| OpenAI / Claude providers | Partial | OpenAI Responses normalization and call/result continuation fixtures exist behind an optional SDK extra. Claude and live opt-in provider tests remain. |
+| OpenAI / Claude providers | Implemented read-only text slice | Responses `function_call_output` and Messages `tool_result` adapters, optional SDK extras, offline wire fixtures, CLI routing, and explicitly gated fake-MCP E3 cases exist. Live E3 evidence is environment/operator supplied. |
 | Workflow and recovery | Partial | The read-only observe/answer loop executes and cleans up deterministically. Transition persistence, resume/cancel, action verification, and conservative crash recovery remain. |
 | Context, memory, and trace | Contract/design only | Ledger types and state paths exist, but `context.py`, `memory.py`, and `trace.py`, their stores, redaction pipeline, and CLI commands do not. |
-| Evaluation and CI | Partial | E0 and initial E1 coverage run offline. An explicitly gated OpenAI E3 case uses a harmless fake MCP child; it is not a default CI gate. `evals/cases`, reports, broader E1/E2, Claude E3, isolated desktop smokes, and CI configuration remain. |
+| Evaluation and CI | Partial | E0 and initial E1 coverage run offline. Explicitly gated OpenAI and Claude E3 cases use a harmless fake MCP child; they are not default CI gates. `evals/cases`, reports, broader E1/E2, isolated desktop smokes, and CI configuration remain. |
 
 The OpenAI text-observation slice is runnable but experimental. Documentation
 must distinguish it from the complete safety MVP until both providers,

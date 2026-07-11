@@ -1,9 +1,10 @@
 # Agent Host contract and safety boundary
 
 > **Status: experimental read-only vertical slice.** The provider-neutral
-> contract, local stdio bridge, bounded runner, and OpenAI Responses adapter are
+> contract, local stdio bridge, bounded runner, OpenAI Responses adapter, and
+> Claude Messages adapter are
 > implemented. The CLI can inspect desktop text through three observation
-> tools. Screenshot return, Claude, actions/approvals, persistence, trace, and
+> tools. Screenshot return, actions/approvals, persistence, trace, and
 > recovery remain unavailable.
 
 This is the canonical contract companion to the planned
@@ -61,6 +62,14 @@ codes rather than echoing task, UI, or API error text. Only text observation
 tools are advertised because screenshot-to-provider continuation has not been
 implemented. A model-generated action or unadvertised tool fails closed.
 
+The Claude adapter uses Messages API client tools and preserves each assistant
+`tool_use` block in its in-memory message history. The next user message begins
+with the matching `tool_result` block keyed by the original `tool_use.id`.
+Parallel tool use is disabled in the request and any returned calls are still
+serialized by the common Runner. Unknown blocks, mismatched stop reasons,
+unadvertised tools, and malformed inputs fail closed. Provider message history
+is an active-run optimization, not persisted recovery state.
+
 Install and run the experimental slice with:
 
 ~~~powershell
@@ -70,15 +79,18 @@ $env:OPENAI_API_KEY = "..."
 .\.venv\Scripts\computer-use-agent.exe run --config agent.toml --task "List the open windows"
 ~~~
 
+For Claude, install `.[agent-anthropic]`, set `ANTHROPIC_API_KEY`, and use
+`provider.name="anthropic"` plus an explicit Claude model ID. Install `.[agent]`
+when both optional provider SDKs are needed.
+
 The task and returned desktop text are disclosed to the configured OpenAI
 model. The API key is read by the provider SDK from the host environment and is
 not passed to the MCP child. Use a non-sensitive desktop and narrow MCP
-allowlist. `provider.name="anthropic"` and `policy.mode="approved_actions"`
-currently fail closed.
+allowlist. `policy.mode="approved_actions"` currently fails closed.
 
-An opt-in E3 test exercises the same OpenAI adapter against the harmless stdio
-fixture rather than the real desktop. See [Evaluation](EVALUATION.md) for its
-three environment gates, explicit model selection, bounds, and invocation.
+Opt-in E3 tests exercise both adapters against the harmless stdio fixture
+rather than the real desktop. See [Evaluation](EVALUATION.md) for their three
+environment gates, explicit model selection, bounds, and invocation.
 
 `RunLock` holds a non-blocking OS file lock for the full lease at the canonical
 user-local application root, so different configured state subdirectories
@@ -310,9 +322,10 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Child restart is explicit | A broken generation rejects further calls until full discovery succeeds on a new incremented generation | implemented bridge test |
 | MCP results are bounded and converted | Text size, fixed action error codes, typed-text erasure, exact structured mirrors, full PNG integrity, dimensions, pixels, MIME, and content cardinality are tested | implemented bridge test |
 | OpenAI call/result correlation | Fixture proves function call normalization and matching `function_call_output` continuation with the original call ID | implemented adapter test |
+| Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, message-history order, and stop-reason validation | implemented adapter test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 
-The remaining work adds Claude, screenshots, persisted state and traces,
-context reduction, memory, broader E1/E2 cases, approvals/actions, isolated
+The remaining work adds screenshots, persisted state and traces, context
+reduction, memory, broader E1/E2 cases, approvals/actions, isolated
 desktop smokes, and release review. The current slice is experimental and
 read-only; it must not be presented as the complete safety MVP.

@@ -8,7 +8,8 @@ state_dir = "C:/Users/your-user/AppData/Local/computer-use-agent"
 policy_version = "readonly-v1"
 
 [provider]
-# The runnable slice currently supports "openai" only; "anthropic" fails closed.
+# Supported runnable values: "openai" or "anthropic". Install the matching
+# optional SDK extra and set its API key in the host process environment.
 name = "openai"
 model = "your-model-id"
 
