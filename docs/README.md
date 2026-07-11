@@ -25,7 +25,7 @@ not a line-by-line mirror of every reference page.
 | I want to test or contribute | [Development](DEVELOPMENT.md) |
 | I need completed work and remaining priorities | [Roadmap](EXECUTION_PLAN.md) |
 | I need the planned full Agent Host scope and delivery gates | [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md) |
-| I am implementing or reviewing the Agent Host Phase-0 contract | [Agent Host contract](AGENT.md) and [evaluation contract](EVALUATION.md) |
+| I am implementing or reviewing the Agent Host Phase 0-3 foundation and MCP bridge | [Agent Host contract](AGENT.md) and [evaluation contract](EVALUATION.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 
 ## Documentation ownership
@@ -41,7 +41,7 @@ not a line-by-line mirror of every reference page.
 | Quality attributes | Review and acceptance criteria |
 | Roadmap | Completed milestones and future priorities |
 | Agent implementation plan | Planned dual-provider Agent Host, safety boundaries, and release gates |
-| Agent Host contract / evaluation | Planned provider-neutral contract, trust boundaries, and evaluation gates |
+| Agent Host contract / evaluation | Implemented provider-neutral foundation, desktop bridge, trust boundaries, and evaluation gates |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
 
 Do not use the roadmap or design documents to infer that a capability is

@@ -1,11 +1,11 @@
-# Phase-2 foundation example. This file contains no API keys.
+# Phase-3 desktop-bridge example. This file contains no API keys.
 # Provider adapters read credentials from their own process environment and never
 # pass them to the local MCP child.
 
 [agent]
 # Use a user-local directory, not this repository.
 state_dir = "C:/Users/your-user/AppData/Local/computer-use-agent"
-policy_version = "phase2"
+policy_version = "phase3"
 
 [provider]
 # Supported values: "openai" or "anthropic". Adapters are added in later phases.
@@ -13,14 +13,16 @@ name = "openai"
 model = "your-model-id"
 
 [mcp]
-# The future bridge executes this absolute program directly with shell=False.
+# The bridge executes this absolute program directly without a shell.
 executable = "C:/Users/your-user/computer-use-mcp/.venv/Scripts/computer-use-mcp.exe"
 args = []
 cwd = "C:/Users/your-user/computer-use-mcp"
-# This is a reviewed child-environment override, not an inherited environment.
+# This is a reviewed server-environment override, not arbitrary host inheritance.
 # The host adds safe_local mode, enabled confirmation, a 2.5-second human-idle
 # threshold, and its fixed e-stop. Only the documented safe CUMCP controls are
-# accepted; do not put API keys, tokens, audit paths, or redaction controls here.
+# accepted; the MCP SDK adds a fixed OS bootstrap allowlist such as SYSTEMROOT,
+# PATH, and TEMP. API keys, tokens, audit paths, and redaction controls are never
+# accepted here or forwarded from the host.
 environment = { CUMCP_MODE = "safe_local", CUMCP_ALLOWLIST = "notepad.exe" }
 
 [policy]

@@ -1,8 +1,9 @@
 """Provider-neutral safety contract for the planned local Agent Host.
 
-This package deliberately has no dependency on the MCP server implementation,
-provider SDKs, or Windows automation libraries.  Phase 0 establishes only the
-reviewable host contract; it does not make an Agent Host runnable yet.
+The canonical types and registry deliberately have no dependency on the MCP
+server implementation, provider SDKs, or Windows automation libraries. Runtime
+adapters remain separate modules so importing this package stays side-effect
+free.
 """
 
 from .tool_registry import REVIEWED_TOOLS

@@ -1,8 +1,32 @@
 # Full Agent Safety MVP Implementation Plan
 
-> **Status: planned.** This document describes a proposed full Agent Host that
-> will live in this repository. It does not change the current MCP server's
-> runtime surface, safety guarantees, or supported clients.
+> **Status: in progress.** Phases 0-3 (contract, safety baseline, foundation,
+> and local stdio desktop bridge) are implemented. Provider adapters, the full
+> bounded workflow, memory, trace/evaluation CI, and release review remain.
+> This work does not weaken the MCP server's runtime safety guarantees.
+
+## Implementation audit (2026-07-11)
+
+The repository currently provides a tested foundation, not a runnable LLM
+desktop Agent. The status below is based on source inspection plus
+`python -m pytest -q` (144 passed) and `python -m ruff check src tests` (passed).
+
+| Area | Current implementation | Evidence / limitation |
+| --- | --- | --- |
+| Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
+| Reviewed desktop tools | Implemented | All eight tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
+| Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
+| Configuration and CLI foundation | Implemented | Strict TOML validation, safe child environment construction, user-local state paths, run lock, `config validate`, and `run --dry-run` work without credentials or desktop access. Non-dry `run` deliberately fails closed. |
+| Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
+| Host policy | Partial | Read-only/action disposition and initial budgets exist. Approval orchestration, budget consumption, observation freshness, serialization, and the complete model/tool loop are not implemented. |
+| OpenAI / Claude providers | Not implemented | Ports and common schemas exist; there are no provider modules, optional SDK extras, normalization loops, or live opt-in tests. |
+| Workflow and recovery | Not implemented | There is no executable `observe -> act -> verify` runner, transition validator, persisted run state, resume command, or cancellation path. `AgentRunner` currently prepares initial state and acquires/releases the run lock only. |
+| Context, memory, and trace | Contract/design only | Ledger types and state paths exist, but `context.py`, `memory.py`, and `trace.py`, their stores, redaction pipeline, and CLI commands do not. |
+| Evaluation and CI | Partial | E0 unit/integration coverage exists under `tests/`; `evals/cases`, reports, E1/E2 workflow suites, provider integration tests, isolated desktop smokes, and CI configuration remain. |
+
+Documentation must continue to call the Agent Host **not runnable** until a
+non-dry CLI run can complete a provider turn, a reviewed read-only MCP call,
+the matching provider continuation, and a final answer under host budgets.
 
 ## Goal
 
@@ -222,3 +246,37 @@ practical sequence is:
 
 The highest-risk schedule items are desktop side-effect testing and the desired
 approval granularity, not the basic provider SDK integrations.
+
+## Immediate implementation order
+
+To prioritize runnable capability, tests, and operator documentation without
+refactoring the existing safety architecture, use these increments:
+
+1. **Read-only vertical slice:** implement one provider adapter first, the
+   bounded model/tool continuation loop, budget accounting, observation
+   freshness, sanitized in-memory ledger events, and a real `agent run`. Keep
+   all action tools denied. Add fixture-based adapter contract tests and one
+   fake-MCP CLI integration test.
+2. **Second provider on the same contract:** add the other adapter without
+   branching runner behavior. Run the identical normalization, call-ID,
+   multiple-call serialization, timeout, and disclosure tests against both.
+3. **Deterministic workflow evaluation:** create `evals/cases` and E1/E2 tests
+   for exact canonical traces, stale refs, malformed/parallel calls, injection,
+   denied approval, gate/E-stop/human-active results, and unknown outcomes.
+4. **Run persistence and inspection:** add explicit transition validation,
+   atomic state checkpoints, conservative resume rules, redacted JSONL traces,
+   and `agent trace <run_id>`. A dispatched uncertain action must never resume
+   by replaying it.
+5. **Approved actions:** connect the local approval port and enforce one action
+   at a time plus mandatory post-action observation. Validate first with fakes,
+   then only in an isolated Notepad/VM smoke environment.
+6. **Context and explicit memory:** add budget-aware context reduction and the
+   opt-in SQLite store after the runnable workflow and traces are stable.
+7. **Release documentation and CI:** document credentials, disclosure,
+   configuration, recovery, trace inspection, limitations, and disablement;
+   gate E0-E2 in CI and keep provider/desktop tests opt-in and isolated.
+
+Planner-Executor expansion, queues/workers, multi-agent delegation,
+OpenTelemetry, Redis, FastAPI, and Docker remain later enhancements. They must
+not delay the read-only vertical slice or be described as implemented before
+executable evidence exists.

@@ -87,7 +87,10 @@ def test_reviewed_mcp_schemas_match_the_current_server_generation() -> None:
     discovered = asyncio.run(server.list_tools())
 
     verify_discovered_tools(
-        tuple(MCPToolDescriptor(tool.name, tool.inputSchema) for tool in discovered)
+        tuple(
+            MCPToolDescriptor(tool.name, tool.inputSchema, tool.outputSchema)
+            for tool in discovered
+        )
     )
 
 
@@ -99,6 +102,19 @@ def test_mcp_schema_mismatch_fails_closed_even_when_names_match() -> None:
     )
 
     with pytest.raises(ToolRegistryMismatchError, match="schema mismatch"):
+        verify_discovered_tools(descriptors)
+
+
+def test_mcp_output_schema_mismatch_fails_closed() -> None:
+    descriptors = list(reviewed_mcp_descriptors())
+    reviewed = descriptors[0]
+    descriptors[0] = MCPToolDescriptor(
+        name=reviewed.name,
+        input_schema=reviewed.input_schema,
+        output_schema={"type": "object", "properties": {}},
+    )
+
+    with pytest.raises(ToolRegistryMismatchError, match="output schema mismatch"):
         verify_discovered_tools(descriptors)
 
 

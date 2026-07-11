@@ -310,9 +310,27 @@ def reviewed_mcp_descriptors() -> tuple[MCPToolDescriptor, ...]:
     """Return immutable expected descriptors for a local MCP discovery check."""
 
     return tuple(
-        MCPToolDescriptor(name=tool.name, input_schema=tool.mcp_input_schema)
+        MCPToolDescriptor(
+            name=tool.name,
+            input_schema=tool.mcp_input_schema,
+            output_schema=(
+                None
+                if tool.result_content is ResultContentKind.IMAGE
+                else _mcp_text_output_schema(tool.name)
+            ),
+        )
         for tool in REVIEWED_TOOLS
     )
+
+
+def _mcp_text_output_schema(tool_name: str) -> dict[str, JSONValue]:
+    function_name = "type_text" if tool_name == "type" else tool_name
+    return {
+        "properties": {"result": {"title": "Result", "type": "string"}},
+        "required": ["result"],
+        "title": f"{function_name}Output",
+        "type": "object",
+    }
 
 
 def verify_discovered_tools(discovered_tools: Sequence[object]) -> None:
@@ -337,7 +355,14 @@ def verify_discovered_tools(discovered_tools: Sequence[object]) -> None:
     for descriptor in descriptors:
         reviewed = _TOOLS_BY_NAME[descriptor.name]
         if to_json_value(descriptor.input_schema) != to_json_value(reviewed.mcp_input_schema):
-            raise ToolRegistryMismatchError(f"MCP schema mismatch for tool {descriptor.name}")
+            raise ToolRegistryMismatchError(f"MCP input schema mismatch for tool {descriptor.name}")
+        expected_output = (
+            None
+            if reviewed.result_content is ResultContentKind.IMAGE
+            else _mcp_text_output_schema(reviewed.name)
+        )
+        if to_json_value(descriptor.output_schema) != to_json_value(expected_output):
+            raise ToolRegistryMismatchError(f"MCP output schema mismatch for tool {descriptor.name}")
 
 
 def validate_tool_result(call: ToolCall, result: ToolResult) -> None:

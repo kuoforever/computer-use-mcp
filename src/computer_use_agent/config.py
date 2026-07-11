@@ -183,7 +183,11 @@ class MCPLaunchConfig:
         object.__setattr__(self, "environment", MappingProxyType(copied))
 
     def child_environment(self) -> dict[str, str]:
-        """Return a reviewed safe baseline plus explicit safe overrides only."""
+        """Return reviewed server controls, excluding credentials and arbitrary host variables.
+
+        The MCP SDK adds only its fixed platform-bootstrap allowlist (for example
+        SYSTEMROOT, PATH, and TEMP) when creating the child process.
+        """
 
         return {**REQUIRED_SAFE_CHILD_ENVIRONMENT, **self.environment}
 
