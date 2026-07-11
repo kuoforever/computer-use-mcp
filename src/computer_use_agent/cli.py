@@ -35,6 +35,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Build and print safe initial-state metadata without calling any external port.",
     )
+
+    evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
+    evaluate.add_argument("--cases", required=True, type=Path)
+    evaluate.add_argument("--report", type=Path)
     return parser
 
 
@@ -118,6 +122,16 @@ def _run_live(path: Path, task: str) -> int:
     return asyncio.run(_run_live_async(path, task))
 
 
+def _run_eval(cases: Path, report_path: Path | None) -> int:
+    from .evaluation import run_evaluations, write_report
+
+    report = run_evaluations(cases)
+    if report_path is not None:
+        write_report(report, report_path)
+    _print_json(report.as_json())
+    return 0 if report.passed else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -131,6 +145,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.dry_run:
                 return _run_dry(args.config, args.task)
             return _run_live(args.config, args.task)
+        if args.command == "eval":
+            return _run_eval(args.cases, args.report)
     except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

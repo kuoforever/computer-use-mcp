@@ -46,6 +46,10 @@ the following commands:
   `ui_snapshot`, `find`, and `list_windows` to the model. Every returned call is
   validated and host-authorized before serialized dispatch. The CLI returns
   final text, run ID, and model/tool counts as JSON.
+- `eval --cases PATH [--report PATH]` runs versioned E1/E2 JSON fixtures with
+  deterministic fake ports, compares exact canonical traces and dispatched
+  tool names, prints a JSON report, and exits nonzero on any mismatch or safety
+  escape. It needs no provider SDK, credential, MCP child, or desktop.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
@@ -324,6 +328,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | OpenAI call/result correlation | Fixture proves function call normalization and matching `function_call_output` continuation with the original call ID | implemented adapter test |
 | Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, message-history order, and stop-reason validation | implemented adapter test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
+| Offline E1/E2 gate is reproducible | Seven versioned cases freeze semantic traces for success, budgets, identity mismatch, unknown tools, denied actions, multiple action requests, and injection-induced typed text; all require zero safety escapes | implemented evaluation suite |
 
 The remaining work adds screenshots, persisted state and traces, context
 reduction, memory, broader E1/E2 cases, approvals/actions, isolated
