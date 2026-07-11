@@ -16,7 +16,7 @@ from .types import AGENT_CONTRACT_VERSION
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="computer-use-agent",
-        description="Safe local Agent Host foundation (provider and MCP bridge not implemented yet).",
+        description="Safe local Agent Host foundation with a reviewed desktop MCP bridge.",
     )
     parser.add_argument("--version", action="version", version=AGENT_CONTRACT_VERSION)
     commands = parser.add_subparsers(dest="command")
@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate = config_commands.add_parser("validate", help="Validate TOML without starting anything.")
     validate.add_argument("--config", required=True, type=Path)
 
-    run = commands.add_parser("run", help="Prepare a run; execution is not available in Phase 2.")
+    run = commands.add_parser("run", help="Prepare a run; provider execution is not available yet.")
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--task", required=True)
     run.add_argument(
@@ -87,7 +87,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "run":
             if not args.dry_run:
                 print(
-                    "run is unavailable until provider and desktop MCP bridge phases are implemented",
+                    "run is unavailable until a provider adapter and bounded workflow are implemented",
                     file=sys.stderr,
                 )
                 return 2

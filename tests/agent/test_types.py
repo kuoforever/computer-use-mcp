@@ -95,6 +95,14 @@ def test_tool_result_distinguishes_action_and_transport_failures() -> None:
 
     assert action_error.status is ToolResultStatus.ACTION_ERROR
     assert transport_error.dispatch is DispatchCertainty.NOT_DISPATCHED
+    unknown_after_response = ToolResult(
+        identity=identity,
+        tool_name="find",
+        status=ToolResultStatus.UNKNOWN_OUTCOME,
+        dispatch=DispatchCertainty.DISPATCHED,
+        code="MCP_PROTOCOL_ERROR",
+    )
+    assert unknown_after_response.dispatch is DispatchCertainty.DISPATCHED
     with pytest.raises(ValueError, match="requires dispatch"):
         ToolResult(
             identity=identity,

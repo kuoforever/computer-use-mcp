@@ -39,7 +39,7 @@ only safe foundation commands:
   a bounded initial `RunState`, prints task length and other safe metadata, and
   releases the lock. It calls no provider, MCP, approval, or desktop port.
 - `run` without `--dry-run` fails closed before reading configuration or
-  acquiring a lock because provider and desktop bridge phases are not present.
+  acquiring a lock because provider adapters and the bounded workflow are not present.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`; Phase 2
 retains but never invokes them. Its first ledger event contains only task
@@ -60,6 +60,39 @@ uses advisory `flock` for offline development and is not a supported desktop
 safety boundary. `PreparedRun` must be used as a context manager or closed
 explicitly; abandoned/crashed leases intentionally fail closed until operator
 recovery rather than relying on a garbage-collection finalizer.
+
+## Phase-3 desktop MCP bridge behavior
+
+`src/computer_use_agent/desktop_mcp.py` implements `DesktopMCPPort` over one
+fixed local stdio child. It starts the configured absolute executable and argv
+without a shell, initializes an MCP client session, follows bounded discovery
+pagination, and requires the discovered names and input schemas to equal the
+reviewed eight-tool registry before any call can be dispatched.
+
+One asyncio task owns each live child generation and all calls are serialized.
+A call must be host-authorized and structurally valid. Unknown tools, bad
+arguments, calls before successful discovery, calls after close, discovery
+drift, and startup timeouts return or raise reviewed fail-closed outcomes before
+dispatch. If a timeout, EOF, transport exception, or cancellation occurs after
+entering the SDK's `call_tool`, the result is `unknown_outcome`; that generation
+is closed and the call is never replayed. Restart is explicit through a new
+successful discovery and increments the bridge generation.
+
+Text tools accept exactly one bounded text block. The SDK's generated
+`structuredContent={"result": text}` mirror is accepted only when it exactly
+matches that block; it cannot add authority or content. Action success and
+known server failures are classified from fixed strings and codes, while type
+results retain no text. Screenshots accept exactly one strict base64
+`image/png`, capped at 32 MiB decoded, 16,384 pixels per dimension, and 64
+million pixels; Pillow verifies the full PNG before dimensions are recorded.
+Malformed post-dispatch side-effect results remain `unknown_outcome`.
+
+The process-level bridge test uses a harmless MCP fixture that imports no
+desktop server or driver. It verifies exact schema discovery, paths and argv
+containing spaces/Unicode, reviewed environment controls, and exclusion of
+OpenAI, Anthropic, AWS, and unrelated secret variables.
+Child stderr is discarded rather than copied into host output or future traces;
+failures surface only as reviewed bridge codes.
 
 ## Canonical host types and ports
 
@@ -164,7 +197,9 @@ environment. They are not a configuration field and are never placed in the
 MCP child environment. `MCPLaunchConfig.child_environment()` creates a fixed
 safe baseline (`safe_local`, enabled confirmation, at least 2.5 seconds of
 human-idle yielding, and a non-empty e-stop) plus only a small reviewed set of
-server settings; it never inherits host variables.
+server settings. The MCP SDK separately adds its fixed OS bootstrap allowlist
+(such as `SYSTEMROOT`, `PATH`, and `TEMP`); arbitrary variables and provider or
+cloud credentials are not inherited.
 
 The initial host policy has two modes:
 
@@ -211,18 +246,18 @@ as general secret detection.
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
 | `[provider]` | provider name (`openai` or `anthropic`) and model ID | API keys are rejected because they do not belong in config. |
-| `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, no inherited environment, and no arbitrary variables. Only reviewed `CUMCP_*` names are accepted; unsafe mode, disabled confirmation/e-stop, too-short human idle, audit redirection, and custom redaction controls are rejected. |
+| `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, audit redirection, and custom redaction controls are rejected. |
 | `[policy]` | read-only/approved-actions choice and fixed budgets | `approved_actions` cannot disable per-action approval. |
 
 Configuration parsing has no side effects: it does not create state directories,
 start a provider, start an MCP child, or interact with a desktop.
 
-## Phase 0-2 acceptance matrix
+## Phase 0-3 acceptance matrix
 
 The executable contract tests are in `tests/agent/`; broader evaluation
 sequencing is in [Evaluation](EVALUATION.md).
 
-| Acceptance case | Evidence required | Phase-0 status |
+| Acceptance case | Evidence required | Status |
 | --- | --- | --- |
 | Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
 | Exactly eight reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
@@ -236,8 +271,13 @@ sequencing is in [Evaluation](EVALUATION.md).
 | CLI foundation is offline | Help/config validation need no key or state write; non-dry run fails closed; dry-run emits safe metadata only | implemented foundation test |
 | Runner ports are inert in Phase 2 | Preparing state calls no provider, MCP, or approval fake | implemented foundation test |
 | One local run owns the desktop application root | OS-held lock spans state subdirectories, rejects concurrent/unknown owners, and verifies its token before writing a released marker | implemented foundation test |
+| Desktop child authority is fixed | Real stdio fixture starts an absolute executable/argv/cwd without a shell, excludes provider/cloud secrets, and must exactly match all eight schemas | implemented bridge test |
+| Invalid bridge calls never dispatch | Requested/non-authorized status, unknown tools, and malformed arguments return reviewed rejections with zero session calls | implemented bridge test |
+| MCP failure certainty is preserved | Startup timeout is not-dispatched; timeout, EOF, exception, or cancellation after `call_tool` entry is unknown and invalidates the generation without replay | implemented bridge test |
+| Child restart is explicit | A broken generation rejects further calls until full discovery succeeds on a new incremented generation | implemented bridge test |
+| MCP results are bounded and converted | Text size, fixed action error codes, typed-text erasure, exact structured mirrors, full PNG integrity, dimensions, pixels, MIME, and content cardinality are tested | implemented bridge test |
 
-The remaining phases add stdio lifecycle, provider adapters, the actual bounded
-workflow, memory, traces, offline workflow evaluations, isolated desktop smoke
-tests, and release review. Until then, this foundation must not be presented as
-a usable desktop Agent Host.
+The remaining phases add provider adapters, the actual bounded workflow,
+memory, traces, offline workflow evaluations, isolated desktop smoke tests, and
+release review. Until then, this foundation must not be presented as a usable
+desktop Agent Host.

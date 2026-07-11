@@ -299,15 +299,19 @@ class ToolResult:
             _require_nonempty(self.code, "code")
             if self.code not in REVIEWED_RESULT_CODES:
                 raise ValueError("code must be one of the reviewed non-sensitive result codes")
-        expected_dispatch = {
-            ToolResultStatus.SUCCESS: DispatchCertainty.DISPATCHED,
-            ToolResultStatus.ACTION_ERROR: DispatchCertainty.DISPATCHED,
-            ToolResultStatus.TRANSPORT_ERROR: DispatchCertainty.NOT_DISPATCHED,
-            ToolResultStatus.REJECTED: DispatchCertainty.NOT_DISPATCHED,
-            ToolResultStatus.UNKNOWN_OUTCOME: DispatchCertainty.UNKNOWN,
+        allowed_dispatch = {
+            ToolResultStatus.SUCCESS: {DispatchCertainty.DISPATCHED},
+            ToolResultStatus.ACTION_ERROR: {DispatchCertainty.DISPATCHED},
+            ToolResultStatus.TRANSPORT_ERROR: {DispatchCertainty.NOT_DISPATCHED},
+            ToolResultStatus.REJECTED: {DispatchCertainty.NOT_DISPATCHED},
+            ToolResultStatus.UNKNOWN_OUTCOME: {
+                DispatchCertainty.DISPATCHED,
+                DispatchCertainty.UNKNOWN,
+            },
         }[self.status]
-        if self.dispatch is not expected_dispatch:
-            raise ValueError(f"{self.status.value} requires dispatch={expected_dispatch.value}")
+        if self.dispatch not in allowed_dispatch:
+            choices = ", ".join(sorted(value.value for value in allowed_dispatch))
+            raise ValueError(f"{self.status.value} requires dispatch in: {choices}")
         if self.status is ToolResultStatus.SUCCESS and self.code is not None:
             raise ValueError("a successful result must not carry an error code")
         if self.status in {
@@ -655,10 +659,11 @@ class RunState:
 
 @dataclass(frozen=True)
 class MCPToolDescriptor:
-    """Normalized tool metadata returned by local stdio MCP discovery."""
+    """Normalized input/output schemas returned by local stdio MCP discovery."""
 
     name: str
     input_schema: Mapping[str, JSONValue]
+    output_schema: Mapping[str, JSONValue] | None = None
 
     def __post_init__(self) -> None:
         _require_nonempty(self.name, "name")
@@ -669,6 +674,14 @@ class MCPToolDescriptor:
             "input_schema",
             _frozen_json_object(self.input_schema, "input_schema"),
         )
+        if self.output_schema is not None:
+            if not isinstance(self.output_schema, Mapping):
+                raise ValueError("output_schema must be a JSON object or None")
+            object.__setattr__(
+                self,
+                "output_schema",
+                _frozen_json_object(self.output_schema, "output_schema"),
+            )
 
 
 @runtime_checkable
@@ -691,6 +704,9 @@ class ModelProviderPort(Protocol):
 @runtime_checkable
 class DesktopMCPPort(Protocol):
     """The only permitted desktop execution boundary for the Agent Host."""
+
+    @property
+    def generation(self) -> int: ...
 
     async def discover_tools(self) -> tuple[MCPToolDescriptor, ...]: ...
 

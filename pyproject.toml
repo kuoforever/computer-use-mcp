@@ -9,7 +9,7 @@ description = "Model-agnostic computer-use MCP server for Windows (A-path, in-pr
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "mcp>=1.2",              # MCP server SDK
+    "mcp>=1.27.2,<2",        # MCP server/client SDK; tested stdio contract
     "mss>=9.0",              # screen capture
     "uiautomation>=2.0.18",  # UIA accessibility tree + patterns
     "psutil>=5.9",           # process-tree for the foreground gate

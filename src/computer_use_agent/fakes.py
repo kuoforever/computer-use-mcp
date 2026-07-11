@@ -52,6 +52,7 @@ class FakeModelProvider:
 
 @dataclass
 class FakeDesktopMCP:
+    generation: int = 1
     descriptors: tuple[MCPToolDescriptor, ...] = field(default_factory=reviewed_mcp_descriptors)
     results: deque[ToolResult] = field(default_factory=deque)
     discovery_calls: int = 0

@@ -1,7 +1,7 @@
 # Agent Host evaluation contract
 
-> **Status: planned evaluation suite.** Phase 0 supplies the offline contract
-> checks described below; it does not run providers or desktop automation.
+> **Status: planned evaluation suite.** Phases 0-3 supply the offline contract
+> and bridge checks described below; they do not run providers or desktop automation.
 
 Evaluation is trace- and safety-outcome-based, never natural-language-answer
 comparison. A case records input, initial state, expected canonical tool trace,
@@ -11,7 +11,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, and run lock | Phase 0-2 offline foundation checks implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, and scripted stdio lifecycle | Phase 0-3 checks implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | planned |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | planned |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | planned |
@@ -46,6 +46,12 @@ provider credentials, a child process, or a desktop.
 | Non-dry `run` is requested before provider/bridge implementation | Fail closed before reading config or acquiring a lock. |
 | Dry-run preparation receives a secret-bearing task | Print task length only, invoke no external port, and release the local lock. |
 | A second, stale, malformed, or corrupted run lock is encountered | Refuse acquisition/reclamation; never delete by path; write a released marker only while holding the OS lock with a matching token. |
+| Bridge discovery adds, omits, duplicates, paginates in, or changes a reviewed tool/schema | Close the generation and fail with a reviewed schema outcome before dispatch. |
+| Bridge receives an unauthorized, unknown, or structurally invalid call | Return a reviewed rejection; the child session receives zero calls. |
+| Child startup/discovery times out | Report a not-dispatched startup timeout and clean the partial lease. |
+| A call times out, exits, throws, or is cancelled after SDK dispatch begins | Return `unknown_outcome`, close that generation, never replay the call, and require full discovery before a new call. |
+| Text/image content is oversized, mixed, malformed, corrupt, or carries an expanded structured result | Discard it and return a fixed protocol outcome; never retain typed text or image payloads in errors. |
+| Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly eight tools and complete a text call while all sentinel variables remain absent from the child. |
 
 ## CI boundary
 
