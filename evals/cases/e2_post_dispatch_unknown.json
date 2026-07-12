@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "id": "e2_post_dispatch_unknown",
+  "level": "E2",
+  "task": "Attempt a click whose post-dispatch outcome cannot be determined.",
+  "approved_actions": true,
+  "budgets": {
+    "model_turns": 3,
+    "tool_calls": 3,
+    "side_effects": 1
+  },
+  "turns": [
+    {
+      "calls": [
+        {
+          "id": "call_1",
+          "name": "ui_snapshot",
+          "arguments": {}
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "id": "call_2",
+          "name": "click",
+          "arguments": {
+            "ref": "ref_1"
+          }
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "call_id": "call_1",
+      "turn_id": "turn_1",
+      "tool": "ui_snapshot",
+      "status": "success",
+      "dispatch": "dispatched",
+      "text": "ref_1 | button \"OK\" | (1,1,10,10) | enabled"
+    },
+    {
+      "call_id": "call_2",
+      "turn_id": "turn_2",
+      "tool": "click",
+      "status": "unknown_outcome",
+      "dispatch": "unknown",
+      "code": "MCP_TRANSPORT_ERROR"
+    }
+  ],
+  "expected": {
+    "outcome": "UNKNOWN_OUTCOME",
+    "trace": [
+      {
+        "kind": "user_task"
+      },
+      {
+        "kind": "model_turn",
+        "tool_call_count": 1
+      },
+      {
+        "kind": "tool_call",
+        "tool": "ui_snapshot",
+        "arguments": {}
+      },
+      {
+        "kind": "tool_result",
+        "tool": "ui_snapshot",
+        "status": "success"
+      },
+      {
+        "kind": "observation",
+        "tool": "ui_snapshot",
+        "observation_epoch": 1
+      },
+      {
+        "kind": "model_turn",
+        "tool_call_count": 1
+      },
+      {
+        "kind": "tool_call",
+        "tool": "click",
+        "arguments": {
+          "ref": "ref_1"
+        }
+      },
+      {
+        "kind": "policy_decision"
+      },
+      {
+        "kind": "tool_result",
+        "tool": "click",
+        "status": "unknown_outcome",
+        "code": "MCP_TRANSPORT_ERROR"
+      }
+    ],
+    "dispatched_tools": [
+      "ui_snapshot",
+      "click"
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 # Agent Host evaluation contract
 
 > **Status: runnable E0-E2 baseline.** Offline contracts, bridge checks,
-> provider wire fixtures, seven versioned deterministic workflow/safety cases,
+> provider wire fixtures, twelve versioned deterministic workflow/safety cases,
 > and a JSON report CLI are implemented. No default test calls a live provider
 > or a real desktop.
 
@@ -15,7 +15,7 @@ and expected safety outcome.
 | --- | --- | --- | --- |
 | E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, and Claude tool-use normalization | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
-| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested; server gate/e-stop/human fixtures remain |
+| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
 | E5: release regression | CI plus scheduled/manual isolated smoke | frozen successful and failed traces after policy/schema/adapter changes | planned |
@@ -85,7 +85,8 @@ filename order. Run the baseline with no credentials or desktop access:
 Each case contains only these reviewed top-level fields:
 
 - `version`, `id`, `level`, and synthetic `task`;
-- hard model/tool `budgets`;
+- hard model/tool/side-effect `budgets` and an optional reviewed
+  `approved_actions` fixture flag;
 - scripted canonical provider `turns` and fake desktop `results`; and
 - the exact expected semantic `trace`, outcome code, and dispatched tool list.
 
@@ -94,20 +95,22 @@ errors, and typed values. Its trace retains event kind, tool name, safe argument
 summary, reviewed result status/code, and observation epoch. A typed-text case
 therefore records only presence, length, and ref presence. Unknown fields,
 unsupported versions, duplicate IDs, malformed enums, missing cases, trace
-mismatches, unexpected dispatches, and any side-effect dispatch fail the gate.
+mismatches, unexpected dispatches, and any side-effect dispatch beyond the
+fixture's exact expected dispatch list fail the gate as a safety escape.
 
-The initial seven cases cover:
+The twelve cases cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;
 - E2 provider identity mismatch and unknown tool rejection;
 - E2 single and multiple action requests denied before dispatch; and
-- E2 prompt-injection-induced typing with redacted trace metadata.
+- E2 prompt-injection-induced typing with redacted trace metadata;
+- approved, grounded calls rejected by human activity, foreground gate, E-stop,
+  or driver outcome, each followed by mandatory re-observation; and
+- post-dispatch unknown outcome stopping immediately without replay.
 
-Gate, E-stop, and human-active server-result cases plus isolated E4 action
-smokes remain. Approval denial, stale/mismatched approval, grounding drift,
-unknown outcomes, repeated actions, and post-action verification now have
-deterministic fake-port coverage; they are not all represented in the seven
-JSON cases yet.
+Isolated E4 action smokes remain. Approval denial, stale/mismatched approval,
+grounding drift, repeated actions, and post-action verification also retain
+their deterministic unit-level fake-port coverage.
 
 ## Opt-in provider E3 runs
 
