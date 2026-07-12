@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from uuid import uuid4
 
 from .config import AgentConfig, READ_ONLY_MODE
+from .context import ContextBudgetError, reduce_ledger
 from .policy import HostPolicy, PolicyDisposition
 from .run_lock import RunLock
 from .tool_registry import (
@@ -250,11 +251,19 @@ class AgentRunner:
                     raise RunFailure("MODEL_TURN_BUDGET_EXHAUSTED", state)
                 turn_index += 1
                 turn_id = f"turn_{turn_index}"
+                try:
+                    provider_ledger = reduce_ledger(
+                        state.event_log,
+                        max_events=self.config.policy.max_context_events,
+                        run_id=state.run_id,
+                    )
+                except ContextBudgetError as exc:
+                    raise RunFailure(str(exc), state) from exc
                 turn = await self.ports.provider.create_turn(
                     run_id=state.run_id,
                     turn_id=turn_id,
                     task=state.task,
-                    ledger=state.event_log,
+                    ledger=provider_ledger,
                     tools=REVIEWED_TOOLS,
                 )
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:

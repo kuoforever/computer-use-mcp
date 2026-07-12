@@ -43,6 +43,23 @@ def build_parser() -> argparse.ArgumentParser:
     trace = commands.add_parser("trace", help="Inspect one redacted run record.")
     trace.add_argument("run_id")
     trace.add_argument("--config", required=True, type=Path)
+
+    remember = commands.add_parser("remember", help="Manage explicit local memories.")
+    remember_commands = remember.add_subparsers(dest="remember_command", required=True)
+    remember_add = remember_commands.add_parser("add", help="Add one confirmed memory.")
+    remember_add.add_argument("--config", required=True, type=Path)
+    remember_add.add_argument("--kind", required=True, choices=["preference", "verified_procedure"])
+    remember_add.add_argument("--content", required=True)
+    remember_add.add_argument("--scope", required=True)
+    remember_add.add_argument("--expires-at", required=True)
+    remember_add.add_argument("--confirmed", action="store_true")
+    remember_list = remember_commands.add_parser("list", help="List local memories.")
+    remember_list.add_argument("--config", required=True, type=Path)
+    remember_list.add_argument("--scope")
+    remember_list.add_argument("--include-expired", action="store_true")
+    remember_delete = remember_commands.add_parser("delete", help="Delete one local memory.")
+    remember_delete.add_argument("memory_id")
+    remember_delete.add_argument("--config", required=True, type=Path)
     return parser
 
 
@@ -78,6 +95,7 @@ def _run_dry(path: Path, task: str) -> int:
                     "model_turns": budget.max_model_turns,
                     "tool_calls": budget.max_tool_calls,
                     "side_effects": budget.max_side_effects,
+                    "context_events": config.policy.max_context_events,
                 },
             }
         )
@@ -144,6 +162,32 @@ def _show_trace(path: Path, run_id: str) -> int:
     return 0
 
 
+def _remember(args: argparse.Namespace) -> int:
+    from .memory import MemoryKind, MemoryStore
+
+    config = load_agent_config(args.config)
+    store = MemoryStore(config.memory_database)
+    if args.remember_command == "add":
+        record = store.add(
+            kind=MemoryKind(args.kind),
+            content=args.content,
+            source="user_confirmed",
+            scope=args.scope,
+            expires_at=args.expires_at,
+            confirmed=args.confirmed,
+        )
+        _print_json(record.as_json())
+        return 0
+    if args.remember_command == "list":
+        records = store.list(scope=args.scope, include_expired=args.include_expired)
+        _print_json({"memories": [record.as_json() for record in records]})
+        return 0
+    if args.remember_command == "delete":
+        _print_json({"deleted": store.delete(args.memory_id), "id": args.memory_id})
+        return 0
+    raise RuntimeError("MEMORY_COMMAND_UNSUPPORTED")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -161,6 +205,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_eval(args.cases, args.report)
         if args.command == "trace":
             return _show_trace(args.config, args.run_id)
+        if args.command == "remember":
+            return _remember(args)
     except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

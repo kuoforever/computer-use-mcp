@@ -199,6 +199,7 @@ class PolicyConfig:
     max_model_turns: int = 12
     max_tool_calls: int = 32
     max_side_effects: int = 8
+    max_context_events: int = 128
 
     def __post_init__(self) -> None:
         if not isinstance(self.mode, str) or self.mode not in {READ_ONLY_MODE, APPROVED_ACTIONS_MODE}:
@@ -213,9 +214,12 @@ class PolicyConfig:
             ("max_model_turns", self.max_model_turns),
             ("max_tool_calls", self.max_tool_calls),
             ("max_side_effects", self.max_side_effects),
+            ("max_context_events", self.max_context_events),
         ):
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ConfigError(f"{field_name} must be a non-negative integer")
+        if self.max_context_events == 0:
+            raise ConfigError("max_context_events must be a positive integer")
 
 
 @dataclass(frozen=True)
@@ -279,6 +283,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "max_model_turns",
             "max_tool_calls",
             "max_side_effects",
+            "max_context_events",
         },
         "policy",
     )
@@ -325,6 +330,9 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         max_model_turns=_read_nonnegative_int(policy, "max_model_turns", "policy", 12),
         max_tool_calls=_read_nonnegative_int(policy, "max_tool_calls", "policy", 32),
         max_side_effects=_read_nonnegative_int(policy, "max_side_effects", "policy", 8),
+        max_context_events=_read_nonnegative_int(
+            policy, "max_context_events", "policy", 128
+        ),
     )
     return AgentConfig(
         state_dir=state_dir,

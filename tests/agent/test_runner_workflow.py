@@ -34,6 +34,7 @@ def _config(
     *,
     max_model_turns: int = 4,
     max_tool_calls: int = 4,
+    max_context_events: int = 128,
 ) -> AgentConfig:
     local_app_data = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
@@ -50,6 +51,7 @@ def _config(
         policy=PolicyConfig(
             max_model_turns=max_model_turns,
             max_tool_calls=max_tool_calls,
+            max_context_events=max_context_events,
         ),
     )
 
@@ -282,3 +284,69 @@ def test_success_is_not_checkpointed_when_desktop_close_fails(
     assert record["state"]["phase"] == "FAILED"
     assert record["state"]["failure_code"] == "RUN_FAILED"
     assert "final_text_length" not in record["state"]
+
+
+def test_runner_reduces_only_provider_view_and_keeps_canonical_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_identity = CallIdentity("run_context", "turn_1", "call_1")
+    second_identity = CallIdentity("run_context", "turn_2", "call_2")
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    "run_context",
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (ToolCall(first_identity, "list_windows", {}),),
+                ),
+                ModelTurn(
+                    "run_context",
+                    "turn_2",
+                    "response_2",
+                    "",
+                    (ToolCall(second_identity, "find", {"query": "Notepad"}),),
+                ),
+                ModelTurn("run_context", "turn_3", "response_3", "done"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    first_identity,
+                    "list_windows",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="windows",
+                ),
+                ToolResult(
+                    second_identity,
+                    "find",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="notepad",
+                ),
+            ]
+        )
+    )
+    config = _config(tmp_path, monkeypatch, max_context_events=6)
+
+    outcome = asyncio.run(
+        _runner(config, provider, desktop).run("Inspect", run_id="run_context")
+    )
+
+    provider_ledger = provider.calls[2]["ledger"]
+    assert [event.kind for event in provider_ledger] == [
+        LedgerEventKind.USER_TASK,
+        LedgerEventKind.RECOVERY,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+        LedgerEventKind.OBSERVATION,
+    ]
+    assert provider_ledger[1].payload["status"] == "context_truncated"
+    assert len(outcome.state.event_log) == 10
+    assert all(event.kind is not LedgerEventKind.RECOVERY for event in outcome.state.event_log)
