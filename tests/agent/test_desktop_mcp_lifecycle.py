@@ -335,7 +335,9 @@ def test_post_dispatch_timeout_invalidates_generation_without_replay_and_can_res
     factory = FakeSessionFactory(first, second)
     bridge = StdioDesktopMCP(
         _launch(tmp_path),
-        timeout_seconds=0.01,
+        # Keep the synthetic timeout short without making restart discovery
+        # depend on sub-10 ms scheduling on slower CI Python versions.
+        timeout_seconds=0.25,
         session_factory=factory,
     )
 
