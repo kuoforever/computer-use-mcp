@@ -44,6 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     trace.add_argument("run_id")
     trace.add_argument("--config", required=True, type=Path)
 
+    report = commands.add_parser("report", help="Aggregate safe local run metrics.")
+    report.add_argument("--config", required=True, type=Path)
+
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
     remember_add = remember_commands.add_parser("add", help="Add one confirmed memory.")
@@ -185,6 +188,14 @@ def _show_trace(path: Path, run_id: str) -> int:
     return 0
 
 
+def _show_report(path: Path) -> int:
+    from .report import build_run_report
+
+    config = load_agent_config(path)
+    _print_json(build_run_report(config.state_dir))
+    return 0
+
+
 def _remember(args: argparse.Namespace) -> int:
     from .memory import MemoryKind, MemoryStore
 
@@ -228,6 +239,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_eval(args.cases, args.report)
         if args.command == "trace":
             return _show_trace(args.config, args.run_id)
+        if args.command == "report":
+            return _show_report(args.config)
         if args.command == "remember":
             return _remember(args)
     except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:

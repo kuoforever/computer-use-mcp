@@ -38,6 +38,7 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["run", "--help"],
         ["eval", "--help"],
         ["trace", "--help"],
+        ["report", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -165,6 +166,24 @@ def test_trace_cli_reads_only_redacted_record(
     assert output["state"]["phase"] == "CREATED"
     assert output["state"]["recovery_action"] == "inspect_trace_then_start_new_run"
     assert "CLI_TASK_SECRET" not in raw
+
+
+def test_report_cli_is_read_only_for_empty_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+
+    assert main(["report", "--config", str(config_path)]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["run_count"] == 0
+    assert output["metrics_run_count"] == 0
+    assert not state_dir.exists()
 
 
 def test_remember_cli_requires_confirmation_and_supports_list_delete(
