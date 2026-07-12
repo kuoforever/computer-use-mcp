@@ -10,6 +10,7 @@ from typing import Protocol, Sequence
 from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..types import (
     CallIdentity,
+    DEFAULT_PROVIDER_REQUEST_BYTES,
     LedgerEvent,
     LedgerEventKind,
     MemoryContextItem,
@@ -136,6 +137,14 @@ def _initial_input(task: str, memories: Sequence[MemoryContextItem]) -> str:
     )
 
 
+def _request_size(request: object) -> int:
+    return len(
+        json.dumps(
+            request, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
+    )
+
+
 @dataclass
 class OpenAIResponsesProvider:
     """Normalize Responses API function calls into the common host contract."""
@@ -143,6 +152,7 @@ class OpenAIResponsesProvider:
     model: str
     responses: _ResponsesPort
     allow_actions: bool = False
+    max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     name: str = field(default="openai", init=False)
     _previous_response_ids: dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
@@ -151,17 +161,32 @@ class OpenAIResponsesProvider:
             raise ValueError("model must be a non-empty string")
         if not isinstance(self.allow_actions, bool):
             raise ValueError("allow_actions must be boolean")
+        if (
+            isinstance(self.max_request_bytes, bool)
+            or not isinstance(self.max_request_bytes, int)
+            or self.max_request_bytes <= 0
+        ):
+            raise ValueError("max_request_bytes must be a positive integer")
 
     @classmethod
     def from_environment(
-        cls, model: str, *, allow_actions: bool = False
+        cls,
+        model: str,
+        *,
+        allow_actions: bool = False,
+        max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
     ) -> "OpenAIResponsesProvider":
         try:
             from openai import AsyncOpenAI
         except ImportError as exc:
             raise OpenAIProviderError("OPENAI_SDK_NOT_INSTALLED") from exc
         client = AsyncOpenAI()
-        return cls(model=model, responses=client.responses, allow_actions=allow_actions)
+        return cls(
+            model=model,
+            responses=client.responses,
+            allow_actions=allow_actions,
+            max_request_bytes=max_request_bytes,
+        )
 
     async def create_turn(
         self,
@@ -193,6 +218,8 @@ class OpenAIResponsesProvider:
                 raise OpenAIProviderError("MISSING_FUNCTION_CALL_OUTPUT")
             request["previous_response_id"] = previous_response_id
             request["input"] = outputs
+        if _request_size(request) > self.max_request_bytes:
+            raise OpenAIProviderError("OPENAI_REQUEST_TOO_LARGE")
         try:
             response = await self.responses.create(**request)
         except asyncio.CancelledError:

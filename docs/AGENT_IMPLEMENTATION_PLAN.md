@@ -10,7 +10,7 @@
 
 The repository currently provides a tested foundation, not a runnable LLM
 desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (233 passed, 2 opt-in live cases skipped) and
+`python -m pytest -q` (237 passed, 2 opt-in live cases skipped) and
 `python -m ruff check src tests` (passed).
 
 | Area | Current implementation | Evidence / limitation |
@@ -21,9 +21,9 @@ desktop Agent. The status below is based on source inspection plus
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
 | Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
 | Host policy | Implemented fake-verified action baseline | Read-only default, tool/side-effect budgets, current-generation grounding, digest/identity-bound local approval, serialized calls, re-observation, verification requirement, and unknown-outcome stop are implemented. `type` remains denied; isolated desktop validation remains. |
-| OpenAI / Claude providers | Implemented text/image/action-schema slice | Both adapters default to text and bounded screenshot observation tools, encode provider-native image continuations, and expose `activate_window`, `click`, and `key` only in approved mode. `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
+| OpenAI / Claude providers | Implemented text/image/action-schema slice | Both adapters default to text and bounded screenshot observation tools, encode provider-native image continuations, and enforce configurable canonical-JSON request byte caps before SDK calls. They expose `activate_window`, `click`, and `key` only in approved mode; `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
 | Workflow and recovery | Partial | Observe/approve/act/reobserve/answer executes with phase checkpoints; final answer and repeated actions are blocked until verification. Unknown outcomes never replay. Automatic resume/cancel and crash reconstruction remain. |
-| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete plus per-run exact-scope retrieval/injection and conservative rejection rules exist. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, strict cross-run reports, and `agent trace` also exist. Token-aware compression and reviewed resumable state remain. |
+| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete plus per-run exact-scope retrieval/injection and conservative rejection rules exist. Final outbound requests have deterministic UTF-8 JSON byte gates. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, strict cross-run reports, and `agent trace` also exist. Token-aware compression and reviewed resumable state remain. |
 | Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, twelve-case E1/E2 JSON reports, wheel build, and clean-install CLI smoke. E2 freezes human/gate/e-stop/driver action errors plus post-dispatch unknown outcome with zero safety escapes. Provider E3 remains explicit; isolated E4 remains. |
 
 The dual-provider observation slice is runnable but experimental. Documentation

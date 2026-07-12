@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
@@ -269,6 +270,81 @@ def test_provider_errors_do_not_echo_request_or_response_content() -> None:
         )
 
     assert str(raised.value) == "OPENAI_REQUEST_FAILED"
+
+
+def test_openai_request_budget_fails_before_initial_or_continuation_network_call() -> None:
+    initial = ScriptedResponses([_response("unused")])
+    provider = OpenAIResponsesProvider(
+        model="test-model", responses=initial, max_request_bytes=1024
+    )
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_TOO_LARGE"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_large",
+                turn_id="turn_1",
+                task="x" * 5000,
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+    assert initial.calls == []
+
+    scripted = ScriptedResponses(
+        [
+            _response(
+                "response_1",
+                output=[
+                    SimpleNamespace(
+                        type="function_call",
+                        name="list_windows",
+                        call_id="call_1",
+                        arguments="{}",
+                    )
+                ],
+            ),
+            _response("unused"),
+        ]
+    )
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    first = asyncio.run(
+        provider.create_turn(
+            run_id="run_continuation",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    provider.max_request_bytes = len(json.dumps(scripted.calls[0], default=str)) + 100
+    result = ToolResult(
+        identity=first.tool_calls[0].identity,
+        tool_name="list_windows",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="x" * 10_000,
+    )
+    ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=result.identity,
+            tool_result=result,
+        ),
+    )
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_TOO_LARGE"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_continuation",
+                turn_id="turn_2",
+                task="Inspect",
+                ledger=ledger,
+                tools=REVIEWED_TOOLS,
+            )
+        )
+    assert len(scripted.calls) == 1
 
 
 def test_openai_explicit_memory_is_json_data_on_initial_turn_only() -> None:

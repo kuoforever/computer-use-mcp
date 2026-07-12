@@ -19,7 +19,7 @@ computer-use-mcp → Desktop Execution
 
 ## 当前实现审计（2026-07-12）
 
-以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `233 passed, 2 skipped`，
+以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `237 passed, 2 skipped`，
 `ruff check src tests scripts` 通过。当前 Agent Host 已具备实验性的双 provider
 观察闭环和受审批动作编排，但尚未完成隔离桌面验证与可恢复运行。
 
@@ -31,7 +31,7 @@ computer-use-mcp → Desktop Execution
 | CLI / 配置 / Run Lock | 已实现实验竖切 | `config validate`、`run --dry-run`、双 provider 非 dry-run、显式 memory、trace、eval、安全子进程环境和单运行锁可用。 |
 | 本地 stdio MCP Bridge | 已实现 | 固定直接启动、bounded transport、工具发现、generation 重建、超时/取消/未知结果分类、文本与 PNG 转换均有离线及真实 stdio fixture 测试。 |
 | Host Policy | 已实现 fake 验证基线 | 已有 read-only 默认、动作预算、current-generation grounding、digest/identity 绑定审批、串行动作、动作后强制观察和 unknown outcome 停止；`type` 仍禁用，隔离桌面 smoke 待完成。 |
-| OpenAI / Claude adapter | 已实现文本/截图观察竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry，能以各自原生 image block 回传 bridge 校验后的单张 PNG；已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
+| OpenAI / Claude adapter | 已实现文本/截图观察竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry，能以各自原生 image block 回传 bridge 校验后的单张 PNG；最终 SDK kwargs 执行可配置 UTF-8 JSON byte gate，覆盖 task、memory、tool result、图片和 Claude history，超限在网络前失败。已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
 | observe → act → verify | 已实现 fake 验证基线 | Runner 已执行观察、审批、单动作、重新观察和最终回答；验证前禁止最终回答和下一动作，unknown outcome 不重放。隔离桌面 smoke 仍待完成。 |
 | State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、失败/取消/未知结果终态和保守恢复建议；为避免错误重放，当前 `resume_allowed=false`，尚无 resume/cancel 命令。 |
 | Context Manager | 已实现事件基线 | provider-only reducer 按事件预算保留最新 continuation、策略决定、最近观察和完整 call/result 组，空间不足时失败关闭；token-aware 压缩与语义 summary 尚未实现。 |

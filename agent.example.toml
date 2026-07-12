@@ -12,6 +12,9 @@ policy_version = "readonly-v1"
 # optional SDK extra and set its API key in the host process environment.
 name = "openai"
 model = "your-model-id"
+# Exact UTF-8 JSON byte cap for each outbound provider SDK request. This covers
+# task, selected memory, tool schemas/results, images, and local message history.
+max_request_bytes = 8388608
 
 [mcp]
 # The bridge executes this absolute program directly without a shell.

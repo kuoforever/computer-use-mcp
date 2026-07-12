@@ -13,6 +13,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
+from .types import (
+    DEFAULT_PROVIDER_REQUEST_BYTES,
+    MAX_PROVIDER_REQUEST_BYTES,
+    MIN_PROVIDER_REQUEST_BYTES,
+)
+
 
 class ConfigError(ValueError):
     """Raised when a host configuration violates a fail-closed invariant."""
@@ -139,6 +145,7 @@ def _read_nonnegative_int(table: Mapping[str, object], key: str, section: str, d
 class ProviderConfig:
     name: str
     model: str
+    max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or self.name not in SUPPORTED_PROVIDERS:
@@ -146,6 +153,17 @@ class ProviderConfig:
             raise ConfigError(f"provider name must be one of: {choices}")
         if not isinstance(self.model, str) or not self.model.strip():
             raise ConfigError("provider model must be a non-empty string")
+        if (
+            isinstance(self.max_request_bytes, bool)
+            or not isinstance(self.max_request_bytes, int)
+            or not MIN_PROVIDER_REQUEST_BYTES
+            <= self.max_request_bytes
+            <= MAX_PROVIDER_REQUEST_BYTES
+        ):
+            raise ConfigError(
+                "provider max_request_bytes must be between "
+                f"{MIN_PROVIDER_REQUEST_BYTES} and {MAX_PROVIDER_REQUEST_BYTES}"
+            )
 
 
 @dataclass(frozen=True)
@@ -273,7 +291,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     policy = _read_table(document, "policy", required=False)
 
     _reject_unknown(agent, {"state_dir", "policy_version"}, "agent")
-    _reject_unknown(provider, {"name", "model"}, "provider")
+    _reject_unknown(provider, {"name", "model", "max_request_bytes"}, "provider")
     _reject_unknown(mcp, {"executable", "args", "cwd", "environment"}, "mcp")
     _reject_unknown(
         policy,
@@ -299,6 +317,12 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     provider_config = ProviderConfig(
         name=_read_nonempty_string(provider, "name", "provider"),
         model=_read_nonempty_string(provider, "model", "provider"),
+        max_request_bytes=_read_nonnegative_int(
+            provider,
+            "max_request_bytes",
+            "provider",
+            DEFAULT_PROVIDER_REQUEST_BYTES,
+        ),
     )
 
     raw_args = mcp.get("args", [])
