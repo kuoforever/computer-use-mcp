@@ -337,13 +337,7 @@ def read_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     """Read one bounded checkpoint and trace without trusting persisted fields."""
 
     recorder = RunRecorder(state_dir=state_dir, run_id=run_id)
-    checkpoint = _read_json(
-        recorder.checkpoint_path, MAX_CHECKPOINT_BYTES, "CHECKPOINT_READ_FAILED"
-    )
-    if not isinstance(checkpoint, dict):
-        raise TraceError("CHECKPOINT_READ_FAILED")
-    if checkpoint.get("run_id") != run_id or checkpoint.get("checkpoint_version") != 1:
-        raise TraceError("CHECKPOINT_READ_FAILED")
+    checkpoint = read_run_checkpoint(state_dir, run_id)
     events: list[JSONValue] = []
     try:
         with recorder.trace_path.open("rb") as file:
@@ -369,10 +363,27 @@ def read_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     return {"state": to_json_value(checkpoint), "events": events}
 
 
+def read_run_checkpoint(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
+    """Read one bounded atomic checkpoint without opening its JSONL trace."""
+
+    recorder = RunRecorder(state_dir=state_dir, run_id=run_id)
+    if recorder.checkpoint_path.is_symlink():
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    checkpoint = _read_json(
+        recorder.checkpoint_path, MAX_CHECKPOINT_BYTES, "CHECKPOINT_READ_FAILED"
+    )
+    if not isinstance(checkpoint, dict):
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    if checkpoint.get("run_id") != run_id or checkpoint.get("checkpoint_version") != 1:
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    return to_json_value(checkpoint)
+
+
 __all__ = [
     "RunPhase",
     "RunRecorder",
     "TraceError",
+    "read_run_checkpoint",
     "read_run_record",
     "validate_transition",
 ]

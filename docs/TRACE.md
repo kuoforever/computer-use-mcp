@@ -82,6 +82,19 @@ Inspect one record without starting a provider or MCP child:
 The command emits the validated checkpoint, aggregate metrics, and events as JSON. It does not
 repair, mutate, resume, or delete the record.
 
+Aggregate all local checkpoints without opening JSONL traces:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe report --config agent.toml
+~~~
+
+The report includes phase counts, terminal success rate, fixed failure-code
+counts, metric coverage, totals, and average provider/tool/run latency. Legacy
+v1 checkpoints without metrics remain in phase counts but do not contribute
+invented metric values. The scan is bounded to 10,000 path-safe run directories
+and fails closed on invalid directories, symlinks, corrupt checkpoints, unknown
+metric fields, or malformed values. It never reads trace JSONL content.
+
 All current records have `resume_allowed=false` because the sanitized record
 does not contain raw task/provider conversation state and correctness cannot be
 reconstructed from it. Recovery is deliberately conservative:

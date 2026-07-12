@@ -10,7 +10,7 @@
 
 The repository currently provides a tested foundation, not a runnable LLM
 desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (219 passed, 2 opt-in live cases skipped) and
+`python -m pytest -q` (225 passed, 2 opt-in live cases skipped) and
 `python -m ruff check src tests` (passed).
 
 | Area | Current implementation | Evidence / limitation |
@@ -23,7 +23,7 @@ desktop Agent. The status below is based on source inspection plus
 | Host policy | Implemented fake-verified action baseline | Read-only default, tool/side-effect budgets, current-generation grounding, digest/identity-bound local approval, serialized calls, re-observation, verification requirement, and unknown-outcome stop are implemented. `type` remains denied; isolated desktop validation remains. |
 | OpenAI / Claude providers | Implemented text/image/action-schema slice | Both adapters default to text and bounded screenshot observation tools, encode provider-native image continuations, and expose `activate_window`, `click`, and `key` only in approved mode. `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
 | Workflow and recovery | Partial | Observe/approve/act/reobserve/answer executes with phase checkpoints; final answer and repeated actions are blocked until verification. Unknown outcomes never replay. Automatic resume/cancel and crash reconstruction remain. |
-| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete and conservative rejection rules exist. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, and `agent trace` also exist. Memory retrieval/injection, token-aware compression, cross-run reporting, and reviewed resumable state remain. |
+| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete and conservative rejection rules exist. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, strict cross-run reports, and `agent trace` also exist. Memory retrieval/injection, token-aware compression, and reviewed resumable state remain. |
 | Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, E1/E2 JSON reports, wheel build, and clean-install CLI smoke. Provider E3 remains explicit; broader server outcomes and isolated E4 remain. |
 
 The dual-provider observation slice is runnable but experimental. Documentation
