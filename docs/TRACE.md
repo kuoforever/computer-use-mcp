@@ -1,6 +1,6 @@
 # Agent run checkpoints and redacted traces
 
-> **Status: implemented inspection baseline.** Live non-dry Agent runs write an
+> **Status: implemented inspection and metrics baseline.** Live non-dry Agent runs write an
 > atomic safe checkpoint and append-only redacted JSONL events. Records support
 > inspection and conservative recovery decisions; automatic resume and action
 > replay are not implemented.
@@ -49,13 +49,27 @@ Neither checkpoint nor JSONL trace stores:
 - typed values, passwords, API keys, or arbitrary tool error text.
 
 The checkpoint stores lengths, policy/recovery versions, phase, observation
-epochs, event count, budgets, terminal code, and update time. A successful run
-stores final-text length only.
+epochs, event count, budgets, terminal code, update time, and bounded aggregate
+metrics. A successful run stores final-text length only.
 
 Trace events store reviewed semantic metadata. Tool results retain status,
 dispatch certainty, fixed code, text length, and image count, not their
 content. Tool calls use `SafeArgumentSummary`; `type.text` is represented only
 by presence and length plus whether a ref was supplied.
+
+## Metrics
+
+Each model-turn trace event records integer provider latency and normalized
+input/output token counts. Each dispatched tool-result event records integer
+tool latency. The checkpoint aggregates model/tool call counts, token totals,
+provider/tool latency, non-success tool results, screenshot-result count, and
+terminal wall-clock run duration. Missing provider token usage is counted as
+zero. `retry_count` is currently zero because the host never automatically
+retries provider calls or desktop actions.
+
+Metrics contain no task, model response, observation, image, typed value,
+provider identifier, or raw error content. Cost is deliberately not estimated:
+the host has no reviewed, versioned provider pricing input.
 
 ## Inspection and recovery
 
@@ -65,7 +79,7 @@ Inspect one record without starting a provider or MCP child:
 .\.venv\Scripts\computer-use-agent.exe trace <run_id> --config agent.toml
 ~~~
 
-The command emits the validated checkpoint and events as JSON. It does not
+The command emits the validated checkpoint, aggregate metrics, and events as JSON. It does not
 repair, mutate, resume, or delete the record.
 
 All current records have `resume_allowed=false` because the sanitized record

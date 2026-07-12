@@ -143,6 +143,19 @@ def test_openai_runner_returns_screenshot_as_multimodal_function_output(
         "detail": "high",
     }
     record = read_run_record(config.state_dir, "run_openai")
+    assert record["state"]["metrics"] == {
+        "model_calls": 2,
+        "tool_calls": 1,
+        "input_tokens": 5,
+        "output_tokens": 3,
+        "provider_latency_ms": record["state"]["metrics"]["provider_latency_ms"],
+        "tool_latency_ms": record["state"]["metrics"]["tool_latency_ms"],
+        "tool_failures": 0,
+        "image_results": 1,
+        "retry_count": 0,
+        "run_duration_ms": record["state"]["metrics"]["run_duration_ms"],
+    }
+    assert record["state"]["metrics"]["run_duration_ms"] >= 0
     assert _PNG_BASE64 not in json.dumps(record)
 
 
@@ -191,4 +204,7 @@ def test_claude_runner_returns_screenshot_as_nested_tool_result_image(
         },
     }
     record = read_run_record(config.state_dir, "run_anthropic")
+    assert record["state"]["metrics"]["input_tokens"] == 5
+    assert record["state"]["metrics"]["output_tokens"] == 3
+    assert record["state"]["metrics"]["image_results"] == 1
     assert _PNG_BASE64 not in json.dumps(record)

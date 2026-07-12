@@ -102,6 +102,7 @@ def _safe_event(event: LedgerEvent, sequence: int, run_id: str) -> dict[str, JSO
     elif event.kind is LedgerEventKind.MODEL_TURN:
         for field_name in ("text_length", "tool_call_count", "input_tokens", "output_tokens"):
             item[field_name] = event.payload[field_name]
+        item["latency_ms"] = event.payload.get("latency_ms", 0)
     elif event.kind is LedgerEventKind.TOOL_CALL:
         assert event.safe_argument_summary is not None
         item["tool"] = event.safe_argument_summary.tool_name
@@ -114,6 +115,8 @@ def _safe_event(event: LedgerEvent, sequence: int, run_id: str) -> dict[str, JSO
         item["dispatch"] = event.tool_result.dispatch.value
         item["text_length"] = len(event.tool_result.sanitized_text)
         item["image_count"] = len(event.tool_result.images)
+        if "latency_ms" in event.payload:
+            item["latency_ms"] = event.payload["latency_ms"]
         if event.tool_result.code is not None:
             item["code"] = event.tool_result.code
     elif event.kind is LedgerEventKind.OBSERVATION:
@@ -133,6 +136,7 @@ def _checkpoint(
     *,
     failure_code: str | None = None,
     final_text_length: int | None = None,
+    run_duration_ms: int | None = None,
 ) -> dict[str, JSONValue]:
     budget = state.budgets
     payload: dict[str, JSONValue] = {
@@ -154,6 +158,7 @@ def _checkpoint(
             "side_effects_used": budget.side_effects_used,
         },
         "updated_at": _now(),
+        "metrics": _metrics(state, run_duration_ms=run_duration_ms),
     }
     if failure_code is not None:
         payload["failure_code"] = failure_code
@@ -169,6 +174,44 @@ def _checkpoint(
         payload["resume_allowed"] = False
         payload["recovery_action"] = "inspect_trace_then_start_new_run"
     return payload
+
+
+def _metrics(state: RunState, *, run_duration_ms: int | None) -> dict[str, JSONValue]:
+    input_tokens = 0
+    output_tokens = 0
+    provider_latency_ms = 0
+    tool_latency_ms = 0
+    tool_failures = 0
+    image_results = 0
+    for event in state.event_log:
+        if event.kind is LedgerEventKind.MODEL_TURN:
+            input_tokens += _metric_int(event.payload.get("input_tokens"))
+            output_tokens += _metric_int(event.payload.get("output_tokens"))
+            provider_latency_ms += _metric_int(event.payload.get("latency_ms"))
+        elif event.kind is LedgerEventKind.TOOL_RESULT and event.tool_result is not None:
+            tool_latency_ms += _metric_int(event.payload.get("latency_ms"))
+            tool_failures += int(not event.tool_result.ok)
+            image_results += len(event.tool_result.images)
+    metrics: dict[str, JSONValue] = {
+        "model_calls": state.budgets.model_turns_used,
+        "tool_calls": state.budgets.tool_calls_used,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "provider_latency_ms": provider_latency_ms,
+        "tool_latency_ms": tool_latency_ms,
+        "tool_failures": tool_failures,
+        "image_results": image_results,
+        "retry_count": 0,
+    }
+    if run_duration_ms is not None:
+        metrics["run_duration_ms"] = run_duration_ms
+    return metrics
+
+
+def _metric_int(value: JSONValue | None) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return value
 
 
 def _atomic_json(path: Path, payload: Mapping[str, JSONValue]) -> None:
@@ -235,6 +278,7 @@ class RunRecorder:
         *,
         failure_code: str | None = None,
         final_text_length: int | None = None,
+        run_duration_ms: int | None = None,
     ) -> None:
         if state.run_id != self.run_id:
             raise TraceError("RUN_RECORD_IDENTITY_MISMATCH")
@@ -269,6 +313,7 @@ class RunRecorder:
                 phase,
                 failure_code=failure_code,
                 final_text_length=final_text_length,
+                run_duration_ms=run_duration_ms,
             ),
         )
         self._event_count = len(state.event_log)
