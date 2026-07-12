@@ -135,6 +135,12 @@ def test_read_only_observe_then_answer_is_bounded_and_canonical(
     assert record["state"]["phase"] == "SUCCESS"
     assert record["state"]["final_text_length"] == len(outcome.text)
     assert record["state"]["resume_allowed"] is False
+    assert record["state"]["metrics"]["model_calls"] == 2
+    assert record["state"]["metrics"]["tool_calls"] == 1
+    assert record["state"]["metrics"]["tool_failures"] == 0
+    assert record["state"]["metrics"]["provider_latency_ms"] >= 0
+    assert record["state"]["metrics"]["tool_latency_ms"] >= 0
+    assert record["state"]["metrics"]["run_duration_ms"] >= 0
     assert len(record["events"]) == len(outcome.state.event_log)
     lock_path = _config(tmp_path, monkeypatch).application_state_dir / "active-run.lock"
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
@@ -176,6 +182,8 @@ def test_read_only_action_is_recorded_as_denied_and_never_dispatched(
     record = read_run_record(config.state_dir, "run_2")
     assert record["state"]["phase"] == "FAILED"
     assert record["state"]["failure_code"] == "POLICY_DENIED"
+    assert record["state"]["metrics"]["model_calls"] == 1
+    assert record["state"]["metrics"]["tool_failures"] == 1
 
 
 def test_model_turn_budget_stops_before_an_extra_provider_call(

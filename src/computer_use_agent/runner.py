@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import dataclass, field, replace
+from time import perf_counter_ns
 from uuid import uuid4
 
 from .config import AgentConfig
@@ -152,7 +153,9 @@ class AgentRunner:
     def _append(state: RunState, event: LedgerEvent, **changes: object) -> RunState:
         return replace(state, event_log=state.event_log + (event,), **changes)
 
-    def _consume_model_turn(self, state: RunState, turn: ModelTurn) -> RunState:
+    def _consume_model_turn(
+        self, state: RunState, turn: ModelTurn, *, latency_ms: int
+    ) -> RunState:
         if state.budgets.model_turns_used >= state.budgets.max_model_turns:
             raise RunnerBudgetError("MODEL_TURN_BUDGET_EXHAUSTED")
         budget = replace(state.budgets, model_turns_used=state.budgets.model_turns_used + 1)
@@ -167,6 +170,7 @@ class AgentRunner:
                     "tool_call_count": len(turn.tool_calls),
                     "input_tokens": turn.usage.input_tokens,
                     "output_tokens": turn.usage.output_tokens,
+                    "latency_ms": latency_ms,
                 },
             ),
             budgets=budget,
@@ -199,6 +203,7 @@ class AgentRunner:
         result: ToolResult,
         *,
         effect: ToolEffect,
+        latency_ms: int | None = None,
     ) -> RunState:
         observation_epoch = state.observation_epoch
         verified_epoch = state.verified_observation_epoch
@@ -212,6 +217,7 @@ class AgentRunner:
             recovery_status = RecoveryStatus.REQUIRES_REOBSERVATION
         if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
             recovery_status = RecoveryStatus.UNKNOWN_OUTCOME
+        payload = {} if latency_ms is None else {"latency_ms": latency_ms}
         state = self._append(
             state,
             LedgerEvent(
@@ -219,6 +225,7 @@ class AgentRunner:
                 kind=LedgerEventKind.TOOL_RESULT,
                 identity=result.identity,
                 tool_result=result,
+                payload=payload,
             ),
             observation_epoch=observation_epoch,
             verified_observation_epoch=verified_epoch,
@@ -269,6 +276,7 @@ class AgentRunner:
         state = prepared.state
         grounding = GroundingState()
         recorder = RunRecorder(self.config.state_dir, state.run_id)
+        run_started_ns = perf_counter_ns()
         recorder_started = False
         desktop_closed = False
         try:
@@ -292,6 +300,7 @@ class AgentRunner:
                     )
                 except ContextBudgetError as exc:
                     raise RunFailure(str(exc), state) from exc
+                provider_started_ns = perf_counter_ns()
                 turn = await self.ports.provider.create_turn(
                     run_id=state.run_id,
                     turn_id=turn_id,
@@ -301,7 +310,11 @@ class AgentRunner:
                 )
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
-                state = self._consume_model_turn(state, turn)
+                state = self._consume_model_turn(
+                    state,
+                    turn,
+                    latency_ms=max(0, (perf_counter_ns() - provider_started_ns) // 1_000_000),
+                )
                 recorder.record(state, RunPhase.PLANNING)
                 if not turn.tool_calls:
                     if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
@@ -312,6 +325,9 @@ class AgentRunner:
                         state,
                         RunPhase.SUCCESS,
                         final_text_length=len(turn.text),
+                        run_duration_ms=max(
+                            0, (perf_counter_ns() - run_started_ns) // 1_000_000
+                        ),
                     )
                     return RunOutcome(text=turn.text, state=state)
 
@@ -411,9 +427,17 @@ class AgentRunner:
 
                     recorder.record(state, RunPhase.EXECUTING)
                     authorized_call = replace(call, status=ToolCallStatus.AUTHORIZED)
+                    tool_started_ns = perf_counter_ns()
                     result = await self.ports.desktop.call_tool(authorized_call)
                     validate_tool_result(authorized_call, result)
-                    state = self._record_result(state, result, effect=spec.effect)
+                    state = self._record_result(
+                        state,
+                        result,
+                        effect=spec.effect,
+                        latency_ms=max(
+                            0, (perf_counter_ns() - tool_started_ns) // 1_000_000
+                        ),
+                    )
                     if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
                         raise RunFailure("UNKNOWN_OUTCOME", state)
                     if spec.effect is ToolEffect.OBSERVATION and result.ok:
@@ -432,7 +456,12 @@ class AgentRunner:
                     recorder.record(state, RunPhase.PLANNING)
         except asyncio.CancelledError:
             if recorder_started:
-                recorder.record(state, RunPhase.CANCELLED, failure_code="CANCELLED")
+                recorder.record(
+                    state,
+                    RunPhase.CANCELLED,
+                    failure_code="CANCELLED",
+                    run_duration_ms=max(0, (perf_counter_ns() - run_started_ns) // 1_000_000),
+                )
             raise
         except RunFailure as failure:
             if recorder_started:
@@ -441,13 +470,23 @@ class AgentRunner:
                     if failure.code == "UNKNOWN_OUTCOME"
                     else RunPhase.FAILED
                 )
-                recorder.record(failure.state, terminal, failure_code=failure.code)
+                recorder.record(
+                    failure.state,
+                    terminal,
+                    failure_code=failure.code,
+                    run_duration_ms=max(0, (perf_counter_ns() - run_started_ns) // 1_000_000),
+                )
             raise
         except TraceError:
             raise
         except Exception:
             if recorder_started:
-                recorder.record(state, RunPhase.FAILED, failure_code="RUN_FAILED")
+                recorder.record(
+                    state,
+                    RunPhase.FAILED,
+                    failure_code="RUN_FAILED",
+                    run_duration_ms=max(0, (perf_counter_ns() - run_started_ns) // 1_000_000),
+                )
             raise
         finally:
             had_active_error = sys.exc_info()[0] is not None
