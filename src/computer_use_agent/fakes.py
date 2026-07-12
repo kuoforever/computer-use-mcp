@@ -10,6 +10,7 @@ from .types import (
     ApprovalRequest,
     LedgerEvent,
     MCPToolDescriptor,
+    MemoryContextItem,
     ModelTurn,
     PolicyDecision,
     ToolCall,
@@ -35,6 +36,7 @@ class FakeModelProvider:
         task: str,
         ledger: Sequence[LedgerEvent],
         tools: Sequence[ToolSpec],
+        memories: Sequence[MemoryContextItem] = (),
     ) -> ModelTurn:
         self.calls.append(
             {
@@ -43,6 +45,7 @@ class FakeModelProvider:
                 "task": task,
                 "ledger": tuple(ledger),
                 "tools": tuple(tools),
+                "memories": tuple(memories),
             }
         )
         if not self.turns:

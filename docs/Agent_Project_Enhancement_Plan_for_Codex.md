@@ -19,7 +19,7 @@ computer-use-mcp → Desktop Execution
 
 ## 当前实现审计（2026-07-12）
 
-以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `225 passed, 2 skipped`，
+以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `231 passed, 2 skipped`，
 `ruff check src tests scripts` 通过。当前 Agent Host 已具备实验性的双 provider
 观察闭环和受审批动作编排，但尚未完成隔离桌面验证与可恢复运行。
 
@@ -35,11 +35,11 @@ computer-use-mcp → Desktop Execution
 | observe → act → verify | 已实现 fake 验证基线 | Runner 已执行观察、审批、单动作、重新观察和最终回答；验证前禁止最终回答和下一动作，unknown outcome 不重放。隔离桌面 smoke 仍待完成。 |
 | State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、失败/取消/未知结果终态和保守恢复建议；为避免错误重放，当前 `resume_allowed=false`，尚无 resume/cancel 命令。 |
 | Context Manager | 已实现事件基线 | provider-only reducer 按事件预算保留最新 continuation、策略决定、最近观察和完整 call/result 组，空间不足时失败关闭；token-aware 压缩与语义 summary 尚未实现。 |
-| SQLite Memory | 已实现显式管理基线 | 已有 preference/verified procedure schema、用户确认、scope、expiry、active list、delete 和保守秘密/UI ref/图片拒绝；当前不自动抽取，也不注入 provider。 |
+| SQLite Memory | 已实现显式管理与检索基线 | 已有 preference/verified procedure schema、用户确认、scope、expiry、active list、delete 和保守秘密/UI ref/图片拒绝；单次 run 可显式选择 exact scope，经重新校验与 8 条/8192 字符上限后作为非权威 JSON 数据发给 provider，默认不读取、不自动抽取。 |
 | Trace / Report | 已实现检查与聚合基线 | 已有 bounded redacted JSONL、严格 reader、任务/观察/截图/typed value 排除、`agent trace <run_id>` 和 checkpoint-only `agent report`；支持 phase/成功率/failure code、token、调用、provider/tool/run 延迟、失败、图片结果和零自动重试的总计与均值。因无版本化价格输入不估算成本。 |
 | Evaluation / CI | 已有可运行门禁 | `evals/cases` 含 7 个版本化 E1/E2 case，`agent eval` 对比精确语义 trace、工具下发列表和安全结果并要求 safety escape 为 0；Windows/Python 3.11-3.13 CI 运行 Ruff、全量离线测试、E1/E2、wheel 构建与干净安装。OpenAI/Claude E3 仍为显式门禁，隔离桌面 smoke 待完成。 |
 
-当前可以对外描述为：双 provider 文本/截图观察竖切、显式 SQLite Memory、redacted
+当前可以对外描述为：双 provider 文本/截图观察竖切、显式 SQLite Memory 管理与单次检索、redacted
 Trace、离线 E1/E2、CI 和 fake-verified 本地审批动作编排已有可运行基线；隔离动作
 smoke、自动 resume、memory retrieval/injection、完整 Planner-Executor 和生产调度仍是目标设计。
 

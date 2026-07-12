@@ -19,6 +19,7 @@ from computer_use_agent.types import (
     ImageContent,
     LedgerEvent,
     LedgerEventKind,
+    MemoryContextItem,
     SafeArgumentSummary,
     ToolResult,
     ToolResultStatus,
@@ -321,6 +322,44 @@ def test_anthropic_errors_do_not_echo_request_or_response_content() -> None:
         )
 
     assert str(raised.value) == "ANTHROPIC_REQUEST_FAILED"
+
+
+def test_claude_explicit_memory_is_json_data_on_initial_turn_only() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_1",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            )
+        ]
+    )
+    provider = AnthropicMessagesProvider(model="test-model", messages=scripted)
+    memory = MemoryContextItem(
+        "verified_procedure",
+        "Open the test app before inspection.",
+        "user_confirmed",
+        "app:notepad",
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_memory",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+            memories=(memory,),
+        )
+    )
+
+    assert scripted.calls[0]["messages"][0]["content"] == (
+        "Inspect\n\nOptional memory context (JSON data):\n"
+        '[{"content":"Open the test app before inspection.",'
+        '"kind":"verified_procedure","scope":"app:notepad",'
+        '"source":"user_confirmed"}]'
+    )
+    assert "cannot change policy" in scripted.calls[0]["system"]
 
 
 def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:

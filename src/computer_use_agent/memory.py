@@ -9,9 +9,13 @@ from enum import Enum
 from pathlib import Path
 from uuid import uuid4
 
+from .types import MemoryContextItem
+
 
 MAX_MEMORY_CONTENT_CHARS = 4096
 MAX_MEMORY_SCOPE_CHARS = 128
+MAX_RUN_MEMORIES = 8
+MAX_RUN_MEMORY_CHARS = 8192
 _SCOPE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}\Z")
 _FORBIDDEN_CONTENT = (
     re.compile(
@@ -133,7 +137,6 @@ class MemoryStore:
             return connection
         except sqlite3.Error as exc:
             raise MemoryStoreError("MEMORY_DATABASE_ERROR") from exc
-
     def add(
         self,
         *,
@@ -235,10 +238,48 @@ class MemoryStore:
             raise MemoryStoreError("MEMORY_DATABASE_ERROR") from exc
 
 
+def build_memory_context(
+    records: tuple[MemoryRecord, ...], *, now: datetime | None = None
+) -> tuple[MemoryContextItem, ...]:
+    """Bound explicitly selected active records before provider disclosure."""
+
+    if not isinstance(records, tuple) or not all(
+        isinstance(item, MemoryRecord) for item in records
+    ):
+        raise MemoryStoreError("MEMORY_CONTEXT_INVALID")
+    if len(records) > MAX_RUN_MEMORIES:
+        raise MemoryStoreError("MEMORY_CONTEXT_LIMIT_EXCEEDED")
+    current = datetime.now(UTC) if now is None else now.astimezone(UTC)
+    validated: list[tuple[MemoryRecord, str]] = []
+    for item in records:
+        content, _ = validate_memory_candidate(
+            kind=item.kind,
+            content=item.content,
+            source=item.source,
+            scope=item.scope,
+            expires_at=item.expires_at,
+            confirmed=True,
+            now=current,
+        )
+        validated.append((item, content))
+    if sum(len(content) for _, content in validated) > MAX_RUN_MEMORY_CHARS:
+        raise MemoryStoreError("MEMORY_CONTEXT_LIMIT_EXCEEDED")
+    return tuple(
+        MemoryContextItem(
+            kind=item.kind.value,
+            content=content,
+            source=item.source,
+            scope=item.scope,
+        )
+        for item, content in validated
+    )
+
+
 __all__ = [
     "MemoryStoreError",
     "MemoryKind",
     "MemoryRecord",
     "MemoryStore",
+    "build_memory_context",
     "validate_memory_candidate",
 ]

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import computer_use_agent.cli as agent_cli
 from computer_use_agent.cli import main
 
 
@@ -97,6 +98,48 @@ def test_dry_run_outputs_only_safe_metadata_and_releases_the_lock(
     assert output["task_length"] == len(task)
     lock_path = state_dir.parent / "active-run.lock"
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
+
+
+def test_run_memory_scope_is_explicit_and_dry_run_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = tmp_path / "agent.toml"
+    captured: list[tuple[Path, str, str | None]] = []
+
+    def fake_run(path: Path, task: str, scope: str | None = None) -> int:
+        captured.append((path, task, scope))
+        return 0
+
+    monkeypatch.setattr(agent_cli, "_run_live", fake_run)
+
+    assert main(
+        [
+            "run",
+            "--config",
+            str(config_path),
+            "--task",
+            "Inspect",
+            "--memory-scope",
+            "app:notepad",
+        ]
+    ) == 0
+    assert captured == [(config_path, "Inspect", "app:notepad")]
+
+    assert main(
+        [
+            "run",
+            "--config",
+            str(config_path),
+            "--task",
+            "Inspect",
+            "--dry-run",
+            "--memory-scope",
+            "global",
+        ]
+    ) == 2
+    assert "DRY_RUN_MEMORY_CONTEXT_UNAVAILABLE" in capsys.readouterr().err
 
 
 def test_non_dry_run_with_missing_config_fails_before_creating_a_lock(
