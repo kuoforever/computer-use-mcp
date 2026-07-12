@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from dataclasses import dataclass, field
 from typing import Protocol, Sequence
 
-from ..tool_registry import ResultContentKind, ToolSpec, validate_tool_arguments
+from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..types import (
     CallIdentity,
     LedgerEvent,
@@ -58,8 +59,6 @@ def _tool_definitions(
             continue
         if tool.required_safety_baselines:
             continue
-        if tool.result_content is not ResultContentKind.TEXT:
-            continue
         definitions.append(
             {
                 "type": "function",
@@ -72,12 +71,12 @@ def _tool_definitions(
     return definitions
 
 
-def _tool_outputs(ledger: Sequence[LedgerEvent]) -> list[dict[str, str]]:
+def _tool_outputs(ledger: Sequence[LedgerEvent]) -> list[dict[str, object]]:
     last_model_turn = -1
     for index, event in enumerate(ledger):
         if event.kind is LedgerEventKind.MODEL_TURN:
             last_model_turn = index
-    outputs: list[dict[str, str]] = []
+    outputs: list[dict[str, object]] = []
     for event in ledger[last_model_turn + 1 :]:
         if event.kind is not LedgerEventKind.TOOL_RESULT or event.tool_result is None:
             continue
@@ -90,11 +89,26 @@ def _tool_outputs(ledger: Sequence[LedgerEvent]) -> list[dict[str, str]]:
             payload["code"] = result.code
         if result.sanitized_text:
             payload["content"] = result.sanitized_text
+        serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        output: object = serialized
+        if result.images:
+            if result.tool_name != "screenshot" or len(result.images) != 1:
+                raise OpenAIProviderError("INVALID_IMAGE_TOOL_RESULT")
+            image = result.images[0]
+            encoded = base64.b64encode(image.data).decode("ascii")
+            output = [
+                {"type": "input_text", "text": serialized},
+                {
+                    "type": "input_image",
+                    "image_url": f"data:{image.mime_type};base64,{encoded}",
+                    "detail": "high",
+                },
+            ]
         outputs.append(
             {
                 "type": "function_call_output",
                 "call_id": result.identity.call_id,
-                "output": json.dumps(payload, separators=(",", ":"), sort_keys=True),
+                "output": output,
             }
         )
     return outputs

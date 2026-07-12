@@ -1,22 +1,34 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import pytest
 
-from computer_use_agent.providers.openai import OpenAIProviderError, OpenAIResponsesProvider
+from computer_use_agent.providers.openai import (
+    OpenAIProviderError,
+    OpenAIResponsesProvider,
+    _tool_outputs,
+)
 from computer_use_agent.tool_registry import REVIEWED_TOOLS
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
+    ImageContent,
     LedgerEvent,
     LedgerEventKind,
     SafeArgumentSummary,
     ToolCall,
     ToolResult,
     ToolResultStatus,
+)
+
+
+_PNG_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+    "+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
 
 
@@ -126,6 +138,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
         "ui_snapshot",
         "find",
         "list_windows",
+        "screenshot",
     ]
     assert second_request["previous_response_id"] == "response_1"
     assert second_request["input"] == [
@@ -137,6 +150,73 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
             ),
         }
     ]
+
+
+def test_openai_screenshot_result_uses_bounded_multimodal_function_output() -> None:
+    identity = CallIdentity("run_1", "turn_1", "call_screenshot")
+    result = ToolResult(
+        identity=identity,
+        tool_name="screenshot",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(
+            ImageContent(
+                mime_type="image/png",
+                data=base64.b64decode(_PNG_BASE64),
+                width=1,
+                height=1,
+            ),
+        ),
+    )
+
+    assert _tool_outputs(
+        (
+            LedgerEvent(
+                event_id="event_1",
+                kind=LedgerEventKind.TOOL_RESULT,
+                identity=identity,
+                tool_result=result,
+            ),
+        )
+    ) == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_screenshot",
+            "output": [
+                {"type": "input_text", "text": '{"ok":true,"status":"success"}'},
+                {
+                    "type": "input_image",
+                    "image_url": f"data:image/png;base64,{_PNG_BASE64}",
+                    "detail": "high",
+                },
+            ],
+        }
+    ]
+
+
+def test_openai_rejects_image_content_from_non_screenshot_result() -> None:
+    identity = CallIdentity("run_1", "turn_1", "call_list")
+    result = ToolResult(
+        identity=identity,
+        tool_name="list_windows",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(
+            ImageContent("image/png", base64.b64decode(_PNG_BASE64), 1, 1),
+        ),
+    )
+
+    with pytest.raises(OpenAIProviderError, match="INVALID_IMAGE_TOOL_RESULT"):
+        _tool_outputs(
+            (
+                LedgerEvent(
+                    event_id="event_1",
+                    kind=LedgerEventKind.TOOL_RESULT,
+                    identity=identity,
+                    tool_result=result,
+                ),
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -210,6 +290,7 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "ui_snapshot",
         "find",
         "list_windows",
+        "screenshot",
         "activate_window",
         "click",
         "key",
