@@ -2,8 +2,8 @@
 
 > **Status: implemented inspection and metrics baseline.** Live non-dry Agent runs write an
 > atomic safe checkpoint and append-only redacted JSONL events. Records support
-> inspection and conservative recovery decisions; automatic resume and action
-> replay are not implemented.
+> inspection and conservative recovery decisions. Explicit resume is limited
+> to an initial checkpoint before any provider/tool call; actions are never replayed.
 
 ## Storage layout
 
@@ -95,14 +95,30 @@ invented metric values. The scan is bounded to 10,000 path-safe run directories
 and fails closed on invalid directories, symlinks, corrupt checkpoints, unknown
 metric fields, or malformed values. It never reads trace JSONL content.
 
-All current records have `resume_allowed=false` because the sanitized record
-does not contain raw task/provider conversation state and correctness cannot be
-reconstructed from it. Recovery is deliberately conservative:
+Only `CREATED` or initial `OBSERVING` records with one task-length event, zero
+consumed budgets, no observation epoch, and ready recovery state have
+`resume_allowed=true`. Resume requires the original task; its length and policy
+version must match. The command may reclaim only a well-formed OS-unlocked
+crash lease, then restarts discovery without replaying provider or tool work:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe resume <run_id> `
+  --config agent.toml --task "<original task>"
+~~~
+
+Any later phase fails closed as `RUN_NOT_RESUMABLE`. Close a non-terminal crash
+record explicitly with:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe cancel <run_id> --config agent.toml
+~~~
+
+Recovery remains deliberately conservative:
 
 - `SUCCESS`: no recovery action;
 - `UNKNOWN_OUTCOME`: a human must re-observe before starting a new run;
-- incomplete, failed, or cancelled: inspect the trace, then start a new run.
+- later incomplete, failed, or cancelled: inspect the trace, then start a new run.
 
-The host never automatically replays a tool call. Automated resume requires a
-future reviewed persistence format, explicit transition/replay invariants, and
-additional E2 recovery cases.
+The host never automatically replays a tool call. Resume after a provider call
+or any tool dispatch requires a future reviewed persistence format and
+provider-specific continuation tests.

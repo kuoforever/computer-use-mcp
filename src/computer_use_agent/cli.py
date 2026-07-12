@@ -51,6 +51,15 @@ def build_parser() -> argparse.ArgumentParser:
     report = commands.add_parser("report", help="Aggregate safe local run metrics.")
     report.add_argument("--config", required=True, type=Path)
 
+    resume = commands.add_parser("resume", help="Resume a crash-safe initial run only.")
+    resume.add_argument("run_id")
+    resume.add_argument("--config", required=True, type=Path)
+    resume.add_argument("--task", required=True)
+
+    cancel = commands.add_parser("cancel", help="Cancel one persisted non-terminal run.")
+    cancel.add_argument("run_id")
+    cancel.add_argument("--config", required=True, type=Path)
+
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
     remember_add = remember_commands.add_parser("add", help="Add one confirmed memory.")
@@ -121,7 +130,14 @@ def _run_dry(path: Path, task: str) -> int:
     return 0
 
 
-async def _run_live_async(path: Path, task: str, memory_scope: str | None = None) -> int:
+async def _run_live_async(
+    path: Path,
+    task: str,
+    memory_scope: str | None = None,
+    *,
+    run_id: str | None = None,
+    resume_initial: bool = False,
+) -> int:
     from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
 
@@ -165,7 +181,9 @@ async def _run_live_async(path: Path, task: str, memory_scope: str | None = None
             approvals=approvals,
         ),
     )
-    outcome = await runner.run(task, memories=memories)
+    outcome = await runner.run(
+        task, memories=memories, run_id=run_id, resume_initial=resume_initial
+    )
     _print_json(
         {
             "run_id": outcome.state.run_id,
@@ -182,6 +200,27 @@ async def _run_live_async(path: Path, task: str, memory_scope: str | None = None
 
 def _run_live(path: Path, task: str, memory_scope: str | None = None) -> int:
     return asyncio.run(_run_live_async(path, task, memory_scope))
+
+
+def _resume_live(path: Path, run_id: str, task: str) -> int:
+    return asyncio.run(
+        _run_live_async(path, task, run_id=run_id, resume_initial=True)
+    )
+
+
+def _cancel(path: Path, run_id: str) -> int:
+    from .run_lock import RunLock
+    from .trace import cancel_run_record
+
+    config = load_agent_config(path)
+    lock = RunLock(config.application_state_dir)
+    lock.acquire(recover_stale=True)
+    try:
+        checkpoint = cancel_run_record(config.state_dir, run_id)
+    finally:
+        lock.release()
+    _print_json({"run_id": run_id, "phase": checkpoint["phase"]})
+    return 0
 
 
 def _run_eval(cases: Path, report_path: Path | None) -> int:
@@ -257,6 +296,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _show_trace(args.config, args.run_id)
         if args.command == "report":
             return _show_report(args.config)
+        if args.command == "resume":
+            return _resume_live(args.config, args.run_id, args.task)
+        if args.command == "cancel":
+            return _cancel(args.config, args.run_id)
         if args.command == "remember":
             return _remember(args)
     except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:

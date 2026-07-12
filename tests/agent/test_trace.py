@@ -9,6 +9,7 @@ from computer_use_agent.trace import (
     RunPhase,
     RunRecorder,
     TraceError,
+    cancel_run_record,
     read_run_record,
     validate_transition,
 )
@@ -102,6 +103,44 @@ def test_existing_record_and_illegal_transition_fail_closed(tmp_path: Path) -> N
         recorder.record(state, RunPhase.SUCCESS)
     with pytest.raises(TraceError, match="ILLEGAL_RUN_PHASE_TRANSITION"):
         validate_transition(RunPhase.SUCCESS, RunPhase.PLANNING)
+
+
+def test_initial_record_can_attach_but_progressed_record_cannot_resume(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+    initial = RunState(
+        run_id=state.run_id,
+        task=state.task,
+        policy_version=state.policy_version,
+        observation_epoch=0,
+        budgets=RunBudget(2, 2, 0),
+        event_log=(state.event_log[0],),
+    )
+    recorder = RunRecorder(tmp_path.resolve(), initial.run_id)
+    recorder.start(initial)
+
+    attached = RunRecorder(tmp_path.resolve(), initial.run_id)
+    attached.attach_initial(initial)
+    assert attached.phase is RunPhase.CREATED
+
+    recorder.record(initial, RunPhase.OBSERVING)
+    recorder.record(initial, RunPhase.PLANNING)
+    with pytest.raises(TraceError, match="RUN_NOT_RESUMABLE"):
+        RunRecorder(tmp_path.resolve(), initial.run_id).attach_initial(initial)
+
+
+def test_cancel_atomically_closes_nonterminal_record(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+    recorder = RunRecorder(tmp_path.resolve(), state.run_id)
+    recorder.start(state)
+    recorder.record(state, RunPhase.OBSERVING)
+
+    checkpoint = cancel_run_record(tmp_path.resolve(), state.run_id)
+
+    assert checkpoint["phase"] == "CANCELLED"
+    assert checkpoint["failure_code"] == "CANCELLED_BY_OPERATOR"
+    assert checkpoint["resume_allowed"] is False
+    with pytest.raises(TraceError, match="RUN_ALREADY_TERMINAL"):
+        cancel_run_record(tmp_path.resolve(), state.run_id)
 
 
 @pytest.mark.parametrize("run_id", ["../escape", "a/b", "", ".", "x" * 129])

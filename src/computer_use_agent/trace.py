@@ -164,7 +164,19 @@ def _checkpoint(
         payload["failure_code"] = failure_code
     if final_text_length is not None:
         payload["final_text_length"] = final_text_length
-    if phase is RunPhase.SUCCESS:
+    initial_resume = (
+        phase in {RunPhase.CREATED, RunPhase.OBSERVING}
+        and len(state.event_log) == 1
+        and budget.model_turns_used == 0
+        and budget.tool_calls_used == 0
+        and budget.side_effects_used == 0
+        and state.recovery_status.value == "ready"
+        and state.observation_epoch == 0
+    )
+    if initial_resume:
+        payload["resume_allowed"] = True
+        payload["recovery_action"] = "resume_with_original_task"
+    elif phase is RunPhase.SUCCESS:
         payload["resume_allowed"] = False
         payload["recovery_action"] = "none"
     elif phase is RunPhase.UNKNOWN_OUTCOME:
@@ -271,6 +283,29 @@ class RunRecorder:
             raise TraceError("RUN_RECORD_ALREADY_EXISTS")
         self.record(state, RunPhase.CREATED)
 
+    def attach_initial(self, state: RunState) -> None:
+        """Attach to a crash-safe initial record without replaying external work."""
+        record = read_run_record(self.state_dir, self.run_id)
+        checkpoint = record["state"]
+        if (
+            checkpoint.get("phase") not in {RunPhase.CREATED.value, RunPhase.OBSERVING.value}
+            or checkpoint.get("resume_allowed") is not True
+            or checkpoint.get("event_count") != 1
+            or checkpoint.get("task_length") != len(state.task)
+            or checkpoint.get("policy_version") != state.policy_version
+            or checkpoint.get("recovery_status") != "ready"
+            or checkpoint.get("observation_epoch") != 0
+            or checkpoint.get("verified_observation_epoch") is not None
+        ):
+            raise TraceError("RUN_NOT_RESUMABLE")
+        budgets = checkpoint.get("budgets")
+        if not isinstance(budgets, dict) or any(
+            budgets.get(name) != 0
+            for name in ("model_turns_used", "tool_calls_used", "side_effects_used")
+        ):
+            raise TraceError("RUN_NOT_RESUMABLE")
+        self.phase = RunPhase(checkpoint["phase"])
+        self._event_count = 1
     def record(
         self,
         state: RunState,
@@ -318,6 +353,28 @@ class RunRecorder:
         )
         self._event_count = len(state.event_log)
         self.phase = phase
+
+
+def cancel_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
+    """Atomically mark one non-terminal persisted run cancelled."""
+    checkpoint = read_run_record(state_dir, run_id)["state"]
+    try:
+        phase = RunPhase(checkpoint["phase"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TraceError("CHECKPOINT_READ_FAILED") from exc
+    if phase in TERMINAL_PHASES:
+        raise TraceError("RUN_ALREADY_TERMINAL")
+    validate_transition(phase, RunPhase.CANCELLED)
+    updated = dict(checkpoint)
+    updated.update(
+        phase=RunPhase.CANCELLED.value,
+        failure_code="CANCELLED_BY_OPERATOR",
+        resume_allowed=False,
+        recovery_action="none",
+        updated_at=_now(),
+    )
+    _atomic_json(RunRecorder(state_dir, run_id).checkpoint_path, updated)
+    return to_json_value(updated)
 
 
 def _read_json(path: Path, maximum: int, error_code: str) -> object:
@@ -382,6 +439,7 @@ def read_run_checkpoint(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
 __all__ = [
     "RunPhase",
     "RunRecorder",
+    "cancel_run_record",
     "TraceError",
     "read_run_checkpoint",
     "read_run_record",

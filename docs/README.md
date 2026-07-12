@@ -29,6 +29,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
+| I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 
@@ -49,6 +50,7 @@ not a line-by-line mirror of every reference page.
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
+| E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |
 | Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
 
