@@ -117,6 +117,11 @@ def test_approved_actions_cannot_disable_host_approval() -> None:
         PolicyConfig(mode=APPROVED_ACTIONS_MODE, require_approval_for_actions=False)
 
 
+def test_context_event_budget_must_be_positive() -> None:
+    with pytest.raises(ConfigError, match="max_context_events"):
+        PolicyConfig(max_context_events=0)
+
+
 def test_launch_config_rejects_relative_executable_and_unreviewed_environment() -> None:
     with pytest.raises(ConfigError, match="absolute"):
         MCPLaunchConfig(

@@ -19,7 +19,7 @@ computer-use-mcp → Desktop Execution
 
 ## 当前实现审计（2026-07-11）
 
-以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `179 passed, 2 skipped`，
+以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `199 passed, 2 skipped`，
 `ruff check src tests` 通过。当前 Agent Host 是**已测试的安全基础层**，还不是
 可运行的 LLM 桌面 Agent。
 
@@ -34,13 +34,14 @@ computer-use-mcp → Desktop Execution
 | OpenAI / Claude adapter | 已实现只读文本竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry；已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
 | observe → act → verify | 未实现 | Runner 目前只创建初始 RunState 并管理锁，没有模型循环、工具调度、验证和最终结果。 |
 | State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、失败/取消/未知结果终态和保守恢复建议；为避免错误重放，当前 `resume_allowed=false`，尚无 resume/cancel 命令。 |
-| Context Manager | 仅契约 | 有事件类型，没有 reducer、token/context budget 压缩实现。 |
-| SQLite Memory | 未实现 | 只有配置中的数据库路径，没有 schema、存取、过期、删除和秘密拒绝实现。 |
+| Context Manager | 已实现事件基线 | provider-only reducer 按事件预算保留最新 continuation、策略决定、最近观察和完整 call/result 组，空间不足时失败关闭；token-aware 压缩与语义 summary 尚未实现。 |
+| SQLite Memory | 已实现显式管理基线 | 已有 preference/verified procedure schema、用户确认、scope、expiry、active list、delete 和保守秘密/UI ref/图片拒绝；当前不自动抽取，也不注入 provider。 |
 | Trace | 已实现检查基线 | 已有 bounded redacted JSONL、严格 reader、任务/观察/截图/typed value 排除和 `agent trace <run_id>`；延迟、成本、完整 metrics 与 report 聚合仍待补齐。 |
 | Evaluation | 已有可运行基线 | `evals/cases` 含 7 个版本化 E1/E2 case，`agent eval` 对比精确语义 trace、工具下发列表和安全结果，可写 JSON report，并要求 safety escape 为 0；OpenAI/Claude E3 为显式门禁。尚缺动作/服务端结果的完整 E2、CI gate 和隔离桌面 smoke。 |
 
-因此，原文中的 “OpenAI / Claude adapter、observe → act → verify、SQLite
-Memory、Trace” 均应理解为目标设计，不能作为当前已运行能力对外描述。
+当前可以对外描述为：双 provider 只读文本竖切、显式 SQLite Memory 管理、
+redacted Trace 和离线 E1/E2 已有可运行基线；approved actions、自动 resume、
+memory retrieval/injection、完整 Planner-Executor 和生产调度仍是目标设计。
 
 ## 当前开发约束与优先级
 

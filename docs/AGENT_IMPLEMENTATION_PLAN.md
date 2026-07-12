@@ -9,7 +9,7 @@
 
 The repository currently provides a tested foundation, not a runnable LLM
 desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (179 passed, 2 opt-in live cases skipped) and
+`python -m pytest -q` (199 passed, 2 opt-in live cases skipped) and
 `python -m ruff check src tests` (passed).
 
 | Area | Current implementation | Evidence / limitation |
@@ -22,7 +22,7 @@ desktop Agent. The status below is based on source inspection plus
 | Host policy | Partial | Read-only disposition, model/tool budget consumption, serialized calls, action denial, and observation epochs run. Approval orchestration and side-effect freshness rules remain. |
 | OpenAI / Claude providers | Implemented read-only text slice | Responses `function_call_output` and Messages `tool_result` adapters, optional SDK extras, offline wire fixtures, CLI routing, and explicitly gated fake-MCP E3 cases exist. Live E3 evidence is environment/operator supplied. |
 | Workflow and recovery | Partial | The read-only observe/answer loop executes and cleans up deterministically. Transition persistence, resume/cancel, action verification, and conservative crash recovery remain. |
-| Context, memory, and trace | Partial | Atomic safe checkpoints, bounded redacted JSONL events, legal phase transitions, strict inspection, and `agent trace` exist. Records intentionally cannot resume or replay. Context reduction, explicit SQLite memory, full latency/cost trace metrics, and reviewed resumable state remain. |
+| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete and conservative rejection rules exist. Atomic safe checkpoints, redacted JSONL, phase validation, and `agent trace` also exist. Memory retrieval/injection, token-aware compression, full metrics, and reviewed resumable state remain. |
 | Evaluation and CI | Partial | E0 plus a seven-case E1/E2 baseline run offline through `agent eval`, compare exact semantic traces, write JSON reports, and require zero safety escapes. Explicitly gated provider E3 cases use a harmless fake MCP child. Broader action/server outcomes, isolated desktop smokes, and CI configuration remain. |
 
 The OpenAI text-observation slice is runnable but experimental. Documentation

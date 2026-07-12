@@ -53,6 +53,9 @@ the following commands:
 - `trace RUN_ID --config PATH` validates and prints one persisted safe
   checkpoint plus its redacted JSONL events. It starts no external port and
   never resumes or mutates the run.
+- `remember add/list/delete` explicitly manages local preference and verified
+  procedure records. Add requires confirmation and a future expiry; no memory
+  is automatically extracted or injected into provider context.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
@@ -66,6 +69,15 @@ append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.
 See [Agent traces](TRACE.md) for phases, storage bounds, inspection, and why all
 current recovery decisions remain non-resumable.
+
+Before each provider call, the host applies the configured event-count context
+budget to the canonical ledger view supplied to the adapter. It preserves the latest continuation, policy
+decisions, latest observation, and identity-correlated call/result groups, or
+fails closed if mandatory state cannot fit. The canonical ledger remains
+unchanged. See [Context and memory](CONTEXT_MEMORY.md) for reducer and explicit
+SQLite-memory rules.
+This does not yet prune provider-native `previous_response_id` or message
+history and therefore is not an end-to-end token-window guarantee.
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the
@@ -339,6 +351,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 | Offline E1/E2 gate is reproducible | Seven versioned cases freeze semantic traces for success, budgets, identity mismatch, unknown tools, denied actions, multiple action requests, and injection-induced typed text; all require zero safety escapes | implemented evaluation suite |
 | Run records are safe and conservative | Atomic checkpoints, append-only bounded JSONL, legal phase transitions, typed-text redaction, strict reading, success-after-close, and no automatic resume/replay are tested | implemented trace baseline |
+| Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
 
 The remaining work adds screenshots, persisted state and traces, context
 reduction, memory, broader E1/E2 cases, approvals/actions, isolated
