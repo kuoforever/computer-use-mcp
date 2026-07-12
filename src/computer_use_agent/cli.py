@@ -139,6 +139,7 @@ async def _run_live_async(path: Path, task: str, memory_scope: str | None = None
         provider = OpenAIResponsesProvider.from_environment(
             config.provider.model,
             allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+            max_request_bytes=config.provider.max_request_bytes,
         )
     elif config.provider.name == "anthropic":
         from .providers.anthropic import AnthropicMessagesProvider
@@ -146,6 +147,7 @@ async def _run_live_async(path: Path, task: str, memory_scope: str | None = None
         provider = AnthropicMessagesProvider.from_environment(
             config.provider.model,
             allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+            max_request_bytes=config.provider.max_request_bytes,
         )
     else:
         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")

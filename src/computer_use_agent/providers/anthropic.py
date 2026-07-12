@@ -10,6 +10,7 @@ from typing import Protocol, Sequence
 from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..types import (
     CallIdentity,
+    DEFAULT_PROVIDER_REQUEST_BYTES,
     LedgerEvent,
     LedgerEventKind,
     MemoryContextItem,
@@ -139,6 +140,14 @@ def _initial_input(task: str, memories: Sequence[MemoryContextItem]) -> str:
     )
 
 
+def _request_size(request: object) -> int:
+    return len(
+        json.dumps(
+            request, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
+    )
+
+
 @dataclass
 class AnthropicMessagesProvider:
     """Normalize Claude tool-use blocks into the common host contract."""
@@ -147,6 +156,7 @@ class AnthropicMessagesProvider:
     messages: _MessagesPort
     max_tokens: int = DEFAULT_MAX_TOKENS
     allow_actions: bool = False
+    max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     name: str = field(default="anthropic", init=False)
     _history: dict[str, list[dict[str, object]]] = field(
         default_factory=dict, init=False, repr=False
@@ -158,6 +168,12 @@ class AnthropicMessagesProvider:
         if not isinstance(self.allow_actions, bool):
             raise ValueError("allow_actions must be boolean")
         if (
+            isinstance(self.max_request_bytes, bool)
+            or not isinstance(self.max_request_bytes, int)
+            or self.max_request_bytes <= 0
+        ):
+            raise ValueError("max_request_bytes must be a positive integer")
+        if (
             isinstance(self.max_tokens, bool)
             or not isinstance(self.max_tokens, int)
             or self.max_tokens <= 0
@@ -166,14 +182,23 @@ class AnthropicMessagesProvider:
 
     @classmethod
     def from_environment(
-        cls, model: str, *, allow_actions: bool = False
+        cls,
+        model: str,
+        *,
+        allow_actions: bool = False,
+        max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
     ) -> "AnthropicMessagesProvider":
         try:
             from anthropic import AsyncAnthropic
         except ImportError as exc:
             raise AnthropicProviderError("ANTHROPIC_SDK_NOT_INSTALLED") from exc
         client = AsyncAnthropic()
-        return cls(model=model, messages=client.messages, allow_actions=allow_actions)
+        return cls(
+            model=model,
+            messages=client.messages,
+            allow_actions=allow_actions,
+            max_request_bytes=max_request_bytes,
+        )
 
     async def create_turn(
         self,
@@ -197,18 +222,21 @@ class AnthropicMessagesProvider:
                 raise AnthropicProviderError("MISSING_TOOL_RESULT")
             history.append({"role": "user", "content": results})
 
-        try:
-            response = await self.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system=(
+        request: dict[str, object] = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "system": (
                     ACTION_SYSTEM_PROMPT if self.allow_actions else SYSTEM_PROMPT
                 )
                 + (("\n\n" + MEMORY_RULE) if memories else ""),
-                tools=definitions,
-                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
-                messages=list(history),
-            )
+            "tools": definitions,
+            "tool_choice": {"type": "auto", "disable_parallel_tool_use": True},
+            "messages": list(history),
+        }
+        if _request_size(request) > self.max_request_bytes:
+            raise AnthropicProviderError("ANTHROPIC_REQUEST_TOO_LARGE")
+        try:
+            response = await self.messages.create(**request)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

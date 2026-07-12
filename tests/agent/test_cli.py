@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -314,3 +315,57 @@ raise SystemExit(1 if other in sys.modules else 0)
     result = subprocess.run([sys.executable, "-c", script], check=False, env=environment)
 
     assert result.returncode == 0
+
+
+def test_live_cli_passes_configured_request_budget_to_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import (
+        AgentConfig,
+        MCPLaunchConfig,
+        PolicyConfig,
+        ProviderConfig,
+    )
+    from computer_use_agent.fakes import FakeDesktopMCP
+    from computer_use_agent.providers.openai import OpenAIResponsesProvider
+    from computer_use_agent.types import ModelTurn
+
+    local = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    config = AgentConfig(
+        state_dir=local / "computer-use-agent" / "budget-test",
+        policy_version="test",
+        provider=ProviderConfig("openai", "test-model", max_request_bytes=4096),
+        mcp=MCPLaunchConfig(tmp_path / "mcp.exe", (), tmp_path, {"CUMCP_ALLOWLIST": "notepad.exe"}),
+        policy=PolicyConfig(),
+    )
+    captured: dict[str, object] = {}
+
+    class FinalProvider:
+        name = "openai"
+
+        async def create_turn(self, **kwargs: object) -> ModelTurn:
+            return ModelTurn(
+                str(kwargs["run_id"]),
+                str(kwargs["turn_id"]),
+                "response_1",
+                "done",
+            )
+
+    def from_environment(model: str, **kwargs: object) -> FinalProvider:
+        captured.update({"model": model, **kwargs})
+        return FinalProvider()
+
+    monkeypatch.setattr(agent_cli, "load_agent_config", lambda _path: config)
+    monkeypatch.setattr(OpenAIResponsesProvider, "from_environment", from_environment)
+    monkeypatch.setattr(
+        "computer_use_agent.desktop_mcp.StdioDesktopMCP", lambda _launch: FakeDesktopMCP()
+    )
+
+    assert asyncio.run(agent_cli._run_live_async(tmp_path / "agent.toml", "Inspect")) == 0
+
+    assert captured["model"] == "test-model"
+    assert captured["max_request_bytes"] == 4096
+    assert json.loads(capsys.readouterr().out)["text"] == "done"

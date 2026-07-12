@@ -85,8 +85,12 @@ decisions, latest observation, and identity-correlated call/result groups, or
 fails closed if mandatory state cannot fit. The canonical ledger remains
 unchanged. See [Context and memory](CONTEXT_MEMORY.md) for reducer and explicit
 SQLite-memory rules.
-This does not yet prune provider-native `previous_response_id` or message
-history and therefore is not an end-to-end token-window guarantee.
+Every final provider SDK request is additionally bounded by configurable
+canonical UTF-8 JSON bytes (8 MiB default, 1 KiB-48 MiB reviewed range). This
+includes task, explicit memory, tools/results, screenshots, and Claude history;
+oversize requests fail before network I/O. It does not prune OpenAI's remote
+`previous_response_id` history and is therefore not an end-to-end token-window
+guarantee.
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the
@@ -329,7 +333,7 @@ as general secret detection.
 | Section | Purpose | Fail-closed rule |
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
-| `[provider]` | provider name (`openai` or `anthropic`) and model ID | API keys are rejected because they do not belong in config. |
+| `[provider]` | provider name (`openai` or `anthropic`), model ID, and bounded `max_request_bytes` | API keys are rejected because they do not belong in config. |
 | `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, audit redirection, and custom redaction controls are rejected. |
 | `[policy]` | read-only/approved-actions choice and fixed budgets | `approved_actions` cannot disable per-action approval. |
 
@@ -369,6 +373,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Run metrics are inspectable | Checkpoints aggregate model/tool calls, tokens, provider/tool/run latency, failures, images, and zero automatic retries without retaining sensitive content or estimating unversioned cost | implemented metrics test |
 | Cross-run reports are bounded | `agent report` reads only strict atomic checkpoints and aggregates phase, success, fixed failure codes, metric coverage, totals, and averages; corrupt or path-unsafe records fail the whole report | implemented report test |
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
+| Provider requests have a byte gate | Both adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or Claude-history requests before network I/O | implemented request-budget test |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 
 The remaining work adds resumable state, token-aware context reduction, memory

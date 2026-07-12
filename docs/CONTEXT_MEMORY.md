@@ -34,6 +34,19 @@ the current run's provider-native continuation state. Provider-neutral
 stateless replay, safe summarization, and actual token-window enforcement remain
 future work; model-turn limits continue to bound the current run.
 
+Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
+between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request
+as canonical UTF-8 JSON before the network call. The count therefore includes
+instructions, tool schemas, task, selected memory, current tool results,
+base64 screenshots, and Claude's accumulated local message history. Oversize
+requests fail with a fixed provider error before the SDK fake/client is called.
+
+This is a transport/disclosure bound, not token counting or compression.
+OpenAI's remote history referenced by `previous_response_id` is not present in
+the local request and cannot be measured by this check. No automatic summary is
+generated because it could discard atomic call/result, approval, or recovery
+semantics.
+
 ## SQLite memory contract
 
 The store is located at `<state_dir>/memory.sqlite3` and has this logical

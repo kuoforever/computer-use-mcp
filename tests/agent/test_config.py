@@ -10,6 +10,7 @@ from computer_use_agent.config import (
     ConfigError,
     MCPLaunchConfig,
     PolicyConfig,
+    ProviderConfig,
     default_state_dir,
     load_agent_config,
 )
@@ -20,6 +21,7 @@ def _config_text(
     *,
     environment: str = 'CUMCP_ALLOWLIST = "notepad.exe"',
     state_dir: Path | None = None,
+    provider_extra: str = "",
 ) -> str:
     local_app_data = tmp_path / "LocalAppData"
     configured_state_dir = state_dir or local_app_data / "computer-use-agent" / "test-run"
@@ -33,6 +35,7 @@ policy_version = "phase0"
 [provider]
 name = "openai"
 model = "test-model"
+{provider_extra}
 
 [mcp]
 executable = "{executable}"
@@ -57,6 +60,23 @@ def test_config_defaults_to_read_only_and_uses_host_generated_safe_child_environ
     assert config.mcp.child_environment()["CUMCP_DANGEROUS_CONFIRM"] == "1"
     assert config.mcp.child_environment()["CUMCP_ALLOWLIST"] == "notepad.exe"
     assert config.trace_dir != config.memory_database
+
+
+def test_provider_request_budget_defaults_and_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path, provider_extra="max_request_bytes = 4096"),
+        encoding="utf-8",
+    )
+
+    assert load_agent_config(path).provider.max_request_bytes == 4096
+
+    for value in (1, 49 * 1024 * 1024, True):
+        with pytest.raises(ConfigError, match="max_request_bytes"):
+            ProviderConfig("openai", "test-model", value)
 
 
 @pytest.mark.parametrize(
