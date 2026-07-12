@@ -56,6 +56,7 @@ provider credentials, a child process, or a desktop.
 | Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly eight tools and complete a text call while all sentinel variables remain absent from the child. |
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
 | Claude returns a tool-use block | Normalize its name/input/ID, reject malformed or unadvertised calls and invalid stop reasons, then append the assistant block and adjacent matching user `tool_result`. |
+| A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |

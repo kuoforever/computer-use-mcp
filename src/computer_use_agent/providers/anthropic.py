@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from dataclasses import dataclass, field
 from typing import Protocol, Sequence
 
-from ..tool_registry import ResultContentKind, ToolSpec, validate_tool_arguments
+from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..types import (
     CallIdentity,
     LedgerEvent,
@@ -60,8 +61,6 @@ def _tool_definitions(
             continue
         if tool.required_safety_baselines:
             continue
-        if tool.result_content is not ResultContentKind.TEXT:
-            continue
         definitions.append(
             {
                 "name": tool.name,
@@ -90,11 +89,28 @@ def _tool_results(ledger: Sequence[LedgerEvent]) -> list[dict[str, object]]:
             payload["code"] = result.code
         if result.sanitized_text:
             payload["content"] = result.sanitized_text
+        serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        content: object = serialized
+        if result.images:
+            if result.tool_name != "screenshot" or len(result.images) != 1:
+                raise AnthropicProviderError("INVALID_IMAGE_TOOL_RESULT")
+            image = result.images[0]
+            content = [
+                {"type": "text", "text": serialized},
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.mime_type,
+                        "data": base64.b64encode(image.data).decode("ascii"),
+                    },
+                },
+            ]
         blocks.append(
             {
                 "type": "tool_result",
                 "tool_use_id": result.identity.call_id,
-                "content": json.dumps(payload, separators=(",", ":"), sort_keys=True),
+                "content": content,
                 "is_error": not result.ok,
             }
         )

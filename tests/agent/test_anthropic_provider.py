@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
@@ -9,15 +10,24 @@ import pytest
 from computer_use_agent.providers.anthropic import (
     AnthropicMessagesProvider,
     AnthropicProviderError,
+    _tool_results,
 )
 from computer_use_agent.tool_registry import REVIEWED_TOOLS
 from computer_use_agent.types import (
+    CallIdentity,
     DispatchCertainty,
+    ImageContent,
     LedgerEvent,
     LedgerEventKind,
     SafeArgumentSummary,
     ToolResult,
     ToolResultStatus,
+)
+
+
+_PNG_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+    "+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
 
 
@@ -129,6 +139,7 @@ def test_claude_tool_use_and_adjacent_matching_tool_result() -> None:
         "ui_snapshot",
         "find",
         "list_windows",
+        "screenshot",
     ]
     assert second_request["messages"] == [
         {"role": "user", "content": "Inspect windows"},
@@ -157,6 +168,77 @@ def test_claude_tool_use_and_adjacent_matching_tool_result() -> None:
             ],
         },
     ]
+
+
+def test_claude_screenshot_result_uses_bounded_nested_image_block() -> None:
+    identity = CallIdentity("run_1", "turn_1", "toolu_screenshot")
+    result = ToolResult(
+        identity=identity,
+        tool_name="screenshot",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(
+            ImageContent(
+                mime_type="image/png",
+                data=base64.b64decode(_PNG_BASE64),
+                width=1,
+                height=1,
+            ),
+        ),
+    )
+
+    assert _tool_results(
+        (
+            LedgerEvent(
+                event_id="event_1",
+                kind=LedgerEventKind.TOOL_RESULT,
+                identity=identity,
+                tool_result=result,
+            ),
+        )
+    ) == [
+        {
+            "type": "tool_result",
+            "tool_use_id": "toolu_screenshot",
+            "content": [
+                {"type": "text", "text": '{"ok":true,"status":"success"}'},
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": _PNG_BASE64,
+                    },
+                },
+            ],
+            "is_error": False,
+        }
+    ]
+
+
+def test_claude_rejects_image_content_from_non_screenshot_result() -> None:
+    identity = CallIdentity("run_1", "turn_1", "toolu_list")
+    result = ToolResult(
+        identity=identity,
+        tool_name="list_windows",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(
+            ImageContent("image/png", base64.b64decode(_PNG_BASE64), 1, 1),
+        ),
+    )
+
+    with pytest.raises(AnthropicProviderError, match="INVALID_IMAGE_TOOL_RESULT"):
+        _tool_results(
+            (
+                LedgerEvent(
+                    event_id="event_1",
+                    kind=LedgerEventKind.TOOL_RESULT,
+                    identity=identity,
+                    tool_result=result,
+                ),
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -269,6 +351,7 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "ui_snapshot",
         "find",
         "list_windows",
+        "screenshot",
         "activate_window",
         "click",
         "key",

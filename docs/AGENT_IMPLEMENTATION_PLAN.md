@@ -1,16 +1,16 @@
 # Full Agent Safety MVP Implementation Plan
 
-> **Status: in progress.** The dual-provider text workflow, explicit memory,
+> **Status: in progress.** The dual-provider text/screenshot workflow, explicit memory,
 > state/trace baseline, E1/E2 baseline, and fake-verified approved-action
-> orchestration are implemented. Isolated action smoke, provider screenshot
-> return, resumable state, CI, and release review remain.
+> orchestration are implemented. Isolated action smoke, resumable state, and
+> release review remain; offline CI is active.
 > This work does not weaken the MCP server's runtime safety guarantees.
 
-## Implementation audit (2026-07-11)
+## Implementation audit (2026-07-12)
 
 The repository currently provides a tested foundation, not a runnable LLM
 desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (213 passed, 2 opt-in live cases skipped) and
+`python -m pytest -q` (219 passed, 2 opt-in live cases skipped) and
 `python -m ruff check src tests` (passed).
 
 | Area | Current implementation | Evidence / limitation |
@@ -21,12 +21,12 @@ desktop Agent. The status below is based on source inspection plus
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
 | Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
 | Host policy | Implemented fake-verified action baseline | Read-only default, tool/side-effect budgets, current-generation grounding, digest/identity-bound local approval, serialized calls, re-observation, verification requirement, and unknown-outcome stop are implemented. `type` remains denied; isolated desktop validation remains. |
-| OpenAI / Claude providers | Implemented text/action-schema slice | Both adapters default to observation tools and expose `activate_window`, `click`, and `key` only in approved mode. `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
+| OpenAI / Claude providers | Implemented text/image/action-schema slice | Both adapters default to text and bounded screenshot observation tools, encode provider-native image continuations, and expose `activate_window`, `click`, and `key` only in approved mode. `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
 | Workflow and recovery | Partial | Observe/approve/act/reobserve/answer executes with phase checkpoints; final answer and repeated actions are blocked until verification. Unknown outcomes never replay. Automatic resume/cancel and crash reconstruction remain. |
 | Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete and conservative rejection rules exist. Atomic safe checkpoints, redacted JSONL, phase validation, and `agent trace` also exist. Memory retrieval/injection, token-aware compression, full metrics, and reviewed resumable state remain. |
 | Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, E1/E2 JSON reports, wheel build, and clean-install CLI smoke. Provider E3 remains explicit; broader server outcomes and isolated E4 remain. |
 
-The OpenAI text-observation slice is runnable but experimental. Documentation
+The dual-provider observation slice is runnable but experimental. Documentation
 must distinguish it from the complete safety MVP until both providers,
 persistence, trace/evaluation gates, approved action verification, and isolated
 desktop evidence exist.

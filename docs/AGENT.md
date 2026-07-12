@@ -3,9 +3,9 @@
 > **Status: experimental Agent vertical slice.** The provider-neutral
 > contract, local stdio bridge, bounded runner, OpenAI Responses adapter, and
 > Claude Messages adapter are
-> implemented. The CLI can inspect desktop text through three observation
+> implemented. The CLI can inspect desktop text and bounded screenshots through four observation
 > tools. Opt-in locally approved actions are implemented against fake ports;
-> isolated desktop action smoke, screenshot return, resumable persistence, and
+> isolated desktop action smoke, resumable persistence, and
 > recovery remain unavailable.
 
 This is the canonical contract companion to the planned
@@ -43,7 +43,8 @@ the following commands:
   a bounded initial `RunState`, prints task length and other safe metadata, and
   releases the lock. It calls no provider, MCP, approval, or desktop port.
 - `run --config PATH --task TEXT` uses the configured optional provider and
-  local stdio MCP bridge. Read-only mode exposes three text observations.
+  local stdio MCP bridge. Read-only mode exposes three text observations and
+  one bounded PNG screenshot observation.
   `approved_actions` additionally exposes `activate_window`, `click`, and
   `key`, then applies grounding, budgets, digest-bound console approval, MCP
   checks, and mandatory post-action observation. The CLI returns final text,
@@ -84,16 +85,18 @@ history and therefore is not an end-to-end token-window guarantee.
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the
 canonical identity and returns a matching `function_call_output` with
-`previous_response_id`. Provider, protocol, and policy failures use fixed error
-codes rather than echoing task, UI, or API error text. Only text observation
-tools are advertised because screenshot-to-provider continuation has not been
-implemented. In approved mode it advertises only reviewed action tools whose
+`previous_response_id`. Text results remain JSON strings; screenshot results
+use a status `input_text` block plus one base64 data-URL `input_image` block.
+Provider, protocol, and policy failures use fixed error codes rather than
+echoing task, UI, or API error text. In approved mode it advertises only reviewed action tools whose
 required safety baselines are satisfied. A model-generated unadvertised tool
 fails closed.
 
 The Claude adapter uses Messages API client tools and preserves each assistant
 `tool_use` block in its in-memory message history. The next user message begins
 with the matching `tool_result` block keyed by the original `tool_use.id`.
+Screenshot results contain a status text block and one nested base64 PNG image
+block.
 Parallel tool use is disabled in the request and any returned calls are still
 serialized by the common Runner. Unknown blocks, mismatched stop reasons,
 unadvertised tools, and malformed inputs fail closed. Provider message history
@@ -353,12 +356,12 @@ sequencing is in [Evaluation](EVALUATION.md).
 | MCP results are bounded and converted | Text size, fixed action error codes, typed-text erasure, exact structured mirrors, full PNG integrity, dimensions, pixels, MIME, and content cardinality are tested | implemented bridge test |
 | OpenAI call/result correlation | Fixture proves function call normalization and matching `function_call_output` continuation with the original call ID | implemented adapter test |
 | Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, message-history order, and stop-reason validation | implemented adapter test |
+| Screenshot provider continuation | Both adapters advertise the reviewed screenshot tool; adapter fixtures plus full common-Runner tests prove exact bounded PNG wire blocks without retaining images in trace output | implemented workflow test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 | Offline E1/E2 gate is reproducible | Seven versioned cases freeze semantic traces for success, budgets, identity mismatch, unknown tools, denied actions, multiple action requests, and injection-induced typed text; all require zero safety escapes | implemented evaluation suite |
 | Run records are safe and conservative | Atomic checkpoints, append-only bounded JSONL, legal phase transitions, typed-text redaction, strict reading, success-after-close, and no automatic resume/replay are tested | implemented trace baseline |
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
 
-The remaining work adds screenshots, persisted state and traces, context
-reduction, memory, broader E1/E2 cases, approvals/actions, isolated
-desktop smokes, and release review. The current slice is experimental and
+The remaining work adds resumable state, token-aware context reduction, memory
+retrieval, broader E1/E2 cases, isolated desktop smokes, and release review. The current slice is experimental and
 read-only; it must not be presented as the complete safety MVP.
