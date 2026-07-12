@@ -28,6 +28,7 @@ not a line-by-line mirror of every reference page.
 | I am implementing or reviewing the Agent Host Phase 0-3 foundation and MCP bridge | [Agent Host contract](AGENT.md) and [evaluation contract](EVALUATION.md) |
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
+| I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 
 ## Documentation ownership
@@ -46,6 +47,7 @@ not a line-by-line mirror of every reference page.
 | Agent Host contract / evaluation | Implemented provider-neutral foundation, desktop bridge, trust boundaries, and evaluation gates |
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
+| Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
 
 Do not use the roadmap or design documents to infer that a capability is

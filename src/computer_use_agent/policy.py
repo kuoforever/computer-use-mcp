@@ -1,4 +1,4 @@
-"""Phase-2 host policy foundation with no dispatch behavior."""
+"""Host policy dispositions and hard initial budgets."""
 from __future__ import annotations
 
 from dataclasses import dataclass

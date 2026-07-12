@@ -1,15 +1,16 @@
 # Full Agent Safety MVP Implementation Plan
 
-> **Status: in progress.** Phases 0-3 and the first OpenAI read-only vertical
-> slice for both OpenAI and Claude are implemented. Screenshots, approved actions, persistence,
-> memory, trace/evaluation CI, and release review remain.
+> **Status: in progress.** The dual-provider text workflow, explicit memory,
+> state/trace baseline, E1/E2 baseline, and fake-verified approved-action
+> orchestration are implemented. Isolated action smoke, provider screenshot
+> return, resumable state, CI, and release review remain.
 > This work does not weaken the MCP server's runtime safety guarantees.
 
 ## Implementation audit (2026-07-11)
 
 The repository currently provides a tested foundation, not a runnable LLM
 desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (199 passed, 2 opt-in live cases skipped) and
+`python -m pytest -q` (213 passed, 2 opt-in live cases skipped) and
 `python -m ruff check src tests` (passed).
 
 | Area | Current implementation | Evidence / limitation |
@@ -17,11 +18,11 @@ desktop Agent. The status below is based on source inspection plus
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
 | Reviewed desktop tools | Implemented | All eight tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
-| Configuration and CLI | Implemented read-only slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, and an OpenAI non-dry run are wired. Live validation remains opt-in. |
+| Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
 | Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
-| Host policy | Partial | Read-only disposition, model/tool budget consumption, serialized calls, action denial, and observation epochs run. Approval orchestration and side-effect freshness rules remain. |
-| OpenAI / Claude providers | Implemented read-only text slice | Responses `function_call_output` and Messages `tool_result` adapters, optional SDK extras, offline wire fixtures, CLI routing, and explicitly gated fake-MCP E3 cases exist. Live E3 evidence is environment/operator supplied. |
-| Workflow and recovery | Partial | The read-only observe/answer loop executes and cleans up deterministically. Transition persistence, resume/cancel, action verification, and conservative crash recovery remain. |
+| Host policy | Implemented fake-verified action baseline | Read-only default, tool/side-effect budgets, current-generation grounding, digest/identity-bound local approval, serialized calls, re-observation, verification requirement, and unknown-outcome stop are implemented. `type` remains denied; isolated desktop validation remains. |
+| OpenAI / Claude providers | Implemented text/action-schema slice | Both adapters default to observation tools and expose `activate_window`, `click`, and `key` only in approved mode. `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
+| Workflow and recovery | Partial | Observe/approve/act/reobserve/answer executes with phase checkpoints; final answer and repeated actions are blocked until verification. Unknown outcomes never replay. Automatic resume/cancel and crash reconstruction remain. |
 | Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete and conservative rejection rules exist. Atomic safe checkpoints, redacted JSONL, phase validation, and `agent trace` also exist. Memory retrieval/injection, token-aware compression, full metrics, and reviewed resumable state remain. |
 | Evaluation and CI | Partial | E0 plus a seven-case E1/E2 baseline run offline through `agent eval`, compare exact semantic traces, write JSON reports, and require zero safety escapes. Explicitly gated provider E3 cases use a harmless fake MCP child. Broader action/server outcomes, isolated desktop smokes, and CI configuration remain. |
 

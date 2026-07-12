@@ -1,10 +1,11 @@
 # Agent Host contract and safety boundary
 
-> **Status: experimental read-only vertical slice.** The provider-neutral
+> **Status: experimental Agent vertical slice.** The provider-neutral
 > contract, local stdio bridge, bounded runner, OpenAI Responses adapter, and
 > Claude Messages adapter are
 > implemented. The CLI can inspect desktop text through three observation
-> tools. Screenshot return, actions/approvals, persistence, trace, and
+> tools. Opt-in locally approved actions are implemented against fake ports;
+> isolated desktop action smoke, screenshot return, resumable persistence, and
 > recovery remain unavailable.
 
 This is the canonical contract companion to the planned
@@ -41,11 +42,12 @@ the following commands:
 - `run --config PATH --task TEXT --dry-run` acquires the local run lock, creates
   a bounded initial `RunState`, prints task length and other safe metadata, and
   releases the lock. It calls no provider, MCP, approval, or desktop port.
-- `run --config PATH --task TEXT` uses the optional OpenAI adapter and local
-  stdio MCP bridge to execute a bounded read-only loop. It exposes only
-  `ui_snapshot`, `find`, and `list_windows` to the model. Every returned call is
-  validated and host-authorized before serialized dispatch. The CLI returns
-  final text, run ID, and model/tool counts as JSON.
+- `run --config PATH --task TEXT` uses the configured optional provider and
+  local stdio MCP bridge. Read-only mode exposes three text observations.
+  `approved_actions` additionally exposes `activate_window`, `click`, and
+  `key`, then applies grounding, budgets, digest-bound console approval, MCP
+  checks, and mandatory post-action observation. The CLI returns final text,
+  run ID, and model/tool counts as JSON.
 - `eval --cases PATH [--report PATH]` runs versioned E1/E2 JSON fixtures with
   deterministic fake ports, compares exact canonical traces and dispatched
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety
@@ -59,7 +61,7 @@ the following commands:
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
-allows observation tools in read-only mode and denies side effects. Model-turn,
+denies side effects by default; opt-in action mode still requires local approval. Model-turn,
 tool-call, result, and observation events are appended to the canonical ledger;
 model and tool budgets are consumed before another external call can occur.
 The current ledger is in-memory only and is not a resumable trace.
@@ -85,7 +87,9 @@ canonical identity and returns a matching `function_call_output` with
 `previous_response_id`. Provider, protocol, and policy failures use fixed error
 codes rather than echoing task, UI, or API error text. Only text observation
 tools are advertised because screenshot-to-provider continuation has not been
-implemented. A model-generated action or unadvertised tool fails closed.
+implemented. In approved mode it advertises only reviewed action tools whose
+required safety baselines are satisfied. A model-generated unadvertised tool
+fails closed.
 
 The Claude adapter uses Messages API client tools and preserves each assistant
 `tool_use` block in its in-memory message history. The next user message begins
@@ -111,7 +115,8 @@ when both optional provider SDKs are needed.
 The task and returned desktop text are disclosed to the configured OpenAI
 model. The API key is read by the provider SDK from the host environment and is
 not passed to the MCP child. Use a non-sensitive desktop and narrow MCP
-allowlist. `policy.mode="approved_actions"` currently fails closed.
+allowlist. Approved actions remain experimental and require an interactive
+console; see [Approved actions](APPROVALS.md). `type` remains disabled.
 
 Opt-in E3 tests exercise both adapters against the harmless stdio fixture
 rather than the real desktop. See [Evaluation](EVALUATION.md) for their three

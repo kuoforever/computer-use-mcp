@@ -19,7 +19,7 @@ computer-use-mcp → Desktop Execution
 
 ## 当前实现审计（2026-07-11）
 
-以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `199 passed, 2 skipped`，
+以下结论以当前源码、测试和 CLI 行为为准。全量测试为 `213 passed, 2 skipped`，
 `ruff check src tests` 通过。当前 Agent Host 是**已测试的安全基础层**，还不是
 可运行的 LLM 桌面 Agent。
 
@@ -30,7 +30,7 @@ computer-use-mcp → Desktop Execution
 | MCP 安全基线 | 已实现 | 原有 allowlist、人类活动检测、确认、E-stop、audit 架构保持不变；type 审计只保留长度/存在性等不可逆元数据。 |
 | CLI / 配置 / Run Lock | 已实现基础 | `config validate`、`run --dry-run`、安全子进程环境和单运行锁可用；非 dry-run 会主动失败关闭。 |
 | 本地 stdio MCP Bridge | 已实现 | 固定直接启动、bounded transport、工具发现、generation 重建、超时/取消/未知结果分类、文本与 PNG 转换均有离线及真实 stdio fixture 测试。 |
-| Host Policy | 部分实现 | 已有 read-only/action 分类和初始预算；尚无审批编排、预算消耗、动作串行化和 observation freshness 执行循环。 |
+| Host Policy | 已实现 fake 验证基线 | 已有 read-only 默认、动作预算、current-generation grounding、digest/identity 绑定审批、串行动作、动作后强制观察和 unknown outcome 停止；`type` 仍禁用，隔离桌面 smoke 待完成。 |
 | OpenAI / Claude adapter | 已实现只读文本竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry；已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
 | observe → act → verify | 未实现 | Runner 目前只创建初始 RunState 并管理锁，没有模型循环、工具调度、验证和最终结果。 |
 | State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、失败/取消/未知结果终态和保守恢复建议；为避免错误重放，当前 `resume_allowed=false`，尚无 resume/cancel 命令。 |
@@ -39,9 +39,9 @@ computer-use-mcp → Desktop Execution
 | Trace | 已实现检查基线 | 已有 bounded redacted JSONL、严格 reader、任务/观察/截图/typed value 排除和 `agent trace <run_id>`；延迟、成本、完整 metrics 与 report 聚合仍待补齐。 |
 | Evaluation | 已有可运行基线 | `evals/cases` 含 7 个版本化 E1/E2 case，`agent eval` 对比精确语义 trace、工具下发列表和安全结果，可写 JSON report，并要求 safety escape 为 0；OpenAI/Claude E3 为显式门禁。尚缺动作/服务端结果的完整 E2、CI gate 和隔离桌面 smoke。 |
 
-当前可以对外描述为：双 provider 只读文本竖切、显式 SQLite Memory 管理、
-redacted Trace 和离线 E1/E2 已有可运行基线；approved actions、自动 resume、
-memory retrieval/injection、完整 Planner-Executor 和生产调度仍是目标设计。
+当前可以对外描述为：双 provider 文本竖切、显式 SQLite Memory、redacted
+Trace、离线 E1/E2 和 fake-verified 本地审批动作编排已有可运行基线；隔离动作
+smoke、自动 resume、memory retrieval/injection、完整 Planner-Executor 和生产调度仍是目标设计。
 
 ## 当前开发约束与优先级
 
