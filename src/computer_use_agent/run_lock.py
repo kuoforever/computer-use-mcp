@@ -65,7 +65,7 @@ class RunLock:
     def owner(self) -> RunLockOwner | None:
         return self._owner
 
-    def acquire(self) -> RunLockOwner:
+    def acquire(self, *, recover_stale: bool = False) -> RunLockOwner:
         if self.acquired:
             raise RunLockError("this RunLock instance is already acquired")
         self.lock_dir.mkdir(parents=True, exist_ok=True)
@@ -96,8 +96,16 @@ class RunLock:
                 raise RunLockedError(
                     f"an unknown or malformed Agent run lock exists at {self.path}"
                 ) from exc
+            stale_owner = (
+                isinstance(existing, dict)
+                and isinstance(existing.get("pid"), int)
+                and isinstance(existing.get("acquired_at"), str)
+                and isinstance(existing.get("token"), str)
+            )
             if (created and existing is not None) or (
-                not created and existing != self._released_payload
+                not created
+                and existing != self._released_payload
+                and not (recover_stale and stale_owner)
             ):
                 raise RunLockedError(
                     f"an unknown or stale Agent run lock exists at {self.path}"

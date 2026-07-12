@@ -41,6 +41,8 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["eval", "--help"],
         ["trace", "--help"],
         ["report", "--help"],
+        ["resume", "--help"],
+        ["cancel", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],

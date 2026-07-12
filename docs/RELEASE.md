@@ -26,7 +26,8 @@ Before tagging a release, record evidence for every item:
 - CI is green on all supported Python versions.
 - The wheel artifact installs in a clean Windows environment.
 - OpenAI and Claude E3 pass with reviewed model IDs and the harmless fake MCP.
-- E4 runs only in disposable Notepad or a VM with a narrow allowlist.
+- All four cells in the [E4 isolated desktop smoke runbook](E4_SMOKE.md) pass
+  only in disposable Notepad or a VM with a narrow allowlist.
 - Read-only and one locally approved low-risk action complete with post-action
   observation for both providers.
 - Trace samples contain no task/UI/typed/image/provider-error content.

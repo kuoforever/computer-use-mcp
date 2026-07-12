@@ -60,6 +60,24 @@ def test_existing_unknown_lock_is_never_reclaimed_automatically(tmp_path: Path) 
     assert lock.path.read_text(encoding="utf-8") == "unknown owner"
 
 
+def test_explicit_recovery_reclaims_only_a_well_formed_unlocked_owner(tmp_path: Path) -> None:
+    lock = RunLock(tmp_path / "state")
+    lock.lock_dir.mkdir(parents=True)
+    stale = {"pid": 123, "acquired_at": "2026-01-01T00:00:00+00:00", "token": "abc"}
+    lock.path.write_text(json.dumps(stale), encoding="utf-8")
+
+    with pytest.raises(RunLockedError):
+        lock.acquire()
+
+    lock.acquire(recover_stale=True)
+    lock.release()
+    assert json.loads(lock.path.read_text(encoding="utf-8")) == {"released": True}
+
+    lock.path.write_text('{"pid":123}', encoding="utf-8")
+    with pytest.raises(RunLockedError):
+        lock.acquire(recover_stale=True)
+
+
 @pytest.mark.parametrize("content", ["", "\0"])
 def test_preexisting_empty_or_nul_lock_is_not_treated_as_a_new_file(
     tmp_path: Path, content: str

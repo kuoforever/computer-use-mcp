@@ -58,7 +58,8 @@ the following commands:
   escape. It needs no provider SDK, credential, MCP child, or desktop.
 - `trace RUN_ID --config PATH` validates and prints one persisted safe
   checkpoint with aggregate latency/token/tool metrics plus its redacted JSONL events. It starts no external port and
-  never resumes or mutates the run.
+  never implicitly resumes or mutates the run. Explicit `resume` is restricted
+  to a pre-provider initial checkpoint; `cancel` closes a non-terminal record.
 - `report --config PATH` aggregates phase/success/failure and token/call/latency
   metrics from bounded validated checkpoints only. It opens no trace JSONL,
   provider, MCP, approval, or desktop port and fails closed on corrupt records.

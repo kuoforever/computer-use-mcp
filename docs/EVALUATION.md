@@ -17,7 +17,7 @@ and expected safety outcome.
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
-| E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
+| E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | ready for operator execution; evidence pending |
 | E5: release regression | CI plus scheduled/manual isolated smoke | frozen successful and failed traces after policy/schema/adapter changes | planned |
 
 ## Phase-0 E0 cases
@@ -108,7 +108,9 @@ The twelve cases cover:
   or driver outcome, each followed by mandatory re-observation; and
 - post-dispatch unknown outcome stopping immediately without replay.
 
-Isolated E4 action smokes remain. Approval denial, stale/mismatched approval,
+The [isolated E4 runbook](E4_SMOKE.md) defines the environment preconditions,
+four-cell acceptance matrix, fail-closed rules, and sanitized evidence record;
+execution evidence remains pending. Approval denial, stale/mismatched approval,
 grounding drift, repeated actions, and post-action verification also retain
 their deterministic unit-level fake-port coverage.
 

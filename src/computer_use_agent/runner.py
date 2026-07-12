@@ -121,7 +121,9 @@ class AgentRunner:
         self.ports = ports
         self.policy = HostPolicy.from_config(config.policy_version, config.policy)
 
-    def prepare(self, task: str, *, run_id: str | None = None) -> PreparedRun:
+    def prepare(
+        self, task: str, *, run_id: str | None = None, recover_stale_lock: bool = False
+    ) -> PreparedRun:
         if not isinstance(task, str) or not task.strip():
             raise ValueError("task must be a non-empty string")
         resolved_run_id = run_id or uuid4().hex
@@ -143,7 +145,7 @@ class AgentRunner:
             ),
         )
         lock = RunLock(self.config.application_state_dir)
-        lock.acquire()
+        lock.acquire(recover_stale=recover_stale_lock)
         return PreparedRun(state=state, _lock=lock)
 
     @staticmethod
@@ -274,6 +276,7 @@ class AgentRunner:
         *,
         run_id: str | None = None,
         memories: tuple[MemoryContextItem, ...] = (),
+        resume_initial: bool = False,
     ) -> RunOutcome:
         """Run a bounded model/tool loop and release lock and desktop."""
 
@@ -290,7 +293,11 @@ class AgentRunner:
                 len(item.content) for item in memories
             ) > MAX_RUN_MEMORY_CHARS:
                 raise RunnerError("MEMORY_CONTEXT_LIMIT_EXCEEDED")
-        prepared = self.prepare(task, run_id=run_id)
+        if resume_initial and run_id is None:
+            raise ValueError("resume_initial requires run_id")
+        prepared = self.prepare(
+            task, run_id=run_id, recover_stale_lock=resume_initial
+        )
         state = prepared.state
         grounding = GroundingState()
         recorder = RunRecorder(self.config.state_dir, state.run_id)
@@ -298,7 +305,10 @@ class AgentRunner:
         recorder_started = False
         desktop_closed = False
         try:
-            recorder.start(state)
+            if resume_initial:
+                recorder.attach_initial(state)
+            else:
+                recorder.start(state)
             recorder_started = True
             recorder.record(state, RunPhase.OBSERVING)
             discovered = await self.ports.desktop.discover_tools()
