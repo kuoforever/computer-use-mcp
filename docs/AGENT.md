@@ -49,6 +49,9 @@ the following commands:
   `key`, then applies grounding, budgets, digest-bound console approval, MCP
   checks, and mandatory post-action observation. The CLI returns final text,
   run ID, and model/tool counts as JSON.
+- `run ... --memory-scope SCOPE` explicitly includes up to eight active,
+  revalidated, user-confirmed memories from that exact scope in the provider's
+  initial turn. Omitting it reads no memory; it is rejected with `--dry-run`.
 - `eval --cases PATH [--report PATH]` runs versioned E1/E2 JSON fixtures with
   deterministic fake ports, compares exact canonical traces and dispatched
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety
@@ -366,6 +369,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Run metrics are inspectable | Checkpoints aggregate model/tool calls, tokens, provider/tool/run latency, failures, images, and zero automatic retries without retaining sensitive content or estimating unversioned cost | implemented metrics test |
 | Cross-run reports are bounded | `agent report` reads only strict atomic checkpoints and aggregates phase, success, fixed failure codes, metric coverage, totals, and averages; corrupt or path-unsafe records fail the whole report | implemented report test |
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
+| Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 
 The remaining work adds resumable state, token-aware context reduction, memory
 retrieval, broader E1/E2 cases, isolated desktop smokes, and release review. The current slice is experimental and

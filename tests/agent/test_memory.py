@@ -5,7 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from computer_use_agent.memory import MemoryKind, MemoryStore, MemoryStoreError
+from computer_use_agent.memory import (
+    MAX_RUN_MEMORIES,
+    MemoryKind,
+    MemoryRecord,
+    MemoryStore,
+    MemoryStoreError,
+    build_memory_context,
+)
 
 
 NOW = datetime(2030, 1, 1, tzinfo=UTC)
@@ -99,3 +106,31 @@ def test_memory_requires_confirmation_trusted_source_future_expiry_and_safe_scop
             store.add(**(base | changes))
 
     assert not store.path.exists()
+
+
+def _record(index: int, *, content: str = "Prefer concise summaries.") -> MemoryRecord:
+    return MemoryRecord(
+        id=f"{index:032x}",
+        kind=MemoryKind.PREFERENCE,
+        content=content,
+        source="user_confirmed",
+        scope="global",
+        expires_at=FUTURE,
+        created_at="2030-01-01T00:00:00Z",
+    )
+
+
+def test_memory_context_is_bounded_and_revalidated_before_disclosure() -> None:
+    context = build_memory_context((_record(1),), now=NOW)
+
+    assert context[0].content == "Prefer concise summaries."
+    assert context[0].source == "user_confirmed"
+
+    with pytest.raises(MemoryStoreError, match="MEMORY_CONTEXT_LIMIT_EXCEEDED"):
+        build_memory_context(
+            tuple(_record(index) for index in range(MAX_RUN_MEMORIES + 1)), now=NOW
+        )
+    with pytest.raises(MemoryStoreError, match="MEMORY_CONTENT_REJECTED"):
+        build_memory_context((_record(1, content="password: injected"),), now=NOW)
+    with pytest.raises(MemoryStoreError, match="expiry must be in the future"):
+        build_memory_context((_record(1),), now=datetime(2031, 1, 1, tzinfo=UTC))

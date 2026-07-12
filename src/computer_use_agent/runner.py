@@ -28,6 +28,7 @@ from .types import (
     DispatchCertainty,
     LedgerEvent,
     LedgerEventKind,
+    MemoryContextItem,
     ModelProviderPort,
     ModelTurn,
     PolicyDecision,
@@ -267,11 +268,28 @@ class AgentRunner:
             budgets=replace(budget, side_effects_used=budget.side_effects_used + 1),
         )
 
-    async def run(self, task: str, *, run_id: str | None = None) -> RunOutcome:
+    async def run(
+        self,
+        task: str,
+        *,
+        run_id: str | None = None,
+        memories: tuple[MemoryContextItem, ...] = (),
+    ) -> RunOutcome:
         """Run a bounded model/tool loop and release lock and desktop."""
 
         if self.ports is None:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
+        if not isinstance(memories, tuple) or not all(
+            isinstance(item, MemoryContextItem) for item in memories
+        ):
+            raise ValueError("memories must be a tuple of MemoryContextItem")
+        if memories:
+            from .memory import MAX_RUN_MEMORIES, MAX_RUN_MEMORY_CHARS
+
+            if len(memories) > MAX_RUN_MEMORIES or sum(
+                len(item.content) for item in memories
+            ) > MAX_RUN_MEMORY_CHARS:
+                raise RunnerError("MEMORY_CONTEXT_LIMIT_EXCEEDED")
         prepared = self.prepare(task, run_id=run_id)
         state = prepared.state
         grounding = GroundingState()
@@ -307,6 +325,7 @@ class AgentRunner:
                     task=state.task,
                     ledger=provider_ledger,
                     tools=REVIEWED_TOOLS,
+                    memories=memories,
                 )
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)

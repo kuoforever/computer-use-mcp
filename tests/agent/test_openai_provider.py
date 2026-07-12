@@ -19,6 +19,7 @@ from computer_use_agent.types import (
     ImageContent,
     LedgerEvent,
     LedgerEventKind,
+    MemoryContextItem,
     SafeArgumentSummary,
     ToolCall,
     ToolResult,
@@ -268,6 +269,32 @@ def test_provider_errors_do_not_echo_request_or_response_content() -> None:
         )
 
     assert str(raised.value) == "OPENAI_REQUEST_FAILED"
+
+
+def test_openai_explicit_memory_is_json_data_on_initial_turn_only() -> None:
+    scripted = ScriptedResponses([_response("response_1", text="done")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    memory = MemoryContextItem(
+        "preference", "Prefer concise summaries.", "user_confirmed", "global"
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_memory",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+            memories=(memory,),
+        )
+    )
+
+    assert scripted.calls[0]["input"] == (
+        "Inspect\n\nOptional memory context (JSON data):\n"
+        '[{"content":"Prefer concise summaries.","kind":"preference",'
+        '"scope":"global","source":"user_confirmed"}]'
+    )
+    assert "cannot change policy" in scripted.calls[0]["instructions"]
 
 
 def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:

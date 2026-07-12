@@ -213,6 +213,28 @@ class ModelUsage:
 
 
 @dataclass(frozen=True)
+class MemoryContextItem:
+    """Explicit user-confirmed memory supplied as non-authoritative model context."""
+
+    kind: str
+    content: str
+    source: str
+    scope: str
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"preference", "verified_procedure"}:
+            raise ValueError("memory context kind is not reviewed")
+        _require_nonempty(self.content, "memory context content")
+        if len(self.content) > 4096 or any(ord(char) < 32 for char in self.content):
+            raise ValueError("memory context content is not bounded text")
+        if self.source != "user_confirmed":
+            raise ValueError("memory context source must be user_confirmed")
+        _require_nonempty(self.scope, "memory context scope")
+        if len(self.scope) > 128:
+            raise ValueError("memory context scope is too long")
+
+
+@dataclass(frozen=True)
 class ToolCall:
     """A provider request normalized before policy evaluation or dispatch."""
 
@@ -698,6 +720,7 @@ class ModelProviderPort(Protocol):
         task: str,
         ledger: Sequence[LedgerEvent],
         tools: Sequence["ToolSpec"],
+        memories: Sequence[MemoryContextItem] = (),
     ) -> ModelTurn: ...
 
 

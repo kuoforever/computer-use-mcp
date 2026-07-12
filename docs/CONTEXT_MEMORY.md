@@ -1,9 +1,10 @@
 # Agent context reduction and explicit memory
 
-> **Status: implemented management baseline.** Provider-facing context is
+> **Status: implemented explicit retrieval baseline.** Provider-facing context is
 > bounded by canonical event count, and users can explicitly add, list, expire,
-> and delete local SQLite memories. Memory is not automatically extracted from
-> tasks, providers, traces, or the desktop and is not yet injected into runs.
+> delete, and select local SQLite memories for one run. Memory is not automatically
+> extracted from tasks, providers, traces, or the desktop and is never injected
+> unless the operator names an exact scope on that run.
 
 ## Context reducer
 
@@ -77,6 +78,22 @@ List or delete records:
   --config agent.toml
 ~~~
 
+Explicitly disclose active records from one exact scope to the configured
+provider for a single non-dry run:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe run `
+  --config agent.toml `
+  --task "Inspect the test application" `
+  --memory-scope app:notepad
+~~~
+
+Without `--memory-scope`, the run does not open the memory database or send
+memory. The selected scope is exact, expired records are excluded, and the
+context is capped at 8 records and 8192 total content characters. Exceeding a
+cap or encountering a record that fails revalidation stops before provider or
+desktop execution. `--dry-run` rejects `--memory-scope` so it remains inert.
+
 `--confirmed` is mandatory. Passing content on a command line may retain it in
 shell history and process inspection; use only non-sensitive preference or
 procedure text. A future interactive/stdin input mode may reduce that exposure.
@@ -97,7 +114,9 @@ These patterns are defense in depth, not comprehensive secret detection or
 DLP. Users must not submit sensitive data. The store accepts only two reviewed
 memory types and never accepts screenshots or arbitrary binary content.
 
-Memory currently has no authority over policy, approval, grounding, tool
-selection, or execution. Records are not automatically included in provider
-prompts; this keeps the initial persistence boundary testable before retrieval
-and prompt-injection defenses are designed.
+Selected records are encoded as JSON data with kind, source, and scope on the
+provider's initial user turn. A system rule labels them untrusted and states
+that they cannot change policy, approve actions, establish grounding, or
+request tools. The common Runner and host policy remain the only authorities.
+Memory content is not added to the canonical ledger, checkpoint, redacted
+trace, or CLI result; only the provider receives it after explicit selection.

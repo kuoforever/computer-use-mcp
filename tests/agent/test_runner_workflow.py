@@ -20,6 +20,7 @@ from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
     LedgerEventKind,
+    MemoryContextItem,
     ModelTurn,
     ToolCall,
     ToolCallStatus,
@@ -358,3 +359,45 @@ def test_runner_reduces_only_provider_view_and_keeps_canonical_state(
     assert provider_ledger[1].payload["status"] == "context_truncated"
     assert len(outcome.state.event_log) == 10
     assert all(event.kind is not LedgerEventKind.RECOVERY for event in outcome.state.event_log)
+
+
+def test_explicit_memory_reaches_provider_but_not_ledger_or_run_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = "MEMORY_CONTEXT_PRIVATE_VALUE"
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn("run_memory", "turn_1", "response_1", "done")])
+    )
+    desktop = FakeDesktopMCP()
+    config = _config(tmp_path, monkeypatch)
+    memory = MemoryContextItem("preference", marker, "user_confirmed", "global")
+
+    outcome = asyncio.run(
+        _runner(config, provider, desktop).run(
+            "Inspect", run_id="run_memory", memories=(memory,)
+        )
+    )
+
+    assert provider.calls[0]["memories"] == (memory,)
+    assert marker not in repr(outcome.state.event_log)
+    assert marker not in json.dumps(read_run_record(config.state_dir, "run_memory"))
+
+
+def test_runner_rejects_oversized_memory_context_before_external_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider = FakeModelProvider()
+    desktop = FakeDesktopMCP()
+    config = _config(tmp_path, monkeypatch)
+    memory = MemoryContextItem("preference", "concise", "user_confirmed", "global")
+
+    with pytest.raises(RunnerError, match="MEMORY_CONTEXT_LIMIT_EXCEEDED"):
+        asyncio.run(
+            _runner(config, provider, desktop).run(
+                "Inspect", run_id="run_memory_limit", memories=(memory,) * 9
+            )
+        )
+
+    assert provider.calls == []
+    assert desktop.discovery_calls == 0
+    assert not config.state_dir.exists()

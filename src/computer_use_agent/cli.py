@@ -31,6 +31,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--task", required=True)
     run.add_argument(
+        "--memory-scope",
+        help="Explicitly include active user-confirmed memories from this exact scope.",
+    )
+    run.add_argument(
         "--dry-run",
         action="store_true",
         help="Build and print safe initial-state metadata without calling any external port.",
@@ -117,11 +121,18 @@ def _run_dry(path: Path, task: str) -> int:
     return 0
 
 
-async def _run_live_async(path: Path, task: str) -> int:
+async def _run_live_async(path: Path, task: str, memory_scope: str | None = None) -> int:
     from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
 
     config = load_agent_config(path)
+    memories = ()
+    if memory_scope is not None:
+        from .memory import MemoryStore, build_memory_context
+
+        memories = build_memory_context(
+            MemoryStore(config.memory_database).list(scope=memory_scope)
+        )
     if config.provider.name == "openai":
         from .providers.openai import OpenAIResponsesProvider
 
@@ -152,7 +163,7 @@ async def _run_live_async(path: Path, task: str) -> int:
             approvals=approvals,
         ),
     )
-    outcome = await runner.run(task)
+    outcome = await runner.run(task, memories=memories)
     _print_json(
         {
             "run_id": outcome.state.run_id,
@@ -160,14 +171,15 @@ async def _run_live_async(path: Path, task: str) -> int:
             "usage": {
                 "model_turns": outcome.state.budgets.model_turns_used,
                 "tool_calls": outcome.state.budgets.tool_calls_used,
+                "memories": len(memories),
             },
         }
     )
     return 0
 
 
-def _run_live(path: Path, task: str) -> int:
-    return asyncio.run(_run_live_async(path, task))
+def _run_live(path: Path, task: str, memory_scope: str | None = None) -> int:
+    return asyncio.run(_run_live_async(path, task, memory_scope))
 
 
 def _run_eval(cases: Path, report_path: Path | None) -> int:
@@ -233,8 +245,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _validate_config(args.config)
         if args.command == "run":
             if args.dry_run:
+                if args.memory_scope is not None:
+                    raise ValueError("DRY_RUN_MEMORY_CONTEXT_UNAVAILABLE")
                 return _run_dry(args.config, args.task)
-            return _run_live(args.config, args.task)
+            return _run_live(args.config, args.task, args.memory_scope)
         if args.command == "eval":
             return _run_eval(args.cases, args.report)
         if args.command == "trace":
