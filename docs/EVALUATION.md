@@ -14,8 +14,8 @@ and expected safety outcome.
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
 | E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, and Claude tool-use normalization | implemented |
-| E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | baseline: read-only observe/answer, exact trace, model budget, identity mismatch, and cleanup implemented |
-| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | baseline: unknown tool, action denial, multiple action requests, and injection-induced typed action with zero dispatch implemented; server/approval outcomes remain |
+| E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
+| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested; server gate/e-stop/human fixtures remain |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and low-risk action scenarios plus post-action verification | planned |
 | E5: release regression | CI plus scheduled/manual isolated smoke | frozen successful and failed traces after policy/schema/adapter changes | planned |
@@ -102,9 +102,11 @@ The initial seven cases cover:
 - E2 single and multiple action requests denied before dispatch; and
 - E2 prompt-injection-induced typing with redacted trace metadata.
 
-Gate, E-stop, human-active, approval denial, stale refs, unknown outcomes, and
-post-action verification remain future cases because the current runtime is
-read-only and does not yet orchestrate approved actions.
+Gate, E-stop, and human-active server-result cases plus isolated E4 action
+smokes remain. Approval denial, stale/mismatched approval, grounding drift,
+unknown outcomes, repeated actions, and post-action verification now have
+deterministic fake-port coverage; they are not all represented in the seven
+JSON cases yet.
 
 ## Opt-in provider E3 runs
 

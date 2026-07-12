@@ -49,6 +49,7 @@ _TRANSITIONS = {
         RunPhase.CANCELLED,
     },
     RunPhase.PLANNING: {
+        RunPhase.WAITING_APPROVAL,
         RunPhase.EXECUTING,
         RunPhase.SUCCESS,
         RunPhase.FAILED,

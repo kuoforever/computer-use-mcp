@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from .config import ConfigError, load_agent_config
+from .config import APPROVED_ACTIONS_MODE, ConfigError, load_agent_config
 from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
 from .types import AGENT_CONTRACT_VERSION
@@ -67,6 +67,18 @@ def _print_json(value: object) -> None:
     print(json.dumps(value, sort_keys=True))
 
 
+def _console_input(prompt: str) -> str:
+    print(prompt, end="", file=sys.stderr, flush=True)
+    line = sys.stdin.readline()
+    if not line:
+        raise EOFError
+    return line.rstrip("\r\n")
+
+
+def _console_output(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
 def _validate_config(path: Path) -> int:
     config = load_agent_config(path)
     _print_json(
@@ -103,27 +115,38 @@ def _run_dry(path: Path, task: str) -> int:
 
 
 async def _run_live_async(path: Path, task: str) -> int:
-    from .approvals import ReadOnlyApprovalPort
+    from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
 
     config = load_agent_config(path)
     if config.provider.name == "openai":
         from .providers.openai import OpenAIResponsesProvider
 
-        provider = OpenAIResponsesProvider.from_environment(config.provider.model)
+        provider = OpenAIResponsesProvider.from_environment(
+            config.provider.model,
+            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+        )
     elif config.provider.name == "anthropic":
         from .providers.anthropic import AnthropicMessagesProvider
 
-        provider = AnthropicMessagesProvider.from_environment(config.provider.model)
+        provider = AnthropicMessagesProvider.from_environment(
+            config.provider.model,
+            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+        )
     else:
         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
     desktop = StdioDesktopMCP(config.mcp)
+    approvals = (
+        ConsoleApprovalPort(input_fn=_console_input, output_fn=_console_output)
+        if config.policy.mode == APPROVED_ACTIONS_MODE
+        else ReadOnlyApprovalPort()
+    )
     runner = AgentRunner(
         config,
         RunnerPorts(
             provider=provider,
             desktop=desktop,
-            approvals=ReadOnlyApprovalPort(),
+            approvals=approvals,
         ),
     )
     outcome = await runner.run(task)

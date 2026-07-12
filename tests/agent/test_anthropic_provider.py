@@ -239,3 +239,37 @@ def test_anthropic_errors_do_not_echo_request_or_response_content() -> None:
         )
 
     assert str(raised.value) == "ANTHROPIC_REQUEST_FAILED"
+
+
+def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_1",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            )
+        ]
+    )
+    provider = AnthropicMessagesProvider(
+        model="test-model", messages=scripted, allow_actions=True
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_1",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    assert [tool["name"] for tool in scripted.calls[0]["tools"]] == [
+        "ui_snapshot",
+        "find",
+        "list_windows",
+        "activate_window",
+        "click",
+        "key",
+    ]
