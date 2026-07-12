@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "id": "e2_estop_aborted",
+  "level": "E2",
+  "task": "Attempt a click while the emergency stop is engaged.",
+  "approved_actions": true,
+  "budgets": {
+    "model_turns": 5,
+    "tool_calls": 4,
+    "side_effects": 1
+  },
+  "turns": [
+    {
+      "calls": [
+        {
+          "id": "call_1",
+          "name": "ui_snapshot",
+          "arguments": {}
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "id": "call_2",
+          "name": "click",
+          "arguments": {
+            "ref": "ref_1"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "id": "call_3",
+          "name": "ui_snapshot",
+          "arguments": {}
+        }
+      ]
+    },
+    {
+      "text": "The action was not completed; the desktop was re-observed."
+    }
+  ],
+  "results": [
+    {
+      "call_id": "call_1",
+      "turn_id": "turn_1",
+      "tool": "ui_snapshot",
+      "status": "success",
+      "dispatch": "dispatched",
+      "text": "ref_1 | button \"OK\" | (1,1,10,10) | enabled"
+    },
+    {
+      "call_id": "call_2",
+      "turn_id": "turn_2",
+      "tool": "click",
+      "status": "action_error",
+      "dispatch": "dispatched",
+      "code": "ABORTED"
+    },
+    {
+      "call_id": "call_3",
+      "turn_id": "turn_3",
+      "tool": "ui_snapshot",
+      "status": "success",
+      "dispatch": "dispatched",
+      "text": "ref_2 | button \"OK\" | (1,1,10,10) | enabled"
+    }
+  ],
+  "expected": {
+    "outcome": "success",
+    "trace": [
+      {
+        "kind": "user_task"
+      },
+      {
+        "kind": "model_turn",
+        "tool_call_count": 1
+      },
+      {
+        "kind": "tool_call",
+        "tool": "ui_snapshot",
+        "arguments": {}
+      },
+      {
+        "kind": "tool_result",
+        "tool": "ui_snapshot",
+        "status": "success"
+      },
+      {
+        "kind": "observation",
+        "tool": "ui_snapshot",
+        "observation_epoch": 1
+      },
+      {
+        "kind": "model_turn",
+        "tool_call_count": 1
+      },
+      {
+        "kind": "tool_call",
+        "tool": "click",
+        "arguments": {
+          "ref": "ref_1"
+        }
+      },
+      {
+        "kind": "policy_decision"
+      },
+      {
+        "kind": "tool_result",
+        "tool": "click",
+        "status": "action_error",
+        "code": "ABORTED"
+      },
+      {
+        "kind": "model_turn",
+        "tool_call_count": 1
+      },
+      {
+        "kind": "tool_call",
+        "tool": "ui_snapshot",
+        "arguments": {}
+      },
+      {
+        "kind": "tool_result",
+        "tool": "ui_snapshot",
+        "status": "success"
+      },
+      {
+        "kind": "observation",
+        "tool": "ui_snapshot",
+        "observation_epoch": 2
+      },
+      {
+        "kind": "model_turn",
+        "tool_call_count": 0
+      }
+    ],
+    "dispatched_tools": [
+      "ui_snapshot",
+      "click",
+      "ui_snapshot"
+    ]
+  }
+}

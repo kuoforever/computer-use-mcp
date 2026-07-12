@@ -5,23 +5,32 @@ import asyncio
 import json
 import os
 import tempfile
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 from unittest.mock import patch
 
-from .config import AgentConfig, MCPLaunchConfig, PolicyConfig, ProviderConfig
+from .config import (
+    APPROVED_ACTIONS_MODE,
+    AgentConfig,
+    MCPLaunchConfig,
+    PolicyConfig,
+    ProviderConfig,
+)
 from .fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from .runner import AgentRunner, RunFailure, RunnerPorts
 from .tool_registry import REVIEWED_TOOLS
 from .types import (
     CallIdentity,
+    ApprovalRequest,
     DispatchCertainty,
     JSONValue,
     LedgerEventKind,
     ModelTurn,
     ModelUsage,
+    PolicyDecision,
+    PolicyDecisionKind,
     RunState,
     ToolCall,
     ToolEffect,
@@ -75,6 +84,12 @@ def _integer(value: object, field_name: str) -> int:
     return value
 
 
+def _boolean(value: object, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise EvaluationCaseError(f"{field_name} must be boolean")
+    return value
+
+
 def _load_case(path: Path) -> dict[str, object]:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -83,7 +98,17 @@ def _load_case(path: Path) -> dict[str, object]:
     case = _object(document, "case")
     _keys(
         case,
-        {"version", "id", "level", "task", "budgets", "turns", "results", "expected"},
+        {
+            "version",
+            "id",
+            "level",
+            "task",
+            "approved_actions",
+            "budgets",
+            "turns",
+            "results",
+            "expected",
+        },
         "case",
     )
     if case.get("version") != CASE_VERSION:
@@ -182,6 +207,17 @@ def _results(case: Mapping[str, object], run_id: str) -> deque[ToolResult]:
     return results
 
 
+class _AllowApprovalPort:
+    async def request_approval(self, request: ApprovalRequest) -> PolicyDecision:
+        return PolicyDecision(
+            request_id=request.request_id,
+            identity=request.identity,
+            call_digest=request.call_digest,
+            kind=PolicyDecisionKind.ALLOW,
+            reason="evaluation_fixture",
+        )
+
+
 def canonical_trace(state: RunState) -> list[dict[str, JSONValue]]:
     """Project a ledger to stable semantic fields suitable for exact fixtures."""
 
@@ -211,7 +247,8 @@ async def _run_case(case: Mapping[str, object], state_root: Path) -> dict[str, J
     case_id = _string(case["id"], "case.id")
     run_id = f"eval_{case_id}"
     budgets = _object(case["budgets"], "case.budgets")
-    _keys(budgets, {"model_turns", "tool_calls"}, "case.budgets")
+    _keys(budgets, {"model_turns", "tool_calls", "side_effects"}, "case.budgets")
+    approved_actions = _boolean(case.get("approved_actions", False), "case.approved_actions")
     config = AgentConfig(
         state_dir=state_root / "computer-use-agent" / case_id,
         policy_version="eval-v1",
@@ -223,16 +260,23 @@ async def _run_case(case: Mapping[str, object], state_root: Path) -> dict[str, J
             environment={"CUMCP_ALLOWLIST": "notepad.exe"},
         ),
         policy=PolicyConfig(
+            mode=APPROVED_ACTIONS_MODE if approved_actions else "read_only",
             max_model_turns=_integer(budgets.get("model_turns"), "budgets.model_turns"),
             max_tool_calls=_integer(budgets.get("tool_calls"), "budgets.tool_calls"),
-            max_side_effects=0,
+            max_side_effects=_integer(
+                budgets.get("side_effects", 0), "budgets.side_effects"
+            ),
         ),
     )
     provider = FakeModelProvider(turns=_turns(case, run_id))
     desktop = FakeDesktopMCP(results=_results(case, run_id))
     runner = AgentRunner(
         config,
-        RunnerPorts(provider=provider, desktop=desktop, approvals=FakeApprovalPort()),
+        RunnerPorts(
+            provider=provider,
+            desktop=desktop,
+            approvals=_AllowApprovalPort() if approved_actions else FakeApprovalPort(),
+        ),
     )
     state: RunState
     outcome_code = "success"
@@ -245,17 +289,22 @@ async def _run_case(case: Mapping[str, object], state_root: Path) -> dict[str, J
 
     actual_trace = canonical_trace(state)
     dispatched_tools = [call.name for call in desktop.tool_calls]
-    safety_escapes = sum(
-        1
-        for call in desktop.tool_calls
-        if any(tool.name == call.name and tool.effect is ToolEffect.SIDE_EFFECT for tool in REVIEWED_TOOLS)
-    )
     expected = _object(case["expected"], "case.expected")
     _keys(expected, {"outcome", "trace", "dispatched_tools"}, "case.expected")
     expected_trace = expected.get("trace")
     expected_dispatched = expected.get("dispatched_tools")
     if not isinstance(expected_trace, list) or not isinstance(expected_dispatched, list):
         raise EvaluationCaseError("expected trace and dispatched_tools must be arrays")
+    side_effect_names = {
+        tool.name for tool in REVIEWED_TOOLS if tool.effect is ToolEffect.SIDE_EFFECT
+    }
+    actual_actions = Counter(
+        call.name for call in desktop.tool_calls if call.name in side_effect_names
+    )
+    expected_actions = Counter(
+        name for name in expected_dispatched if name in side_effect_names
+    )
+    safety_escapes = sum((actual_actions - expected_actions).values())
     passed = (
         outcome_code == expected.get("outcome")
         and actual_trace == expected_trace

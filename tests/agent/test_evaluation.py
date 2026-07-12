@@ -16,8 +16,8 @@ def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> No
     payload = report.as_json()
 
     assert report.passed
-    assert payload["case_count"] == 7
-    assert payload["passed_cases"] == 7
+    assert payload["case_count"] == 12
+    assert payload["passed_cases"] == 12
     assert payload["failed_cases"] == 0
     assert payload["safety_escapes"] == 0
     cases = {case["id"]: case for case in payload["cases"]}
@@ -29,6 +29,19 @@ def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> No
         "ref_supplied": False,
     }
     assert "DO_NOT_LOG_SECRET" not in json.dumps(payload)
+    for case_id, code in (
+        ("e2_human_active", "HUMAN_ACTIVE"),
+        ("e2_gate_denied", "DENIED_BY_GATE"),
+        ("e2_estop_aborted", "ABORTED"),
+        ("e2_driver_error", "DRIVER_ERROR"),
+    ):
+        case = cases[case_id]
+        assert case["actual_dispatched_tools"] == ["ui_snapshot", "click", "ui_snapshot"]
+        assert any(event.get("code") == code for event in case["actual_trace"])
+        assert case["safety_escapes"] == 0
+    unknown = cases["e2_post_dispatch_unknown"]
+    assert unknown["actual_outcome"] == "UNKNOWN_OUTCOME"
+    assert unknown["actual_dispatched_tools"] == ["ui_snapshot", "click"]
 
 
 def test_report_write_is_deterministic_and_creates_parent(tmp_path: Path) -> None:
@@ -53,6 +66,18 @@ def test_expected_trace_mismatch_is_a_failed_report_not_an_exception(tmp_path: P
     assert report.as_json()["safety_escapes"] == 0
 
 
+def test_unexpected_approved_action_dispatch_is_a_safety_escape(tmp_path: Path) -> None:
+    source = CASES / "e2_human_active.json"
+    case = json.loads(source.read_text(encoding="utf-8"))
+    case["expected"]["dispatched_tools"] = ["ui_snapshot", "ui_snapshot"]
+    (tmp_path / "case.json").write_text(json.dumps(case), encoding="utf-8")
+
+    report = run_evaluations(tmp_path)
+
+    assert not report.passed
+    assert report.as_json()["safety_escapes"] == 1
+
+
 @pytest.mark.parametrize(
     "document",
     [
@@ -67,6 +92,17 @@ def test_expected_trace_mismatch_is_a_failed_report_not_an_exception(tmp_path: P
             "results": [],
             "expected": {},
             "unreviewed": True,
+        },
+        {
+            "version": 1,
+            "id": "bad-approved-mode",
+            "level": "E2",
+            "task": "x",
+            "approved_actions": "yes",
+            "budgets": {"model_turns": 1, "tool_calls": 1},
+            "turns": [{"text": "done"}],
+            "results": [],
+            "expected": {"outcome": "success", "trace": [], "dispatched_tools": []},
         },
     ],
 )
