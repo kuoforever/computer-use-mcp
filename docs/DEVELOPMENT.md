@@ -19,12 +19,18 @@ emit non-ASCII text.
 ~~~powershell
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\ruff.exe check src tests scripts
+.\.venv\Scripts\computer-use-agent.exe eval --cases evals\cases --report out\e1-e2.json
+.\.venv\Scripts\python.exe -m build --wheel
 git diff --check
 ~~~
 
 Run these checks for documentation-only changes as appropriate; code changes
 that touch a driver, safety boundary, or action path need the matching desktop
 smoke as well.
+
+GitHub Actions repeats the offline suite on Windows/Python 3.11-3.13 and runs a
+clean wheel-install smoke. It never enables live provider or desktop tests.
+See [Release checklist](RELEASE.md).
 
 ## Desktop smoke scripts
 

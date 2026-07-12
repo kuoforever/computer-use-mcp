@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate = config_commands.add_parser("validate", help="Validate TOML without starting anything.")
     validate.add_argument("--config", required=True, type=Path)
 
-    run = commands.add_parser("run", help="Run the bounded read-only Agent workflow.")
+    run = commands.add_parser("run", help="Run the bounded Agent workflow.")
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--task", required=True)
     run.add_argument(

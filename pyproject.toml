@@ -19,7 +19,7 @@ dependencies = [
 # uiautomation.SendKeys — no pyautogui dependency needed.
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = ["pytest>=8", "ruff>=0.5", "build>=1.2"]
 agent-openai = ["openai>=1.68,<3"]
 agent-anthropic = ["anthropic>=0.49,<1"]
 agent = ["openai>=1.68,<3", "anthropic>=0.49,<1"]

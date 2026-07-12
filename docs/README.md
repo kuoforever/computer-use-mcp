@@ -29,6 +29,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
+| I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 
 ## Documentation ownership
@@ -48,6 +49,7 @@ not a line-by-line mirror of every reference page.
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
+| Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
 
 Do not use the roadmap or design documents to infer that a capability is
