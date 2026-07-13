@@ -119,6 +119,12 @@ Recovery remains deliberately conservative:
 - `UNKNOWN_OUTCOME`: a human must re-observe before starting a new run;
 - later incomplete, failed, or cancelled: inspect the trace, then start a new run.
 
+The same rules are implemented as a fixed recovery classification used by the
+resume attach path: `resume_initial/INITIAL_CHECKPOINT`,
+`start_new_run/PROVIDER_OR_TOOL_PROGRESS`, `human_reobserve/UNKNOWN_OUTCOME`,
+or `none/RUN_SUCCEEDED`. Policy/task/budget drift at an otherwise initial phase
+classifies as `start_new_run/CHECKPOINT_MISMATCH`.
+
 The host never automatically replays a tool call. Resume after a provider call
 or any tool dispatch requires a future reviewed persistence format and
 provider-specific continuation tests.
