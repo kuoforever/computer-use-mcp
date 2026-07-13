@@ -369,7 +369,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, message-history order, and stop-reason validation | implemented adapter test |
 | Screenshot provider continuation | Both adapters advertise the reviewed screenshot tool; adapter fixtures plus full common-Runner tests prove exact bounded PNG wire blocks without retaining images in trace output | implemented workflow test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
-| Offline E1/E2 gate is reproducible | Twelve versioned cases freeze semantic traces for success, budgets, identity mismatch, unknown tools, denied/injected actions, human/gate/e-stop/driver results, mandatory re-observation, and post-dispatch unknown outcome; all require zero safety escapes | implemented evaluation suite |
+| Offline E1/E2 gate is reproducible | Thirteen versioned cases plus a canonical manifest freeze semantic traces for success, model/token budgets, identity mismatch, unknown tools, denied/injected actions, human/gate/e-stop/driver results, mandatory re-observation, and post-dispatch unknown outcome; all require zero safety escapes | implemented evaluation suite |
 | Run records are safe and conservative | Atomic checkpoints, append-only bounded JSONL, legal phase transitions, typed-text redaction, strict reading, success-after-close, and no automatic resume/replay are tested | implemented trace baseline |
 | Run metrics are inspectable | Checkpoints aggregate model/tool calls, tokens, provider/tool/run latency, failures, images, and zero automatic retries without retaining sensitive content or estimating unversioned cost | implemented metrics test |
 | Cross-run reports are bounded | `agent report` reads only strict atomic checkpoints and aggregates phase, success, fixed failure codes, metric coverage, totals, and averages; corrupt or path-unsafe records fail the whole report | implemented report test |
@@ -377,6 +377,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Provider requests have a byte gate | Both adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or Claude-history requests before network I/O | implemented request-budget test |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 
-The remaining work adds resumable state, token-aware context reduction, memory
-retrieval, broader E1/E2 cases, isolated desktop smokes, and release review. The current slice is experimental and
-read-only; it must not be presented as the complete safety MVP.
+The remaining work adds broader post-provider resumable state, provider/model-aware
+pre-request token-window enforcement, semantic context compression, isolated
+desktop smokes, and release review. The current slice is experimental and must
+not be presented as the complete safety MVP.

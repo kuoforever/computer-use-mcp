@@ -28,7 +28,7 @@ release notes and cannot be inferred complete from offline CI:
 | --- | --- | --- |
 | OpenAI and Claude E3 | Opt-in tests exist; no credentialed evidence is retained | Both providers pass the harmless fake-MCP cycle with reviewed model IDs |
 | Isolated E4 | Four-cell runbook exists; no isolated desktop evidence is recorded | Both providers pass read-only and one approved low-risk action with post-action observation |
-| E5 release regression | Not frozen | Reviewed successful and failure traces are rerun after policy/schema/adapter changes |
+| E5 release regression | Canonical E1/E2 case manifest is frozen and enforced in CI; isolated evidence is pending | Reviewed isolated successful and failure traces are rerun after policy/schema/adapter changes |
 | Release approval | Automated preflight passes locally; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, and human approval |
 | Broader resume | Only initial pre-provider checkpoints resume | Reviewed persisted continuation format; provider/tool calls are never replayed |
 | Token-aware context | Event-count reduction, exact request-byte gates, and cumulative provider-reported input-token cutoff | Provider/model-aware pre-request token-window enforcement without splitting mandatory atomic groups |
