@@ -142,6 +142,11 @@ def test_context_event_budget_must_be_positive() -> None:
         PolicyConfig(max_context_events=0)
 
 
+def test_input_token_budget_must_be_nonnegative() -> None:
+    with pytest.raises(ConfigError, match="max_input_tokens"):
+        PolicyConfig(max_input_tokens=-1)
+
+
 def test_launch_config_rejects_relative_executable_and_unreviewed_environment() -> None:
     with pytest.raises(ConfigError, match="absolute"):
         MCPLaunchConfig(

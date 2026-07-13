@@ -21,6 +21,7 @@ from computer_use_agent.types import (
     DispatchCertainty,
     LedgerEventKind,
     MemoryContextItem,
+    ModelUsage,
     ModelTurn,
     ToolCall,
     ToolCallStatus,
@@ -36,6 +37,7 @@ def _config(
     max_model_turns: int = 4,
     max_tool_calls: int = 4,
     max_context_events: int = 128,
+    max_input_tokens: int = 1_000_000,
 ) -> AgentConfig:
     local_app_data = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
@@ -53,6 +55,7 @@ def _config(
             max_model_turns=max_model_turns,
             max_tool_calls=max_tool_calls,
             max_context_events=max_context_events,
+            max_input_tokens=max_input_tokens,
         ),
     )
 
@@ -257,6 +260,51 @@ def test_provider_identity_mismatch_fails_before_desktop_dispatch(
 
     assert desktop.tool_calls == []
     assert desktop.close_calls == 1
+
+
+def test_reported_input_token_budget_stops_before_next_provider_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    identity = CallIdentity("run_tokens", "turn_1", "call_1")
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    "run_tokens",
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (ToolCall(identity, "list_windows", {}),),
+                    ModelUsage(input_tokens=10, output_tokens=1),
+                ),
+                ModelTurn("run_tokens", "turn_2", "response_2", "done"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    identity,
+                    "list_windows",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="none",
+                )
+            ]
+        )
+    )
+
+    with pytest.raises(RunFailure, match="INPUT_TOKEN_BUDGET_EXHAUSTED") as raised:
+        asyncio.run(
+            _runner(
+                _config(tmp_path, monkeypatch, max_input_tokens=10), provider, desktop
+            ).run("Inspect", run_id="run_tokens")
+        )
+
+    assert raised.value.state.budgets.input_tokens_used == 10
+    assert len(provider.calls) == 1
+    assert [call.name for call in desktop.tool_calls] == ["list_windows"]
 
 
 def test_success_is_not_checkpointed_when_desktop_close_fails(

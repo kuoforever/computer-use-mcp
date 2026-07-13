@@ -124,6 +124,7 @@ def _run_dry(path: Path, task: str) -> int:
                     "tool_calls": budget.max_tool_calls,
                     "side_effects": budget.max_side_effects,
                     "context_events": config.policy.max_context_events,
+                    "input_tokens": budget.max_input_tokens,
                 },
             }
         )
@@ -192,6 +193,7 @@ async def _run_live_async(
                 "model_turns": outcome.state.budgets.model_turns_used,
                 "tool_calls": outcome.state.budgets.tool_calls_used,
                 "memories": len(memories),
+                "input_tokens": outcome.state.budgets.input_tokens_used,
             },
         }
     )

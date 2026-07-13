@@ -37,6 +37,9 @@ require_approval_for_actions = true
 max_model_turns = 12
 max_tool_calls = 32
 max_side_effects = 8
+# Cumulative provider-reported input-token cap. Reaching it stops before the
+# next provider request; max_request_bytes remains the pre-request wire bound.
+max_input_tokens = 1000000
 # Hard cap for the provider-facing reduced ledger. Required policy decisions,
 # the latest model continuation, and the latest observation remain atomic.
 max_context_events = 128
