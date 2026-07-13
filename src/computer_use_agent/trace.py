@@ -24,6 +24,69 @@ class TraceError(RuntimeError):
     """Fixed trace/checkpoint failure that never embeds persisted content."""
 
 
+@dataclass(frozen=True)
+class RecoveryDecision:
+    action: str
+    reason: str
+    resume_allowed: bool = False
+
+    def __post_init__(self) -> None:
+        if self.action not in {"resume_initial", "start_new_run", "human_reobserve", "none"}:
+            raise ValueError("unsupported recovery action")
+        if not isinstance(self.reason, str) or not self.reason:
+            raise ValueError("recovery reason must be non-empty")
+        if self.resume_allowed != (self.action == "resume_initial"):
+            raise ValueError("resume_allowed must match the recovery action")
+
+
+def classify_run_recovery(
+    checkpoint: Mapping[str, JSONValue], *, task_length: int, policy_version: str
+) -> RecoveryDecision:
+    """Classify an untrusted safe checkpoint without replaying external work."""
+    if not isinstance(checkpoint, Mapping):
+        raise ValueError("checkpoint must be a mapping")
+    if isinstance(task_length, bool) or not isinstance(task_length, int) or task_length <= 0:
+        raise ValueError("task_length must be a positive integer")
+    if not isinstance(policy_version, str) or not policy_version:
+        raise ValueError("policy_version must be non-empty")
+    try:
+        phase = RunPhase(checkpoint.get("phase"))
+    except ValueError:
+        return RecoveryDecision("none", "CHECKPOINT_INVALID")
+    if phase is RunPhase.SUCCESS:
+        return RecoveryDecision("none", "RUN_SUCCEEDED")
+    if phase is RunPhase.UNKNOWN_OUTCOME:
+        return RecoveryDecision("human_reobserve", "UNKNOWN_OUTCOME")
+    if phase in {RunPhase.FAILED, RunPhase.CANCELLED}:
+        return RecoveryDecision("start_new_run", "RUN_TERMINAL")
+    budgets = checkpoint.get("budgets")
+    initial = (
+        phase in {RunPhase.CREATED, RunPhase.OBSERVING}
+        and checkpoint.get("resume_allowed") is True
+        and checkpoint.get("event_count") == 1
+        and checkpoint.get("task_length") == task_length
+        and checkpoint.get("policy_version") == policy_version
+        and checkpoint.get("recovery_status") == "ready"
+        and checkpoint.get("observation_epoch") == 0
+        and checkpoint.get("verified_observation_epoch") is None
+        and isinstance(budgets, Mapping)
+        and all(
+            budgets.get(name) == 0
+            for name in (
+                "model_turns_used",
+                "tool_calls_used",
+                "side_effects_used",
+                "input_tokens_used",
+            )
+        )
+    )
+    if initial:
+        return RecoveryDecision("resume_initial", "INITIAL_CHECKPOINT", True)
+    if phase in {RunPhase.CREATED, RunPhase.OBSERVING}:
+        return RecoveryDecision("start_new_run", "CHECKPOINT_MISMATCH")
+    return RecoveryDecision("start_new_run", "PROVIDER_OR_TOOL_PROGRESS")
+
+
 class RunPhase(str, Enum):
     CREATED = "CREATED"
     OBSERVING = "OBSERVING"
@@ -290,27 +353,10 @@ class RunRecorder:
         """Attach to a crash-safe initial record without replaying external work."""
         record = read_run_record(self.state_dir, self.run_id)
         checkpoint = record["state"]
-        if (
-            checkpoint.get("phase") not in {RunPhase.CREATED.value, RunPhase.OBSERVING.value}
-            or checkpoint.get("resume_allowed") is not True
-            or checkpoint.get("event_count") != 1
-            or checkpoint.get("task_length") != len(state.task)
-            or checkpoint.get("policy_version") != state.policy_version
-            or checkpoint.get("recovery_status") != "ready"
-            or checkpoint.get("observation_epoch") != 0
-            or checkpoint.get("verified_observation_epoch") is not None
-        ):
-            raise TraceError("RUN_NOT_RESUMABLE")
-        budgets = checkpoint.get("budgets")
-        if not isinstance(budgets, dict) or any(
-            budgets.get(name) != 0
-            for name in (
-                "model_turns_used",
-                "tool_calls_used",
-                "side_effects_used",
-                "input_tokens_used",
-            )
-        ):
+        decision = classify_run_recovery(
+            checkpoint, task_length=len(state.task), policy_version=state.policy_version
+        )
+        if not decision.resume_allowed:
             raise TraceError("RUN_NOT_RESUMABLE")
         self.phase = RunPhase(checkpoint["phase"])
         self._event_count = 1
@@ -445,9 +491,11 @@ def read_run_checkpoint(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
 
 
 __all__ = [
+    "RecoveryDecision",
     "RunPhase",
     "RunRecorder",
     "cancel_run_record",
+    "classify_run_recovery",
     "TraceError",
     "read_run_checkpoint",
     "read_run_record",

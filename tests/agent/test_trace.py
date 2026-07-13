@@ -9,6 +9,7 @@ from computer_use_agent.trace import (
     RunPhase,
     RunRecorder,
     TraceError,
+    classify_run_recovery,
     cancel_run_record,
     read_run_record,
     validate_transition,
@@ -126,6 +127,46 @@ def test_initial_record_can_attach_but_progressed_record_cannot_resume(tmp_path:
     recorder.record(initial, RunPhase.PLANNING)
     with pytest.raises(TraceError, match="RUN_NOT_RESUMABLE"):
         RunRecorder(tmp_path.resolve(), initial.run_id).attach_initial(initial)
+
+
+@pytest.mark.parametrize(
+    ("phase", "action", "reason"),
+    [
+        ("PLANNING", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
+        ("WAITING_APPROVAL", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
+        ("EXECUTING", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
+        ("VERIFYING", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
+        ("FAILED", "start_new_run", "RUN_TERMINAL"),
+        ("CANCELLED", "start_new_run", "RUN_TERMINAL"),
+        ("UNKNOWN_OUTCOME", "human_reobserve", "UNKNOWN_OUTCOME"),
+        ("SUCCESS", "none", "RUN_SUCCEEDED"),
+    ],
+)
+def test_recovery_classification_fails_closed_after_progress(
+    phase: str, action: str, reason: str
+) -> None:
+    checkpoint = {
+        "phase": phase,
+        "resume_allowed": False,
+        "event_count": 2,
+        "task_length": 4,
+        "policy_version": "v1",
+        "recovery_status": "ready",
+        "observation_epoch": 0,
+        "verified_observation_epoch": None,
+        "budgets": {
+            "model_turns_used": 1,
+            "tool_calls_used": 0,
+            "side_effects_used": 0,
+            "input_tokens_used": 1,
+        },
+    }
+
+    decision = classify_run_recovery(checkpoint, task_length=4, policy_version="v1")
+
+    assert decision.action == action
+    assert decision.reason == reason
+    assert decision.resume_allowed is False
 
 
 def test_cancel_atomically_closes_nonterminal_record(tmp_path: Path) -> None:
