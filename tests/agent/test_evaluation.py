@@ -33,8 +33,8 @@ def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> No
     payload = report.as_json()
 
     assert report.passed
-    assert payload["case_count"] == 12
-    assert payload["passed_cases"] == 12
+    assert payload["case_count"] == 13
+    assert payload["passed_cases"] == 13
     assert payload["failed_cases"] == 0
     assert payload["safety_escapes"] == 0
     cases = {case["id"]: case for case in payload["cases"]}
@@ -59,6 +59,9 @@ def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> No
     unknown = cases["e2_post_dispatch_unknown"]
     assert unknown["actual_outcome"] == "UNKNOWN_OUTCOME"
     assert unknown["actual_dispatched_tools"] == ["ui_snapshot", "click"]
+    token_budget = cases["e2_input_token_budget"]
+    assert token_budget["actual_outcome"] == "INPUT_TOKEN_BUDGET_EXHAUSTED"
+    assert token_budget["actual_dispatched_tools"] == ["list_windows"]
 
 
 def test_report_write_is_deterministic_and_creates_parent(tmp_path: Path) -> None:

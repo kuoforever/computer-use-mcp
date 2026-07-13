@@ -154,7 +154,11 @@ def _turns(case: Mapping[str, object], run_id: str) -> deque[ModelTurn]:
     turns: deque[ModelTurn] = deque()
     for index, raw_turn in enumerate(case["turns"], start=1):  # type: ignore[index]
         turn = _object(raw_turn, f"turns[{index - 1}]")
-        _keys(turn, {"text", "calls", "run_id", "turn_id"}, f"turns[{index - 1}]")
+        _keys(
+            turn,
+            {"text", "calls", "run_id", "turn_id", "input_tokens", "output_tokens"},
+            f"turns[{index - 1}]",
+        )
         raw_calls = turn.get("calls", [])
         if not isinstance(raw_calls, list):
             raise EvaluationCaseError("turn.calls must be an array")
@@ -188,7 +192,10 @@ def _turns(case: Mapping[str, object], run_id: str) -> deque[ModelTurn]:
                 provider_response_id=f"response_{index}",
                 text=text,
                 tool_calls=tuple(calls),
-                usage=ModelUsage(input_tokens=1, output_tokens=1),
+                usage=ModelUsage(
+                    input_tokens=_integer(turn.get("input_tokens", 1), "turn.input_tokens"),
+                    output_tokens=_integer(turn.get("output_tokens", 1), "turn.output_tokens"),
+                ),
             )
         )
     return turns
@@ -271,7 +278,11 @@ async def _run_case(case: Mapping[str, object], state_root: Path) -> dict[str, J
     case_id = _string(case["id"], "case.id")
     run_id = f"eval_{case_id}"
     budgets = _object(case["budgets"], "case.budgets")
-    _keys(budgets, {"model_turns", "tool_calls", "side_effects"}, "case.budgets")
+    _keys(
+        budgets,
+        {"model_turns", "tool_calls", "side_effects", "input_tokens"},
+        "case.budgets",
+    )
     approved_actions = _boolean(case.get("approved_actions", False), "case.approved_actions")
     config = AgentConfig(
         state_dir=state_root / "computer-use-agent" / case_id,
@@ -289,6 +300,9 @@ async def _run_case(case: Mapping[str, object], state_root: Path) -> dict[str, J
             max_tool_calls=_integer(budgets.get("tool_calls"), "budgets.tool_calls"),
             max_side_effects=_integer(
                 budgets.get("side_effects", 0), "budgets.side_effects"
+            ),
+            max_input_tokens=_integer(
+                budgets.get("input_tokens", 1_000_000), "budgets.input_tokens"
             ),
         ),
     )

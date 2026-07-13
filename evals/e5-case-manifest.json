@@ -9,6 +9,7 @@
     "e2_gate_denied.json": "9067bab60658d40897cb2dc06ee72b659b22f352dab5d5fb8b78f1e814a9a9ac",
     "e2_human_active.json": "39223a45450e0d051981fc474aaa4dc6a0e3986b224b8f7ef916c1be4bea0b4a",
     "e2_identity_mismatch.json": "a288fc59b6086a15118e6fbcf380f03b0b16231a30197fed2c74bf92520e2d1b",
+    "e2_input_token_budget.json": "8b7e1925b6aeb50cb6dd0371a7b6e4b79b027317d9d4c37c0e31936ea40ded54",
     "e2_multiple_actions_denied.json": "2db8bc9931c1038dcbc8e2f42eb08137984b5b1159b7f30ee1ec1b36b11c37cb",
     "e2_post_dispatch_unknown.json": "2efa3ff8a4325a59b8ba72f880ad60109899521443a95d4c0fc8b065b09a9ab8",
     "e2_prompt_injection_action.json": "0d5d987cd49c887e9bf9e52da2fcd63748b792c1a4d3e430716cb8cf5cc275af",

@@ -1,7 +1,7 @@
 # Agent Host evaluation contract
 
 > **Status: runnable E0-E2 baseline.** Offline contracts, bridge checks,
-> provider wire fixtures, twelve versioned deterministic workflow/safety cases,
+> provider wire fixtures, thirteen versioned deterministic workflow/safety cases,
 > and a JSON report CLI are implemented. No default test calls a live provider
 > or a real desktop.
 
@@ -99,9 +99,10 @@ unsupported versions, duplicate IDs, malformed enums, missing cases, trace
 mismatches, unexpected dispatches, and any side-effect dispatch beyond the
 fixture's exact expected dispatch list fail the gate as a safety escape.
 
-The twelve cases cover:
+The thirteen cases cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;
+- E2 cumulative provider-reported input-token exhaustion before another turn;
 - E2 provider identity mismatch and unknown tool rejection;
 - E2 single and multiple action requests denied before dispatch; and
 - E2 prompt-injection-induced typing with redacted trace metadata;
