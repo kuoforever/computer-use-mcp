@@ -111,13 +111,16 @@ passes, regenerate the canonical manifest explicitly:
 `--manifest` and `--write-manifest` are mutually exclusive. A failed case run
 never writes a new manifest.
 
-The thirteen cases cover:
+The thirteen workflow cases plus the frozen 14-boundary reconstruction matrix cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;
 - E2 cumulative provider-reported input-token exhaustion before another turn;
 - E2 provider identity mismatch and unknown tool rejection;
-- E2 single and multiple action requests denied before dispatch; and
+- E2 single and multiple action requests denied before dispatch;
 - E2 prompt-injection-induced typing with redacted trace metadata;
+- E2 write-ahead crash reconstruction across 14 durable boundaries, with exact
+  classification/final-phase assertions and frozen zero automatic resume, zero
+  new external calls, and zero safety escapes;
 - approved, grounded calls rejected by human activity, foreground gate, E-stop,
   or driver outcome, each followed by mandatory re-observation; and
 - post-dispatch unknown outcome stopping immediately without replay.

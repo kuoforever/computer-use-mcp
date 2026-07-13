@@ -1,10 +1,11 @@
 # Persisted continuation and crash reconstruction design
 
-> **Status: storage foundation implemented; runtime resume not implemented.** The
-> strict bounded v1 envelope, private atomic reader/writer, expiry, digest, path
-> checks, and round-trip/corruption tests exist. No runner, provider, CLI, or
-> recovery-classification path consumes it, so it does not make any additional
-> run resumable or authorize replay of provider calls or desktop actions.
+> **Status: storage plus pure reconstruction classifier implemented; runtime
+> resume not implemented.** The strict bounded v1 envelope, private atomic
+> reader/writer, write-ahead operation state machine, conservative crash
+> classifier, and frozen E2 boundary matrix exist. No runner, provider, CLI, or
+> MCP path executes a reconstruction decision, so no additional run is resumable
+> and no provider call or desktop action can be replayed.
 
 ## Safety boundary
 
@@ -196,8 +197,11 @@ the original task again.
 
 1. **Implemented:** add persistence DTO schemas, bounded strict readers, atomic
    writer, expiry, and pure round-trip tests without enabling resume.
-2. Add operation IDs and write-ahead boundaries around provider and MCP ports;
-   keep all new classifications non-resumable while collecting E2 evidence.
+2. **Implemented (pure foundation):** add operation identities, enforce
+   `prepared -> dispatch_intent -> completed`, classify every crash boundary,
+   and freeze the 14-case E2 matrix. All decisions remain non-executable and
+   authorize zero external calls. Persisting these boundaries around live
+   provider and MCP ports remains part of the runtime integration step.
 3. Enable only the two read-only completed-boundary paths: completed provider
    response to one pending observation, and completed observation result to one
    new provider continuation.

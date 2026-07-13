@@ -13,6 +13,12 @@ from computer_use_agent.continuation import (
     read_continuation,
     write_continuation,
 )
+from computer_use_agent.reconstruction import (
+    OperationEffect,
+    OperationKind,
+    OperationResult,
+    OperationStage,
+)
 
 
 NOW = datetime(2030, 1, 1, tzinfo=UTC)
@@ -71,6 +77,11 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
     assert disk.endswith(b"\n")
     assert json.loads(disk)["payload_digest"] == written.payload["payload_digest"]
     assert path.stat().st_mode & 0o777 in {0o600, 0o666}  # Windows chmod is limited.
+    operation = read.operation_state
+    assert operation.kind is OperationKind.TOOL
+    assert operation.stage is OperationStage.COMPLETED
+    assert operation.effect is OperationEffect.OBSERVATION
+    assert operation.result is OperationResult.SUCCESS
 
 
 @pytest.mark.parametrize(
@@ -87,6 +98,12 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
         ),
         (
             lambda value: value["ledger"].append(value["ledger"][0]),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["boundary"].update(
+                stage="dispatch_intent", dispatch="not_dispatched"
+            ),
             "CONTINUATION_INVALID",
         ),
     ],
