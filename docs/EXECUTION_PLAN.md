@@ -19,6 +19,24 @@
 
 ## Next validation priorities
 
+### Agent Host remaining-work ledger
+
+The following items are intentionally unfinished. They must remain visible in
+release notes and cannot be inferred complete from offline CI:
+
+| Item | Current boundary | Completion evidence |
+| --- | --- | --- |
+| OpenAI and Claude E3 | Opt-in tests exist; no credentialed evidence is retained | Both providers pass the harmless fake-MCP cycle with reviewed model IDs |
+| Isolated E4 | Four-cell runbook exists; no isolated desktop evidence is recorded | Both providers pass read-only and one approved low-risk action with post-action observation |
+| E5 release regression | Not frozen | Reviewed successful and failure traces are rerun after policy/schema/adapter changes |
+| Release approval | Automated preflight passes locally; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, and human approval |
+| Broader resume | Only initial pre-provider checkpoints resume | Reviewed persisted continuation format; provider/tool calls are never replayed |
+| Token-aware context | Event-count reduction and exact request-byte gates only | Provider/model-aware token-window enforcement without splitting mandatory atomic groups |
+
+If E3 or E4 is waived, the artifact remains an experimental prerelease. Its
+release notes must say `E3 NOT RUN` and/or `E4 NOT RUN`; it must not be called a
+complete safety MVP or production-ready.
+
 ### 1. Validate real multi-process application gating
 
 Exercise an application with renderer/helper processes and confirm that its
