@@ -33,15 +33,15 @@ computer-use-mcp → Desktop Execution
 | Host Policy | 已实现 fake 验证基线 | 已有 read-only 默认、动作预算、current-generation grounding、digest/identity 绑定审批、串行动作、动作后强制观察和 unknown outcome 停止；`type` 仍禁用，隔离桌面 smoke 待完成。 |
 | OpenAI / Claude adapter | 已实现文本/截图观察竖切 | 两个 provider 均复用统一 Runner、Policy 和 registry，能以各自原生 image block 回传 bridge 校验后的单张 PNG；最终 SDK kwargs 执行可配置 UTF-8 JSON byte gate，覆盖 task、memory、tool result、图片和 Claude history，超限在网络前失败。已有 optional SDK、wire-format fixture、CLI 路由和显式门禁的 fake-MCP E3 用例。真实 E3 证据仍需操作者提供凭证执行。 |
 | observe → act → verify | 已实现 fake 验证基线 | Runner 已执行观察、审批、单动作、重新观察和最终回答；验证前禁止最终回答和下一动作，unknown outcome 不重放。隔离桌面 smoke 仍待完成。 |
-| State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、失败/取消/未知结果终态和保守恢复建议；为避免错误重放，当前 `resume_allowed=false`，尚无 resume/cancel 命令。 |
-| Context Manager | 已实现事件基线 | provider-only reducer 按事件预算保留最新 continuation、策略决定、最近观察和完整 call/result 组，空间不足时失败关闭；token-aware 压缩与语义 summary 尚未实现。 |
+| State persistence / recovery | 部分实现 | 已有合法 phase 转换校验、原子安全 checkpoint、显式 cancel 和仅限 provider/tool 调用前初始 checkpoint 的 crash-safe resume；调用后的 checkpoint 仍不可恢复，unknown outcome 不重放。 |
+| Context Manager | 已实现事件与累计 token 门禁基线 | provider-only reducer 按事件预算保留最新 continuation、策略决定、最近观察和完整 call/result 组，空间不足时失败关闭；已有最终请求字节门禁和累计 provider-reported input-token 截止，provider/model-aware 调用前 token-window 门禁与语义 summary 尚未实现。 |
 | SQLite Memory | 已实现显式管理与检索基线 | 已有 preference/verified procedure schema、用户确认、scope、expiry、active list、delete 和保守秘密/UI ref/图片拒绝；单次 run 可显式选择 exact scope，经重新校验与 8 条/8192 字符上限后作为非权威 JSON 数据发给 provider，默认不读取、不自动抽取。 |
 | Trace / Report | 已实现检查与聚合基线 | 已有 bounded redacted JSONL、严格 reader、任务/观察/截图/typed value 排除、`agent trace <run_id>` 和 checkpoint-only `agent report`；支持 phase/成功率/failure code、token、调用、provider/tool/run 延迟、失败、图片结果和零自动重试的总计与均值。因无版本化价格输入不估算成本。 |
-| Evaluation / CI | 已有可运行门禁 | `evals/cases` 含 12 个版本化 E1/E2 case，`agent eval` 对比精确语义 trace、工具下发列表和安全结果并要求 safety escape 为 0；已覆盖 human/gate/e-stop/driver action error、强制重新观察与 post-dispatch unknown outcome。Windows/Python 3.11-3.13 CI 运行 Ruff、全量离线测试、E1/E2、wheel 构建与干净安装。OpenAI/Claude E3 仍为显式门禁，隔离桌面 smoke 待完成。 |
+| Evaluation / CI | 已有可运行门禁 | `evals/cases` 含 13 个版本化 E1/E2 case，canonical SHA-256 manifest 在 CI 中冻结 case 集合与语义；`agent eval` 对比精确语义 trace、工具下发列表和安全结果并要求 safety escape 为 0，已覆盖 token budget、human/gate/e-stop/driver action error、强制重新观察与 post-dispatch unknown outcome。Windows/Python 3.11-3.13 CI 运行 Ruff、全量离线测试、E1/E2、wheel 构建与干净安装。OpenAI/Claude E3 仍为显式门禁，隔离桌面 smoke 待完成。 |
 
 当前可以对外描述为：双 provider 文本/截图观察竖切、显式 SQLite Memory 管理与单次检索、redacted
 Trace、离线 E1/E2、CI 和 fake-verified 本地审批动作编排已有可运行基线；隔离动作
-smoke、自动 resume、memory retrieval/injection、完整 Planner-Executor 和生产调度仍是目标设计。
+smoke、provider 调用后的完整 resume、token-aware 语义压缩、完整 Planner-Executor 和生产调度仍是目标设计。
 
 ## 当前开发约束与优先级
 

@@ -2,8 +2,8 @@
 
 > **Status: in progress.** The dual-provider text/screenshot workflow, explicit memory,
 > state/trace baseline, E1/E2 baseline, and fake-verified approved-action
-> orchestration and initial-checkpoint crash recovery are implemented. Isolated action smoke and broader resumable state
-> release review remain; offline CI is active.
+> orchestration and initial-checkpoint crash recovery are implemented. Isolated action smoke,
+> broader resumable state, and release review remain; offline CI is active.
 > This work does not weaken the MCP server's runtime safety guarantees.
 
 ## Implementation audit (2026-07-12)
@@ -23,8 +23,8 @@ desktop Agent. The status below is based on source inspection plus
 | Host policy | Implemented fake-verified action baseline | Read-only default, tool/side-effect budgets, current-generation grounding, digest/identity-bound local approval, serialized calls, re-observation, verification requirement, and unknown-outcome stop are implemented. `type` remains denied; isolated desktop validation remains. |
 | OpenAI / Claude providers | Implemented text/image/action-schema slice | Both adapters default to text and bounded screenshot observation tools, encode provider-native image continuations, and enforce configurable canonical-JSON request byte caps before SDK calls. They expose `activate_window`, `click`, and `key` only in approved mode; `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
 | Workflow and recovery | Partial | Observe/approve/act/reobserve/answer executes with phase checkpoints; final answer and repeated actions are blocked until verification. Explicit cancel and crash-safe initial resume are implemented; any checkpoint after a provider/tool call remains non-resumable, and unknown outcomes never replay. |
-| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete plus per-run exact-scope retrieval/injection and conservative rejection rules exist. Final outbound requests have deterministic UTF-8 JSON byte gates. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, strict cross-run reports, and `agent trace` also exist. Token-aware compression and reviewed resumable state remain. |
-| Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, twelve-case E1/E2 JSON reports, wheel build, and clean-install CLI smoke. E2 freezes human/gate/e-stop/driver action errors plus post-dispatch unknown outcome with zero safety escapes. Provider E3 remains explicit; isolated E4 remains. |
+| Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete plus per-run exact-scope retrieval/injection and conservative rejection rules exist. Final outbound requests have deterministic UTF-8 JSON byte gates, and policy can stop before another provider call after cumulative reported input tokens reach a configured cap. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, strict cross-run reports, and `agent trace` also exist. Provider/model-aware pre-request token-window enforcement, semantic compression, and broader resumable state remain. |
+| Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, thirteen-case E1/E2 JSON reports, canonical case-manifest verification, wheel build, and clean-install CLI smoke. E2 freezes token-budget exhaustion, human/gate/e-stop/driver action errors, and post-dispatch unknown outcome with zero safety escapes. Provider E3 remains explicit; isolated E4/E5 evidence remains. |
 
 The dual-provider observation slice is runnable but experimental. Documentation
 must distinguish it from the complete safety MVP until both providers,
