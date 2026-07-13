@@ -82,6 +82,16 @@ Inspect one record without starting a provider or MCP child:
 The command emits the validated checkpoint, aggregate metrics, and events as JSON. It does not
 repair, mutate, resume, or delete the record.
 
+Classify recovery without starting external ports or mutating the record:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe recovery <run_id> --config agent.toml
+~~~
+
+The output contains only run ID, phase, fixed action/reason, resume eligibility,
+and task length. An initial `resume_initial` classification remains conditional
+on supplying the original task to the separate `resume` command.
+
 Aggregate all local checkpoints without opening JSONL traces:
 
 ~~~powershell

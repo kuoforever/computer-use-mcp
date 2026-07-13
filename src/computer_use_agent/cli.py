@@ -63,6 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
     cancel.add_argument("run_id")
     cancel.add_argument("--config", required=True, type=Path)
 
+    recovery = commands.add_parser("recovery", help="Classify one persisted run safely.")
+    recovery.add_argument("run_id")
+    recovery.add_argument("--config", required=True, type=Path)
+
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
     remember_add = remember_commands.add_parser("add", help="Add one confirmed memory.")
@@ -268,6 +272,30 @@ def _show_report(path: Path) -> int:
     return 0
 
 
+def _show_recovery(path: Path, run_id: str) -> int:
+    from .trace import classify_run_recovery, read_run_record
+
+    config = load_agent_config(path)
+    checkpoint = read_run_record(config.state_dir, run_id)["state"]
+    task_length = checkpoint.get("task_length")
+    if isinstance(task_length, bool) or not isinstance(task_length, int) or task_length <= 0:
+        raise ValueError("CHECKPOINT_TASK_LENGTH_INVALID")
+    decision = classify_run_recovery(
+        checkpoint, task_length=task_length, policy_version=config.policy_version
+    )
+    _print_json(
+        {
+            "run_id": run_id,
+            "phase": checkpoint.get("phase"),
+            "action": decision.action,
+            "reason": decision.reason,
+            "resume_allowed": decision.resume_allowed,
+            "task_length": task_length,
+        }
+    )
+    return 0
+
+
 def _remember(args: argparse.Namespace) -> int:
     from .memory import MemoryKind, MemoryStore
 
@@ -317,6 +345,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _show_trace(args.config, args.run_id)
         if args.command == "report":
             return _show_report(args.config)
+        if args.command == "recovery":
+            return _show_recovery(args.config, args.run_id)
         if args.command == "resume":
             return _resume_live(args.config, args.run_id, args.task)
         if args.command == "cancel":
