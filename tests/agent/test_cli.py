@@ -43,6 +43,7 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["report", "--help"],
         ["resume", "--help"],
         ["cancel", "--help"],
+        ["recovery", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -212,6 +213,53 @@ def test_trace_cli_reads_only_redacted_record(
     assert output["state"]["phase"] == "CREATED"
     assert output["state"]["recovery_action"] == "inspect_trace_then_start_new_run"
     assert "CLI_TASK_SECRET" not in raw
+
+
+def test_recovery_cli_classifies_without_mutating_or_disclosing_task(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.trace import RunRecorder
+    from computer_use_agent.types import LedgerEvent, LedgerEventKind, RunBudget, RunState
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    task = "RECOVERY_TASK_SECRET"
+    state = RunState(
+        run_id="run_cli_recovery",
+        task=task,
+        policy_version="phase2",
+        observation_epoch=0,
+        budgets=RunBudget(1, 1, 0),
+        event_log=(
+            LedgerEvent(
+                "run_cli_recovery:event:1",
+                LedgerEventKind.USER_TASK,
+                {"task_length": len(task)},
+            ),
+        ),
+    )
+    recorder = RunRecorder(state_dir.resolve(), state.run_id)
+    recorder.start(state)
+    before = recorder.checkpoint_path.read_bytes()
+
+    assert main(["recovery", state.run_id, "--config", str(config_path)]) == 0
+
+    raw = capsys.readouterr().out
+    output = json.loads(raw)
+    assert output == {
+        "action": "resume_initial",
+        "phase": "CREATED",
+        "reason": "INITIAL_CHECKPOINT",
+        "resume_allowed": True,
+        "run_id": state.run_id,
+        "task_length": len(task),
+    }
+    assert task not in raw
+    assert recorder.checkpoint_path.read_bytes() == before
 
 
 def test_report_cli_is_read_only_for_empty_state(
