@@ -10,19 +10,21 @@ import json
 import os
 import stat
 import tempfile
+from base64 import b64encode
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Mapping
 
 from .reconstruction import (
     OperationEffect,
     OperationKind,
+    OperationRecord,
     OperationResult,
     OperationStage,
     OperationState,
 )
-from .types import JSONValue, to_json_value
+from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
 CONTINUATION_VERSION = 1
@@ -267,7 +269,7 @@ class ContinuationEnvelope:
                 raise ContinuationError("CONTINUATION_INVALID")
             event_ids.add(event_id)
             _validate_json(item["data"])
-            if item["kind"] == "tool_call" and _contains_raw_type_text(item["data"]):
+            if _contains_raw_type_text(item["data"]):
                 raise ContinuationError("CONTINUATION_SENSITIVE_FIELD")
 
         boundary = _object(
@@ -343,10 +345,16 @@ class ContinuationEnvelope:
 
 
 def _contains_raw_type_text(data: object) -> bool:
-    if not isinstance(data, Mapping) or data.get("tool_name") != "type":
+    if not isinstance(data, Mapping):
         return False
-    arguments = data.get("arguments")
-    return isinstance(arguments, Mapping) and "text" in arguments
+    if data.get("tool_name") == "type":
+        arguments = data.get("arguments")
+        if isinstance(arguments, Mapping) and "text" in arguments:
+            return True
+    tool_calls = data.get("tool_calls")
+    return isinstance(tool_calls, list) and any(
+        _contains_raw_type_text(call) for call in tool_calls
+    )
 
 
 def continuation_path(state_dir: Path, run_id: str) -> Path:
@@ -419,12 +427,336 @@ def read_continuation(
     return ContinuationEnvelope.from_payload(payload, expected_run_id=run_id, now=now)
 
 
+def delete_continuation(state_dir: Path, run_id: str) -> None:
+    """Delete a terminal run's private continuation without following links."""
+
+    path = continuation_path(state_dir, run_id)
+    if _is_unsafe_path(state_dir / "runs") or _is_unsafe_path(path.parent) or _is_unsafe_path(path):
+        raise ContinuationError("CONTINUATION_UNSAFE_PATH")
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise ContinuationError("CONTINUATION_DELETE_FAILED") from exc
+
+
+class RuntimeContinuationRecorder:
+    """Build and persist sensitive write-ahead envelopes for one live run."""
+
+    def __init__(
+        self,
+        *,
+        state_dir: Path,
+        state: RunState,
+        provider_name: str,
+        provider_model: str,
+        registry_digest: str,
+        ttl_seconds: int,
+        mcp_generation: int,
+    ) -> None:
+        if provider_name not in {"openai", "anthropic"}:
+            raise ValueError("provider_name must be openai or anthropic")
+        if (
+            isinstance(ttl_seconds, bool)
+            or not isinstance(ttl_seconds, int)
+            or not 60 <= ttl_seconds <= 86_400
+        ):
+            raise ValueError("ttl_seconds must be between 60 and 86400")
+        self.state_dir = state_dir
+        self.run_id = state.run_id
+        self.task = state.task
+        self.policy_version = state.policy_version
+        self.provider_name = provider_name
+        self.provider_model = provider_model
+        self.registry_digest = _digest(registry_digest, "CONTINUATION_INVALID")
+        self.mcp_generation = _uint(mcp_generation, "CONTINUATION_INVALID")
+        self.ttl_seconds = ttl_seconds
+        self.created_at = datetime.now(UTC)
+        self.expires_at = self.created_at + timedelta(seconds=ttl_seconds)
+        self.ledger: list[dict[str, JSONValue]] = [
+            {
+                "kind": "user_task",
+                "event_id": f"{state.run_id}:recovery:1",
+                "data": {"task": state.task},
+            }
+        ]
+        self.response_id: str | None = None
+        self._current: OperationState | None = None
+
+    def _event(self, kind: str, data: Mapping[str, object]) -> None:
+        self.ledger.append(
+            {
+                "kind": kind,
+                "event_id": f"{self.run_id}:recovery:{len(self.ledger) + 1}",
+                "data": to_json_value(data),
+            }
+        )
+
+    @staticmethod
+    def _identity(call: ToolCall | ToolResult) -> dict[str, str]:
+        return {
+            "run_id": call.identity.run_id,
+            "turn_id": call.identity.turn_id,
+            "call_id": call.identity.call_id,
+        }
+
+    def _provider_state(self) -> dict[str, JSONValue]:
+        if self.provider_name == "openai":
+            return {"response_id": self.response_id}
+        return {"messages": to_json_value(self.ledger)}
+
+    def _payload(
+        self,
+        state: RunState,
+        *,
+        checkpoint_sequence: int,
+        operation: OperationState,
+        pending_effect: ToolEffect | None,
+    ) -> dict[str, object]:
+        budget = state.budgets
+        if operation.stage is OperationStage.PREPARED:
+            dispatch = "not_dispatched"
+        elif operation.stage is OperationStage.DISPATCH_INTENT:
+            dispatch = "unknown"
+        elif operation.result is OperationResult.UNKNOWN_OUTCOME:
+            dispatch = "unknown"
+        else:
+            dispatch = "dispatched"
+        effect = operation.effect.value if operation.effect is not None else None
+        if operation.kind is OperationKind.PROVIDER and pending_effect is not None:
+            effect = pending_effect.value
+        if operation.stage is not OperationStage.COMPLETED:
+            next_step = "stop"
+        elif operation.kind is OperationKind.PROVIDER:
+            next_step = "dispatch_observation" if effect == "observation" else "stop"
+        elif operation.result is OperationResult.UNKNOWN_OUTCOME:
+            next_step = "stop"
+        elif effect == "observation":
+            next_step = "provider_continue"
+        else:
+            next_step = "mandatory_reobserve"
+        return {
+            "continuation_version": CONTINUATION_VERSION,
+            "run_id": state.run_id,
+            "checkpoint_sequence": checkpoint_sequence,
+            "policy_version": state.policy_version,
+            "provider": {"name": self.provider_name, "model": self.provider_model},
+            "registry_digest": self.registry_digest,
+            "task": state.task,
+            "budget": {
+                "max_model_turns": budget.max_model_turns,
+                "max_tool_calls": budget.max_tool_calls,
+                "max_side_effects": budget.max_side_effects,
+                "max_input_tokens": budget.max_input_tokens,
+                "model_turns_used": budget.model_turns_used,
+                "tool_calls_used": budget.tool_calls_used,
+                "side_effects_used": budget.side_effects_used,
+                "input_tokens_used": budget.input_tokens_used,
+            },
+            "observation": {
+                "epoch": state.observation_epoch,
+                "verified_epoch": state.verified_observation_epoch,
+                "mcp_generation": self.mcp_generation,
+            },
+            "ledger": self.ledger,
+            "boundary": {
+                "operation_kind": operation.kind.value,
+                "stage": operation.stage.value,
+                "operation_id": operation.operation_id,
+                "effect": effect,
+                "dispatch": dispatch,
+                "next_step": next_step,
+            },
+            "provider_state": self._provider_state(),
+            "created_at": self.created_at.isoformat(),
+            "expires_at": self.expires_at.isoformat(),
+        }
+
+    def _write(
+        self,
+        state: RunState,
+        *,
+        checkpoint_sequence: int,
+        pending_effect: ToolEffect | None = None,
+    ) -> ContinuationEnvelope:
+        if state.run_id != self.run_id or state.task != self.task:
+            raise ContinuationError("CONTINUATION_IDENTITY_MISMATCH")
+        if self._current is None:
+            raise ContinuationError("CONTINUATION_INVALID")
+        self.expires_at = datetime.now(UTC) + timedelta(seconds=self.ttl_seconds)
+        return write_continuation(
+            self.state_dir,
+            self._payload(
+                state,
+                checkpoint_sequence=checkpoint_sequence,
+                operation=self._current,
+                pending_effect=pending_effect,
+            ),
+        )
+
+    def prepare_provider(
+        self, state: RunState, turn_id: str, *, checkpoint_sequence: int
+    ) -> ContinuationEnvelope:
+        operation_id = f"{state.run_id}:{turn_id}:provider"
+        self._current = OperationState.prepare(operation_id, OperationKind.PROVIDER)
+        return self._write(state, checkpoint_sequence=checkpoint_sequence)
+
+    def dispatch_provider(
+        self, state: RunState, *, checkpoint_sequence: int
+    ) -> ContinuationEnvelope:
+        if self._current is None:
+            raise ContinuationError("CONTINUATION_INVALID")
+        self._current = self._current.apply(
+            OperationRecord(
+                self._current.operation_id,
+                OperationKind.PROVIDER,
+                OperationStage.DISPATCH_INTENT,
+            )
+        )
+        return self._write(state, checkpoint_sequence=checkpoint_sequence)
+
+    def complete_provider(
+        self, state: RunState, turn: ModelTurn, *, checkpoint_sequence: int
+    ) -> ContinuationEnvelope:
+        if self._current is None:
+            raise ContinuationError("CONTINUATION_INVALID")
+        self._current = self._current.apply(
+            OperationRecord(
+                self._current.operation_id,
+                OperationKind.PROVIDER,
+                OperationStage.COMPLETED,
+                result=OperationResult.SUCCESS,
+            )
+        )
+        self.response_id = turn.provider_response_id
+        self._event(
+            "model_turn",
+            {
+                "run_id": turn.run_id,
+                "turn_id": turn.turn_id,
+                "provider_response_id": turn.provider_response_id,
+                "text": turn.text,
+                "usage": {
+                    "input_tokens": turn.usage.input_tokens,
+                    "output_tokens": turn.usage.output_tokens,
+                },
+                "tool_calls": [
+                    {
+                        "identity": self._identity(call),
+                        "tool_name": call.name,
+                        "arguments": to_json_value(call.arguments),
+                        "call_digest": call.digest,
+                    }
+                    for call in turn.tool_calls
+                ],
+            },
+        )
+        effects = [getattr(call, "name", "") for call in turn.tool_calls]
+        pending = None
+        if effects:
+            from .tool_registry import get_tool_spec
+
+            pending = (
+                ToolEffect.OBSERVATION
+                if all(get_tool_spec(name).effect is ToolEffect.OBSERVATION for name in effects)
+                else ToolEffect.SIDE_EFFECT
+            )
+        return self._write(
+            state, checkpoint_sequence=checkpoint_sequence, pending_effect=pending
+        )
+
+    def prepare_tool(
+        self,
+        state: RunState,
+        call: ToolCall,
+        *,
+        effect: ToolEffect,
+        checkpoint_sequence: int,
+    ) -> ContinuationEnvelope:
+        self._current = OperationState.prepare(
+            f"{call.identity.run_id}:{call.identity.turn_id}:{call.identity.call_id}",
+            OperationKind.TOOL,
+            effect=OperationEffect(effect.value),
+        )
+        self._event(
+            "tool_call",
+            {
+                "identity": self._identity(call),
+                "tool_name": call.name,
+                "arguments": to_json_value(call.arguments),
+                "call_digest": call.digest,
+                "effect": effect.value,
+            },
+        )
+        return self._write(state, checkpoint_sequence=checkpoint_sequence)
+
+    def dispatch_tool(
+        self, state: RunState, *, checkpoint_sequence: int
+    ) -> ContinuationEnvelope:
+        if self._current is None or self._current.kind is not OperationKind.TOOL:
+            raise ContinuationError("CONTINUATION_INVALID")
+        self._current = self._current.apply(
+            OperationRecord(
+                self._current.operation_id,
+                OperationKind.TOOL,
+                OperationStage.DISPATCH_INTENT,
+                self._current.effect,
+            )
+        )
+        return self._write(state, checkpoint_sequence=checkpoint_sequence)
+
+    def complete_tool(
+        self, state: RunState, result: ToolResult, *, checkpoint_sequence: int
+    ) -> ContinuationEnvelope:
+        if self._current is None or self._current.kind is not OperationKind.TOOL:
+            raise ContinuationError("CONTINUATION_INVALID")
+        outcome = (
+            OperationResult.UNKNOWN_OUTCOME
+            if result.status.value == "unknown_outcome"
+            else OperationResult.SUCCESS if result.ok else OperationResult.ERROR
+        )
+        self._current = self._current.apply(
+            OperationRecord(
+                self._current.operation_id,
+                OperationKind.TOOL,
+                OperationStage.COMPLETED,
+                self._current.effect,
+                outcome,
+            )
+        )
+        self._event(
+            "tool_result",
+            {
+                "identity": self._identity(result),
+                "tool_name": result.tool_name,
+                "status": result.status.value,
+                "dispatch": result.dispatch.value,
+                "code": result.code,
+                "sanitized_text": result.sanitized_text,
+                "images": [
+                    {
+                        "mime_type": image.mime_type,
+                        "data": b64encode(image.data).decode("ascii"),
+                        "width": image.width,
+                        "height": image.height,
+                    }
+                    for image in result.images
+                ],
+            },
+        )
+        return self._write(state, checkpoint_sequence=checkpoint_sequence)
+
+    def close(self) -> None:
+        delete_continuation(self.state_dir, self.run_id)
+
+
 __all__ = [
     "CONTINUATION_VERSION",
     "MAX_CONTINUATION_BYTES",
     "ContinuationEnvelope",
     "ContinuationError",
+    "RuntimeContinuationRecorder",
     "continuation_path",
+    "delete_continuation",
     "read_continuation",
     "write_continuation",
 ]

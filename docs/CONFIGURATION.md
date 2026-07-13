@@ -86,6 +86,13 @@ Inspect it with a text editor or a JSON-aware log viewer.
 Hold the configured e-stop hotkey to abort future actions. The e-stop is
 latched; restart the MCP server to clear it.
 
+Experimental write-ahead continuation persistence is disabled by default. To
+collect private crash boundaries, configure `[continuation] enabled = true` and
+`ttl_seconds` between 60 and 86400. The resulting `continuation.json` can contain
+the exact task, assistant text, UI results, and PNG screenshots. It is written
+with user-only permissions, removed on normal terminal completion, excluded from
+`agent trace` and `agent report`, and never authorizes automatic resume or replay.
+
 ## VMware helper
 
 `scripts/vmware_worker.py` is an **experimental host-side helper**. It can

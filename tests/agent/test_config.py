@@ -6,6 +6,7 @@ import pytest
 
 from computer_use_agent.config import (
     APPROVED_ACTIONS_MODE,
+    ContinuationConfig,
     READ_ONLY_MODE,
     ConfigError,
     MCPLaunchConfig,
@@ -77,6 +78,24 @@ def test_provider_request_budget_defaults_and_is_bounded(
     for value in (1, 49 * 1024 * 1024, True):
         with pytest.raises(ConfigError, match="max_request_bytes"):
             ProviderConfig("openai", "test-model", value)
+
+
+def test_continuation_persistence_is_explicit_opt_in_and_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path)
+        + "\n[continuation]\nenabled = true\nttl_seconds = 600\n",
+        encoding="utf-8",
+    )
+
+    config = load_agent_config(path)
+
+    assert config.continuation == ContinuationConfig(enabled=True, ttl_seconds=600)
+    with pytest.raises(ConfigError, match="ttl_seconds"):
+        ContinuationConfig(enabled=True, ttl_seconds=59)
 
 
 @pytest.mark.parametrize(

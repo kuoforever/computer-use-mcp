@@ -30,7 +30,7 @@ release notes and cannot be inferred complete from offline CI:
 | Isolated E4 | Four-cell runbook exists; no isolated desktop evidence is recorded | Both providers pass read-only and one approved low-risk action with post-action observation |
 | E5 release regression | Canonical E1/E2 case manifest is frozen and enforced in CI; isolated evidence is pending | Reviewed isolated successful and failure traces are rerun after policy/schema/adapter changes |
 | Release approval | Automated preflight passes locally; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, and human approval |
-| Broader resume | Strict private continuation storage, a pure write-ahead operation state machine, conservative reconstruction classification, and a frozen 14-case E2 matrix exist; only initial pre-provider checkpoints resume and no runtime path executes reconstruction decisions | Persist write-ahead boundaries around provider/MCP ports, then enable reviewed completed read-only paths without replaying provider/tool calls |
+| Broader resume | Strict private continuation storage, opt-in runtime provider/MCP write-ahead boundaries, conservative reconstruction classification, and a frozen 14-case E2 matrix exist; only initial pre-provider checkpoints resume and no runtime path executes reconstruction decisions | Enable the two reviewed completed read-only paths without replaying provider/tool calls |
 | Token-aware context | Event-count reduction, exact request-byte gates, and cumulative provider-reported input-token cutoff | Provider/model-aware pre-request token-window enforcement without splitting mandatory atomic groups |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its

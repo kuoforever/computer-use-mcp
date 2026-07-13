@@ -8,6 +8,7 @@ from time import perf_counter_ns
 from uuid import uuid4
 
 from .config import AgentConfig
+from .continuation import RuntimeContinuationRecorder
 from .context import ContextBudgetError, reduce_ledger
 from .grounding import GroundingError, GroundingState
 from .policy import HostPolicy, PolicyDisposition
@@ -19,6 +20,7 @@ from .tool_registry import (
     validate_tool_arguments,
     validate_tool_result,
     verify_discovered_tools,
+    reviewed_registry_digest,
 )
 from .trace import RunPhase, RunRecorder, TraceError
 from .types import (
@@ -309,6 +311,7 @@ class AgentRunner:
         run_started_ns = perf_counter_ns()
         recorder_started = False
         desktop_closed = False
+        continuation: RuntimeContinuationRecorder | None = None
         try:
             if resume_initial:
                 recorder.attach_initial(state)
@@ -318,6 +321,16 @@ class AgentRunner:
             recorder.record(state, RunPhase.OBSERVING)
             discovered = await self.ports.desktop.discover_tools()
             verify_discovered_tools(discovered)
+            if self.config.continuation.enabled:
+                continuation = RuntimeContinuationRecorder(
+                    state_dir=self.config.state_dir,
+                    state=state,
+                    provider_name=self.config.provider.name,
+                    provider_model=self.config.provider.model,
+                    registry_digest=reviewed_registry_digest(),
+                    ttl_seconds=self.config.continuation.ttl_seconds,
+                    mcp_generation=self.ports.desktop.generation,
+                )
             recorder.record(state, RunPhase.PLANNING)
             turn_index = 0
             while True:
@@ -336,6 +349,19 @@ class AgentRunner:
                 except ContextBudgetError as exc:
                     raise RunFailure(str(exc), state) from exc
                 provider_started_ns = perf_counter_ns()
+                if continuation is not None:
+                    recorder.record(
+                        state, recorder.phase, advance_checkpoint_sequence=True
+                    )
+                    continuation.prepare_provider(
+                        state, turn_id, checkpoint_sequence=recorder.checkpoint_sequence
+                    )
+                    recorder.record(
+                        state, recorder.phase, advance_checkpoint_sequence=True
+                    )
+                    continuation.dispatch_provider(
+                        state, checkpoint_sequence=recorder.checkpoint_sequence
+                    )
                 turn = await self.ports.provider.create_turn(
                     run_id=state.run_id,
                     turn_id=turn_id,
@@ -351,6 +377,13 @@ class AgentRunner:
                     turn,
                     latency_ms=max(0, (perf_counter_ns() - provider_started_ns) // 1_000_000),
                 )
+                if continuation is not None:
+                    recorder.record(
+                        state, recorder.phase, advance_checkpoint_sequence=True
+                    )
+                    continuation.complete_provider(
+                        state, turn, checkpoint_sequence=recorder.checkpoint_sequence
+                    )
                 recorder.record(state, RunPhase.PLANNING)
                 if not turn.tool_calls:
                     if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
@@ -464,6 +497,22 @@ class AgentRunner:
                     recorder.record(state, RunPhase.EXECUTING)
                     authorized_call = replace(call, status=ToolCallStatus.AUTHORIZED)
                     tool_started_ns = perf_counter_ns()
+                    if continuation is not None:
+                        recorder.record(
+                            state, recorder.phase, advance_checkpoint_sequence=True
+                        )
+                        continuation.prepare_tool(
+                            state,
+                            authorized_call,
+                            effect=spec.effect,
+                            checkpoint_sequence=recorder.checkpoint_sequence,
+                        )
+                        recorder.record(
+                            state, recorder.phase, advance_checkpoint_sequence=True
+                        )
+                        continuation.dispatch_tool(
+                            state, checkpoint_sequence=recorder.checkpoint_sequence
+                        )
                     result = await self.ports.desktop.call_tool(authorized_call)
                     validate_tool_result(authorized_call, result)
                     state = self._record_result(
@@ -474,6 +523,13 @@ class AgentRunner:
                             0, (perf_counter_ns() - tool_started_ns) // 1_000_000
                         ),
                     )
+                    if continuation is not None:
+                        recorder.record(
+                            state, recorder.phase, advance_checkpoint_sequence=True
+                        )
+                        continuation.complete_tool(
+                            state, result, checkpoint_sequence=recorder.checkpoint_sequence
+                        )
                     if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
                         raise RunFailure("UNKNOWN_OUTCOME", state)
                     if spec.effect is ToolEffect.OBSERVATION and result.ok:
@@ -527,6 +583,12 @@ class AgentRunner:
         finally:
             had_active_error = sys.exc_info()[0] is not None
             prepared.close()
+            if continuation is not None:
+                try:
+                    continuation.close()
+                except Exception:
+                    if not had_active_error:
+                        raise
             if not desktop_closed:
                 try:
                     await self.ports.desktop.close()

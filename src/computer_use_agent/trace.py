@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Mapping
 
+from .continuation import delete_continuation
 from .types import JSONValue, LedgerEvent, LedgerEventKind, RunState, to_json_value
 
 
@@ -197,6 +198,7 @@ def _checkpoint(
     state: RunState,
     phase: RunPhase,
     *,
+    checkpoint_sequence: int,
     failure_code: str | None = None,
     final_text_length: int | None = None,
     run_duration_ms: int | None = None,
@@ -204,6 +206,7 @@ def _checkpoint(
     budget = state.budgets
     payload: dict[str, JSONValue] = {
         "checkpoint_version": CHECKPOINT_VERSION,
+        "checkpoint_sequence": checkpoint_sequence,
         "run_id": state.run_id,
         "phase": phase.value,
         "policy_version": state.policy_version,
@@ -325,6 +328,7 @@ class RunRecorder:
     run_id: str
     phase: RunPhase = RunPhase.CREATED
     _event_count: int = 0
+    _checkpoint_sequence: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.state_dir, Path) or not self.state_dir.is_absolute():
@@ -344,6 +348,10 @@ class RunRecorder:
     def trace_path(self) -> Path:
         return self.state_dir / "traces" / f"{self.run_id}.jsonl"
 
+    @property
+    def checkpoint_sequence(self) -> int:
+        return self._checkpoint_sequence
+
     def start(self, state: RunState) -> None:
         if self.checkpoint_path.exists() or self.trace_path.exists():
             raise TraceError("RUN_RECORD_ALREADY_EXISTS")
@@ -360,11 +368,16 @@ class RunRecorder:
             raise TraceError("RUN_NOT_RESUMABLE")
         self.phase = RunPhase(checkpoint["phase"])
         self._event_count = 1
+        sequence = checkpoint.get("checkpoint_sequence", 1)
+        if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
+            raise TraceError("CHECKPOINT_READ_FAILED")
+        self._checkpoint_sequence = sequence
     def record(
         self,
         state: RunState,
         phase: RunPhase,
         *,
+        advance_checkpoint_sequence: bool = False,
         failure_code: str | None = None,
         final_text_length: int | None = None,
         run_duration_ms: int | None = None,
@@ -395,17 +408,22 @@ class RunRecorder:
                 os.fsync(file.fileno())
         except OSError as exc:
             raise TraceError("TRACE_WRITE_FAILED") from exc
+        next_sequence = self._checkpoint_sequence
+        if next_sequence == 0 or advance_checkpoint_sequence:
+            next_sequence += 1
         _atomic_json(
             self.checkpoint_path,
             _checkpoint(
                 state,
                 phase,
+                checkpoint_sequence=next_sequence,
                 failure_code=failure_code,
                 final_text_length=final_text_length,
                 run_duration_ms=run_duration_ms,
             ),
         )
         self._event_count = len(state.event_log)
+        self._checkpoint_sequence = next_sequence
         self.phase = phase
 
 
@@ -419,14 +437,19 @@ def cancel_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     if phase in TERMINAL_PHASES:
         raise TraceError("RUN_ALREADY_TERMINAL")
     validate_transition(phase, RunPhase.CANCELLED)
+    sequence = checkpoint.get("checkpoint_sequence", 0)
+    if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
+        raise TraceError("CHECKPOINT_READ_FAILED")
     updated = dict(checkpoint)
     updated.update(
         phase=RunPhase.CANCELLED.value,
+        checkpoint_sequence=sequence + 1,
         failure_code="CANCELLED_BY_OPERATOR",
         resume_allowed=False,
         recovery_action="none",
         updated_at=_now(),
     )
+    delete_continuation(state_dir, run_id)
     _atomic_json(RunRecorder(state_dir, run_id).checkpoint_path, updated)
     return to_json_value(updated)
 

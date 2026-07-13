@@ -43,3 +43,10 @@ max_input_tokens = 1000000
 # Hard cap for the provider-facing reduced ledger. Required policy decisions,
 # the latest model continuation, and the latest observation remain atomic.
 max_context_events = 128
+
+[continuation]
+# Experimental, sensitive crash reconstruction data. Disabled by default. When
+# enabled, continuation.json can contain the task, assistant text, UI results,
+# and PNG screenshots. It is private, short-lived, and never auto-resumed.
+enabled = false
+ttl_seconds = 900

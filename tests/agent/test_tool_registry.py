@@ -13,6 +13,7 @@ from computer_use_agent.tool_registry import (
     ToolValidationError,
     get_tool_spec,
     reviewed_mcp_descriptors,
+    reviewed_registry_digest,
     reviewed_tool_schemas,
     validate_tool_arguments,
     validate_tool_result,
@@ -66,6 +67,10 @@ def test_registry_contains_the_exact_eight_reviewed_mcp_tools() -> None:
     assert len(REVIEWED_TOOLS) == 8
     assert all(tool.input_schema["additionalProperties"] is False for tool in REVIEWED_TOOLS)
     assert get_tool_spec("screenshot").result_sensitivity is ResultSensitivity.SENSITIVE
+    assert (
+        reviewed_registry_digest()
+        == "d8155c8e04bb4f21553b54134ad9b2ee63bcb5c9a83e921dc3aed2fdf80d728b"
+    )
 
 
 def test_every_side_effect_requires_approval_and_invalidates_observation() -> None:
