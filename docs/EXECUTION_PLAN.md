@@ -31,7 +31,7 @@ release notes and cannot be inferred complete from offline CI:
 | E5 release regression | Not frozen | Reviewed successful and failure traces are rerun after policy/schema/adapter changes |
 | Release approval | Automated preflight passes locally; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, and human approval |
 | Broader resume | Only initial pre-provider checkpoints resume | Reviewed persisted continuation format; provider/tool calls are never replayed |
-| Token-aware context | Event-count reduction and exact request-byte gates only | Provider/model-aware token-window enforcement without splitting mandatory atomic groups |
+| Token-aware context | Event-count reduction, exact request-byte gates, and cumulative provider-reported input-token cutoff | Provider/model-aware pre-request token-window enforcement without splitting mandatory atomic groups |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its
 release notes must say `E3 NOT RUN` and/or `E4 NOT RUN`; it must not be called a

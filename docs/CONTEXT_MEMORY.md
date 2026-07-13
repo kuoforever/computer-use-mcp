@@ -47,6 +47,15 @@ the local request and cannot be measured by this check. No automatic summary is
 generated because it could discard atomic call/result, approval, or recovery
 semantics.
 
+`[policy].max_input_tokens` defaults to 1,000,000 and bounds cumulative input
+tokens reported by the selected provider during one run. Once the reported
+total reaches or exceeds the cap, the Runner records the completed turn and
+fails with `INPUT_TOKEN_BUDGET_EXHAUSTED` before making another provider call.
+This is a usage/cost circuit breaker, not a prediction of the next request's
+token count or a tokenizer-specific context-window guarantee. Providers may
+report a single turn that crosses the remaining budget; the exact pre-request
+`max_request_bytes` gate still applies independently.
+
 ## SQLite memory contract
 
 The store is located at `<state_dir>/memory.sqlite3` and has this logical

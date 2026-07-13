@@ -35,6 +35,7 @@ class HostPolicy:
             max_model_turns=self.config.max_model_turns,
             max_tool_calls=self.config.max_tool_calls,
             max_side_effects=self.config.max_side_effects,
+            max_input_tokens=self.config.max_input_tokens,
         )
 
     def disposition(self, tool: ToolSpec) -> PolicyDisposition:

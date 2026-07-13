@@ -401,12 +401,15 @@ class RunBudget:
     model_turns_used: int = 0
     tool_calls_used: int = 0
     side_effects_used: int = 0
+    max_input_tokens: int = 1_000_000
+    input_tokens_used: int = 0
 
     def __post_init__(self) -> None:
         limits = (
             ("max_model_turns", self.max_model_turns),
             ("max_tool_calls", self.max_tool_calls),
             ("max_side_effects", self.max_side_effects),
+            ("max_input_tokens", self.max_input_tokens),
         )
         used = (
             ("model_turns_used", self.model_turns_used, self.max_model_turns),
@@ -419,6 +422,12 @@ class RunBudget:
         for field_name, value, limit in used:
             if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= limit:
                 raise ValueError(f"{field_name} must be between zero and its configured limit")
+        if (
+            isinstance(self.input_tokens_used, bool)
+            or not isinstance(self.input_tokens_used, int)
+            or self.input_tokens_used < 0
+        ):
+            raise ValueError("input_tokens_used must be a non-negative integer")
 
 
 @dataclass(frozen=True)

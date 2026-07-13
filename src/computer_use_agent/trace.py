@@ -156,6 +156,8 @@ def _checkpoint(
             "model_turns_used": budget.model_turns_used,
             "tool_calls_used": budget.tool_calls_used,
             "side_effects_used": budget.side_effects_used,
+            "max_input_tokens": budget.max_input_tokens,
+            "input_tokens_used": budget.input_tokens_used,
         },
         "updated_at": _now(),
         "metrics": _metrics(state, run_duration_ms=run_duration_ms),
@@ -170,6 +172,7 @@ def _checkpoint(
         and budget.model_turns_used == 0
         and budget.tool_calls_used == 0
         and budget.side_effects_used == 0
+        and budget.input_tokens_used == 0
         and state.recovery_status.value == "ready"
         and state.observation_epoch == 0
     )
@@ -301,7 +304,12 @@ class RunRecorder:
         budgets = checkpoint.get("budgets")
         if not isinstance(budgets, dict) or any(
             budgets.get(name) != 0
-            for name in ("model_turns_used", "tool_calls_used", "side_effects_used")
+            for name in (
+                "model_turns_used",
+                "tool_calls_used",
+                "side_effects_used",
+                "input_tokens_used",
+            )
         ):
             raise TraceError("RUN_NOT_RESUMABLE")
         self.phase = RunPhase(checkpoint["phase"])

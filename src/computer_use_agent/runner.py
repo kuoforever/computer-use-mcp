@@ -161,7 +161,12 @@ class AgentRunner:
     ) -> RunState:
         if state.budgets.model_turns_used >= state.budgets.max_model_turns:
             raise RunnerBudgetError("MODEL_TURN_BUDGET_EXHAUSTED")
-        budget = replace(state.budgets, model_turns_used=state.budgets.model_turns_used + 1)
+        budget = replace(
+            state.budgets,
+            model_turns_used=state.budgets.model_turns_used + 1,
+            input_tokens_used=state.budgets.input_tokens_used
+            + (turn.usage.input_tokens or 0),
+        )
         return self._append(
             state,
             LedgerEvent(
@@ -318,6 +323,8 @@ class AgentRunner:
             while True:
                 if state.budgets.model_turns_used >= state.budgets.max_model_turns:
                     raise RunFailure("MODEL_TURN_BUDGET_EXHAUSTED", state)
+                if state.budgets.input_tokens_used >= state.budgets.max_input_tokens:
+                    raise RunFailure("INPUT_TOKEN_BUDGET_EXHAUSTED", state)
                 turn_index += 1
                 turn_id = f"turn_{turn_index}"
                 try:
