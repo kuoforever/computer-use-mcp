@@ -37,7 +37,7 @@ jobs:
       - name: Offline tests
         run: python -m pytest -q
       - name: Deterministic E1/E2 gate
-        run: computer-use-agent eval --cases evals\cases --report out\e1-e2-report.json
+        run: computer-use-agent eval --cases evals\cases --manifest evals\e5-case-manifest.json --report out\e1-e2-report.json
       - name: Upload evaluation report
         if: always()
         uses: actions/upload-artifact@v6
@@ -69,7 +69,7 @@ jobs:
           python -m venv .wheel-venv
           .\.wheel-venv\Scripts\python.exe -m pip install --disable-pip-version-check (Get-ChildItem dist\*.whl).FullName
           .\.wheel-venv\Scripts\computer-use-agent.exe --help
-          .\.wheel-venv\Scripts\computer-use-agent.exe eval --cases evals\cases --report out\wheel-e1-e2-report.json
+          .\.wheel-venv\Scripts\computer-use-agent.exe eval --cases evals\cases --manifest evals\e5-case-manifest.json --report out\wheel-e1-e2-report.json
       - name: Upload wheel and smoke report
         uses: actions/upload-artifact@v6
         with:

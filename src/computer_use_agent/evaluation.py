@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import tempfile
@@ -42,10 +43,33 @@ from .types import (
 
 CASE_VERSION = 1
 REPORT_VERSION = 1
+MANIFEST_VERSION = 1
 
 
 class EvaluationCaseError(ValueError):
     """Raised when an evaluation case is malformed or unreviewed."""
+
+
+def verify_case_manifest(cases_dir: Path, manifest_path: Path) -> None:
+    """Fail closed when the reviewed E1/E2 case set or bytes drift."""
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise EvaluationCaseError("cannot load case manifest") from exc
+    if not isinstance(manifest, dict) or set(manifest) != {"version", "sha256"}:
+        raise EvaluationCaseError("case manifest has invalid fields")
+    hashes = manifest.get("sha256")
+    if manifest.get("version") != MANIFEST_VERSION or not isinstance(hashes, dict):
+        raise EvaluationCaseError("unsupported case manifest")
+    paths = sorted(cases_dir.glob("*.json"), key=lambda path: path.name)
+    if set(hashes) != {path.name for path in paths}:
+        raise EvaluationCaseError("case manifest file set mismatch")
+    for path in paths:
+        expected = hashes.get(path.name)
+        if not isinstance(expected, str) or len(expected) != 64:
+            raise EvaluationCaseError("case manifest digest is invalid")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise EvaluationCaseError("case manifest digest mismatch")
 
 
 @dataclass(frozen=True)
@@ -372,4 +396,5 @@ __all__ = [
     "canonical_trace",
     "run_evaluations",
     "write_report",
+    "verify_case_manifest",
 ]

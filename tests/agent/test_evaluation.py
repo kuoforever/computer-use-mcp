@@ -5,10 +5,27 @@ from pathlib import Path
 
 import pytest
 
-from computer_use_agent.evaluation import EvaluationCaseError, run_evaluations, write_report
+from computer_use_agent.evaluation import (
+    EvaluationCaseError,
+    run_evaluations,
+    verify_case_manifest,
+    write_report,
+)
 
 
 CASES = Path(__file__).parents[2] / "evals" / "cases"
+MANIFEST = Path(__file__).parents[2] / "evals" / "e5-case-manifest.json"
+
+
+def test_e5_manifest_freezes_the_reviewed_case_set_and_bytes(tmp_path: Path) -> None:
+    verify_case_manifest(CASES, MANIFEST)
+    changed = tmp_path / "cases"
+    changed.mkdir()
+    for source in CASES.glob("*.json"):
+        (changed / source.name).write_bytes(source.read_bytes())
+    (changed / "e1_model_budget.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(EvaluationCaseError, match="digest mismatch"):
+        verify_case_manifest(changed, MANIFEST)
 
 
 def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> None:
