@@ -17,7 +17,7 @@ CASES = Path(__file__).parents[2] / "evals" / "cases"
 MANIFEST = Path(__file__).parents[2] / "evals" / "e5-case-manifest.json"
 
 
-def test_e5_manifest_freezes_the_reviewed_case_set_and_bytes(tmp_path: Path) -> None:
+def test_e5_manifest_freezes_the_reviewed_case_set_and_semantics(tmp_path: Path) -> None:
     verify_case_manifest(CASES, MANIFEST)
     changed = tmp_path / "cases"
     changed.mkdir()
@@ -26,6 +26,17 @@ def test_e5_manifest_freezes_the_reviewed_case_set_and_bytes(tmp_path: Path) -> 
     (changed / "e1_model_budget.json").write_text("{}", encoding="utf-8")
     with pytest.raises(EvaluationCaseError, match="digest mismatch"):
         verify_case_manifest(changed, MANIFEST)
+
+
+def test_e5_manifest_is_stable_across_lf_crlf_and_formatting(tmp_path: Path) -> None:
+    reformatted = tmp_path / "cases"
+    reformatted.mkdir()
+    for source in CASES.glob("*.json"):
+        document = json.loads(source.read_text(encoding="utf-8"))
+        text = json.dumps(document, indent=4, ensure_ascii=False).replace("\n", "\r\n")
+        (reformatted / source.name).write_text(text, encoding="utf-8", newline="")
+
+    verify_case_manifest(reformatted, MANIFEST)
 
 
 def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> None:

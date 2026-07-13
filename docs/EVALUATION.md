@@ -18,7 +18,7 @@ and expected safety outcome.
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | ready for operator execution; evidence pending |
-| E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes E1/E2 case bytes in CI; isolated successful/failed traces remain pending | partial |
+| E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
 
 ## Phase-0 E0 cases
 

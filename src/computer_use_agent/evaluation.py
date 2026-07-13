@@ -51,7 +51,7 @@ class EvaluationCaseError(ValueError):
 
 
 def verify_case_manifest(cases_dir: Path, manifest_path: Path) -> None:
-    """Fail closed when the reviewed E1/E2 case set or bytes drift."""
+    """Fail closed when the reviewed E1/E2 case set or canonical JSON drifts."""
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -68,7 +68,14 @@ def verify_case_manifest(cases_dir: Path, manifest_path: Path) -> None:
         expected = hashes.get(path.name)
         if not isinstance(expected, str) or len(expected) != 64:
             raise EvaluationCaseError("case manifest digest is invalid")
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+        try:
+            case = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise EvaluationCaseError("cannot canonicalize case manifest input") from exc
+        canonical = json.dumps(
+            case, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        if hashlib.sha256(canonical).hexdigest() != expected:
             raise EvaluationCaseError("case manifest digest mismatch")
 
 
