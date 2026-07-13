@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+
+from computer_use_agent.continuation import (
+    ContinuationEnvelope,
+    ContinuationError,
+    continuation_path,
+    read_continuation,
+    write_continuation,
+)
+
+
+NOW = datetime(2030, 1, 1, tzinfo=UTC)
+
+
+def _payload(run_id: str = "run_1") -> dict[str, object]:
+    return {
+        "continuation_version": 1,
+        "run_id": run_id,
+        "checkpoint_sequence": 7,
+        "policy_version": "phase0",
+        "provider": {"name": "openai", "model": "gpt-test"},
+        "registry_digest": "a" * 64,
+        "task": "Inspect the window",
+        "budget": {
+            "max_model_turns": 3,
+            "max_tool_calls": 3,
+            "max_side_effects": 0,
+            "max_input_tokens": 1000,
+            "model_turns_used": 1,
+            "tool_calls_used": 1,
+            "side_effects_used": 0,
+            "input_tokens_used": 12,
+        },
+        "observation": {"epoch": 1, "verified_epoch": 1, "mcp_generation": 1},
+        "ledger": [
+            {"kind": "user_task", "event_id": "event_1", "data": {"task_length": 18}},
+            {
+                "kind": "tool_result",
+                "event_id": "event_2",
+                "data": {"tool_name": "ui_snapshot", "status": "success"},
+            },
+        ],
+        "boundary": {
+            "operation_kind": "tool",
+            "stage": "completed",
+            "operation_id": "run_1:turn_1:call_1",
+            "effect": "observation",
+            "dispatch": "dispatched",
+            "next_step": "provider_continue",
+        },
+        "provider_state": {"response_id": "response_1"},
+        "created_at": "2030-01-01T00:00:00Z",
+        "expires_at": "2030-01-01T01:00:00Z",
+    }
+
+
+def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path) -> None:
+    state_dir = tmp_path.resolve()
+    written = write_continuation(state_dir, _payload())
+    path = continuation_path(state_dir, "run_1")
+    read = read_continuation(state_dir, "run_1", now=NOW)
+
+    assert read == written
+    disk = path.read_bytes()
+    assert disk.endswith(b"\n")
+    assert json.loads(disk)["payload_digest"] == written.payload["payload_digest"]
+    assert path.stat().st_mode & 0o777 in {0o600, 0o666}  # Windows chmod is limited.
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        (lambda value: value.update(extra=True), "CONTINUATION_INVALID"),
+        (
+            lambda value: value["budget"].update(model_turns_used=4),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["observation"].update(verified_epoch=2),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["ledger"].append(value["ledger"][0]),
+            "CONTINUATION_INVALID",
+        ),
+    ],
+)
+def test_writer_rejects_invalid_schema_without_creating_file(
+    tmp_path: Path, mutation: object, code: str
+) -> None:
+    payload = _payload()
+    mutation(payload)  # type: ignore[operator]
+    with pytest.raises(ContinuationError, match=code):
+        write_continuation(tmp_path.resolve(), payload)
+    assert not continuation_path(tmp_path.resolve(), "run_1").exists()
+
+
+def test_reader_rejects_expiry_digest_corruption_and_identity(tmp_path: Path) -> None:
+    state_dir = tmp_path.resolve()
+    write_continuation(state_dir, _payload())
+    with pytest.raises(ContinuationError, match="CONTINUATION_EXPIRED"):
+        read_continuation(
+            state_dir, "run_1", now=datetime(2030, 1, 1, 1, tzinfo=UTC)
+        )
+
+    path = continuation_path(state_dir, "run_1")
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    persisted["task"] = "tampered"
+    path.write_text(json.dumps(persisted), encoding="utf-8")
+    with pytest.raises(ContinuationError, match="CONTINUATION_DIGEST_MISMATCH"):
+        read_continuation(state_dir, "run_1", now=NOW)
+
+    valid = _payload("run_other")
+    valid["payload_digest"] = "0" * 64
+    with pytest.raises(ContinuationError, match="CONTINUATION_IDENTITY_MISMATCH"):
+        ContinuationEnvelope.from_payload(valid, expected_run_id="run_1", now=NOW)
+
+
+def test_raw_type_text_is_rejected(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["ledger"] = [
+        {
+            "kind": "tool_call",
+            "event_id": "event_1",
+            "data": {"tool_name": "type", "arguments": {"text": "secret"}},
+        }
+    ]
+    with pytest.raises(ContinuationError, match="CONTINUATION_SENSITIVE_FIELD"):
+        write_continuation(tmp_path.resolve(), payload)
+
+
+def test_provider_state_is_provider_specific(tmp_path: Path) -> None:
+    invalid_openai = _payload()
+    invalid_openai["provider_state"] = {"messages": []}
+    with pytest.raises(ContinuationError, match="CONTINUATION_INVALID"):
+        write_continuation(tmp_path.resolve(), invalid_openai)
+
+    anthropic = _payload("run_anthropic")
+    anthropic["provider"] = {"name": "anthropic", "model": "claude-test"}
+    anthropic["provider_state"] = {"messages": []}
+    assert write_continuation(tmp_path.resolve(), anthropic).payload["run_id"] == "run_anthropic"
+
+
+def test_symlinked_run_directory_fails_closed(tmp_path: Path) -> None:
+    state_dir = tmp_path.resolve()
+    target = state_dir / "target"
+    target.mkdir()
+    run_dir = state_dir / "runs" / "run_1"
+    run_dir.parent.mkdir()
+    try:
+        run_dir.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable")
+    with pytest.raises(ContinuationError, match="CONTINUATION_UNSAFE_PATH"):
+        write_continuation(state_dir, _payload())
+
+
+def test_path_validation_rejects_traversal_and_relative_root(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="path-safe"):
+        continuation_path(tmp_path.resolve(), "../escape")
+    with pytest.raises(ValueError, match="absolute"):
+        continuation_path(Path("relative"), "run_1")

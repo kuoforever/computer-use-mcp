@@ -1,8 +1,10 @@
 # Persisted continuation and crash reconstruction design
 
-> **Status: reviewed design target; not implemented.** This document defines the
-> next broader-resume increment. It does not make any additional run resumable,
-> and it does not authorize replay of provider calls or desktop actions.
+> **Status: storage foundation implemented; runtime resume not implemented.** The
+> strict bounded v1 envelope, private atomic reader/writer, expiry, digest, path
+> checks, and round-trip/corruption tests exist. No runner, provider, CLI, or
+> recovery-classification path consumes it, so it does not make any additional
+> run resumable or authorize replay of provider calls or desktop actions.
 
 ## Safety boundary
 
@@ -192,8 +194,8 @@ the original task again.
 
 ## Delivery sequence
 
-1. Add persistence DTO schemas, bounded strict readers, atomic writer, expiry,
-   and pure round-trip tests without enabling resume.
+1. **Implemented:** add persistence DTO schemas, bounded strict readers, atomic
+   writer, expiry, and pure round-trip tests without enabling resume.
 2. Add operation IDs and write-ahead boundaries around provider and MCP ports;
    keep all new classifications non-resumable while collecting E2 evidence.
 3. Enable only the two read-only completed-boundary paths: completed provider
@@ -204,4 +206,3 @@ the original task again.
 5. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.
-
