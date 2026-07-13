@@ -50,6 +50,17 @@ class EvaluationCaseError(ValueError):
     """Raised when an evaluation case is malformed or unreviewed."""
 
 
+def _canonical_case_digest(path: Path) -> str:
+    try:
+        case = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise EvaluationCaseError("cannot canonicalize case manifest input") from exc
+    canonical = json.dumps(
+        case, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 def verify_case_manifest(cases_dir: Path, manifest_path: Path) -> None:
     """Fail closed when the reviewed E1/E2 case set or canonical JSON drifts."""
     try:
@@ -68,15 +79,25 @@ def verify_case_manifest(cases_dir: Path, manifest_path: Path) -> None:
         expected = hashes.get(path.name)
         if not isinstance(expected, str) or len(expected) != 64:
             raise EvaluationCaseError("case manifest digest is invalid")
-        try:
-            case = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise EvaluationCaseError("cannot canonicalize case manifest input") from exc
-        canonical = json.dumps(
-            case, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode("utf-8")
-        if hashlib.sha256(canonical).hexdigest() != expected:
+        if _canonical_case_digest(path) != expected:
             raise EvaluationCaseError("case manifest digest mismatch")
+
+
+def write_case_manifest(cases_dir: Path, manifest_path: Path) -> None:
+    """Write a reviewed canonical case manifest after validating every case."""
+    paths = sorted(cases_dir.glob("*.json"), key=lambda path: path.name)
+    if not paths:
+        raise EvaluationCaseError("no evaluation cases found")
+    for path in paths:
+        _load_case(path)
+    payload = {
+        "version": MANIFEST_VERSION,
+        "sha256": {path.name: _canonical_case_digest(path) for path in paths},
+    }
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 @dataclass(frozen=True)
@@ -418,4 +439,5 @@ __all__ = [
     "run_evaluations",
     "write_report",
     "verify_case_manifest",
+    "write_case_manifest",
 ]

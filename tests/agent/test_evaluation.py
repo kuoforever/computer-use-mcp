@@ -9,6 +9,7 @@ from computer_use_agent.evaluation import (
     EvaluationCaseError,
     run_evaluations,
     verify_case_manifest,
+    write_case_manifest,
     write_report,
 )
 
@@ -37,6 +38,17 @@ def test_e5_manifest_is_stable_across_lf_crlf_and_formatting(tmp_path: Path) -> 
         (reformatted / source.name).write_text(text, encoding="utf-8", newline="")
 
     verify_case_manifest(reformatted, MANIFEST)
+
+
+def test_e5_manifest_writer_is_deterministic_and_verifiable(tmp_path: Path) -> None:
+    generated = tmp_path / "e5.json"
+
+    write_case_manifest(CASES, generated)
+
+    verify_case_manifest(CASES, generated)
+    assert json.loads(generated.read_text(encoding="utf-8")) == json.loads(
+        MANIFEST.read_text(encoding="utf-8")
+    )
 
 
 def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> None:
