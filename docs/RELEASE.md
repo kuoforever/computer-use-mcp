@@ -23,6 +23,9 @@ controls a desktop. E3 and E4 must never be silently added to the default job.
 
 Before tagging a release, record evidence for every item:
 
+Use [Agent release evidence record](RELEASE_EVIDENCE.md) as the review template.
+`NOT RUN` documents a missing gate; it does not turn that gate into a pass.
+
 - CI is green on all supported Python versions.
 - The wheel artifact installs in a clean Windows environment.
 - OpenAI and Claude E3 pass with reviewed model IDs and the harmless fake MCP.

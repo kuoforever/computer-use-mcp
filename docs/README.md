@@ -31,6 +31,7 @@ not a line-by-line mirror of every reference page.
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |
+| I need to record a release review or explicit waiver | [Release evidence record](RELEASE_EVIDENCE.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 
 ## Documentation ownership
@@ -52,6 +53,7 @@ not a line-by-line mirror of every reference page.
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
 | E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |
 | Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |
+| Release evidence record | Per-candidate automated evidence, E3/E4 results, waivers, classification, and human decision |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
 
 Do not use the roadmap or design documents to infer that a capability is
