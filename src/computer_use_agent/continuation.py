@@ -15,6 +15,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Mapping
 
+from .reconstruction import (
+    OperationEffect,
+    OperationKind,
+    OperationResult,
+    OperationStage,
+    OperationState,
+)
 from .types import JSONValue, to_json_value
 
 
@@ -163,6 +170,35 @@ class ContinuationEnvelope:
 
     payload: Mapping[str, JSONValue]
 
+    @property
+    def operation_state(self) -> OperationState:
+        """Return the non-executable operation snapshot at the durable boundary."""
+
+        boundary = self.payload["boundary"]
+        assert isinstance(boundary, Mapping)
+        kind = OperationKind(str(boundary["operation_kind"]))
+        stage = OperationStage(str(boundary["stage"]))
+        raw_effect = boundary["effect"]
+        effect = (
+            OperationEffect(str(raw_effect))
+            if kind is OperationKind.TOOL and raw_effect is not None
+            else None
+        )
+        result = None
+        if stage is OperationStage.COMPLETED:
+            result = (
+                OperationResult.UNKNOWN_OUTCOME
+                if boundary["dispatch"] == "unknown"
+                else OperationResult.SUCCESS
+            )
+        return OperationState(
+            operation_id=str(boundary["operation_id"]),
+            kind=kind,
+            stage=stage,
+            effect=effect,
+            result=result,
+        )
+
     @classmethod
     def from_payload(
         cls,
@@ -261,6 +297,18 @@ class ContinuationEnvelope:
             "mandatory_reobserve",
             "stop",
         }:
+            raise ContinuationError("CONTINUATION_INVALID")
+        stage = boundary["stage"]
+        dispatch = boundary["dispatch"]
+        effect = boundary["effect"]
+        kind = boundary["operation_kind"]
+        if (
+            (stage == "prepared" and dispatch != "not_dispatched")
+            or (stage == "dispatch_intent" and dispatch != "unknown")
+            or (stage == "completed" and dispatch not in {"dispatched", "unknown"})
+            or (kind == "tool" and effect is None)
+            or (kind == "provider" and stage != "completed" and effect is not None)
+        ):
             raise ContinuationError("CONTINUATION_INVALID")
 
         provider_state = root.get("provider_state")

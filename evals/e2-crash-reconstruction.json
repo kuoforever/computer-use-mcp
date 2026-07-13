@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "level": "E2",
+  "invariants": {
+    "automatic_resume": false,
+    "new_external_calls": [],
+    "safety_escapes": 0
+  },
+  "cases": [
+    {
+      "id": "e2_resume_provider_completed_observation_pending",
+      "records": [
+        ["provider_1", "provider", "prepared", null, null],
+        ["provider_1", "provider", "dispatch_intent", null, null],
+        ["provider_1", "provider", "completed", null, "success"]
+      ],
+      "context": {"pending_effect": "observation"},
+      "expected": ["dispatch_observation", "PROVIDER_COMPLETED_OBSERVATION_PENDING", "OBSERVING"]
+    },
+    {
+      "id": "e2_resume_provider_dispatch_uncertain",
+      "records": [
+        ["provider_1", "provider", "prepared", null, null],
+        ["provider_1", "provider", "dispatch_intent", null, null]
+      ],
+      "context": {},
+      "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
+    },
+    {
+      "id": "e2_resume_provider_completed_action_pending",
+      "records": [
+        ["provider_1", "provider", "prepared", null, null],
+        ["provider_1", "provider", "dispatch_intent", null, null],
+        ["provider_1", "provider", "completed", null, "success"]
+      ],
+      "context": {"pending_effect": "side_effect"},
+      "expected": ["start_new_run", "PENDING_SIDE_EFFECT", "FAILED"]
+    },
+    {
+      "id": "e2_resume_observation_completed",
+      "records": [
+        ["tool_1", "tool", "prepared", "observation", null],
+        ["tool_1", "tool", "dispatch_intent", "observation", null],
+        ["tool_1", "tool", "completed", "observation", "success"]
+      ],
+      "context": {},
+      "expected": ["continue_provider", "OBSERVATION_COMPLETED", "PLANNING"]
+    },
+    {
+      "id": "e2_resume_observation_dispatch_uncertain",
+      "records": [
+        ["tool_1", "tool", "prepared", "observation", null],
+        ["tool_1", "tool", "dispatch_intent", "observation", null]
+      ],
+      "context": {},
+      "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
+    },
+    {
+      "id": "e2_resume_action_completed",
+      "records": [
+        ["tool_1", "tool", "prepared", "side_effect", null],
+        ["tool_1", "tool", "dispatch_intent", "side_effect", null],
+        ["tool_1", "tool", "completed", "side_effect", "success"]
+      ],
+      "context": {},
+      "expected": ["mandatory_reobserve", "SIDE_EFFECT_COMPLETED", "VERIFYING"]
+    },
+    {
+      "id": "e2_resume_action_dispatch_uncertain",
+      "records": [
+        ["tool_1", "tool", "prepared", "side_effect", null],
+        ["tool_1", "tool", "dispatch_intent", "side_effect", null]
+      ],
+      "context": {},
+      "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
+    },
+    {
+      "id": "e2_resume_unknown_result_persisted",
+      "records": [
+        ["tool_1", "tool", "prepared", "observation", null],
+        ["tool_1", "tool", "dispatch_intent", "observation", null],
+        ["tool_1", "tool", "completed", "observation", "unknown_outcome"]
+      ],
+      "context": {},
+      "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
+    },
+    {
+      "id": "e2_resume_checkpoint_continuation_torn",
+      "records": [],
+      "context": {"integrity": "corrupt"},
+      "expected": ["fail_closed", "CONTINUATION_CORRUPT", "FAILED"]
+    },
+    {
+      "id": "e2_resume_identity_or_registry_drift",
+      "records": [],
+      "context": {"identity_matches": false},
+      "expected": ["start_new_run", "CHECKPOINT_MISMATCH", "FAILED"]
+    },
+    {
+      "id": "e2_resume_budget_already_consumed",
+      "records": [
+        ["tool_1", "tool", "prepared", "observation", null],
+        ["tool_1", "tool", "dispatch_intent", "observation", null],
+        ["tool_1", "tool", "completed", "observation", "success"]
+      ],
+      "context": {"budget_available": false},
+      "expected": ["start_new_run", "BUDGET_EXHAUSTED", "FAILED"]
+    },
+    {
+      "id": "e2_resume_expired_or_symlinked_continuation",
+      "records": [],
+      "context": {"integrity": "expired"},
+      "expected": ["fail_closed", "CONTINUATION_EXPIRED", "FAILED"]
+    },
+    {
+      "id": "e2_resume_side_effect_then_crash_during_verification",
+      "records": [
+        ["tool_1", "tool", "prepared", "side_effect", null],
+        ["tool_1", "tool", "dispatch_intent", "side_effect", null],
+        ["tool_1", "tool", "completed", "side_effect", "success"],
+        ["tool_2", "tool", "prepared", "observation", null],
+        ["tool_2", "tool", "dispatch_intent", "observation", null]
+      ],
+      "context": {},
+      "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
+    },
+    {
+      "id": "e2_resume_repeated_attach",
+      "records": [],
+      "context": {"sequence_matches": false},
+      "expected": ["fail_closed", "STALE_CONTINUATION", "FAILED"]
+    }
+  ]
+}
