@@ -243,6 +243,22 @@ class PolicyConfig:
 
 
 @dataclass(frozen=True)
+class ContinuationConfig:
+    enabled: bool = False
+    ttl_seconds: int = 900
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise ConfigError("continuation enabled must be boolean")
+        if (
+            isinstance(self.ttl_seconds, bool)
+            or not isinstance(self.ttl_seconds, int)
+            or not 60 <= self.ttl_seconds <= 86_400
+        ):
+            raise ConfigError("continuation ttl_seconds must be between 60 and 86400")
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Complete Phase-0 configuration model; parsing performs no desktop I/O."""
 
@@ -251,6 +267,7 @@ class AgentConfig:
     provider: ProviderConfig
     mcp: MCPLaunchConfig
     policy: PolicyConfig
+    continuation: ContinuationConfig = field(default_factory=ContinuationConfig)
     _application_state_dir: Path = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -263,6 +280,8 @@ class AgentConfig:
         object.__setattr__(self, "state_dir", _require_user_local_state_dir(self.state_dir))
         if not isinstance(self.policy_version, str) or not self.policy_version.strip():
             raise ConfigError("policy_version must be a non-empty string")
+        if not isinstance(self.continuation, ContinuationConfig):
+            raise ConfigError("continuation must be a ContinuationConfig")
 
     @property
     def application_state_dir(self) -> Path:
@@ -285,12 +304,13 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     config_path = Path(path)
     with config_path.open("rb") as file:
         document = tomllib.load(file)
-    _reject_unknown(document, {"agent", "provider", "mcp", "policy"}, "root")
+    _reject_unknown(document, {"agent", "provider", "mcp", "policy", "continuation"}, "root")
 
     agent = _read_table(document, "agent", required=False)
     provider = _read_table(document, "provider", required=True)
     mcp = _read_table(document, "mcp", required=True)
     policy = _read_table(document, "policy", required=False)
+    continuation = _read_table(document, "continuation", required=False)
 
     _reject_unknown(agent, {"state_dir", "policy_version"}, "agent")
     _reject_unknown(provider, {"name", "model", "max_request_bytes"}, "provider")
@@ -308,6 +328,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         },
         "policy",
     )
+    _reject_unknown(continuation, {"enabled", "ttl_seconds"}, "continuation")
 
     state_dir_value = agent.get("state_dir")
     state_dir = default_state_dir() if state_dir_value is None else _require_absolute_path(
@@ -364,10 +385,20 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             policy, "max_input_tokens", "policy", 1_000_000
         ),
     )
+    continuation_enabled = continuation.get("enabled", False)
+    if not isinstance(continuation_enabled, bool):
+        raise ConfigError("[continuation].enabled must be boolean")
+    continuation_config = ContinuationConfig(
+        enabled=continuation_enabled,
+        ttl_seconds=_read_nonnegative_int(
+            continuation, "ttl_seconds", "continuation", 900
+        ),
+    )
     return AgentConfig(
         state_dir=state_dir,
         policy_version=policy_version,
         provider=provider_config,
         mcp=launch_config,
         policy=policy_config,
+        continuation=continuation_config,
     )

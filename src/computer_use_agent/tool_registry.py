@@ -6,6 +6,8 @@ widens either surface from dynamic discovery.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from enum import Enum
 from typing import Mapping, Sequence
@@ -304,6 +306,31 @@ def reviewed_tool_schemas() -> tuple[dict[str, JSONValue], ...]:
     """Return fresh JSON-serializable provider schemas without shared mutability."""
 
     return tuple(to_json_value(tool.input_schema) for tool in REVIEWED_TOOLS)  # type: ignore[return-value]
+
+
+def reviewed_registry_digest() -> str:
+    """Return a stable digest of every reviewed provider and MCP tool contract."""
+
+    material = [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": to_json_value(tool.input_schema),
+            "mcp_input_schema": to_json_value(tool.mcp_input_schema),
+            "effect": tool.effect.value,
+            "result_content": tool.result_content.value,
+            "result_sensitivity": tool.result_sensitivity.value,
+            "redaction_policy": tool.redaction_policy.value,
+            "grounding": tool.grounding.value,
+            "requires_host_approval": tool.requires_host_approval,
+            "invalidates_observation": tool.invalidates_observation,
+            "sensitive_arguments": list(tool.sensitive_arguments),
+            "required_safety_baselines": list(tool.required_safety_baselines),
+        }
+        for tool in REVIEWED_TOOLS
+    ]
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def reviewed_mcp_descriptors() -> tuple[MCPToolDescriptor, ...]:

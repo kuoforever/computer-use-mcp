@@ -1,11 +1,11 @@
 # Persisted continuation and crash reconstruction design
 
-> **Status: storage plus pure reconstruction classifier implemented; runtime
-> resume not implemented.** The strict bounded v1 envelope, private atomic
-> reader/writer, write-ahead operation state machine, conservative crash
-> classifier, and frozen E2 boundary matrix exist. No runner, provider, CLI, or
-> MCP path executes a reconstruction decision, so no additional run is resumable
-> and no provider call or desktop action can be replayed.
+> **Status: opt-in runtime write-ahead persistence implemented; runtime resume
+> not implemented.** The strict bounded v1 envelope, private atomic reader/writer,
+> provider/MCP `prepared -> dispatch_intent -> completed` boundaries,
+> conservative crash classifier, and frozen E2 boundary matrix exist. No runner,
+> provider, CLI, or MCP path executes a reconstruction decision, so no additional
+> run is resumable and no provider call or desktop action can be replayed.
 
 ## Safety boundary
 
@@ -197,11 +197,11 @@ the original task again.
 
 1. **Implemented:** add persistence DTO schemas, bounded strict readers, atomic
    writer, expiry, and pure round-trip tests without enabling resume.
-2. **Implemented (pure foundation):** add operation identities, enforce
+2. **Implemented:** add operation identities, enforce
    `prepared -> dispatch_intent -> completed`, classify every crash boundary,
-   and freeze the 14-case E2 matrix. All decisions remain non-executable and
-   authorize zero external calls. Persisting these boundaries around live
-   provider and MCP ports remains part of the runtime integration step.
+   freeze the 14-case E2 matrix, and persist the boundaries immediately around
+   live provider and MCP dispatch when explicitly enabled. All reconstruction
+   decisions remain non-executable and authorize zero external calls.
 3. Enable only the two read-only completed-boundary paths: completed provider
    response to one pending observation, and completed observation result to one
    new provider continuation.

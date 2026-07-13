@@ -50,7 +50,7 @@ not a line-by-line mirror of every reference page.
 | Agent implementation plan | Planned dual-provider Agent Host, safety boundaries, and release gates |
 | Agent Host contract / evaluation | Implemented provider-neutral foundation, desktop bridge, trust boundaries, and evaluation gates |
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
-| Persisted continuation | Private v1 storage, pure write-ahead operation state machine, conservative crash classifier, and frozen E2 no-replay matrix; runtime resume remains disabled |
+| Persisted continuation | Private v1 storage, opt-in runtime provider/MCP write-ahead boundaries, conservative crash classifier, and frozen E2 no-replay matrix; runtime resume remains disabled |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
 | E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |

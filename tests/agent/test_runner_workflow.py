@@ -7,11 +7,18 @@ from pathlib import Path
 
 import pytest
 
+from computer_use_agent import continuation as continuation_module
 from computer_use_agent.config import (
     AgentConfig,
+    ContinuationConfig,
     MCPLaunchConfig,
     PolicyConfig,
     ProviderConfig,
+)
+from computer_use_agent.continuation import (
+    ContinuationError,
+    continuation_path,
+    read_continuation,
 )
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.runner import AgentRunner, RunFailure, RunnerError, RunnerPorts
@@ -38,6 +45,7 @@ def _config(
     max_tool_calls: int = 4,
     max_context_events: int = 128,
     max_input_tokens: int = 1_000_000,
+    continuation_enabled: bool = False,
 ) -> AgentConfig:
     local_app_data = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
@@ -57,6 +65,7 @@ def _config(
             max_context_events=max_context_events,
             max_input_tokens=max_input_tokens,
         ),
+        continuation=ContinuationConfig(enabled=continuation_enabled),
     )
 
 
@@ -148,6 +157,143 @@ def test_read_only_observe_then_answer_is_bounded_and_canonical(
     assert len(record["events"]) == len(outcome.state.event_log)
     lock_path = _config(tmp_path, monkeypatch).application_state_dir / "active-run.lock"
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
+
+
+def test_opt_in_runtime_writes_intent_before_provider_and_tool_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_wal"
+    identity = CallIdentity(run_id, "turn_1", "call_1")
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    observed_boundaries: list[tuple[str, str, int]] = []
+    persisted_stages: list[tuple[str, str, int]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        persisted_stages.append(
+            (
+                str(boundary["operation_kind"]),
+                str(boundary["stage"]),
+                int(payload["checkpoint_sequence"]),
+            )
+        )
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
+
+    def observe_boundary(kind: str) -> None:
+        envelope = read_continuation(config.state_dir, run_id)
+        boundary = envelope.payload["boundary"]
+        assert isinstance(boundary, dict)
+        observed_boundaries.append(
+            (
+                kind,
+                str(boundary["stage"]),
+                int(envelope.payload["checkpoint_sequence"]),
+            )
+        )
+
+    class InspectingProvider(FakeModelProvider):
+        async def create_turn(self, **kwargs: object) -> ModelTurn:
+            observe_boundary("provider")
+            return await super().create_turn(**kwargs)  # type: ignore[arg-type]
+
+    class InspectingDesktop(FakeDesktopMCP):
+        async def call_tool(self, call: ToolCall) -> ToolResult:
+            observe_boundary("tool")
+            return await super().call_tool(call)
+
+    provider = InspectingProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (ToolCall(identity, "list_windows", {}),),
+                ),
+                ModelTurn(run_id, "turn_2", "response_2", "done"),
+            ]
+        )
+    )
+    desktop = InspectingDesktop(
+        results=deque(
+            [
+                ToolResult(
+                    identity,
+                    "list_windows",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="none",
+                )
+            ]
+        )
+    )
+
+    outcome = asyncio.run(_runner(config, provider, desktop).run("Inspect", run_id=run_id))
+
+    assert outcome.text == "done"
+    assert [item[:2] for item in observed_boundaries] == [
+        ("provider", "dispatch_intent"),
+        ("tool", "dispatch_intent"),
+        ("provider", "dispatch_intent"),
+    ]
+    sequences = [item[2] for item in observed_boundaries]
+    assert sequences == sorted(sequences)
+    assert len(set(sequences)) == len(sequences)
+    assert [item[:2] for item in persisted_stages] == [
+        ("provider", "prepared"),
+        ("provider", "dispatch_intent"),
+        ("provider", "completed"),
+        ("tool", "prepared"),
+        ("tool", "dispatch_intent"),
+        ("tool", "completed"),
+        ("provider", "prepared"),
+        ("provider", "dispatch_intent"),
+        ("provider", "completed"),
+    ]
+    assert [item[2] for item in persisted_stages] == list(
+        range(persisted_stages[0][2], persisted_stages[0][2] + len(persisted_stages))
+    )
+    assert (
+        read_run_record(config.state_dir, run_id)["state"]["checkpoint_sequence"]
+        == persisted_stages[-1][2]
+    )
+    assert not continuation_path(config.state_dir, run_id).exists()
+
+
+def test_continuation_intent_write_failure_stops_before_provider_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_wal_failure"
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn(run_id, "turn_1", "response_1", "done")])
+    )
+    desktop = FakeDesktopMCP()
+    original_write = continuation_module.write_continuation
+
+    def fail_intent(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        if boundary["stage"] == "dispatch_intent":
+            raise ContinuationError("CONTINUATION_WRITE_FAILED")
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", fail_intent)
+
+    with pytest.raises(ContinuationError, match="CONTINUATION_WRITE_FAILED"):
+        asyncio.run(_runner(config, provider, desktop).run("Inspect", run_id=run_id))
+
+    assert provider.calls == []
+    assert desktop.tool_calls == []
+    assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "FAILED"
+    assert not continuation_path(config.state_dir, run_id).exists()
 
 
 def test_read_only_action_is_recorded_as_denied_and_never_dispatched(
