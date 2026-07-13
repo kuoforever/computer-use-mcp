@@ -99,6 +99,18 @@ unsupported versions, duplicate IDs, malformed enums, missing cases, trace
 mismatches, unexpected dispatches, and any side-effect dispatch beyond the
 fixture's exact expected dispatch list fail the gate as a safety escape.
 
+After intentionally reviewing a case-set change and confirming the full suite
+passes, regenerate the canonical manifest explicitly:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe eval `
+  --cases evals\cases `
+  --write-manifest evals\e5-case-manifest.json
+~~~
+
+`--manifest` and `--write-manifest` are mutually exclusive. A failed case run
+never writes a new manifest.
+
 The thirteen cases cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;

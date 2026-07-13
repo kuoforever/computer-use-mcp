@@ -43,7 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
     evaluate.add_argument("--report", type=Path)
-    evaluate.add_argument("--manifest", type=Path)
+    manifest_group = evaluate.add_mutually_exclusive_group()
+    manifest_group.add_argument("--manifest", type=Path)
+    manifest_group.add_argument("--write-manifest", type=Path)
 
     trace = commands.add_parser("trace", help="Inspect one redacted run record.")
     trace.add_argument("run_id")
@@ -226,14 +228,26 @@ def _cancel(path: Path, run_id: str) -> int:
     return 0
 
 
-def _run_eval(cases: Path, report_path: Path | None, manifest_path: Path | None) -> int:
-    from .evaluation import run_evaluations, verify_case_manifest, write_report
+def _run_eval(
+    cases: Path,
+    report_path: Path | None,
+    manifest_path: Path | None,
+    write_manifest_path: Path | None,
+) -> int:
+    from .evaluation import (
+        run_evaluations,
+        verify_case_manifest,
+        write_case_manifest,
+        write_report,
+    )
 
     if manifest_path is not None:
         verify_case_manifest(cases, manifest_path)
     report = run_evaluations(cases)
     if report_path is not None:
         write_report(report, report_path)
+    if write_manifest_path is not None and report.passed:
+        write_case_manifest(cases, write_manifest_path)
     _print_json(report.as_json())
     return 0 if report.passed else 1
 
@@ -296,7 +310,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return _run_dry(args.config, args.task)
             return _run_live(args.config, args.task, args.memory_scope)
         if args.command == "eval":
-            return _run_eval(args.cases, args.report, args.manifest)
+            return _run_eval(
+                args.cases, args.report, args.manifest, args.write_manifest
+            )
         if args.command == "trace":
             return _show_trace(args.config, args.run_id)
         if args.command == "report":
