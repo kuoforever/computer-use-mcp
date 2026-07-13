@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "e2_input_token_budget",
+  "level": "E2",
+  "task": "Inspect once, then request another model turn.",
+  "budgets": {
+    "model_turns": 3,
+    "tool_calls": 1,
+    "side_effects": 0,
+    "input_tokens": 5
+  },
+  "turns": [
+    {
+      "input_tokens": 5,
+      "output_tokens": 1,
+      "calls": [
+        {"id": "call_1", "name": "list_windows", "arguments": {}}
+      ]
+    },
+    {"text": "This turn must never be requested."}
+  ],
+  "results": [
+    {
+      "call_id": "call_1",
+      "turn_id": "turn_1",
+      "tool": "list_windows",
+      "status": "success",
+      "dispatch": "dispatched",
+      "text": "none"
+    }
+  ],
+  "expected": {
+    "outcome": "INPUT_TOKEN_BUDGET_EXHAUSTED",
+    "trace": [
+      {"kind": "user_task"},
+      {"kind": "model_turn", "tool_call_count": 1},
+      {"kind": "tool_call", "tool": "list_windows", "arguments": {}},
+      {"kind": "tool_result", "tool": "list_windows", "status": "success"},
+      {"kind": "observation", "tool": "list_windows", "observation_epoch": 1}
+    ],
+    "dispatched_tools": ["list_windows"]
+  }
+}
