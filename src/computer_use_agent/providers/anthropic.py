@@ -5,7 +5,7 @@ import asyncio
 import base64
 import json
 from dataclasses import dataclass, field
-from typing import Protocol, Sequence
+from typing import Mapping, Protocol, Sequence
 
 from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..types import (
@@ -18,6 +18,7 @@ from ..types import (
     ModelUsage,
     ToolCall,
     ToolEffect,
+    JSONValue,
     to_json_value,
 )
 
@@ -146,6 +147,83 @@ def _request_size(request: object) -> int:
             request, ensure_ascii=False, separators=(",", ":"), sort_keys=True
         ).encode("utf-8")
     )
+
+
+def _validate_restored_history(messages: object) -> list[dict[str, object]]:
+    if not isinstance(messages, list) or not messages or len(messages) > 512:
+        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+    copied = to_json_value(messages)
+    if not isinstance(copied, list):
+        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+    expected_role = "user"
+    pending_ids: set[str] = set()
+    for index, message in enumerate(copied):
+        if (
+            not isinstance(message, dict)
+            or set(message) != {"role", "content"}
+            or message.get("role") != expected_role
+        ):
+            raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+        content = message["content"]
+        if index == 0:
+            if not isinstance(content, str) or not content:
+                raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+        elif expected_role == "assistant":
+            if not isinstance(content, list) or not content:
+                raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+            pending_ids = set()
+            for block in content:
+                if not isinstance(block, dict) or block.get("type") not in {
+                    "text",
+                    "tool_use",
+                }:
+                    raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                if block["type"] == "text":
+                    if set(block) != {"type", "text"} or not isinstance(
+                        block.get("text"), str
+                    ):
+                        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                else:
+                    if set(block) != {"type", "id", "name", "input"}:
+                        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                    tool_id = block.get("id")
+                    name = block.get("name")
+                    if (
+                        not isinstance(tool_id, str)
+                        or not tool_id
+                        or tool_id in pending_ids
+                        or not isinstance(name, str)
+                        or not name
+                        or not isinstance(block.get("input"), dict)
+                    ):
+                        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                    pending_ids.add(tool_id)
+        else:
+            if not pending_ids or not isinstance(content, list) or not content:
+                raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+            result_ids: set[str] = set()
+            for block in content:
+                if (
+                    not isinstance(block, dict)
+                    or set(block) != {
+                        "type",
+                        "tool_use_id",
+                        "content",
+                        "is_error",
+                    }
+                    or block.get("type") != "tool_result"
+                    or not isinstance(block.get("is_error"), bool)
+                ):
+                    raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                tool_id = block.get("tool_use_id")
+                if not isinstance(tool_id, str) or tool_id in result_ids:
+                    raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                result_ids.add(tool_id)
+            if result_ids != pending_ids:
+                raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+            pending_ids = set()
+        expected_role = "assistant" if expected_role == "user" else "user"
+    return copied  # type: ignore[return-value]
 
 
 @dataclass
@@ -305,6 +383,22 @@ class AnthropicMessagesProvider:
             tool_calls=tuple(calls),
             usage=ModelUsage(input_tokens=input_tokens, output_tokens=output_tokens),
         )
+
+    def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError("run_id must be non-empty")
+        return {"messages": to_json_value(self._history.get(run_id, []))}
+
+    def restore_continuation(
+        self, run_id: str, state: Mapping[str, JSONValue]
+    ) -> None:
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError("run_id must be non-empty")
+        if not isinstance(state, Mapping) or set(state) != {"messages"}:
+            raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+        if run_id in self._history:
+            raise AnthropicProviderError("ANTHROPIC_CONTINUATION_ALREADY_ATTACHED")
+        self._history[run_id] = _validate_restored_history(state.get("messages"))
 
 
 __all__ = ["AnthropicMessagesProvider", "AnthropicProviderError"]

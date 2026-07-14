@@ -382,7 +382,12 @@ class AgentRunner:
                         state, recorder.phase, advance_checkpoint_sequence=True
                     )
                     continuation.complete_provider(
-                        state, turn, checkpoint_sequence=recorder.checkpoint_sequence
+                        state,
+                        turn,
+                        provider_state=self.ports.provider.export_continuation(
+                            state.run_id
+                        ),
+                        checkpoint_sequence=recorder.checkpoint_sequence,
                     )
                 recorder.record(state, RunPhase.PLANNING)
                 if not turn.tool_calls:

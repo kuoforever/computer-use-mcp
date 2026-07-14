@@ -471,3 +471,79 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "click",
         "key",
     ]
+
+
+def test_claude_restore_appends_only_new_tool_result_to_exact_history() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_2",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            )
+        ]
+    )
+    provider = AnthropicMessagesProvider(model="test-model", messages=scripted)
+    history = [
+        {"role": "user", "content": "Persisted task"},
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "list_windows",
+                    "input": {},
+                }
+            ],
+        },
+    ]
+    provider.restore_continuation("run_restore", {"messages": history})
+    identity = CallIdentity("run_restore", "turn_1", "toolu_1")
+    result = ToolResult(
+        identity,
+        "list_windows",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+    ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=identity,
+            tool_result=result,
+        ),
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_restore",
+            turn_id="turn_2",
+            task="ORIGINAL_TASK_MUST_NOT_BE_SENT",
+            ledger=ledger,
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request_messages = scripted.calls[0]["messages"]
+    assert request_messages[:2] == history
+    assert request_messages[2]["role"] == "user"
+    assert request_messages[2]["content"][0]["tool_use_id"] == "toolu_1"
+    assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(scripted.calls[0])
+
+
+def test_claude_restore_rejects_invalid_or_repeated_attach() -> None:
+    provider = AnthropicMessagesProvider(model="test-model", messages=ScriptedMessages([]))
+    with pytest.raises(AnthropicProviderError, match="ANTHROPIC_CONTINUATION_INVALID"):
+        provider.restore_continuation("run_1", {"messages": []})
+    provider.restore_continuation(
+        "run_1", {"messages": [{"role": "user", "content": "task"}]}
+    )
+    with pytest.raises(
+        AnthropicProviderError, match="ANTHROPIC_CONTINUATION_ALREADY_ATTACHED"
+    ):
+        provider.restore_continuation(
+            "run_1", {"messages": [{"role": "user", "content": "task"}]}
+        )

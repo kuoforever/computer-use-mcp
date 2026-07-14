@@ -1,11 +1,13 @@
 # Persisted continuation and crash reconstruction design
 
-> **Status: opt-in runtime write-ahead persistence implemented; runtime resume
-> not implemented.** The strict bounded v1 envelope, private atomic reader/writer,
-> provider/MCP `prepared -> dispatch_intent -> completed` boundaries,
-> conservative crash classifier, and frozen E2 boundary matrix exist. No runner,
-> provider, CLI, or MCP path executes a reconstruction decision, so no additional
-> run is resumable and no provider call or desktop action can be replayed.
+> **Status: opt-in runtime write-ahead persistence and pure read-only attach
+> planning implemented; runtime resume execution not implemented.** The strict
+> bounded v1 envelope, private atomic reader/writer, provider/MCP
+> `prepared -> dispatch_intent -> completed` boundaries, conservative crash
+> classifier, frozen E2 boundary matrix, provider continuation export/restore,
+> strict planner, and a one-step commit-before-call execution primitive for the
+> two completed read-only boundaries exist. No runner or CLI path invokes that
+> primitive, so no additional persisted run is resumable yet.
 
 ## Safety boundary
 
@@ -202,9 +204,12 @@ the original task again.
    freeze the 14-case E2 matrix, and persist the boundaries immediately around
    live provider and MCP dispatch when explicitly enabled. All reconstruction
    decisions remain non-executable and authorize zero external calls.
-3. Enable only the two read-only completed-boundary paths: completed provider
-   response to one pending observation, and completed observation result to one
-   new provider continuation.
+3. **In progress:** pure provider export/restore, strict attach planning, and an
+   internal one-step executor are implemented for the two read-only completed
+   boundaries. The executor requires an atomic sequence-checking intent commit,
+   performs exactly one new external call, and rejects stale attaches before the
+   commit. Durable completion updates and the runner/CLI entry point are not
+   enabled yet.
 4. Enable completed-side-effect recovery only into mandatory re-observation,
    after the no-replay E2 matrix is frozen and reviewed.
 5. Keep uncertain dispatches, pending side-effects, drift, corruption, and

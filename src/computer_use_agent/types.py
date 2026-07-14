@@ -735,6 +735,12 @@ class ModelProviderPort(Protocol):
         memories: Sequence[MemoryContextItem] = (),
     ) -> ModelTurn: ...
 
+    def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]: ...
+
+    def restore_continuation(
+        self, run_id: str, state: Mapping[str, JSONValue]
+    ) -> None: ...
+
 
 @runtime_checkable
 class DesktopMCPPort(Protocol):
