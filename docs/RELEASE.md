@@ -17,8 +17,10 @@ The command reads `HEAD` and the complete working tree before and after all
 gates. It fails if either endpoint is dirty, the commit changes, public package
 versions differ, Ruff/pytest/diff checks fail, the frozen E1/E2 manifest
 drifts, a safety escape occurs, or the wheel cannot be built and smoke-tested
-in a temporary no-deps environment. Report schema v2 records both candidate
-checks so evidence cannot silently retain only the starting identity. Build
+in a temporary no-deps environment. Report schema v3 records both candidate
+checks, UTC generation time, Python version/implementation, and non-path
+platform identity so evidence cannot silently retain only the starting
+identity or an unspecified local runtime. Build
 isolation and dependency resolution are disabled, so all required
 development/build dependencies must already be installed. Provider credentials
 and all other non-allowlisted host variables are excluded, E3 is forced off,
@@ -29,6 +31,8 @@ Git, Python, build, and venv. This limits environment transfer; it is not an OS
 sandbox. No desktop path is invoked.
 The JSON evidence intentionally excludes subprocess output and cannot satisfy
 CI, E3, E4, license, changelog, reviewer, or approval gates.
+One local preflight records one Python runtime; supported-version evidence still
+comes from the CI Python 3.11-3.13 matrix.
 
 ## Automated pull-request gates
 

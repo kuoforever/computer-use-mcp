@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -94,13 +95,31 @@ def test_release_preflight_records_sanitized_offline_evidence(
     monkeypatch.setenv("GITHUB_TOKEN", "secret-github")
     monkeypatch.setenv("UNRELATED_SECRET", "secret-unrelated")
     environments = _install_fake_commands(monkeypatch)
+    monkeypatch.setattr(release, "_utc_timestamp", lambda: "2026-07-14T01:02:03Z")
+    monkeypatch.setattr(
+        release,
+        "_runtime_metadata",
+        lambda: {
+            "python_version": "3.13.5",
+            "python_implementation": "CPython",
+            "os_name": "nt",
+            "sys_platform": "win32",
+        },
+    )
     artifacts = tmp_path / "artifacts"
     report_path = tmp_path / "preflight.json"
 
     payload = release.run_release_preflight(ROOT, artifacts, report_path)
 
     assert payload["passed"] is True
-    assert payload["report_version"] == 2
+    assert payload["report_version"] == 3
+    assert payload["generated_at_utc"] == "2026-07-14T01:02:03Z"
+    assert payload["execution"] == {
+        "python_version": "3.13.5",
+        "python_implementation": "CPython",
+        "os_name": "nt",
+        "sys_platform": "win32",
+    }
     assert payload["candidate"] == {
         "commit": "a" * 40,
         "final_commit": "a" * 40,
@@ -167,6 +186,21 @@ def test_offline_environment_uses_a_platform_allowlist(
     assert environment["PIP_NO_INDEX"] == "1"
     assert environment["PIP_NO_INPUT"] == "1"
     assert environment["PYTHONNOUSERSITE"] == "1"
+
+
+def test_runtime_evidence_is_utc_and_omits_local_identity_paths() -> None:
+    timestamp = release._utc_timestamp()
+    metadata = release._runtime_metadata()
+
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", timestamp)
+    assert set(metadata) == {
+        "python_version",
+        "python_implementation",
+        "os_name",
+        "sys_platform",
+    }
+    assert all(isinstance(value, str) and value for value in metadata.values())
+    assert not ({"user", "hostname", "executable", "path"} & set(metadata))
 
 
 def test_release_preflight_fails_closed_for_dirty_source(

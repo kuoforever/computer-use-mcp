@@ -9,10 +9,10 @@
 
 ## Implementation audit (2026-07-14)
 
-The repository currently provides a tested foundation, not a runnable LLM
-desktop Agent. The status below is based on source inspection plus
-`python -m pytest -q` (237 passed, 2 opt-in live cases skipped) and
-`python -m ruff check src tests` (passed).
+The repository currently provides a tested foundation, not a completed safety
+MVP. The status below is based on source inspection plus the current offline
+preflight and CI evidence. Exact pass/skip counts belong in each generated
+report rather than this audit because the suite changes with every milestone.
 
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ desktop Agent. The status below is based on source inspection plus
 | OpenAI / Claude providers | Implemented text/image/action-schema slice | Both adapters default to text and bounded screenshot observation tools, encode provider-native image continuations, and enforce configurable canonical-JSON request byte caps before SDK calls. They expose `activate_window`, `click`, and `key` only in approved mode; `type` remains unadvertised. Wire fixtures, CLI routing, and gated fake-MCP E3 exist. |
 | Workflow and recovery | Partial | Observe/approve/act/reobserve/answer executes with phase checkpoints. Opt-in continuation v1 can chain 1-4 reviewed read-only recovery calls under one lock, while each call retains its own durable intent/completion boundary. Provider-requested actions stop the chain without dispatch; completed side effects permit one mandatory `ui_snapshot` and then stop. Unknown outcomes, uncertain dispatches, pending side effects, drift, and unbounded recovery remain fail-closed. |
 | Context, memory, and trace | Partial | Provider-only event reduction preserves required atomic groups; explicit SQLite preference/procedure add/list/expiry/delete plus per-run exact-scope retrieval/injection and conservative rejection rules exist. Final outbound requests have deterministic UTF-8 JSON byte gates plus required provider/model context-window and output-reserve gates. Claude can pack oldest complete local tool-use/result pairs without splitting images or committing failed candidates; OpenAI remote continuation stays fail-closed. Policy can also stop before another provider call after cumulative reported input tokens reach a configured cap. Atomic safe checkpoints, redacted JSONL, phase validation, per-run token/latency/tool metrics, strict cross-run reports, and `agent trace` exist. Model-generated semantic compression and broader resumable state remain. |
-| Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, thirteen-case workflow E1/E2 JSON reports, canonical manifest verification, wheel build, and clean-install CLI smoke. A local fail-closed preflight repeats those gates with a minimal reviewed child environment, no pip index/input/config discovery or dependencies downloaded during build/install, reconciles public version sources, rechecks clean source and `HEAD` after the gates, and emits sanitized hashes/counts. A separate frozen 14-case runtime crash-recovery matrix verifies exact provider/MCP call counts and zero action replay. Provider E3 remains explicit; isolated E4/E5 evidence remains. |
+| Evaluation and CI | Partial | Windows/Python 3.11-3.13 CI runs Ruff, full offline tests, thirteen-case workflow E1/E2 JSON reports, canonical manifest verification, wheel build, and clean-install CLI smoke. A local fail-closed preflight repeats those gates with a minimal reviewed child environment, no pip index/input/config discovery or dependencies downloaded during build/install, reconciles public version sources, rechecks clean source and `HEAD` after the gates, and emits sanitized hashes/counts plus UTC and non-path runtime identity. A separate frozen 14-case runtime crash-recovery matrix verifies exact provider/MCP call counts and zero action replay. Provider E3 remains explicit; isolated E4/E5 evidence remains. |
 
 The dual-provider observation slice is runnable but experimental. Documentation
 must distinguish it from the complete safety MVP until both providers,

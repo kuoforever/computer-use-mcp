@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift and child-environment controls | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -82,11 +82,13 @@ user configuration.
 Both source and installed-wheel E1/E2 runs verify the frozen manifest; their
 reports and the wheel are retained by SHA-256, while subprocess output is not
 copied into the evidence report. E3/E4 are never inferred from a preflight pass.
-Report schema v2 records the starting and final commit and clean-state checks.
-The aggregate fails if `HEAD` changes, either endpoint is dirty, or either Git
-query fails. Unit fixtures exercise both mid-run commit drift and a working tree
-that becomes dirty; these are E0 release-evidence failures, not safety escapes
-or substitutes for the frozen E1/E2 trace matrix.
+Report schema v3 records the UTC generation time; Python version and
+implementation; `os.name` and `sys.platform`; and the starting/final commit and
+clean-state checks. It deliberately omits host name, user name, and executable
+path. The aggregate fails if `HEAD` changes, either endpoint is dirty, or either
+Git query fails. Unit fixtures exercise both mid-run commit drift and a working
+tree that becomes dirty; these are E0 release-evidence failures, not safety
+escapes or substitutes for the frozen E1/E2 trace matrix.
 Environment fixtures prove that required platform variables survive while
 OpenAI, Anthropic, AWS, Azure, Google, GitHub, `PYTHONPATH`, custom pip index,
 and arbitrary secret sentinels do not reach any preflight child. This is an

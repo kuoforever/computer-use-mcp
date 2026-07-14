@@ -62,9 +62,10 @@ the following commands:
   cloud, GitHub, Python import-path, and arbitrary host variables are not
   forwarded. User site loading and pip index/input/config discovery are
   disabled. The command writes only fixed outcomes, counts, package identity,
-  and SHA-256 evidence. It rechecks `HEAD` and the complete working tree after
-  all gates; a dirty endpoint, changed commit, or any missing/failed gate makes
-  the aggregate result fail.
+  UTC generation time, non-path Python/platform identity, and SHA-256 evidence.
+  It rechecks `HEAD` and the complete working tree after all gates; a dirty
+  endpoint, changed commit, or any missing/failed gate makes the aggregate
+  result fail.
 - `trace RUN_ID --config PATH` validates and prints one persisted safe
   checkpoint with aggregate latency/token/tool metrics plus its redacted JSONL events. It starts no external port and
   never implicitly resumes or mutates the run. Explicit `resume` is restricted

@@ -12,13 +12,15 @@ import tempfile
 import tomllib
 import venv
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from platform import python_implementation, python_version
 from typing import Mapping, Sequence
 
 from computer_use_mcp import __version__ as runtime_version
 
 
-PREFLIGHT_REPORT_VERSION = 2
+PREFLIGHT_REPORT_VERSION = 3
 _PYTEST_SUMMARY = re.compile(
     r"(?P<passed>\d+) passed(?:, (?P<skipped>\d+) skipped)?(?:, (?P<failed>\d+) failed)?"
 )
@@ -223,6 +225,19 @@ def _candidate_state(
     return commit, clean_command.passed and not clean_command.stdout.strip()
 
 
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _runtime_metadata() -> dict[str, str]:
+    return {
+        "python_version": python_version(),
+        "python_implementation": python_implementation(),
+        "os_name": os.name,
+        "sys_platform": sys.platform,
+    }
+
+
 def run_release_preflight(
     root: Path,
     artifacts: Path,
@@ -399,7 +414,9 @@ def run_release_preflight(
     )
     payload: dict[str, object] = {
         "report_version": PREFLIGHT_REPORT_VERSION,
+        "generated_at_utc": _utc_timestamp(),
         "passed": passed,
+        "execution": _runtime_metadata(),
         "candidate": {
             "commit": commit,
             "final_commit": final_commit,
