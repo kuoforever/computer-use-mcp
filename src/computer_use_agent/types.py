@@ -109,7 +109,6 @@ class ProviderContinuationStrategy(str, Enum):
 class StatelessReplayBlocker(str, Enum):
     """Missing reviewed evidence that prevents lossless stateless replay."""
 
-    PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED = "provider_output_items_not_persisted"
     REPLAY_COMPILER_NOT_IMPLEMENTED = "replay_compiler_not_implemented"
 
 

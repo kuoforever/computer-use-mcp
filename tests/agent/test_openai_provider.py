@@ -51,6 +51,15 @@ class ScriptedResponses:
         return self.responses.pop(0)
 
 
+@dataclass
+class DumpedOutputItem:
+    payload: dict[str, object]
+
+    def model_dump(self, *, mode: str) -> dict[str, object]:
+        assert mode == "json"
+        return self.payload
+
+
 def _response(
     response_id: str,
     *,
@@ -72,6 +81,7 @@ def _continuation_state(
     prior_context_tokens: int = 14,
     memory_context_used: bool = False,
     initial_input: str = "Inspect",
+    output_items: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     tools = _tool_definitions(REVIEWED_TOOLS, allow_actions=provider.allow_actions)
     instructions = _instructions(
@@ -94,6 +104,9 @@ def _continuation_state(
         ),
         "memory_context_used": memory_context_used,
         "initial_input": initial_input,
+        "output_batches": [
+            {"response_id": response_id, "items": output_items or []}
+        ],
     }
 
 
@@ -103,6 +116,14 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
             _response(
                 "response_1",
                 output=[
+                    DumpedOutputItem(
+                        {
+                            "type": "reasoning",
+                            "id": "reasoning_1",
+                            "content": [],
+                            "summary": [],
+                        }
+                    ),
                     SimpleNamespace(
                         type="function_call",
                         name="list_windows",
@@ -191,6 +212,26 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
             ),
         }
     ]
+    assert provider.export_continuation("run_1")["output_batches"] == [
+        {
+            "response_id": "response_1",
+            "items": [
+                {
+                    "type": "reasoning",
+                    "id": "reasoning_1",
+                    "content": [],
+                    "summary": [],
+                },
+                {
+                    "type": "function_call",
+                    "name": "list_windows",
+                    "call_id": "call_1",
+                    "arguments": "{}",
+                },
+            ],
+        },
+        {"response_id": "response_2", "items": []},
+    ]
 
 
 def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
@@ -205,11 +246,49 @@ def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
     )
     assert readiness.eligible is False
     assert readiness.blockers == (
-        StatelessReplayBlocker.PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED,
         StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
     )
     assert provider.export_continuation("run_readiness") == state_before
     assert scripted.calls == []
+
+
+@pytest.mark.parametrize(
+    ("output", "error"),
+    [
+        ([SimpleNamespace(type="reasoning", content=[object()])], "OPENAI_RESPONSE_INVALID"),
+        (
+            [
+                SimpleNamespace(
+                    type="reasoning",
+                    encrypted_content="x" * 10_000,
+                )
+            ],
+            "OPENAI_RESPONSE_OUTPUT_TOO_LARGE",
+        ),
+    ],
+)
+def test_openai_output_item_persistence_is_bounded_and_atomic(
+    output: list[object], error: str
+) -> None:
+    scripted = ScriptedResponses([_response("response_1", output=output)])
+    provider = OpenAIResponsesProvider(
+        model="test-model", responses=scripted, max_request_bytes=4_000
+    )
+
+    with pytest.raises(OpenAIProviderError, match=error):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_output",
+                turn_id="turn_1",
+                task="Inspect",
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert len(scripted.calls) == 1
+    assert provider.export_continuation("run_output")["response_id"] is None
+    assert provider.export_continuation("run_output")["output_batches"] == []
 
 
 def test_openai_screenshot_result_uses_bounded_multimodal_function_output() -> None:
@@ -631,6 +710,7 @@ def test_openai_restore_rejects_contract_drift_before_state_or_network(
         "request_contract_digest": None,
         "memory_context_used": False,
         "initial_input": None,
+        "output_batches": [],
     }
     assert scripted.calls == []
 
@@ -717,6 +797,10 @@ def test_openai_restore_continues_previous_response_without_resending_task() -> 
         ],
         "memory_context_used": False,
         "initial_input": "Inspect",
+        "output_batches": [
+            {"response_id": "response_1", "items": []},
+            {"response_id": "response_2", "items": []},
+        ],
     }
 
 

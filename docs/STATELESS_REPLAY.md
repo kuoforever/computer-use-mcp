@@ -14,9 +14,10 @@ examples preserve `response.output` and then append each matching
 
 Those wire items are richer than the current canonical host ledger. The ledger
 normalizes assistant text, reviewed function calls, usage, and tool results; it
-now persists the exact initial input, but it does not persist every provider
-output item, such as reasoning items. Reconstructing a plausible transcript
-from normalized events would therefore still be lossy and is prohibited.
+now persists the exact initial input and every bounded provider output item in
+response order. Compiling those records into a new stateless request is still
+a separate, unimplemented capability; reconstructing a plausible transcript
+through any other path remains prohibited.
 
 Official protocol references:
 
@@ -31,11 +32,10 @@ returns a `StatelessReplayReadiness` with these blockers:
 
 | Blocker | Required evidence before removal |
 | --- | --- |
-| `provider_output_items_not_persisted` | Preserve every required Responses API output item in exact order, not only normalized text/function calls. |
 | `replay_compiler_not_implemented` | Add a separately reviewed compiler that emits one bounded request and never dispatches historical tools. |
 
-The initial-input and request-contract prerequisites are now delivered
-independently of replay. Continuation v4 stores the exact initial SDK `input`
+The initial-input, provider-output, and request-contract prerequisites are now
+delivered independently of replay. Continuation v5 stores the exact initial SDK `input`
 string inside the already-sensitive private artifact. This includes the task
 and any explicitly selected memory data, is never copied into trace/report/error
 surfaces, and is not itself executable. The contract digest binds its SHA-256
@@ -44,8 +44,12 @@ action mode, memory-disclosure marker, parallel-call setting, request-byte gate,
 context window, output reserve, and contract version under a canonical SHA-256
 digest. Restore or active-chain drift fails with
 `OPENAI_REQUEST_CONTRACT_MISMATCH` before provider I/O and before restored state
-is attached. These delivered prerequisites remove two readiness blockers but
-do not make replay executable.
+is attached. Each completed response also appends one bounded batch containing
+the response ID and every canonical JSON `response.output` item in original
+order, including reasoning items. Invalid JSON, duplicate/mismatched response
+IDs, excessive item counts, and oversized accumulated batches fail before
+state commit. These delivered prerequisites remove three readiness blockers
+but do not make replay executable.
 
 The assessment is descriptive and non-executable. No CLI/config switch invokes
 it, and an empty blocker set alone would not authorize provider or desktop I/O.

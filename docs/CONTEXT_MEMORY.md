@@ -32,10 +32,10 @@ This is a bound on the host-supplied canonical ledger view. OpenAI's active
 the current run's provider-native continuation state. The adapters now declare
 those strategies explicitly. OpenAI also exposes a non-executable
 [stateless-replay readiness](STATELESS_REPLAY.md) assessment that remains
-blocked on exact provider-output persistence and a reviewed replay compiler.
-Exact initial-input persistence and canonical request-contract digest binding
-are now delivered in continuation v4; drift fails before network I/O, but
-replay remains unavailable. Safe semantic summarization remains future work;
+blocked on a reviewed replay compiler. Exact initial-input persistence,
+ordered provider-output-item batches, and canonical request-contract digest
+binding are now delivered in continuation v5; drift fails before network I/O,
+but replay remains unavailable. Safe semantic summarization remains future work;
 model-turn limits continue to bound the current run.
 
 Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain

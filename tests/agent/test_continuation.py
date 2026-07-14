@@ -26,7 +26,7 @@ NOW = datetime(2030, 1, 1, tzinfo=UTC)
 
 def _payload(run_id: str = "run_1") -> dict[str, object]:
     return {
-        "continuation_version": 4,
+        "continuation_version": 5,
         "run_id": run_id,
         "checkpoint_sequence": 7,
         "policy_version": "phase0",
@@ -66,6 +66,7 @@ def _payload(run_id: str = "run_1") -> dict[str, object]:
             "request_contract_digest": "b" * 64,
             "memory_context_used": False,
             "initial_input": "Inspect the window",
+            "output_batches": [{"response_id": "response_1", "items": []}],
         },
         "created_at": "2030-01-01T00:00:00Z",
         "expires_at": "2030-01-01T01:00:00Z",
@@ -90,7 +91,7 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
     assert operation.result is OperationResult.SUCCESS
 
 
-@pytest.mark.parametrize("unsupported_version", [1, 2, 3])
+@pytest.mark.parametrize("unsupported_version", [1, 2, 3, 4])
 def test_old_continuation_is_rejected_after_openai_contract_upgrade(
     tmp_path: Path,
     unsupported_version: int,
@@ -134,6 +135,22 @@ def test_old_continuation_is_rejected_after_openai_contract_upgrade(
             lambda value: value["provider_state"].update(
                 initial_input="different task"
             ),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["provider_state"].update(output_batches=[]),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["provider_state"]["output_batches"][0].update(
+                response_id="different_response"
+            ),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["provider_state"]["output_batches"][0][
+                "items"
+            ].append({"id": "missing_type"}),
             "CONTINUATION_INVALID",
         ),
     ],
