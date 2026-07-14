@@ -347,6 +347,93 @@ def test_openai_request_budget_fails_before_initial_or_continuation_network_call
     assert len(scripted.calls) == 1
 
 
+def test_openai_token_window_fails_before_network_and_reserves_output() -> None:
+    scripted = ScriptedResponses([_response("unused")])
+    provider = OpenAIResponsesProvider(
+        model="test-model",
+        responses=scripted,
+        max_request_bytes=100_000,
+        context_window_tokens=2_000,
+        output_token_reserve=256,
+    )
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_TOKEN_WINDOW_EXCEEDED"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_token_window",
+                turn_id="turn_1",
+                task="x" * 5_000,
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert scripted.calls == []
+
+
+def test_openai_token_window_keeps_remote_context_and_image_result_atomic() -> None:
+    scripted = ScriptedResponses(
+        [
+            _response(
+                "response_1",
+                output=[
+                    SimpleNamespace(
+                        type="function_call",
+                        name="screenshot",
+                        call_id="call_1",
+                        arguments="{}",
+                    )
+                ],
+            ),
+            _response("unused"),
+        ]
+    )
+    provider = OpenAIResponsesProvider(
+        model="test-model", responses=scripted, max_request_bytes=100_000
+    )
+    first = asyncio.run(
+        provider.create_turn(
+            run_id="run_atomic_window",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    assert provider._prior_context_tokens["run_atomic_window"] == 14
+
+    provider.context_window_tokens = 2_000
+    result = ToolResult(
+        identity=first.tool_calls[0].identity,
+        tool_name="screenshot",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(ImageContent("image/png", base64.b64decode(_PNG_BASE64), 1, 1),),
+    )
+    ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=result.identity,
+            tool_result=result,
+        ),
+    )
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_TOKEN_WINDOW_EXCEEDED"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_atomic_window",
+                turn_id="turn_2",
+                task="Inspect",
+                ledger=ledger,
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert len(scripted.calls) == 1
+
+
 def test_openai_explicit_memory_is_json_data_on_initial_turn_only() -> None:
     scripted = ScriptedResponses([_response("response_1", text="done")])
     provider = OpenAIResponsesProvider(model="test-model", responses=scripted)

@@ -94,9 +94,12 @@ SQLite-memory rules.
 Every final provider SDK request is additionally bounded by configurable
 canonical UTF-8 JSON bytes (8 MiB default, 1 KiB-48 MiB reviewed range). This
 includes task, explicit memory, tools/results, screenshots, and Claude history;
-oversize requests fail before network I/O. It does not prune OpenAI's remote
-`previous_response_id` history and is therefore not an end-to-end token-window
-guarantee.
+oversize requests fail before network I/O. Required provider/model-specific
+`context_window_tokens` and `output_token_reserve` settings add a conservative
+pre-network token-window gate over the complete request. Each visible UTF-8
+request byte is charged as one input token; OpenAI continuations additionally
+carry forward the preceding provider-reported input/output usage. The gate
+fails with a fixed provider code and never splits mandatory atomic groups.
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the
@@ -339,7 +342,7 @@ as general secret detection.
 | Section | Purpose | Fail-closed rule |
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
-| `[provider]` | provider name (`openai` or `anthropic`), model ID, and bounded `max_request_bytes` | API keys are rejected because they do not belong in config. |
+| `[provider]` | provider name (`openai` or `anthropic`), model ID, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. |
 | `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, audit redirection, and custom redaction controls are rejected. |
 | `[policy]` | read-only/approved-actions choice and fixed budgets | `approved_actions` cannot disable per-action approval. |
 
@@ -380,9 +383,9 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Cross-run reports are bounded | `agent report` reads only strict atomic checkpoints and aggregates phase, success, fixed failure codes, metric coverage, totals, and averages; corrupt or path-unsafe records fail the whole report | implemented report test |
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
 | Provider requests have a byte gate | Both adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or Claude-history requests before network I/O | implemented request-budget test |
+| Provider requests have a token-window gate | Both adapters conservatively bound the complete final request plus output reserve before SDK I/O; OpenAI also carries forward reported remote-context usage, and no atomic tool/result/image group is split | implemented provider token-window tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 
-The remaining work adds broader post-provider resumable state, provider/model-aware
-pre-request token-window enforcement, semantic context compression, isolated
-desktop smokes, and release review. The current slice is experimental and must
+The remaining work adds broader post-provider resumable state, semantic context
+compression, isolated desktop smokes, and release review. The current slice is experimental and must
 not be presented as the complete safety MVP.

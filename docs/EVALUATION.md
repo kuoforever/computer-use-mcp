@@ -115,6 +115,9 @@ The thirteen workflow cases plus the frozen 14-boundary reconstruction matrix co
 
 - E1 observation-to-answer and hard model-turn exhaustion;
 - E2 cumulative provider-reported input-token exhaustion before another turn;
+- offline OpenAI and Claude adapter tests that reject complete over-window
+  requests before the SDK fake is called, including output reserve, OpenAI
+  remote-context usage, and atomic image tool results;
 - E2 provider identity mismatch and unknown tool rejection;
 - E2 single and multiple action requests denied before dispatch;
 - E2 prompt-injection-induced typing with redacted trace metadata;

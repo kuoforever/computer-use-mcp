@@ -15,6 +15,12 @@ model = "your-model-id"
 # Exact UTF-8 JSON byte cap for each outbound provider SDK request. This covers
 # task, selected memory, tool schemas/results, images, and local message history.
 max_request_bytes = 8388608
+# Conservative pre-request token window for this exact provider/model pairing.
+# The host charges every visible UTF-8 request byte as one input token, adds the
+# output reserve, and rejects the complete request before network I/O if it
+# would exceed this value. Set it to the reviewed limit for your model ID.
+context_window_tokens = 128000
+output_token_reserve = 1024
 
 [mcp]
 # The bridge executes this absolute program directly without a shell.

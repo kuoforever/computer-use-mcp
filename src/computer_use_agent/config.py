@@ -14,8 +14,12 @@ from types import MappingProxyType
 from typing import Mapping
 
 from .types import (
+    DEFAULT_PROVIDER_CONTEXT_TOKENS,
+    DEFAULT_PROVIDER_OUTPUT_TOKENS,
     DEFAULT_PROVIDER_REQUEST_BYTES,
+    MAX_PROVIDER_CONTEXT_TOKENS,
     MAX_PROVIDER_REQUEST_BYTES,
+    MIN_PROVIDER_CONTEXT_TOKENS,
     MIN_PROVIDER_REQUEST_BYTES,
 )
 
@@ -141,11 +145,20 @@ def _read_nonnegative_int(table: Mapping[str, object], key: str, section: str, d
     return value
 
 
+def _read_positive_int(table: Mapping[str, object], key: str, section: str) -> int:
+    value = table.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigError(f"[{section}].{key} must be a positive integer")
+    return value
+
+
 @dataclass(frozen=True)
 class ProviderConfig:
     name: str
     model: str
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
+    context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
+    output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or self.name not in SUPPORTED_PROVIDERS:
@@ -163,6 +176,27 @@ class ProviderConfig:
             raise ConfigError(
                 "provider max_request_bytes must be between "
                 f"{MIN_PROVIDER_REQUEST_BYTES} and {MAX_PROVIDER_REQUEST_BYTES}"
+            )
+        if (
+            isinstance(self.context_window_tokens, bool)
+            or not isinstance(self.context_window_tokens, int)
+            or not MIN_PROVIDER_CONTEXT_TOKENS
+            <= self.context_window_tokens
+            <= MAX_PROVIDER_CONTEXT_TOKENS
+        ):
+            raise ConfigError(
+                "provider context_window_tokens must be between "
+                f"{MIN_PROVIDER_CONTEXT_TOKENS} and {MAX_PROVIDER_CONTEXT_TOKENS}"
+            )
+        if (
+            isinstance(self.output_token_reserve, bool)
+            or not isinstance(self.output_token_reserve, int)
+            or self.output_token_reserve <= 0
+            or self.output_token_reserve >= self.context_window_tokens
+        ):
+            raise ConfigError(
+                "provider output_token_reserve must be positive and smaller than "
+                "context_window_tokens"
             )
 
 
@@ -313,7 +347,17 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     continuation = _read_table(document, "continuation", required=False)
 
     _reject_unknown(agent, {"state_dir", "policy_version"}, "agent")
-    _reject_unknown(provider, {"name", "model", "max_request_bytes"}, "provider")
+    _reject_unknown(
+        provider,
+        {
+            "name",
+            "model",
+            "max_request_bytes",
+            "context_window_tokens",
+            "output_token_reserve",
+        },
+        "provider",
+    )
     _reject_unknown(mcp, {"executable", "args", "cwd", "environment"}, "mcp")
     _reject_unknown(
         policy,
@@ -346,6 +390,12 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "max_request_bytes",
             "provider",
             DEFAULT_PROVIDER_REQUEST_BYTES,
+        ),
+        context_window_tokens=_read_positive_int(
+            provider, "context_window_tokens", "provider"
+        ),
+        output_token_reserve=_read_positive_int(
+            provider, "output_token_reserve", "provider"
         ),
     )
 

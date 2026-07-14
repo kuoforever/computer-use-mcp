@@ -27,12 +27,11 @@ keeps a result without its call. If mandatory events plus the truncation marker
 cannot fit, the run fails closed with `CONTEXT_REQUIRED_EVENTS_EXCEED_BUDGET`
 before the next provider request.
 
-This is a bound on the host-supplied canonical ledger view, not a
-tokenizer-specific end-to-end provider context limit. OpenAI's active
+This is a bound on the host-supplied canonical ledger view. OpenAI's active
 `previous_response_id` chain and Claude's active message history still preserve
 the current run's provider-native continuation state. Provider-neutral
-stateless replay, safe summarization, and actual token-window enforcement remain
-future work; model-turn limits continue to bound the current run.
+stateless replay and safe semantic summarization remain future work;
+model-turn limits continue to bound the current run.
 
 Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
 between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request
@@ -41,20 +40,30 @@ instructions, tool schemas, task, selected memory, current tool results,
 base64 screenshots, and Claude's accumulated local message history. Oversize
 requests fail with a fixed provider error before the SDK fake/client is called.
 
-This is a transport/disclosure bound, not token counting or compression.
-OpenAI's remote history referenced by `previous_response_id` is not present in
-the local request and cannot be measured by this check. No automatic summary is
-generated because it could discard atomic call/result, approval, or recovery
-semantics.
+The required `[provider].context_window_tokens` and
+`[provider].output_token_reserve` values bind that exact configured provider and
+model ID. Before either SDK call, the adapter charges each visible canonical
+request byte as one input token, adds the reserved output, and rejects an
+over-limit request with `OPENAI_TOKEN_WINDOW_EXCEEDED` or
+`ANTHROPIC_TOKEN_WINDOW_EXCEEDED`. This tokenizer-independent bound is
+deliberately conservative. Claude's complete local history is visible. For an
+OpenAI continuation, the next check also includes the preceding response's
+provider-reported input and output usage to cover remote context conservatively.
+
+The gate checks the final request as one unit: it never truncates or separates
+tool calls, tool results, image blocks, approval state, or recovery evidence.
+No automatic summary is generated because it could discard those semantics.
+Operators must review the configured context value whenever the provider/model
+pair changes; config loading fails if either token-window value is absent.
 
 `[policy].max_input_tokens` defaults to 1,000,000 and bounds cumulative input
 tokens reported by the selected provider during one run. Once the reported
 total reaches or exceeds the cap, the Runner records the completed turn and
 fails with `INPUT_TOKEN_BUDGET_EXHAUSTED` before making another provider call.
 This is a usage/cost circuit breaker, not a prediction of the next request's
-token count or a tokenizer-specific context-window guarantee. Providers may
+token count. Providers may
 report a single turn that crosses the remaining budget; the exact pre-request
-`max_request_bytes` gate still applies independently.
+byte and conservative token-window gates still apply independently.
 
 ## SQLite memory contract
 

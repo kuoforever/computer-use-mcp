@@ -400,6 +400,32 @@ def test_claude_request_budget_fails_before_initial_or_history_network_call() ->
     assert len(scripted.calls) == 1
 
 
+def test_claude_token_window_fails_before_network_and_reserves_output() -> None:
+    scripted = ScriptedMessages(
+        [_response("unused", content=[], stop_reason="end_turn")]
+    )
+    provider = AnthropicMessagesProvider(
+        model="test-model",
+        messages=scripted,
+        max_tokens=256,
+        max_request_bytes=100_000,
+        context_window_tokens=2_000,
+    )
+
+    with pytest.raises(AnthropicProviderError, match="ANTHROPIC_TOKEN_WINDOW_EXCEEDED"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_token_window",
+                turn_id="turn_1",
+                task="x" * 5_000,
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert scripted.calls == []
+
+
 def test_claude_explicit_memory_is_json_data_on_initial_turn_only() -> None:
     scripted = ScriptedMessages(
         [

@@ -8,8 +8,11 @@ from dataclasses import dataclass, field
 from typing import Mapping, Protocol, Sequence
 
 from ..tool_registry import ToolSpec, validate_tool_arguments
+from ..token_window import exceeds_token_window
 from ..types import (
     CallIdentity,
+    DEFAULT_PROVIDER_CONTEXT_TOKENS,
+    DEFAULT_PROVIDER_OUTPUT_TOKENS,
     DEFAULT_PROVIDER_REQUEST_BYTES,
     LedgerEvent,
     LedgerEventKind,
@@ -235,6 +238,7 @@ class AnthropicMessagesProvider:
     max_tokens: int = DEFAULT_MAX_TOKENS
     allow_actions: bool = False
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
+    context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     name: str = field(default="anthropic", init=False)
     _history: dict[str, list[dict[str, object]]] = field(
         default_factory=dict, init=False, repr=False
@@ -257,6 +261,13 @@ class AnthropicMessagesProvider:
             or self.max_tokens <= 0
         ):
             raise ValueError("max_tokens must be a positive integer")
+        if (
+            isinstance(self.context_window_tokens, bool)
+            or not isinstance(self.context_window_tokens, int)
+            or self.context_window_tokens <= 0
+            or self.max_tokens >= self.context_window_tokens
+        ):
+            raise ValueError("context_window_tokens must exceed max_tokens")
 
     @classmethod
     def from_environment(
@@ -265,6 +276,8 @@ class AnthropicMessagesProvider:
         *,
         allow_actions: bool = False,
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
+        context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
+        output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "AnthropicMessagesProvider":
         try:
             from anthropic import AsyncAnthropic
@@ -276,6 +289,8 @@ class AnthropicMessagesProvider:
             messages=client.messages,
             allow_actions=allow_actions,
             max_request_bytes=max_request_bytes,
+            max_tokens=output_token_reserve,
+            context_window_tokens=context_window_tokens,
         )
 
     async def create_turn(
@@ -313,6 +328,12 @@ class AnthropicMessagesProvider:
         }
         if _request_size(request) > self.max_request_bytes:
             raise AnthropicProviderError("ANTHROPIC_REQUEST_TOO_LARGE")
+        if exceeds_token_window(
+            request,
+            context_window_tokens=self.context_window_tokens,
+            output_token_reserve=self.max_tokens,
+        ):
+            raise AnthropicProviderError("ANTHROPIC_TOKEN_WINDOW_EXCEEDED")
         try:
             response = await self.messages.create(**request)
         except asyncio.CancelledError:

@@ -23,6 +23,8 @@ def _config_text(
     environment: str = 'CUMCP_ALLOWLIST = "notepad.exe"',
     state_dir: Path | None = None,
     provider_extra: str = "",
+    context_window_tokens: int = 128_000,
+    output_token_reserve: int = 1_024,
 ) -> str:
     local_app_data = tmp_path / "LocalAppData"
     configured_state_dir = state_dir or local_app_data / "computer-use-agent" / "test-run"
@@ -36,6 +38,8 @@ policy_version = "phase0"
 [provider]
 name = "openai"
 model = "test-model"
+context_window_tokens = {context_window_tokens}
+output_token_reserve = {output_token_reserve}
 {provider_extra}
 
 [mcp]
@@ -78,6 +82,43 @@ def test_provider_request_budget_defaults_and_is_bounded(
     for value in (1, 49 * 1024 * 1024, True):
         with pytest.raises(ConfigError, match="max_request_bytes"):
             ProviderConfig("openai", "test-model", value)
+
+
+def test_provider_token_window_defaults_and_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(
+            tmp_path,
+            context_window_tokens=200_000,
+            output_token_reserve=4_096,
+        ),
+        encoding="utf-8",
+    )
+
+    provider = load_agent_config(path).provider
+    assert provider.context_window_tokens == 200_000
+    assert provider.output_token_reserve == 4_096
+
+    with pytest.raises(ConfigError, match="context_window_tokens"):
+        ProviderConfig("openai", "test-model", context_window_tokens=100)
+    with pytest.raises(ConfigError, match="output_token_reserve"):
+        ProviderConfig(
+            "openai",
+            "test-model",
+            context_window_tokens=2_000,
+            output_token_reserve=2_000,
+        )
+
+    missing = tmp_path / "missing-window.toml"
+    missing.write_text(
+        _config_text(tmp_path).replace("context_window_tokens = 128000\n", ""),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="context_window_tokens"):
+        load_agent_config(missing)
 
 
 def test_continuation_persistence_is_explicit_opt_in_and_bounded(
