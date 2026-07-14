@@ -92,20 +92,24 @@ The output contains only run ID, phase, fixed action/reason, resume eligibility,
 and task length. An initial `resume_initial` classification remains conditional
 on supplying the original task to the separate `resume` command.
 
-When opt-in continuation persistence is enabled, execute exactly one reviewed
-read-only recovery boundary with an explicit confirmation flag:
+When opt-in continuation persistence is enabled, execute one reviewed read-only
+recovery boundary by default with an explicit confirmation flag:
 
 ~~~powershell
 .\.venv\Scripts\computer-use-agent.exe recover <run_id> `
   --config agent.toml --task "<original task>" --execute-read-only
 ~~~
 
+To chain a bounded sequence, add `--max-steps N` where `N` is 1-4. All steps
+hold the same run lock, and every external call still receives its own durable
+intent and completion commit.
+
 The command can dispatch one pending observation from a completed provider turn,
 send one new provider continuation after a completed observation, or issue one
 synthetic `ui_snapshot` after a completed side effect and then stop. It acquires
 the run lock, persists a sequence-checked dispatch intent before the call, and
 persists completion afterward. A call failure leaves the intent uncertain and
-non-replayable. Each invocation executes at most one external call.
+non-replayable. The default remains one external call; the reviewed hard cap is four.
 
 Aggregate all local checkpoints without opening JSONL traces:
 

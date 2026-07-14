@@ -1,14 +1,15 @@
 # Persisted continuation and crash reconstruction design
 
-> **Status: opt-in runtime write-ahead persistence and controlled one-step
+> **Status: opt-in runtime write-ahead persistence and controlled bounded
 > read-only recovery implemented.** The strict
 > bounded v1 envelope, private atomic reader/writer, provider/MCP
 > `prepared -> dispatch_intent -> completed` boundaries, conservative crash
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
 > strict planner, atomic sequence-checked intent/completion commits under the
 > run lock, and an explicit CLI entry point exist for three completed
-> read-only recovery boundaries. Recovery remains one step at a time and never replays
-> uncertain dispatches or pending side effects.
+> read-only recovery boundaries. The CLI may chain up to four individually
+> committed steps under one run lock and never replays uncertain dispatches or
+> pending side effects.
 
 ## Safety boundary
 
@@ -207,7 +208,7 @@ the original task again.
    live provider and MCP dispatch when explicitly enabled. All reconstruction
    decisions remain non-executable and authorize zero external calls.
 3. **Implemented:** pure provider export/restore, strict attach planning, and a
-   controlled one-step executor cover the completed read-only boundaries.
+   controlled executor covers the completed read-only boundaries.
    `agent recover ... --execute-read-only` holds the run lock, compares both
    persisted sequences, durably commits intent before exactly one external call,
    then commits its normalized completion. Torn cross-file updates and repeated

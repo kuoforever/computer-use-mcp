@@ -5,8 +5,8 @@
 > Claude Messages adapter are
 > implemented. The CLI can inspect desktop text and bounded screenshots through four observation
 > tools. Opt-in locally approved actions are implemented against fake ports;
-> isolated desktop action smoke and broader multi-step recovery remain unavailable.
-> Opt-in one-step recovery exists only for three reviewed completed boundaries.
+> isolated desktop action smoke and unbounded recovery remain unavailable.
+> Opt-in recovery can chain up to four reviewed read-only boundaries under one lock.
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
@@ -61,9 +61,10 @@ the following commands:
   never implicitly resumes or mutates the run. Explicit `resume` is restricted
   to a pre-provider initial checkpoint; `cancel` closes a non-terminal record.
 - `recover RUN_ID --config PATH --task TEXT --execute-read-only` executes at
-  most one sequence-checked observation or provider-continuation boundary from
-  opt-in private persistence. A completed side effect may trigger one synthetic
-  `ui_snapshot`, then stops. The command never replays uncertain work or an action.
+  most one sequence-checked boundary by default. `--max-steps N` permits 1-4
+  reviewed read-only calls under the same run lock. A completed side effect may
+  trigger one synthetic `ui_snapshot`, then stops. The command never replays
+  uncertain work or dispatches a recovered action.
 - `report --config PATH` aggregates phase/success/failure and token/call/latency
   metrics from bounded validated checkpoints only. It opens no trace JSONL,
   provider, MCP, approval, or desktop port and fails closed on corrupt records.
@@ -82,7 +83,7 @@ Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.
 See [Agent traces](TRACE.md) for phases, storage bounds, inspection, and the
-narrow one-step recovery boundary.
+bounded multi-step recovery boundary.
 
 Before each provider call, the host applies the configured event-count context
 budget to the canonical ledger view supplied to the adapter. It preserves the latest continuation, policy
