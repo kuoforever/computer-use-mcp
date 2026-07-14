@@ -91,6 +91,11 @@ restored request stop before the fake provider records any network call. The
 exact initial input is retained only in the sensitive continuation artifact;
 ordered response-output batches retain reasoning and function-call items while
 invalid, mismatched, or oversized candidates leave provider state unchanged.
+Offline wire fixtures also require
+`include=["reasoning.encrypted_content"]` on both initial and continued OpenAI
+requests and freeze the encrypted reasoning payload in the persisted output
+batch. Request-contract version 3 binds that include list; no fallback request
+may silently omit it.
 This does not add an E1/E2 case or change action authority.
 Report schema v3 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and

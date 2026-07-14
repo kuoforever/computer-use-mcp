@@ -117,6 +117,9 @@ input in the private sensitive artifact and binds its SHA-256 into that
 contract. It retains every bounded canonical JSON `response.output` item in
 ordered response-ID batches; missing, non-correlated, oversized, or drifted
 state fails before the next provider dispatch.
+Every OpenAI request also includes `reasoning.encrypted_content`. The include
+list is bound by request-contract version 3 and is never silently dropped, so
+persisted reasoning output can carry its portable encrypted representation.
 Claude may first remove oldest complete local tool-use/result pairs while
 preserving the task and newest complete pair, including images. A fixed notice
 marks the omission. Mandatory overflow still fails before SDK I/O, and OpenAI
@@ -128,7 +131,8 @@ request-contract digest binding are delivered, but do not enable replay; see
 [Stateless replay](STATELESS_REPLAY.md).
 
 The OpenAI adapter uses Responses API function tools with
-`parallel_tool_calls=false`. It preserves the provider `call_id` in the
+`parallel_tool_calls=false` and `include=["reasoning.encrypted_content"]`. It
+preserves the provider `call_id` in the
 canonical identity and returns a matching `function_call_output` with
 `previous_response_id`. Text results remain JSON strings; screenshot results
 use a status `input_text` block plus one base64 data-URL `input_image` block.

@@ -120,6 +120,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
                         {
                             "type": "reasoning",
                             "id": "reasoning_1",
+                            "encrypted_content": "encrypted_reasoning_1",
                             "content": [],
                             "summary": [],
                         }
@@ -196,6 +197,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
     first_request, second_request = scripted.calls
     assert first_request["input"] == "Inspect windows"
     assert first_request["parallel_tool_calls"] is False
+    assert first_request["include"] == ["reasoning.encrypted_content"]
     assert [tool["name"] for tool in first_request["tools"]] == [
         "ui_snapshot",
         "find",
@@ -203,6 +205,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
         "screenshot",
     ]
     assert second_request["previous_response_id"] == "response_1"
+    assert second_request["include"] == ["reasoning.encrypted_content"]
     assert second_request["input"] == [
         {
             "type": "function_call_output",
@@ -219,6 +222,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
                 {
                     "type": "reasoning",
                     "id": "reasoning_1",
+                    "encrypted_content": "encrypted_reasoning_1",
                     "content": [],
                     "summary": [],
                 },
