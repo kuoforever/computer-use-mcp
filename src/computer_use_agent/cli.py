@@ -47,6 +47,15 @@ def build_parser() -> argparse.ArgumentParser:
     manifest_group.add_argument("--manifest", type=Path)
     manifest_group.add_argument("--write-manifest", type=Path)
 
+    release = commands.add_parser("release", help="Run offline release-readiness checks.")
+    release_commands = release.add_subparsers(dest="release_command", required=True)
+    preflight = release_commands.add_parser(
+        "preflight", help="Run fail-closed offline gates and write sanitized evidence."
+    )
+    preflight.add_argument("--root", type=Path, default=Path.cwd())
+    preflight.add_argument("--artifacts", type=Path, default=Path("out/release-preflight"))
+    preflight.add_argument("--report", type=Path, default=Path("out/release-preflight.json"))
+
     trace = commands.add_parser("trace", help="Inspect one redacted run record.")
     trace.add_argument("run_id")
     trace.add_argument("--config", required=True, type=Path)
@@ -278,6 +287,14 @@ def _run_eval(
     return 0 if report.passed else 1
 
 
+def _run_release_preflight(root: Path, artifacts: Path, report: Path) -> int:
+    from .release import run_release_preflight
+
+    payload = run_release_preflight(root, artifacts, report)
+    _print_json(payload)
+    return 0 if payload["passed"] else 1
+
+
 def _show_trace(path: Path, run_id: str) -> int:
     from .trace import read_run_record
 
@@ -485,6 +502,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_eval(
                 args.cases, args.report, args.manifest, args.write_manifest
             )
+        if args.command == "release" and args.release_command == "preflight":
+            return _run_release_preflight(args.root, args.artifacts, args.report)
         if args.command == "trace":
             return _show_trace(args.config, args.run_id)
         if args.command == "report":

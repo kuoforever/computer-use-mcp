@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+import computer_use_agent.release as release
+
+
+ROOT = Path(__file__).parents[2]
+
+
+class _FakeVenvBuilder:
+    def __init__(self, **_: object) -> None:
+        pass
+
+    def create(self, directory: Path) -> None:
+        directory.mkdir(parents=True)
+
+
+def _install_fake_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    dirty: bool = False,
+    safety_escapes: int = 0,
+) -> list[dict[str, str]]:
+    environments: list[dict[str, str]] = []
+
+    def fake_run(
+        arguments: list[str] | tuple[str, ...],
+        *,
+        cwd: Path,
+        environment: dict[str, str],
+    ) -> release._Command:
+        del cwd
+        environments.append(dict(environment))
+        command = list(arguments)
+        if command[:3] == ["git", "rev-parse", "--verify"]:
+            return release._Command(0, "a" * 40 + "\n")
+        if command[:3] == ["git", "status", "--porcelain=v1"]:
+            return release._Command(0, "?? local.txt\n" if dirty else "")
+        if command[:2] == ["git", "diff"]:
+            return release._Command(0)
+        if "pytest" in command:
+            return release._Command(0, "321 passed, 3 skipped in 1.00s\n")
+        if "build" in command:
+            output = Path(command[command.index("--outdir") + 1])
+            output.mkdir(parents=True)
+            (output / "computer_use_mcp-0.1.0-py3-none-any.whl").write_bytes(b"wheel")
+            return release._Command(0)
+        if "eval" in command:
+            report_path = Path(command[command.index("--report") + 1])
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "passed": safety_escapes == 0,
+                        "case_count": 13,
+                        "passed_cases": 13 if safety_escapes == 0 else 12,
+                        "failed_cases": 0 if safety_escapes == 0 else 1,
+                        "safety_escapes": safety_escapes,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return release._Command(0, stderr="SENSITIVE_SUBPROCESS_OUTPUT")
+        if any("importlib.metadata" in item for item in command):
+            return release._Command(0, "0.1.0\n")
+        return release._Command(0)
+
+    monkeypatch.setattr(release, "_run", fake_run)
+    monkeypatch.setattr(release.venv, "EnvBuilder", _FakeVenvBuilder)
+    return environments
+
+
+def test_release_preflight_records_sanitized_offline_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "secret-openai")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "secret-anthropic")
+    monkeypatch.setenv("RUN_OPENAI_INTEGRATION", "1")
+    environments = _install_fake_commands(monkeypatch)
+    artifacts = tmp_path / "artifacts"
+    report_path = tmp_path / "preflight.json"
+
+    payload = release.run_release_preflight(ROOT, artifacts, report_path)
+
+    assert payload["passed"] is True
+    assert payload["candidate"] == {
+        "commit": "a" * 40,
+        "source_clean": True,
+        "package_version": "0.1.0",
+        "runtime_version": "0.1.0",
+        "version_consistent": True,
+    }
+    assert payload["gates"]["pytest"] == {
+        "passed": True,
+        "passed_tests": 321,
+        "skipped_tests": 3,
+        "failed_tests": 0,
+    }
+    assert payload["gates"]["e1_e2"]["safety_escapes"] == 0
+    assert payload["gates"]["wheel_install"]["e1_e2"]["case_count"] == 13
+    assert len(payload["gates"]["wheel_build"]["sha256"]) == 64
+    raw = report_path.read_text(encoding="utf-8")
+    assert json.loads(raw) == payload
+    assert "SENSITIVE_SUBPROCESS_OUTPUT" not in raw
+    assert all("OPENAI_API_KEY" not in environment for environment in environments)
+    assert all("ANTHROPIC_API_KEY" not in environment for environment in environments)
+    assert all(environment["RUN_OPENAI_INTEGRATION"] == "0" for environment in environments)
+    assert all(
+        environment["RUN_ANTHROPIC_INTEGRATION"] == "0" for environment in environments
+    )
+
+
+def test_release_preflight_fails_closed_for_dirty_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_commands(monkeypatch, dirty=True)
+
+    payload = release.run_release_preflight(
+        ROOT, tmp_path / "artifacts", tmp_path / "report.json"
+    )
+
+    assert payload["passed"] is False
+    assert payload["candidate"]["source_clean"] is False
+    assert all(gate["passed"] for gate in payload["gates"].values())
+
+
+def test_release_preflight_fails_closed_for_a_safety_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_commands(monkeypatch, safety_escapes=1)
+
+    payload = release.run_release_preflight(
+        ROOT, tmp_path / "artifacts", tmp_path / "report.json"
+    )
+
+    assert payload["passed"] is False
+    assert payload["gates"]["e1_e2"]["passed"] is False
+    assert payload["gates"]["e1_e2"]["safety_escapes"] == 1
+    assert payload["gates"]["wheel_install"]["passed"] is False
+
+
+def test_release_preflight_fails_closed_for_public_version_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_commands(monkeypatch)
+    monkeypatch.setattr(release, "runtime_version", "0.0.0")
+
+    payload = release.run_release_preflight(
+        ROOT, tmp_path / "artifacts", tmp_path / "report.json"
+    )
+
+    assert payload["passed"] is False
+    assert payload["candidate"]["version_consistent"] is False
+    assert payload["candidate"]["package_version"] == "0.1.0"
+    assert payload["candidate"]["runtime_version"] == "0.0.0"

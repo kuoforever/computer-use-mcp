@@ -13,7 +13,7 @@
 | P2 — human-active yielding | Implemented | Safe-mode actions yield after recent local input. |
 | P3 — initial browser-content evaluation | Initial evidence recorded | The design retains flat refs and a 200-node cap pending harder application cases. |
 | P5 — pure-logic tests | Implemented | pytest covers core refs, gate behavior, safety/audit, and human activity. |
-| P6 — package and documentation hygiene | Partially complete | Package metadata is at 0.1.0 and docs are organized; licensing/release policy remains open. |
+| P6 — package and documentation hygiene | Partially complete | Public runtime/package metadata is reconciled at 0.1.0 and an offline release preflight emits sanitized evidence; licensing/release policy remains open. |
 | P7 — full-control local mode | Implemented | `safe_local` and `full_control_local` are supported modes. |
 | P8 — VMware host helper | Experimental | The helper checks/starts an existing VM and can wait for VMware Tools. |
 
@@ -29,7 +29,7 @@ release notes and cannot be inferred complete from offline CI:
 | OpenAI and Claude E3 | Opt-in tests exist; no credentialed evidence is retained | Both providers pass the harmless fake-MCP cycle with reviewed model IDs |
 | Isolated E4 | Four-cell runbook exists; no isolated desktop evidence is recorded | Both providers pass read-only and one approved low-risk action with post-action observation |
 | E5 release regression | Canonical E1/E2 case manifest is frozen and enforced in CI; isolated evidence is pending | Reviewed isolated successful and failure traces are rerun after policy/schema/adapter changes |
-| Release approval | Automated preflight passes locally; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, and human approval |
+| Release approval | Offline preflight is implemented and must pass on a clean candidate; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, CI, and human approval |
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. Provider-requested actions stop without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, and Claude-only oldest-complete-group packing without splitting mandatory groups | Tokenizer-specific calibration, safe semantic compression, and an explicit stateless-replay design before any OpenAI remote-chain compaction |
 

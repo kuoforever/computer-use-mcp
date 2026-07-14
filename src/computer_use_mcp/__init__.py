@@ -8,4 +8,4 @@ Layering (ports & adapters):
 See docs/DRIVER_CONTRACT.md and docs/DESIGN.md.
 """
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
