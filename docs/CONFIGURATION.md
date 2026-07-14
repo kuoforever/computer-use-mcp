@@ -91,7 +91,10 @@ collect private crash boundaries, configure `[continuation] enabled = true` and
 `ttl_seconds` between 60 and 86400. The resulting `continuation.json` can contain
 the exact task, assistant text, UI results, and PNG screenshots. It is written
 with user-only permissions, removed on normal terminal completion, excluded from
-`agent trace` and `agent report`, and never authorizes automatic resume or replay.
+`agent trace` and `agent report`, and never authorizes automatic replay. An
+operator may execute one strictly classified read-only continuation boundary
+with `agent recover ... --execute-read-only`; the command holds the run lock and
+fails closed on task, policy, provider, registry, budget, digest, or sequence drift.
 
 ## VMware helper
 

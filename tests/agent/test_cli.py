@@ -44,6 +44,7 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["resume", "--help"],
         ["cancel", "--help"],
         ["recovery", "--help"],
+        ["recover", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -260,6 +261,132 @@ def test_recovery_cli_classifies_without_mutating_or_disclosing_task(
     }
     assert task not in raw
     assert recorder.checkpoint_path.read_bytes() == before
+
+
+def test_recover_cli_requires_explicit_read_only_execution_confirmation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config_path = tmp_path / "agent.toml"
+
+    assert main(
+        [
+            "recover",
+            "run_1",
+            "--config",
+            str(config_path),
+            "--task",
+            "Inspect",
+        ]
+    ) == 2
+
+    assert "RECOVERY_EXECUTION_CONFIRMATION_REQUIRED" in capsys.readouterr().err
+    assert not config_path.exists()
+
+
+def test_recover_cli_executes_one_persisted_observation_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from collections import deque
+
+    import computer_use_agent.desktop_mcp as desktop_module
+    from computer_use_agent.config import load_agent_config
+    from computer_use_agent.continuation import RuntimeContinuationRecorder
+    from computer_use_agent.fakes import FakeDesktopMCP
+    from computer_use_agent.tool_registry import reviewed_registry_digest
+    from computer_use_agent.trace import RunPhase, RunRecorder
+    from computer_use_agent.types import (
+        CallIdentity,
+        DispatchCertainty,
+        ModelTurn,
+        RunBudget,
+        RunState,
+        ToolCall,
+        ToolResult,
+        ToolResultStatus,
+    )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _ = _config_text(tmp_path)
+    text += "\n[continuation]\nenabled = true\nttl_seconds = 900\n"
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    config = load_agent_config(config_path)
+    task = "RECOVER_TASK_SECRET"
+    state = RunState(
+        "run_cli_continue",
+        task,
+        config.policy_version,
+        0,
+        RunBudget(
+            config.policy.max_model_turns,
+            config.policy.max_tool_calls,
+            config.policy.max_side_effects,
+            max_input_tokens=config.policy.max_input_tokens,
+            model_turns_used=1,
+        ),
+    )
+    call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"), "list_windows", {}
+    )
+    continuation = RuntimeContinuationRecorder(
+        state_dir=config.state_dir,
+        state=state,
+        provider_name=config.provider.name,
+        provider_model=config.provider.model,
+        registry_digest=reviewed_registry_digest(),
+        ttl_seconds=900,
+        mcp_generation=1,
+    )
+    continuation.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    continuation.dispatch_provider(state, checkpoint_sequence=2)
+    continuation.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (call,)),
+        provider_state={"response_id": "response_1"},
+        checkpoint_sequence=3,
+    )
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(state)
+    safe.record(state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    result = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+    desktop = FakeDesktopMCP(results=deque([result]))
+    monkeypatch.setattr(desktop_module, "StdioDesktopMCP", lambda _config: desktop)
+
+    assert main(
+        [
+            "recover",
+            state.run_id,
+            "--config",
+            str(config_path),
+            "--task",
+            task,
+            "--execute-read-only",
+        ]
+    ) == 0
+
+    raw = capsys.readouterr().out
+    output = json.loads(raw)
+    assert task not in raw
+    assert output == {
+        "action": "dispatch_observation",
+        "checkpoint_sequence": 5,
+        "next_step": "provider_continue",
+        "reason": "PROVIDER_COMPLETED_OBSERVATION_PENDING",
+        "run_id": state.run_id,
+        "tool_code": None,
+        "tool_status": "success",
+    }
+    assert len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
 
 
 def test_report_cli_is_read_only_for_empty_state(

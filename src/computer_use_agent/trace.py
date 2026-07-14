@@ -513,10 +513,81 @@ def read_run_checkpoint(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     return to_json_value(checkpoint)
 
 
+def advance_recovery_checkpoint(
+    state_dir: Path,
+    run_id: str,
+    *,
+    expected_sequence: int,
+    new_sequence: int,
+    phase: RunPhase,
+    budgets: Mapping[str, JSONValue],
+    observation_epoch: int,
+    verified_observation_epoch: int | None,
+    recovery_status: str,
+) -> dict[str, JSONValue]:
+    """Compare-and-replace the safe half of one locked recovery boundary.
+
+    The caller owns the cross-file run lock and writes ``continuation.json``
+    first.  A crash between the two atomic replacements therefore leaves a
+    sequence mismatch that recovery rejects instead of replaying work.
+    """
+
+    if (
+        isinstance(expected_sequence, bool)
+        or not isinstance(expected_sequence, int)
+        or expected_sequence < 1
+        or isinstance(new_sequence, bool)
+        or not isinstance(new_sequence, int)
+        or new_sequence != expected_sequence + 1
+    ):
+        raise ValueError("recovery checkpoint sequences must advance by one")
+    if not isinstance(phase, RunPhase) or phase in TERMINAL_PHASES - {
+        RunPhase.UNKNOWN_OUTCOME
+    }:
+        raise ValueError("unsupported recovery checkpoint phase")
+    checkpoint = read_run_checkpoint(state_dir, run_id)
+    if checkpoint.get("checkpoint_sequence") != expected_sequence:
+        raise TraceError("RECOVERY_CHECKPOINT_SEQUENCE_MISMATCH")
+    try:
+        current_phase = RunPhase(checkpoint["phase"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TraceError("CHECKPOINT_READ_FAILED") from exc
+    if current_phase in TERMINAL_PHASES:
+        raise TraceError("RUN_ALREADY_TERMINAL")
+    if not isinstance(budgets, Mapping):
+        raise ValueError("budgets must be a mapping")
+    updated = dict(checkpoint)
+    metrics = updated.get("metrics")
+    if isinstance(metrics, Mapping):
+        updated_metrics = dict(metrics)
+        updated_metrics["model_calls"] = budgets.get("model_turns_used", 0)
+        updated_metrics["tool_calls"] = budgets.get("tool_calls_used", 0)
+        updated_metrics["input_tokens"] = budgets.get("input_tokens_used", 0)
+        updated["metrics"] = to_json_value(updated_metrics)
+    updated.update(
+        checkpoint_sequence=new_sequence,
+        phase=phase.value,
+        budgets=to_json_value(budgets),
+        observation_epoch=observation_epoch,
+        verified_observation_epoch=verified_observation_epoch,
+        recovery_status=recovery_status,
+        resume_allowed=False,
+        recovery_action=(
+            "human_reobserve_then_start_new_run"
+            if phase is RunPhase.UNKNOWN_OUTCOME
+            else "continue_read_only_recovery"
+        ),
+        updated_at=_now(),
+    )
+    _atomic_json(RunRecorder(state_dir, run_id).checkpoint_path, updated)
+    return to_json_value(updated)
+
+
 __all__ = [
     "RecoveryDecision",
     "RunPhase",
     "RunRecorder",
+    "advance_recovery_checkpoint",
     "cancel_run_record",
     "classify_run_recovery",
     "TraceError",

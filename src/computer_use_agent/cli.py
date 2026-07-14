@@ -67,6 +67,18 @@ def build_parser() -> argparse.ArgumentParser:
     recovery.add_argument("run_id")
     recovery.add_argument("--config", required=True, type=Path)
 
+    recover = commands.add_parser(
+        "recover", help="Execute one reviewed read-only continuation step."
+    )
+    recover.add_argument("run_id")
+    recover.add_argument("--config", required=True, type=Path)
+    recover.add_argument("--task", required=True)
+    recover.add_argument(
+        "--execute-read-only",
+        action="store_true",
+        help="Explicitly authorize one new observation or provider continuation call.",
+    )
+
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
     remember_add = remember_commands.add_parser("add", help="Add one confirmed memory.")
@@ -296,6 +308,105 @@ def _show_recovery(path: Path, run_id: str) -> int:
     return 0
 
 
+async def _recover_live_async(path: Path, run_id: str, task: str) -> int:
+    from .continuation import read_continuation
+    from .desktop_mcp import StdioDesktopMCP
+    from .reconstruction import ReconstructionAction
+    from .recovery import (
+        LockedRecoveryPersistence,
+        execute_read_only_recovery_step,
+        plan_read_only_recovery,
+    )
+    from .run_lock import RunLock
+    from .tool_registry import verify_discovered_tools
+    from .trace import read_run_checkpoint
+
+    config = load_agent_config(path)
+    if not config.continuation.enabled:
+        raise RunnerError("CONTINUATION_DISABLED")
+    lock = RunLock(config.application_state_dir)
+    lock.acquire(recover_stale=True)
+    desktop = None
+    try:
+        checkpoint = read_run_checkpoint(config.state_dir, run_id)
+        envelope = read_continuation(config.state_dir, run_id)
+        plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=task,
+            lock=lock,
+        )
+        provider = None
+        if plan.decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
+            desktop = StdioDesktopMCP(config.mcp)
+            verify_discovered_tools(await desktop.discover_tools())
+        elif plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER:
+            if config.provider.name == "openai":
+                from .providers.openai import OpenAIResponsesProvider
+
+                provider = OpenAIResponsesProvider.from_environment(
+                    config.provider.model,
+                    allow_actions=False,
+                    max_request_bytes=config.provider.max_request_bytes,
+                )
+            elif config.provider.name == "anthropic":
+                from .providers.anthropic import AnthropicMessagesProvider
+
+                provider = AnthropicMessagesProvider.from_environment(
+                    config.provider.model,
+                    allow_actions=False,
+                    max_request_bytes=config.provider.max_request_bytes,
+                )
+            else:
+                raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+        else:
+            raise RunnerError(f"RECOVERY_NOT_EXECUTABLE:{plan.decision.reason}")
+        step = await execute_read_only_recovery_step(
+            checkpoint,
+            envelope,
+            config,
+            task=task,
+            provider=provider,
+            desktop=desktop,
+            commit_intent=persistence.commit_intent,
+            commit_completion=persistence.commit_completion,
+        )
+        completed = read_continuation(config.state_dir, run_id)
+        boundary = completed.payload["boundary"]
+        assert isinstance(boundary, dict)
+        output: dict[str, object] = {
+            "run_id": run_id,
+            "action": plan.decision.action.value,
+            "reason": plan.decision.reason,
+            "checkpoint_sequence": completed.payload["checkpoint_sequence"],
+            "next_step": boundary["next_step"],
+        }
+        if step.tool_result is not None:
+            output["tool_status"] = step.tool_result.status.value
+            output["tool_code"] = step.tool_result.code
+        if step.model_turn is not None:
+            output["text"] = step.model_turn.text
+            output["tool_call_count"] = len(step.model_turn.tool_calls)
+        _print_json(output)
+        return 0
+    finally:
+        active_error = sys.exc_info()[0] is not None
+        if desktop is not None:
+            try:
+                await desktop.close()
+            except Exception:
+                if not active_error:
+                    raise
+        lock.release()
+
+
+def _recover_live(path: Path, run_id: str, task: str) -> int:
+    return asyncio.run(_recover_live_async(path, run_id, task))
+
+
 def _remember(args: argparse.Namespace) -> int:
     from .memory import MemoryKind, MemoryStore
 
@@ -347,6 +458,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _show_report(args.config)
         if args.command == "recovery":
             return _show_recovery(args.config, args.run_id)
+        if args.command == "recover":
+            if not args.execute_read_only:
+                raise ValueError("RECOVERY_EXECUTION_CONFIRMATION_REQUIRED")
+            return _recover_live(args.config, args.run_id, args.task)
         if args.command == "resume":
             return _resume_live(args.config, args.run_id, args.task)
         if args.command == "cancel":

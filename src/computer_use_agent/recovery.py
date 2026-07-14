@@ -1,13 +1,19 @@
 """Strict, pure planning for the two reviewed read-only crash boundaries."""
 from __future__ import annotations
 
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from re import fullmatch
 from typing import Callable, Mapping
 
 from .config import AgentConfig
-from .continuation import ContinuationEnvelope
+from .continuation import (
+    ContinuationEnvelope,
+    read_continuation,
+    write_continuation,
+)
 from .reconstruction import (
     OperationEffect,
     ReconstructionAction,
@@ -21,7 +27,10 @@ from .tool_registry import (
     get_tool_spec,
     reviewed_registry_digest,
     validate_tool_arguments,
+    validate_tool_result,
 )
+from .run_lock import RunLock
+from .trace import RunPhase, advance_recovery_checkpoint, read_run_checkpoint
 from .types import (
     CallIdentity,
     DesktopMCPPort,
@@ -70,13 +79,22 @@ class ReadOnlyRecoveryStep:
     plan: ReadOnlyRecoveryPlan
     tool_result: ToolResult | None = None
     model_turn: ModelTurn | None = None
+    provider_state: Mapping[str, JSONValue] | None = None
 
     def __post_init__(self) -> None:
         if self.plan.decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
-            if self.tool_result is None or self.model_turn is not None:
+            if (
+                self.tool_result is None
+                or self.model_turn is not None
+                or self.provider_state is not None
+            ):
                 raise ValueError("observation recovery requires exactly one tool result")
         elif self.plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER:
-            if self.model_turn is None or self.tool_result is not None:
+            if (
+                self.model_turn is None
+                or self.tool_result is not None
+                or self.provider_state is None
+            ):
                 raise ValueError("provider recovery requires exactly one model turn")
         else:
             raise ValueError("a recovery step requires an executable plan")
@@ -350,15 +368,313 @@ def plan_read_only_recovery(
     return ReadOnlyRecoveryPlan(decision)
 
 
+class LockedRecoveryPersistence:
+    """Durably commit one reviewed recovery step while one run lock is held."""
+
+    def __init__(
+        self,
+        *,
+        state_dir: Path,
+        checkpoint: Mapping[str, JSONValue],
+        envelope: ContinuationEnvelope,
+        config: AgentConfig,
+        task: str,
+        lock: RunLock,
+    ) -> None:
+        if (
+            not lock.acquired
+            or lock.lock_dir.resolve(strict=False)
+            != config.application_state_dir.resolve(strict=False)
+        ):
+            raise RecoveryExecutionError("RECOVERY_RUN_LOCK_REQUIRED")
+        if state_dir != config.state_dir or not config.continuation.enabled:
+            raise RecoveryExecutionError("RECOVERY_CONTINUATION_DISABLED")
+        self.state_dir = state_dir
+        self.run_id = str(envelope.payload["run_id"])
+        self.config = config
+        self.task = task
+        self.lock = lock
+        self.plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
+        self._envelope = envelope
+        self._intent_operation_id: str | None = None
+
+    @staticmethod
+    def _copy_payload(envelope: ContinuationEnvelope) -> dict[str, object]:
+        return {
+            key: value
+            for key, value in envelope.payload.items()
+            if key != "payload_digest"
+        }
+
+    def _assert_locked(self) -> None:
+        if not self.lock.acquired:
+            raise RecoveryExecutionError("RECOVERY_RUN_LOCK_REQUIRED")
+
+    def _current(self, expected_sequence: int) -> tuple[dict[str, JSONValue], ContinuationEnvelope]:
+        self._assert_locked()
+        checkpoint = read_run_checkpoint(self.state_dir, self.run_id)
+        envelope = read_continuation(self.state_dir, self.run_id)
+        if (
+            checkpoint.get("checkpoint_sequence") != expected_sequence
+            or envelope.payload.get("checkpoint_sequence") != expected_sequence
+            or envelope.payload.get("payload_digest")
+            != self._envelope.payload.get("payload_digest")
+        ):
+            raise RecoveryExecutionError("RECOVERY_SEQUENCE_MISMATCH")
+        return checkpoint, envelope
+
+    def _commit_payload(
+        self,
+        payload: dict[str, object],
+        *,
+        expected_sequence: int,
+        phase: RunPhase,
+        recovery_status: str,
+    ) -> None:
+        new_sequence = expected_sequence + 1
+        payload["checkpoint_sequence"] = new_sequence
+        payload["expires_at"] = (
+            datetime.now(UTC) + timedelta(seconds=self.config.continuation.ttl_seconds)
+        ).isoformat()
+        written = write_continuation(self.state_dir, payload)
+        budget = written.payload["budget"]
+        observation = written.payload["observation"]
+        if not isinstance(budget, Mapping) or not isinstance(observation, Mapping):
+            raise RecoveryExecutionError("RECOVERY_PERSISTENCE_INVALID")
+        advance_recovery_checkpoint(
+            self.state_dir,
+            self.run_id,
+            expected_sequence=expected_sequence,
+            new_sequence=new_sequence,
+            phase=phase,
+            budgets=budget,
+            observation_epoch=int(observation["epoch"]),
+            verified_observation_epoch=(
+                None
+                if observation["verified_epoch"] is None
+                else int(observation["verified_epoch"])
+            ),
+            recovery_status=recovery_status,
+        )
+        self._envelope = written
+
+    def commit_intent(
+        self, sequence: int, operation_id: str, action: ReconstructionAction
+    ) -> None:
+        """Persist a new, uniquely identified dispatch intent before I/O."""
+
+        _, envelope = self._current(sequence)
+        if action is not self.plan.decision.action or self._intent_operation_id is not None:
+            raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
+        payload = self._copy_payload(envelope)
+        boundary = payload.get("boundary")
+        ledger = payload.get("ledger")
+        budget = payload.get("budget")
+        if not isinstance(boundary, Mapping) or not isinstance(ledger, list) or not isinstance(budget, Mapping):
+            raise RecoveryExecutionError("RECOVERY_PERSISTENCE_INVALID")
+        updated_budget = dict(budget)
+        updated_ledger = list(ledger)
+        if action is ReconstructionAction.DISPATCH_OBSERVATION:
+            call = self.plan.call
+            if call is None or operation_id != (
+                f"{call.identity.run_id}:{call.identity.turn_id}:{call.identity.call_id}"
+            ):
+                raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
+            updated_budget["tool_calls_used"] = int(updated_budget["tool_calls_used"]) + 1
+            updated_ledger.append(
+                {
+                    "kind": "tool_call",
+                    "event_id": f"{self.run_id}:recovery:{len(updated_ledger) + 1}",
+                    "data": {
+                        "identity": {
+                            "run_id": call.identity.run_id,
+                            "turn_id": call.identity.turn_id,
+                            "call_id": call.identity.call_id,
+                        },
+                        "tool_name": call.name,
+                        "arguments": dict(call.arguments),
+                        "call_digest": call.digest,
+                        "effect": ToolEffect.OBSERVATION.value,
+                    },
+                }
+            )
+            kind = "tool"
+            effect: str | None = ToolEffect.OBSERVATION.value
+            phase = RunPhase.EXECUTING
+        elif action is ReconstructionAction.CONTINUE_PROVIDER:
+            if operation_id != f"{self.run_id}:turn_{self._next_turn_number()}:provider":
+                raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
+            kind = "provider"
+            effect = None
+            phase = RunPhase.PLANNING
+        else:
+            raise RecoveryExecutionError("RECOVERY_PLAN_NOT_EXECUTABLE")
+        payload["ledger"] = updated_ledger
+        payload["budget"] = updated_budget
+        payload["boundary"] = {
+            "operation_kind": kind,
+            "stage": "dispatch_intent",
+            "operation_id": operation_id,
+            "effect": effect,
+            "dispatch": "unknown",
+            "next_step": "stop",
+        }
+        self._commit_payload(
+            payload,
+            expected_sequence=sequence,
+            phase=phase,
+            recovery_status="ready",
+        )
+        self._intent_operation_id = operation_id
+
+    def _next_turn_number(self) -> int:
+        result = self.plan.result
+        if result is None:
+            raise RecoveryExecutionError("RECOVERY_TURN_ID_INVALID")
+        match = fullmatch(r"turn_([1-9][0-9]{0,8})", result.identity.turn_id)
+        if match is None:
+            raise RecoveryExecutionError("RECOVERY_TURN_ID_INVALID")
+        return int(match.group(1)) + 1
+
+    def commit_completion(
+        self,
+        sequence: int,
+        operation_id: str,
+        step: ReadOnlyRecoveryStep,
+    ) -> None:
+        """Persist the normalized completion; an error leaves intent unknown."""
+
+        _, envelope = self._current(sequence)
+        if operation_id != self._intent_operation_id or step.plan != self.plan:
+            raise RecoveryExecutionError("RECOVERY_COMPLETION_MISMATCH")
+        payload = self._copy_payload(envelope)
+        ledger = payload.get("ledger")
+        budget = payload.get("budget")
+        observation = payload.get("observation")
+        if not isinstance(ledger, list) or not isinstance(budget, Mapping) or not isinstance(observation, Mapping):
+            raise RecoveryExecutionError("RECOVERY_PERSISTENCE_INVALID")
+        updated_ledger = list(ledger)
+        updated_budget = dict(budget)
+        updated_observation = dict(observation)
+        effect: str | None
+        next_step: str
+        recovery_status = "ready"
+        if step.tool_result is not None:
+            result = step.tool_result
+            updated_ledger.append(
+                {
+                    "kind": "tool_result",
+                    "event_id": f"{self.run_id}:recovery:{len(updated_ledger) + 1}",
+                    "data": {
+                        "identity": {
+                            "run_id": result.identity.run_id,
+                            "turn_id": result.identity.turn_id,
+                            "call_id": result.identity.call_id,
+                        },
+                        "tool_name": result.tool_name,
+                        "status": result.status.value,
+                        "dispatch": result.dispatch.value,
+                        "code": result.code,
+                        "sanitized_text": result.sanitized_text,
+                        "images": [
+                            {
+                                "mime_type": image.mime_type,
+                                "data": b64encode(image.data).decode("ascii"),
+                                "width": image.width,
+                                "height": image.height,
+                            }
+                            for image in result.images
+                        ],
+                    },
+                }
+            )
+            if result.ok:
+                epoch = int(updated_observation["epoch"]) + 1
+                updated_observation["epoch"] = epoch
+                updated_observation["verified_epoch"] = epoch
+            next_step = "provider_continue"
+            if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+                recovery_status = "unknown_outcome"
+                next_step = "stop"
+            effect = ToolEffect.OBSERVATION.value
+        elif step.model_turn is not None and step.provider_state is not None:
+            turn = step.model_turn
+            updated_budget["model_turns_used"] = int(updated_budget["model_turns_used"]) + 1
+            updated_budget["input_tokens_used"] = int(updated_budget["input_tokens_used"]) + int(
+                turn.usage.input_tokens or 0
+            )
+            updated_ledger.append(
+                {
+                    "kind": "model_turn",
+                    "event_id": f"{self.run_id}:recovery:{len(updated_ledger) + 1}",
+                    "data": {
+                        "run_id": turn.run_id,
+                        "turn_id": turn.turn_id,
+                        "provider_response_id": turn.provider_response_id,
+                        "text": turn.text,
+                        "usage": {
+                            "input_tokens": turn.usage.input_tokens,
+                            "output_tokens": turn.usage.output_tokens,
+                        },
+                        "tool_calls": [
+                            {
+                                "identity": {
+                                    "run_id": call.identity.run_id,
+                                    "turn_id": call.identity.turn_id,
+                                    "call_id": call.identity.call_id,
+                                },
+                                "tool_name": call.name,
+                                "arguments": dict(call.arguments),
+                                "call_digest": call.digest,
+                            }
+                            for call in turn.tool_calls
+                        ],
+                    },
+                }
+            )
+            payload["provider_state"] = dict(step.provider_state)
+            effects = [get_tool_spec(call.name).effect for call in turn.tool_calls]
+            effect = (
+                ToolEffect.OBSERVATION.value
+                if effects and all(item is ToolEffect.OBSERVATION for item in effects)
+                else ToolEffect.SIDE_EFFECT.value if effects else None
+            )
+            next_step = "dispatch_observation" if effect == ToolEffect.OBSERVATION.value else "stop"
+        else:
+            raise RecoveryExecutionError("RECOVERY_COMPLETION_MISMATCH")
+        payload["ledger"] = updated_ledger
+        payload["budget"] = updated_budget
+        payload["observation"] = updated_observation
+        payload["boundary"] = {
+            "operation_kind": "tool" if step.tool_result is not None else "provider",
+            "stage": "completed",
+            "operation_id": operation_id,
+            "effect": effect,
+            "dispatch": "unknown" if recovery_status == "unknown_outcome" else "dispatched",
+            "next_step": next_step,
+        }
+        self._commit_payload(
+            payload,
+            expected_sequence=sequence,
+            phase=(
+                RunPhase.UNKNOWN_OUTCOME
+                if recovery_status == "unknown_outcome"
+                else RunPhase.PLANNING
+            ),
+            recovery_status=recovery_status,
+        )
+
+
 async def execute_read_only_recovery_step(
     checkpoint: Mapping[str, JSONValue],
     envelope: ContinuationEnvelope,
     config: AgentConfig,
     *,
     task: str,
-    provider: ModelProviderPort,
-    desktop: DesktopMCPPort,
+    provider: ModelProviderPort | None,
+    desktop: DesktopMCPPort | None,
     commit_intent: Callable[[int, str, ReconstructionAction], None],
+    commit_completion: Callable[[int, str, ReadOnlyRecoveryStep], None] | None = None,
 ) -> ReadOnlyRecoveryStep:
     """Commit and execute exactly one newly authorized read-only boundary.
 
@@ -379,6 +695,8 @@ async def execute_read_only_recovery_step(
 
     if plan.decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
         assert plan.call is not None
+        if desktop is None:
+            raise RecoveryExecutionError("RECOVERY_DESKTOP_REQUIRED")
         operation_id = (
             f"{plan.call.identity.run_id}:{plan.call.identity.turn_id}:"
             f"{plan.call.identity.call_id}"
@@ -388,10 +706,19 @@ async def execute_read_only_recovery_step(
         result = await desktop.call_tool(authorized)
         if result.identity != plan.call.identity or result.tool_name != plan.call.name:
             raise RecoveryExecutionError("RECOVERY_TOOL_RESULT_IDENTITY_MISMATCH")
-        return ReadOnlyRecoveryStep(plan, tool_result=result)
+        try:
+            validate_tool_result(authorized, result)
+        except ToolValidationError as exc:
+            raise RecoveryExecutionError("RECOVERY_TOOL_RESULT_INVALID") from exc
+        step = ReadOnlyRecoveryStep(plan, tool_result=result)
+        if commit_completion is not None:
+            commit_completion(sequence + 1, operation_id, step)
+        return step
 
     if plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER:
         assert plan.result is not None
+        if provider is None:
+            raise RecoveryExecutionError("RECOVERY_PROVIDER_REQUIRED")
         match = fullmatch(r"turn_([1-9][0-9]{0,8})", plan.result.identity.turn_id)
         if match is None:
             raise RecoveryExecutionError("RECOVERY_TURN_ID_INVALID")
@@ -419,7 +746,24 @@ async def execute_read_only_recovery_step(
         )
         if turn.run_id != run_id or turn.turn_id != turn_id:
             raise RecoveryExecutionError("RECOVERY_PROVIDER_TURN_IDENTITY_MISMATCH")
-        return ReadOnlyRecoveryStep(plan, model_turn=turn)
+        try:
+            for call in turn.tool_calls:
+                if call.identity.run_id != run_id or call.identity.turn_id != turn_id:
+                    raise ToolValidationError("tool-call identity mismatch")
+                if dict(call.arguments) != validate_tool_arguments(
+                    call.name, call.arguments
+                ):
+                    raise ToolValidationError("tool arguments are not canonical")
+        except ToolValidationError as exc:
+            raise RecoveryExecutionError("RECOVERY_PROVIDER_TURN_INVALID") from exc
+        step = ReadOnlyRecoveryStep(
+            plan,
+            model_turn=turn,
+            provider_state=provider.export_continuation(run_id),
+        )
+        if commit_completion is not None:
+            commit_completion(sequence + 1, operation_id, step)
+        return step
 
     raise RecoveryExecutionError("RECOVERY_PLAN_NOT_EXECUTABLE")
 
@@ -427,6 +771,7 @@ async def execute_read_only_recovery_step(
 __all__ = [
     "ReadOnlyRecoveryPlan",
     "ReadOnlyRecoveryStep",
+    "LockedRecoveryPersistence",
     "RecoveryExecutionError",
     "RecoveryPlanError",
     "execute_read_only_recovery_step",
