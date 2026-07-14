@@ -2,7 +2,7 @@
 
 > **Status: opt-in runtime write-ahead persistence and controlled bounded
 > read-only recovery implemented.** The strict
-> bounded v1 envelope, private atomic reader/writer, provider/MCP
+> bounded v2 envelope, private atomic reader/writer, provider/MCP
 > `prepared -> dispatch_intent -> completed` boundaries, conservative crash
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
 > strict planner, atomic sequence-checked intent/completion commits under the
@@ -55,13 +55,13 @@ contain task, UI, and screenshot data and that broader persistence is opt-in.
 
 The envelope is canonical JSON with sorted keys for digesting and is bounded
 independently from the 64 KiB checkpoint. Binary images are stored as bounded
-base64 PNG blocks in v1; no arbitrary MIME type or external path is accepted.
+base64 PNG blocks in v2; no arbitrary MIME type or external path is accepted.
 
-## Continuation envelope v1
+## Continuation envelope v2
 
 ~~~json
 {
-  "continuation_version": 1,
+  "continuation_version": 2,
   "run_id": "run_...",
   "checkpoint_sequence": 7,
   "policy_version": "...",
@@ -85,7 +85,10 @@ base64 PNG blocks in v1; no arbitrary MIME type or external path is accepted.
     "dispatch": "dispatched",
     "next_step": "provider_continue"
   },
-  "provider_state": {},
+  "provider_state": {
+    "response_id": "resp_...",
+    "prior_context_tokens": 1234
+  },
   "created_at": "...",
   "expires_at": "...",
   "payload_digest": "<sha256>"
@@ -102,7 +105,7 @@ Required validation is exact and fail-closed:
   `(run_id, turn_id, call_id, tool_name)` and stable call digest;
 - require budgets and observation epochs to equal a fresh fold of the ledger;
 - reject raw `type.text` entirely. Because `type` is not advertised in the
-  current Agent, v1 continuation cannot contain or resume a `type` call;
+  current Agent, v2 continuation cannot contain or resume a `type` call;
 - reconstruct host policy and tool definitions from current reviewed code, never
   from persisted executable fields.
 
@@ -129,8 +132,11 @@ to reconstruct the canonical ledger and the provider continuation:
 
 Provider state is adapter-specific but non-authoritative:
 
-- OpenAI: the last completed `response_id`. Resume sends only the next new
-  `function_call_output` set with that ID. If the provider cannot continue that
+- OpenAI: the last completed `response_id` plus that response's reported input
+  and output token total. Resume restores both before preflight, then sends only
+  the next new `function_call_output` set with that ID. The token total must
+  match the persisted model-turn usage; missing v1 state and mismatches fail
+  closed before provider dispatch. If the provider cannot continue that
   response, the run stops; it does not resend the previous request.
 - Claude: the exact bounded canonical user/assistant message history compiled
   from the persisted ledger. Resume appends only the next new `tool_result`

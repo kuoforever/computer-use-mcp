@@ -110,6 +110,9 @@ pre-network token-window gate over the complete request. Each visible UTF-8
 request byte is charged as one input token; OpenAI continuations additionally
 carry forward the preceding provider-reported input/output usage. The gate
 fails with a fixed provider code and never splits mandatory atomic groups.
+Persisted OpenAI recovery restores that usage together with the required
+`previous_response_id`; missing or non-correlated token state fails before the
+next provider dispatch.
 Claude may first remove oldest complete local tool-use/result pairs while
 preserving the task and newest complete pair, including images. A fixed notice
 marks the omission. Mandatory overflow still fails before SDK I/O, and OpenAI
@@ -397,7 +400,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Cross-run reports are bounded | `agent report` reads only strict atomic checkpoints and aggregates phase, success, fixed failure codes, metric coverage, totals, and averages; corrupt or path-unsafe records fail the whole report | implemented report test |
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
 | Provider requests have a byte gate | Both adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or Claude-history requests before network I/O | implemented request-budget test |
-| Provider requests have a token-window gate | Both adapters conservatively bound the complete final request plus output reserve before SDK I/O; OpenAI also carries forward reported remote-context usage, and no atomic tool/result/image group is split | implemented provider token-window tests |
+| Provider requests have a token-window gate | Both adapters conservatively bound the complete final request plus output reserve before SDK I/O; OpenAI also carries forward reported remote-context usage across live and persisted recovery, and no atomic tool/result/image group is split | implemented provider token-window and recovery-state tests |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 

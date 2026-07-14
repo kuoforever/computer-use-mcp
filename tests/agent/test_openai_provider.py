@@ -490,7 +490,9 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
 def test_openai_restore_continues_previous_response_without_resending_task() -> None:
     scripted = ScriptedResponses([_response("response_2", text="done")])
     provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
-    provider.restore_continuation("run_restore", {"response_id": "response_1"})
+    provider.restore_continuation(
+        "run_restore", {"response_id": "response_1", "prior_context_tokens": 14}
+    )
     identity = CallIdentity("run_restore", "turn_1", "call_1")
     result = ToolResult(
         identity,
@@ -521,13 +523,68 @@ def test_openai_restore_continues_previous_response_without_resending_task() -> 
 
     assert scripted.calls[0]["previous_response_id"] == "response_1"
     assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(scripted.calls[0])
-    assert provider.export_continuation("run_restore") == {"response_id": "response_2"}
+    assert provider.export_continuation("run_restore") == {
+        "response_id": "response_2",
+        "prior_context_tokens": 14,
+    }
+
+
+def test_openai_restore_preserves_remote_token_window_before_network() -> None:
+    scripted = ScriptedResponses([_response("unused")])
+    provider = OpenAIResponsesProvider(
+        model="test-model",
+        responses=scripted,
+        max_request_bytes=100_000,
+        context_window_tokens=2_000,
+        output_token_reserve=256,
+    )
+    provider.restore_continuation(
+        "run_restore_window",
+        {"response_id": "response_1", "prior_context_tokens": 1_900},
+    )
+    identity = CallIdentity("run_restore_window", "turn_1", "call_1")
+    result = ToolResult(
+        identity,
+        "list_windows",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_TOKEN_WINDOW_EXCEEDED"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_restore_window",
+                turn_id="turn_2",
+                task="Inspect",
+                ledger=(
+                    LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+                    LedgerEvent(
+                        "event_2",
+                        LedgerEventKind.TOOL_RESULT,
+                        identity=identity,
+                        tool_result=result,
+                    ),
+                ),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert scripted.calls == []
 
 
 def test_openai_restore_rejects_invalid_or_repeated_attach() -> None:
     provider = OpenAIResponsesProvider(model="test-model", responses=ScriptedResponses([]))
     with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_INVALID"):
-        provider.restore_continuation("run_1", {"response_id": None})
-    provider.restore_continuation("run_1", {"response_id": "response_1"})
-    with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_ALREADY_ATTACHED"):
+        provider.restore_continuation(
+            "run_1", {"response_id": None, "prior_context_tokens": 0}
+        )
+    with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_INVALID"):
         provider.restore_continuation("run_1", {"response_id": "response_1"})
+    provider.restore_continuation(
+        "run_1", {"response_id": "response_1", "prior_context_tokens": 14}
+    )
+    with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_ALREADY_ATTACHED"):
+        provider.restore_continuation(
+            "run_1", {"response_id": "response_1", "prior_context_tokens": 14}
+        )

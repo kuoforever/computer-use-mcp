@@ -82,6 +82,11 @@ user configuration.
 Both source and installed-wheel E1/E2 runs verify the frozen manifest; their
 reports and the wheel are retained by SHA-256, while subprocess output is not
 copied into the evidence report. E3/E4 are never inferred from a preflight pass.
+Provider E0 fixtures also prove that OpenAI recovery restores both the remote
+`previous_response_id` and its correlated preceding-response token usage. A
+missing or mismatched token field and an over-window restored request stop
+before the fake provider records any network call; this does not add an E1/E2
+case or change action authority.
 Report schema v3 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable
