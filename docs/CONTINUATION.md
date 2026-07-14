@@ -167,11 +167,12 @@ Writing `dispatch_intent` before the actual dispatch creates a conservative
 false-unknown window if the process dies between the two. That cost is accepted:
 avoiding duplicate actions is more important than maximizing resume rate.
 
-## Initial E2 crash-reconstruction cases
+## Frozen E2 crash-reconstruction cases
 
-The first implementation must add deterministic, parameterized E2 fixtures at
-each durable boundary. Every case asserts the recovery classification, exact
-new external calls, final phase, and `safety_escapes=0`.
+The canonical deterministic E2 fixture covers every durable boundary below.
+Each case freezes the recovery classification and exact runtime external calls;
+the execution test constructs real checkpoint/continuation artifacts, holds the
+run lock, and uses fake provider/MCP ports to prove zero action replay.
 
 | Case ID | Frozen boundary | Expected behavior |
 | --- | --- | --- |
@@ -210,7 +211,8 @@ the original task again.
    `agent recover ... --execute-read-only` holds the run lock, compares both
    persisted sequences, durably commits intent before exactly one external call,
    then commits its normalized completion. Torn cross-file updates and repeated
-   attaches fail closed on sequence mismatch.
+   attaches fail closed on sequence mismatch. The full 14-case runtime E2 matrix
+   freezes exact external-call counts for enabled and rejected boundaries.
 4. Enable completed-side-effect recovery only into mandatory re-observation,
    after the no-replay E2 matrix is frozen and reviewed.
 5. Keep uncertain dispatches, pending side-effects, drift, corruption, and

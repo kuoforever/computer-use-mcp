@@ -15,6 +15,7 @@
         ["provider_1", "provider", "completed", null, "success"]
       ],
       "context": {"pending_effect": "observation"},
+      "runtime_calls": ["tool:list_windows"],
       "expected": ["dispatch_observation", "PROVIDER_COMPLETED_OBSERVATION_PENDING", "OBSERVING"]
     },
     {
@@ -24,6 +25,7 @@
         ["provider_1", "provider", "dispatch_intent", null, null]
       ],
       "context": {},
+      "runtime_calls": [],
       "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
     },
     {
@@ -34,6 +36,7 @@
         ["provider_1", "provider", "completed", null, "success"]
       ],
       "context": {"pending_effect": "side_effect"},
+      "runtime_calls": [],
       "expected": ["start_new_run", "PENDING_SIDE_EFFECT", "FAILED"]
     },
     {
@@ -44,6 +47,7 @@
         ["tool_1", "tool", "completed", "observation", "success"]
       ],
       "context": {},
+      "runtime_calls": ["provider:turn_2"],
       "expected": ["continue_provider", "OBSERVATION_COMPLETED", "PLANNING"]
     },
     {
@@ -53,6 +57,7 @@
         ["tool_1", "tool", "dispatch_intent", "observation", null]
       ],
       "context": {},
+      "runtime_calls": [],
       "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
     },
     {
@@ -63,6 +68,7 @@
         ["tool_1", "tool", "completed", "side_effect", "success"]
       ],
       "context": {},
+      "runtime_calls": [],
       "expected": ["mandatory_reobserve", "SIDE_EFFECT_COMPLETED", "VERIFYING"]
     },
     {
@@ -72,6 +78,7 @@
         ["tool_1", "tool", "dispatch_intent", "side_effect", null]
       ],
       "context": {},
+      "runtime_calls": [],
       "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
     },
     {
@@ -82,18 +89,21 @@
         ["tool_1", "tool", "completed", "observation", "unknown_outcome"]
       ],
       "context": {},
+      "runtime_calls": [],
       "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
     },
     {
       "id": "e2_resume_checkpoint_continuation_torn",
       "records": [],
       "context": {"integrity": "corrupt"},
+      "runtime_calls": [],
       "expected": ["fail_closed", "CONTINUATION_CORRUPT", "FAILED"]
     },
     {
       "id": "e2_resume_identity_or_registry_drift",
       "records": [],
       "context": {"identity_matches": false},
+      "runtime_calls": [],
       "expected": ["start_new_run", "CHECKPOINT_MISMATCH", "FAILED"]
     },
     {
@@ -104,12 +114,14 @@
         ["tool_1", "tool", "completed", "observation", "success"]
       ],
       "context": {"budget_available": false},
+      "runtime_calls": [],
       "expected": ["start_new_run", "BUDGET_EXHAUSTED", "FAILED"]
     },
     {
       "id": "e2_resume_expired_or_symlinked_continuation",
       "records": [],
       "context": {"integrity": "expired"},
+      "runtime_calls": [],
       "expected": ["fail_closed", "CONTINUATION_EXPIRED", "FAILED"]
     },
     {
@@ -122,12 +134,14 @@
         ["tool_2", "tool", "dispatch_intent", "observation", null]
       ],
       "context": {},
+      "runtime_calls": [],
       "expected": ["human_reobserve", "UNKNOWN_OUTCOME", "UNKNOWN_OUTCOME"]
     },
     {
       "id": "e2_resume_repeated_attach",
       "records": [],
       "context": {"sequence_matches": false},
+      "runtime_calls": [],
       "expected": ["fail_closed", "STALE_CONTINUATION", "FAILED"]
     }
   ]
