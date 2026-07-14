@@ -22,11 +22,35 @@ PREFLIGHT_REPORT_VERSION = 2
 _PYTEST_SUMMARY = re.compile(
     r"(?P<passed>\d+) passed(?:, (?P<skipped>\d+) skipped)?(?:, (?P<failed>\d+) failed)?"
 )
-_BLOCKED_ENVIRONMENT = {
-    "ANTHROPIC_API_KEY",
-    "OPENAI_API_KEY",
-    "RUN_ANTHROPIC_INTEGRATION",
-    "RUN_OPENAI_INTEGRATION",
+_ENVIRONMENT_ALLOWLIST = {
+    "ALLUSERSPROFILE",
+    "APPDATA",
+    "COMSPEC",
+    "COMMONPROGRAMFILES",
+    "COMMONPROGRAMFILES(X86)",
+    "COMMONPROGRAMW6432",
+    "HOME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "LANG",
+    "LC_ALL",
+    "LOCALAPPDATA",
+    "NUMBER_OF_PROCESSORS",
+    "OS",
+    "PATH",
+    "PATHEXT",
+    "PROCESSOR_ARCHITECTURE",
+    "PROGRAMDATA",
+    "PROGRAMFILES",
+    "PROGRAMFILES(X86)",
+    "PROGRAMW6432",
+    "SYSTEMDRIVE",
+    "SYSTEMROOT",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "USERPROFILE",
+    "WINDIR",
 }
 
 
@@ -43,11 +67,19 @@ class _Command:
 
 def _offline_environment() -> dict[str, str]:
     environment = {
-        key: value for key, value in os.environ.items() if key not in _BLOCKED_ENVIRONMENT
+        key: value
+        for key, value in os.environ.items()
+        if key.upper() in _ENVIRONMENT_ALLOWLIST
     }
     environment.update(
         {
+            "NO_COLOR": "1",
+            "PIP_CONFIG_FILE": os.devnull,
+            "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            "PIP_NO_INDEX": "1",
+            "PIP_NO_INPUT": "1",
             "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONNOUSERSITE": "1",
             "PYTHONUTF8": "1",
             "RUN_ANTHROPIC_INTEGRATION": "0",
             "RUN_OPENAI_INTEGRATION": "0",

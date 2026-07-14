@@ -21,7 +21,12 @@ in a temporary no-deps environment. Report schema v2 records both candidate
 checks so evidence cannot silently retain only the starting identity. Build
 isolation and dependency resolution are disabled, so all required
 development/build dependencies must already be installed. Provider credentials
-are removed and E3 is forced off; no desktop path is invoked.
+and all other non-allowlisted host variables are excluded, E3 is forced off,
+Python user site loading is disabled, and pip is fixed to no-index/no-input
+with user configuration ignored. The allowlist retains only reviewed
+platform, path, home, locale, and temporary-directory variables needed by
+Git, Python, build, and venv. This limits environment transfer; it is not an OS
+sandbox. No desktop path is invoked.
 The JSON evidence intentionally excludes subprocess output and cannot satisfy
 CI, E3, E4, license, changelog, reviewer, or approval gates.
 

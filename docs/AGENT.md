@@ -57,12 +57,14 @@ the following commands:
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety
   escape. It needs no provider SDK, credential, MCP child, or desktop.
 - `release preflight` runs the clean-source, public-version, Ruff, full offline
-  pytest, frozen E1/E2, wheel-build, and clean-wheel smoke gates. It strips
-  provider credentials and live-integration switches from every child, uses no
-  dependency download for build/install, and writes only fixed outcomes,
-  counts, package identity, and SHA-256 evidence. It rechecks `HEAD` and the
-  complete working tree after all gates; a dirty endpoint, changed commit, or
-  any missing/failed gate makes the aggregate result fail.
+  pytest, frozen E1/E2, wheel-build, and clean-wheel smoke gates. Every child
+  receives only a reviewed platform/path/temp environment allowlist; provider,
+  cloud, GitHub, Python import-path, and arbitrary host variables are not
+  forwarded. User site loading and pip index/input/config discovery are
+  disabled. The command writes only fixed outcomes, counts, package identity,
+  and SHA-256 evidence. It rechecks `HEAD` and the complete working tree after
+  all gates; a dirty endpoint, changed commit, or any missing/failed gate makes
+  the aggregate result fail.
 - `trace RUN_ID --config PATH` validates and prints one persisted safe
   checkpoint with aggregate latency/token/tool metrics plus its redacted JSONL events. It starts no external port and
   never implicitly resumes or mutates the run. Explicit `resume` is restricted
