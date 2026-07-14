@@ -29,7 +29,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
-| I am reviewing the inactive OpenAI stateless-replay boundary | [Stateless replay readiness](STATELESS_REPLAY.md) |
+| I am reviewing explicit OpenAI stateless replay | [Stateless replay](STATELESS_REPLAY.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |

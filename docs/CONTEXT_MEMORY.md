@@ -30,14 +30,14 @@ before the next provider request.
 This is a bound on the host-supplied canonical ledger view. OpenAI's active
 `previous_response_id` chain and Claude's active message history still preserve
 the current run's provider-native continuation state. The adapters now declare
-those strategies explicitly. OpenAI also exposes a non-executable
-[stateless-replay readiness](STATELESS_REPLAY.md) assessment that remains
-blocked on a reviewed replay compiler. Exact initial-input persistence,
-ordered provider-output-item batches (including explicitly requested portable
-encrypted reasoning), and canonical request-contract v3 digest binding are now
-delivered in continuation v5; drift fails before network I/O,
-but replay remains unavailable. Safe semantic summarization remains future work;
-model-turn limits continue to bound the current run.
+those strategies explicitly. OpenAI read-only recovery also exposes an explicit
+[stateless replay](STATELESS_REPLAY.md) transition. It compiles only the exact
+initial input, ordered provider-output-item batches (including explicitly
+requested portable encrypted reasoning), and matching persisted tool results
+from the digest-bound continuation v5 envelope. Drift or budget failure stops
+before provider dispatch; normal runtime never falls back to replay. Safe
+semantic summarization remains future work; model-turn limits continue to
+bound the current run.
 
 Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
 between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request
@@ -66,9 +66,11 @@ provider response, so a failed preflight cannot leave a half-appended result.
 
 OpenAI's `previous_response_id` history is remote and cannot be selectively
 rewritten. Its adapter therefore remains fail-closed instead of silently
-breaking the chain. Neither adapter truncates individual tool calls, results,
-images, approval state, or recovery evidence. No model-generated summary is
-created because it could discard those semantics.
+breaking the chain. An operator may explicitly replace the whole chain once
+from a complete validated recovery artifact; partial compaction remains
+forbidden. Neither adapter truncates individual tool calls, results, images,
+approval state, or recovery evidence. No model-generated summary is created
+because it could discard those semantics.
 Operators must review the configured context value whenever the provider/model
 pair changes; config loading fails if either token-window value is absent.
 

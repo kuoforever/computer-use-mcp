@@ -4,28 +4,33 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+from base64 import b64decode
 from dataclasses import dataclass, field
 from hashlib import sha256
 from re import fullmatch
 from typing import Mapping, Protocol, Sequence
 
+from ..continuation import ContinuationEnvelope, ContinuationError
 from ..tool_registry import REVIEWED_TOOLS, ToolSpec, validate_tool_arguments
 from ..token_window import exceeds_token_window
 from ..types import (
     CallIdentity,
+    DispatchCertainty,
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
     DEFAULT_PROVIDER_OUTPUT_TOKENS,
     DEFAULT_PROVIDER_REQUEST_BYTES,
     LedgerEvent,
     LedgerEventKind,
+    ImageContent,
     MemoryContextItem,
     ModelTurn,
     ModelUsage,
     ProviderContinuationStrategy,
-    StatelessReplayBlocker,
     StatelessReplayReadiness,
     ToolCall,
     ToolEffect,
+    ToolResult,
+    ToolResultStatus,
     JSONValue,
     to_json_value,
 )
@@ -218,6 +223,227 @@ def _instructions(*, allow_actions: bool, memory_context_used: bool) -> str:
     return value + (("\n\n" + MEMORY_RULE) if memory_context_used else "")
 
 
+_REPLAY_OUTPUT_TYPES = frozenset({"reasoning", "message", "function_call"})
+
+
+def _replay_error(exc: Exception | None = None) -> OpenAIProviderError:
+    error = OpenAIProviderError("OPENAI_STATELESS_REPLAY_INVALID")
+    if exc is not None:
+        error.__cause__ = exc
+    return error
+
+
+def _persisted_result(data: object, *, run_id: str) -> ToolResult:
+    if not isinstance(data, Mapping) or set(data) != {
+        "identity",
+        "tool_name",
+        "status",
+        "dispatch",
+        "code",
+        "sanitized_text",
+        "images",
+    }:
+        raise _replay_error()
+    identity = data["identity"]
+    if not isinstance(identity, Mapping) or set(identity) != {
+        "run_id",
+        "turn_id",
+        "call_id",
+    }:
+        raise _replay_error()
+    if identity.get("run_id") != run_id:
+        raise _replay_error()
+    name = data["tool_name"]
+    code = data["code"]
+    text = data["sanitized_text"]
+    images = data["images"]
+    if (
+        not isinstance(name, str)
+        or not isinstance(text, str)
+        or code is not None
+        and not isinstance(code, str)
+        or not isinstance(images, list)
+    ):
+        raise _replay_error()
+    try:
+        parsed_images = tuple(
+            ImageContent(
+                mime_type=str(image["mime_type"]),
+                data=b64decode(str(image["data"]), validate=True),
+                width=int(image["width"]),
+                height=int(image["height"]),
+            )
+            for image in images
+            if isinstance(image, Mapping)
+            and set(image) == {"mime_type", "data", "width", "height"}
+        )
+        if len(parsed_images) != len(images):
+            raise ValueError
+        return ToolResult(
+            CallIdentity(
+                str(identity["run_id"]),
+                str(identity["turn_id"]),
+                str(identity["call_id"]),
+            ),
+            name,
+            ToolResultStatus(str(data["status"])),
+            DispatchCertainty(str(data["dispatch"])),
+            sanitized_text=text,
+            code=code,
+            images=parsed_images,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _replay_error(exc)
+
+
+def _compile_stateless_replay_input(
+    envelope: ContinuationEnvelope,
+    *,
+    run_id: str,
+    expected_provider_state: Mapping[str, JSONValue],
+) -> list[object]:
+    """Compile one exact, non-executable Responses transcript."""
+
+    try:
+        validated = ContinuationEnvelope.from_payload(envelope.payload)
+    except (ContinuationError, TypeError, ValueError) as exc:
+        raise _replay_error(exc)
+    payload = validated.payload
+    provider = payload.get("provider")
+    boundary = payload.get("boundary")
+    state = payload.get("provider_state")
+    ledger = payload.get("ledger")
+    if (
+        payload.get("run_id") != run_id
+        or not isinstance(provider, Mapping)
+        or provider.get("name") != "openai"
+        or not isinstance(boundary, Mapping)
+        or boundary.get("stage") != "completed"
+        or boundary.get("next_step") != "provider_continue"
+        or not isinstance(state, Mapping)
+        or dict(state) != dict(expected_provider_state)
+        or not isinstance(ledger, list)
+    ):
+        raise _replay_error()
+    initial_input = state.get("initial_input")
+    batches = state.get("output_batches")
+    if not isinstance(initial_input, str) or not isinstance(batches, list):
+        raise _replay_error()
+
+    model_events: list[tuple[int, Mapping[str, object]]] = []
+    results: dict[tuple[str, str], tuple[int, ToolResult]] = {}
+    for index, event in enumerate(ledger):
+        if not isinstance(event, Mapping):
+            raise _replay_error()
+        data = event.get("data")
+        if event.get("kind") == "model_turn":
+            if not isinstance(data, Mapping):
+                raise _replay_error()
+            model_events.append((index, data))
+        elif event.get("kind") == "tool_result":
+            result = _persisted_result(data, run_id=run_id)
+            key = (result.identity.turn_id, result.identity.call_id)
+            if key in results:
+                raise _replay_error()
+            results[key] = (index, result)
+    if len(model_events) != len(batches):
+        raise _replay_error()
+
+    replay: list[object] = [{"role": "user", "content": initial_input}]
+    used_results: set[tuple[str, str]] = set()
+    seen_calls: set[str] = set()
+    for batch_index, (batch, model_event) in enumerate(zip(batches, model_events)):
+        model_position, model_data = model_event
+        if not isinstance(batch, Mapping) or set(batch) != {"response_id", "items"}:
+            raise _replay_error()
+        items = batch.get("items")
+        if (
+            batch.get("response_id") != model_data.get("provider_response_id")
+            or not isinstance(items, list)
+        ):
+            raise _replay_error()
+        try:
+            normalized_items = [_output_item(item) for item in items]
+        except OpenAIProviderError as exc:
+            raise _replay_error(exc)
+        if any(item["type"] not in _REPLAY_OUTPUT_TYPES for item in normalized_items):
+            raise _replay_error()
+        raw_calls = [item for item in normalized_items if item["type"] == "function_call"]
+        ledger_calls = model_data.get("tool_calls")
+        turn_id = model_data.get("turn_id")
+        if not isinstance(ledger_calls, list) or not isinstance(turn_id, str):
+            raise _replay_error()
+        if len(raw_calls) != len(ledger_calls) or not raw_calls:
+            raise _replay_error()
+        outputs: list[dict[str, object]] = []
+        last_result_position = model_position
+        next_model_position = (
+            model_events[batch_index + 1][0]
+            if batch_index + 1 < len(model_events)
+            else len(ledger)
+        )
+        for raw_call, ledger_call in zip(raw_calls, ledger_calls):
+            if not isinstance(ledger_call, Mapping):
+                raise _replay_error()
+            identity = ledger_call.get("identity")
+            name = raw_call.get("name")
+            call_id = raw_call.get("call_id")
+            arguments = raw_call.get("arguments")
+            if (
+                not isinstance(identity, Mapping)
+                or identity.get("run_id") != run_id
+                or identity.get("turn_id") != turn_id
+                or identity.get("call_id") != call_id
+                or ledger_call.get("tool_name") != name
+                or not isinstance(name, str)
+                or not isinstance(call_id, str)
+                or not isinstance(arguments, str)
+                or call_id in seen_calls
+            ):
+                raise _replay_error()
+            try:
+                decoded = json.loads(arguments)
+                normalized = validate_tool_arguments(name, decoded)
+                spec = next(tool for tool in REVIEWED_TOOLS if tool.name == name)
+            except (StopIteration, TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise _replay_error(exc)
+            if spec.effect is not ToolEffect.OBSERVATION or dict(normalized) != ledger_call.get(
+                "arguments"
+            ):
+                raise _replay_error()
+            key = (turn_id, call_id)
+            persisted = results.get(key)
+            if persisted is None:
+                raise _replay_error()
+            result_position, result = persisted
+            if (
+                not last_result_position < result_position < next_model_position
+                or result.tool_name != name
+            ):
+                raise _replay_error()
+            output = _tool_outputs(
+                (
+                    LedgerEvent(
+                        event_id=f"replay:{turn_id}:{call_id}",
+                        kind=LedgerEventKind.TOOL_RESULT,
+                        identity=result.identity,
+                        tool_result=result,
+                    ),
+                )
+            )
+            if len(output) != 1:
+                raise _replay_error()
+            outputs.append(output[0])
+            seen_calls.add(call_id)
+            used_results.add(key)
+            last_result_position = result_position
+        replay.extend(normalized_items)
+        replay.extend(outputs)
+    if used_results != set(results):
+        raise _replay_error()
+    return replay
+
+
 def _request_contract_digest(
     *,
     model: str,
@@ -274,6 +500,9 @@ class OpenAIResponsesProvider:
     )
     _initial_inputs: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _output_item_batches: dict[str, list[dict[str, JSONValue]]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _stateless_replay_inputs: dict[str, list[object]] = field(
         default_factory=dict, init=False, repr=False
     )
 
@@ -375,8 +604,11 @@ class OpenAIResponsesProvider:
             "include": list(OPENAI_REASONING_INCLUDE),
             "max_output_tokens": self.output_token_reserve,
         }
+        replay_input = self._stateless_replay_inputs.get(run_id)
         if previous_response_id is None:
             request["input"] = initial_input
+        elif replay_input is not None:
+            request["input"] = replay_input
         else:
             outputs = _tool_outputs(ledger)
             if not outputs:
@@ -389,7 +621,9 @@ class OpenAIResponsesProvider:
             request,
             context_window_tokens=self.context_window_tokens,
             output_token_reserve=self.output_token_reserve,
-            prior_context_tokens=self._prior_context_tokens.get(run_id, 0),
+            prior_context_tokens=(
+                0 if replay_input is not None else self._prior_context_tokens.get(run_id, 0)
+            ),
         ):
             raise OpenAIProviderError("OPENAI_TOKEN_WINDOW_EXCEEDED")
         try:
@@ -469,6 +703,9 @@ class OpenAIResponsesProvider:
         self._memory_context_used[run_id] = memory_context_used
         self._initial_inputs[run_id] = initial_input
         self._output_item_batches[run_id] = output_batches
+        if replay_input is not None:
+            del self._stateless_replay_inputs[run_id]
+            self.continuation_strategy = ProviderContinuationStrategy.REMOTE_RESPONSE_ID
         return turn
 
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
@@ -484,14 +721,50 @@ class OpenAIResponsesProvider:
         }
 
     def stateless_replay_readiness(self) -> StatelessReplayReadiness:
-        """Describe why this adapter must preserve its remote response chain."""
+        """Describe whether explicit, validated replay is available."""
 
         return StatelessReplayReadiness(
             strategy=self.continuation_strategy,
-            blockers=(
-                StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
-            ),
+            blockers=(),
         )
+
+    def prepare_stateless_replay(
+        self, run_id: str, envelope: ContinuationEnvelope
+    ) -> None:
+        """Atomically stage one explicit stateless request after full preflight."""
+
+        if run_id not in self._previous_response_ids or run_id in self._stateless_replay_inputs:
+            raise OpenAIProviderError("OPENAI_STATELESS_REPLAY_INVALID")
+        expected_state = self.export_continuation(run_id)
+        compiled = _compile_stateless_replay_input(
+            envelope, run_id=run_id, expected_provider_state=expected_state
+        )
+        memory_context_used = self._memory_context_used[run_id]
+        preflight_request: dict[str, object] = {
+            "model": self.model,
+            "instructions": _instructions(
+                allow_actions=self.allow_actions,
+                memory_context_used=memory_context_used,
+            ),
+            "tools": _tool_definitions(
+                REVIEWED_TOOLS, allow_actions=self.allow_actions
+            ),
+            "parallel_tool_calls": False,
+            "include": list(OPENAI_REASONING_INCLUDE),
+            "max_output_tokens": self.output_token_reserve,
+            "input": compiled,
+        }
+        if _request_size(preflight_request) > self.max_request_bytes:
+            raise OpenAIProviderError("OPENAI_REQUEST_TOO_LARGE")
+        if exceeds_token_window(
+            preflight_request,
+            context_window_tokens=self.context_window_tokens,
+            output_token_reserve=self.output_token_reserve,
+            prior_context_tokens=0,
+        ):
+            raise OpenAIProviderError("OPENAI_TOKEN_WINDOW_EXCEEDED")
+        self._stateless_replay_inputs[run_id] = compiled
+        self.continuation_strategy = ProviderContinuationStrategy.STATELESS_REPLAY
 
     def restore_continuation(
         self, run_id: str, state: Mapping[str, JSONValue]

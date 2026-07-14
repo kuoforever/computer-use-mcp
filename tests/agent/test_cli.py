@@ -346,6 +346,40 @@ def test_recover_cli_rejects_unreviewed_step_bounds_before_loading_config(
     assert not config_path.exists()
 
 
+def test_recover_cli_forwards_explicit_stateless_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[tuple[Path, str, str, int, bool]] = []
+
+    def recover(
+        path: Path,
+        run_id: str,
+        task: str,
+        *,
+        max_steps: int,
+        stateless_replay: bool,
+    ) -> int:
+        captured.append((path, run_id, task, max_steps, stateless_replay))
+        return 0
+
+    monkeypatch.setattr(agent_cli, "_recover_live", recover)
+    config_path = tmp_path / "agent.toml"
+
+    assert main(
+        [
+            "recover",
+            "run_1",
+            "--config",
+            str(config_path),
+            "--task",
+            "Inspect",
+            "--execute-read-only",
+            "--stateless-replay",
+        ]
+    ) == 0
+    assert captured == [(config_path, "run_1", "Inspect", 1, True)]
+
+
 def test_recover_cli_executes_one_persisted_observation_boundary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

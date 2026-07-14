@@ -103,6 +103,7 @@ class ProviderContinuationStrategy(str, Enum):
     """Where an adapter keeps the provider-native state for the next turn."""
 
     REMOTE_RESPONSE_ID = "remote_response_id"
+    STATELESS_REPLAY = "stateless_replay"
     LOCAL_MESSAGE_HISTORY = "local_message_history"
 
 
