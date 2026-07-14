@@ -19,6 +19,7 @@ from ..types import (
     MemoryContextItem,
     ModelTurn,
     ModelUsage,
+    ProviderContinuationStrategy,
     ToolCall,
     ToolEffect,
     JSONValue,
@@ -282,6 +283,9 @@ class AnthropicMessagesProvider:
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     name: str = field(default="anthropic", init=False)
+    continuation_strategy: ProviderContinuationStrategy = field(
+        default=ProviderContinuationStrategy.LOCAL_MESSAGE_HISTORY, init=False
+    )
     _history: dict[str, list[dict[str, object]]] = field(
         default_factory=dict, init=False, repr=False
     )

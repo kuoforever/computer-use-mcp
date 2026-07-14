@@ -19,6 +19,9 @@ from ..types import (
     MemoryContextItem,
     ModelTurn,
     ModelUsage,
+    ProviderContinuationStrategy,
+    StatelessReplayBlocker,
+    StatelessReplayReadiness,
     ToolCall,
     ToolEffect,
     JSONValue,
@@ -160,6 +163,9 @@ class OpenAIResponsesProvider:
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
     name: str = field(default="openai", init=False)
+    continuation_strategy: ProviderContinuationStrategy = field(
+        default=ProviderContinuationStrategy.REMOTE_RESPONSE_ID, init=False
+    )
     _previous_response_ids: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _prior_context_tokens: dict[str, int] = field(default_factory=dict, init=False, repr=False)
 
@@ -324,6 +330,19 @@ class OpenAIResponsesProvider:
             "response_id": self._previous_response_ids.get(run_id),
             "prior_context_tokens": self._prior_context_tokens.get(run_id, 0),
         }
+
+    def stateless_replay_readiness(self) -> StatelessReplayReadiness:
+        """Describe why this adapter must preserve its remote response chain."""
+
+        return StatelessReplayReadiness(
+            strategy=self.continuation_strategy,
+            blockers=(
+                StatelessReplayBlocker.ORIGINAL_REQUEST_NOT_PERSISTED,
+                StatelessReplayBlocker.PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED,
+                StatelessReplayBlocker.REQUEST_CONTRACT_NOT_DIGEST_BOUND,
+                StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
+            ),
+        )
 
     def restore_continuation(
         self, run_id: str, state: Mapping[str, JSONValue]

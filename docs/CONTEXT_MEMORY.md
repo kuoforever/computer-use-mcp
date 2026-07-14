@@ -29,9 +29,12 @@ before the next provider request.
 
 This is a bound on the host-supplied canonical ledger view. OpenAI's active
 `previous_response_id` chain and Claude's active message history still preserve
-the current run's provider-native continuation state. Provider-neutral
-stateless replay and safe semantic summarization remain future work;
-model-turn limits continue to bound the current run.
+the current run's provider-native continuation state. The adapters now declare
+those strategies explicitly. OpenAI also exposes a non-executable
+[stateless-replay readiness](STATELESS_REPLAY.md) assessment that remains
+blocked on exact original-request/provider-output persistence, request-contract
+digest binding, and a reviewed replay compiler. Safe semantic summarization
+remains future work; model-turn limits continue to bound the current run.
 
 Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
 between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request

@@ -29,6 +29,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
+| I am reviewing the inactive OpenAI stateless-replay boundary | [Stateless replay readiness](STATELESS_REPLAY.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |
@@ -52,6 +53,7 @@ not a line-by-line mirror of every reference page.
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Persisted continuation | Private v2 storage with correlated OpenAI recovery token state, opt-in write-ahead boundaries, conservative classification, and a locked 1-4 step read-only CLI gate including completed-side-effect mandatory observation |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
+| Stateless replay readiness | Provider continuation strategies, current OpenAI replay blockers, and mandatory activation invariants; no runtime replay |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
 | E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |
 | Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |

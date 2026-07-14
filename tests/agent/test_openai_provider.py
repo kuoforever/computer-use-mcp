@@ -21,7 +21,9 @@ from computer_use_agent.types import (
     LedgerEvent,
     LedgerEventKind,
     MemoryContextItem,
+    ProviderContinuationStrategy,
     SafeArgumentSummary,
+    StatelessReplayBlocker,
     ToolCall,
     ToolResult,
     ToolResultStatus,
@@ -152,6 +154,27 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
             ),
         }
     ]
+
+
+def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
+    scripted = ScriptedResponses([])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    state_before = provider.export_continuation("run_readiness")
+
+    readiness = provider.stateless_replay_readiness()
+
+    assert provider.continuation_strategy is (
+        ProviderContinuationStrategy.REMOTE_RESPONSE_ID
+    )
+    assert readiness.eligible is False
+    assert readiness.blockers == (
+        StatelessReplayBlocker.ORIGINAL_REQUEST_NOT_PERSISTED,
+        StatelessReplayBlocker.PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED,
+        StatelessReplayBlocker.REQUEST_CONTRACT_NOT_DIGEST_BOUND,
+        StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
+    )
+    assert provider.export_continuation("run_readiness") == state_before
+    assert scripted.calls == []
 
 
 def test_openai_screenshot_result_uses_bounded_multimodal_function_output() -> None:

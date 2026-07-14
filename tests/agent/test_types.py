@@ -12,10 +12,13 @@ from computer_use_agent.types import (
     ModelTurn,
     PolicyDecision,
     PolicyDecisionKind,
+    ProviderContinuationStrategy,
     RecoveryStatus,
     RunBudget,
     RunState,
     SafeArgumentSummary,
+    StatelessReplayBlocker,
+    StatelessReplayReadiness,
     ToolCall,
     ToolCallStatus,
     ToolResult,
@@ -73,6 +76,23 @@ def test_model_turn_rejects_duplicate_tool_call_ids_and_host_lifecycle_status() 
             provider_response_id="response_1",
             text="",
             tool_calls=(_call(status=ToolCallStatus.AUTHORIZED),),
+        )
+
+
+def test_stateless_replay_readiness_is_structured_and_fail_closed() -> None:
+    readiness = StatelessReplayReadiness(
+        ProviderContinuationStrategy.REMOTE_RESPONSE_ID,
+        (StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,),
+    )
+
+    assert readiness.eligible is False
+    with pytest.raises(ValueError, match="unique"):
+        StatelessReplayReadiness(
+            ProviderContinuationStrategy.REMOTE_RESPONSE_ID,
+            (
+                StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
+                StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
+            ),
         )
 
 
