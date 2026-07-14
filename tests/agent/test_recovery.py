@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -14,7 +16,11 @@ from computer_use_agent.config import (
     PolicyConfig,
     ProviderConfig,
 )
-from computer_use_agent.continuation import RuntimeContinuationRecorder, read_continuation
+from computer_use_agent.continuation import (
+    ContinuationError,
+    RuntimeContinuationRecorder,
+    read_continuation,
+)
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.recovery import (
     LockedRecoveryPersistence,
@@ -31,6 +37,7 @@ from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
     ModelTurn,
+    RecoveryStatus,
     RunBudget,
     RunState,
     ToolCall,
@@ -38,6 +45,10 @@ from computer_use_agent.types import (
     ToolResult,
     ToolResultStatus,
 )
+
+
+E2_FIXTURE = Path(__file__).parents[2] / "evals" / "e2-crash-reconstruction.json"
+E2_CASES = json.loads(E2_FIXTURE.read_text(encoding="utf-8"))["cases"]
 
 
 def _config(tmp_path: Path, monkeypatch: object) -> AgentConfig:
@@ -87,6 +98,18 @@ def _checkpoint(state: RunState, sequence: int) -> dict[str, object]:
         "task_length": len(state.task),
         "checkpoint_sequence": sequence,
     }
+
+
+def _safe_checkpoint(config: AgentConfig, state: RunState, sequence: int) -> dict[str, object]:
+    recorder = RunRecorder(config.state_dir, state.run_id)
+    recorder.start(state)
+    if sequence >= 2:
+        recorder.record(state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    if sequence >= 3:
+        recorder.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    while recorder.checkpoint_sequence < sequence:
+        recorder.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    return read_run_checkpoint(config.state_dir, state.run_id)
 
 
 def test_completed_provider_reconstructs_exactly_one_pending_observation(
@@ -689,3 +712,227 @@ def test_locked_recovery_persists_provider_intent_and_completion(
         "dispatch": "dispatched",
         "next_step": "stop",
     }
+
+
+@pytest.mark.parametrize("case", E2_CASES, ids=lambda case: case["id"])
+def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
+    case: dict[str, object], tmp_path: Path, monkeypatch: object
+) -> None:
+    case_id = str(case["id"])
+    config = _config(tmp_path, monkeypatch)
+    if case_id == "e2_resume_budget_already_consumed":
+        config = replace(
+            config,
+            policy=PolicyConfig(max_model_turns=1, max_tool_calls=4),
+        )
+        state = RunState(
+            "run_1",
+            "Inspect windows",
+            "policy-v1",
+            0,
+            RunBudget(1, 4, 8, model_turns_used=1),
+        )
+    else:
+        state = _state()
+
+    observation_call = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"), "list_windows", {}
+    )
+    action_call = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"), "click", {"ref": "ref_1"}
+    )
+    action_cases = {
+        "e2_resume_provider_completed_action_pending",
+        "e2_resume_action_completed",
+        "e2_resume_action_dispatch_uncertain",
+        "e2_resume_side_effect_then_crash_during_verification",
+    }
+    call = action_call if case_id in action_cases else observation_call
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    boundary_sequence = 2
+    checkpoint_state = state
+
+    if case_id != "e2_resume_provider_dispatch_uncertain":
+        recorder.complete_provider(
+            state,
+            ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
+            provider_state={"response_id": "response_1"},
+            checkpoint_sequence=3,
+        )
+        boundary_sequence = 3
+
+    tool_dispatch_cases = {
+        "e2_resume_observation_completed",
+        "e2_resume_observation_dispatch_uncertain",
+        "e2_resume_action_completed",
+        "e2_resume_action_dispatch_uncertain",
+        "e2_resume_unknown_result_persisted",
+        "e2_resume_budget_already_consumed",
+        "e2_resume_side_effect_then_crash_during_verification",
+    }
+    if case_id in tool_dispatch_cases:
+        effect = (
+            ToolEffect.SIDE_EFFECT if case_id in action_cases else ToolEffect.OBSERVATION
+        )
+        checkpoint_state = replace(
+            state,
+            budgets=replace(
+                state.budgets,
+                tool_calls_used=1,
+                side_effects_used=int(effect is ToolEffect.SIDE_EFFECT),
+            ),
+            recovery_status=(
+                RecoveryStatus.REQUIRES_REOBSERVATION
+                if effect is ToolEffect.SIDE_EFFECT
+                else RecoveryStatus.READY
+            ),
+        )
+        recorder.prepare_tool(
+            checkpoint_state, call, effect=effect, checkpoint_sequence=4
+        )
+        recorder.dispatch_tool(checkpoint_state, checkpoint_sequence=5)
+        boundary_sequence = 5
+        uncertain_cases = {
+            "e2_resume_observation_dispatch_uncertain",
+            "e2_resume_action_dispatch_uncertain",
+        }
+        if case_id not in uncertain_cases:
+            unknown = case_id == "e2_resume_unknown_result_persisted"
+            result = ToolResult(
+                call.identity,
+                call.name,
+                (
+                    ToolResultStatus.UNKNOWN_OUTCOME
+                    if unknown
+                    else ToolResultStatus.SUCCESS
+                ),
+                DispatchCertainty.UNKNOWN if unknown else DispatchCertainty.DISPATCHED,
+                sanitized_text="" if effect is ToolEffect.SIDE_EFFECT else "Notepad",
+            )
+            checkpoint_state = replace(
+                checkpoint_state,
+                observation_epoch=(
+                    1 if effect is ToolEffect.OBSERVATION and not unknown else 0
+                ),
+                verified_observation_epoch=(
+                    1 if effect is ToolEffect.OBSERVATION and not unknown else None
+                ),
+                recovery_status=(
+                    RecoveryStatus.UNKNOWN_OUTCOME
+                    if unknown
+                    else checkpoint_state.recovery_status
+                ),
+            )
+            recorder.complete_tool(
+                checkpoint_state, result, checkpoint_sequence=6
+            )
+            boundary_sequence = 6
+
+    if case_id == "e2_resume_side_effect_then_crash_during_verification":
+        verification_call = ToolCall(
+            CallIdentity("run_1", "turn_2", "verify_1"), "list_windows", {}
+        )
+        checkpoint_state = replace(
+            checkpoint_state,
+            budgets=replace(checkpoint_state.budgets, tool_calls_used=2),
+        )
+        recorder.prepare_tool(
+            checkpoint_state,
+            verification_call,
+            effect=ToolEffect.OBSERVATION,
+            checkpoint_sequence=7,
+        )
+        recorder.dispatch_tool(checkpoint_state, checkpoint_sequence=8)
+        boundary_sequence = 8
+
+    checkpoint_sequence = boundary_sequence
+    if case_id in {
+        "e2_resume_checkpoint_continuation_torn",
+        "e2_resume_repeated_attach",
+    }:
+        checkpoint_sequence -= 1
+    checkpoint = _safe_checkpoint(config, checkpoint_state, checkpoint_sequence)
+
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn("run_1", "turn_2", "response_2", "done")])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    observation_call.identity,
+                    observation_call.name,
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="Notepad",
+                )
+            ]
+        )
+    )
+    actual_calls: list[str] = []
+
+    if case_id == "e2_resume_expired_or_symlinked_continuation":
+        with pytest.raises(ContinuationError, match="CONTINUATION_EXPIRED"):
+            read_continuation(
+                config.state_dir,
+                state.run_id,
+                now=datetime.now(UTC) + timedelta(days=1),
+            )
+    else:
+        envelope = read_continuation(config.state_dir, state.run_id)
+        planning_config = (
+            replace(config, provider=ProviderConfig("openai", "drifted-model"))
+            if case_id == "e2_resume_identity_or_registry_drift"
+            else config
+        )
+        plan = plan_read_only_recovery(
+            checkpoint, envelope, planning_config, task=state.task
+        )
+        if plan.decision.action in {
+            ReconstructionAction.DISPATCH_OBSERVATION,
+            ReconstructionAction.CONTINUE_PROVIDER,
+        }:
+            lock = RunLock(config.application_state_dir)
+            lock.acquire()
+            try:
+                persistence = LockedRecoveryPersistence(
+                    state_dir=config.state_dir,
+                    checkpoint=checkpoint,
+                    envelope=envelope,
+                    config=config,
+                    task=state.task,
+                    lock=lock,
+                )
+                asyncio.run(
+                    execute_read_only_recovery_step(
+                        checkpoint,
+                        envelope,
+                        config,
+                        task=state.task,
+                        provider=(
+                            provider
+                            if plan.decision.action
+                            is ReconstructionAction.CONTINUE_PROVIDER
+                            else None
+                        ),
+                        desktop=(
+                            desktop
+                            if plan.decision.action
+                            is ReconstructionAction.DISPATCH_OBSERVATION
+                            else None
+                        ),
+                        commit_intent=persistence.commit_intent,
+                        commit_completion=persistence.commit_completion,
+                    )
+                )
+            finally:
+                lock.release()
+        actual_calls.extend(f"tool:{item.name}" for item in desktop.tool_calls)
+        actual_calls.extend(
+            f"provider:{item['turn_id']}" for item in provider.calls
+        )
+
+    assert actual_calls == case["runtime_calls"], case_id
+    assert all(call_name != "tool:click" for call_name in actual_calls), case_id

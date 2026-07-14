@@ -30,7 +30,7 @@ release notes and cannot be inferred complete from offline CI:
 | Isolated E4 | Four-cell runbook exists; no isolated desktop evidence is recorded | Both providers pass read-only and one approved low-risk action with post-action observation |
 | E5 release regression | Canonical E1/E2 case manifest is frozen and enforced in CI; isolated evidence is pending | Reviewed isolated successful and failure traces are rerun after policy/schema/adapter changes |
 | Release approval | Automated preflight passes locally; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, and human approval |
-| Broader resume | Controlled one-step recovery now atomically persists intent/completion under the run lock and exposes the two completed read-only boundaries through an explicit CLI gate; uncertain dispatches and pending side effects remain non-executable | Freeze the full end-to-end E2 no-replay matrix, then separately review completed-side-effect recovery into mandatory observation |
+| Broader resume | Controlled one-step recovery atomically persists intent/completion under the run lock; the frozen 14-case runtime E2 matrix proves exact new-call counts and zero action replay across every reviewed crash boundary | Separately review completed-side-effect recovery into one mandatory observation; keep uncertain dispatches and pending side effects non-executable |
 | Token-aware context | Event-count reduction, exact request-byte gates, and cumulative provider-reported input-token cutoff | Provider/model-aware pre-request token-window enforcement without splitting mandatory atomic groups |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its

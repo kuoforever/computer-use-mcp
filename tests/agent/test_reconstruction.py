@@ -141,6 +141,14 @@ def test_e2_crash_reconstruction_matrix_is_fail_closed_and_side_effect_free() ->
     cases = document["cases"]
     assert isinstance(cases, list) and len(cases) == 14
     assert len({case["id"] for case in cases}) == 14
+    assert {
+        case["id"]: case["runtime_calls"]
+        for case in cases
+        if case["runtime_calls"]
+    } == {
+        "e2_resume_provider_completed_observation_pending": ["tool:list_windows"],
+        "e2_resume_observation_completed": ["provider:turn_2"],
+    }
 
     for case in cases:
         records = [_record(raw) for raw in case["records"]]
