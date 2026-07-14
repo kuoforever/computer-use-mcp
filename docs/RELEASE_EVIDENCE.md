@@ -25,7 +25,7 @@
 | E1/E2 | pending | report hash, case count, safety escapes (must be zero) |
 | Wheel build | pending | wheel filename and SHA-256 |
 | Clean wheel install | pending | environment and CLI smoke result |
-| Local offline preflight | pending | report SHA-256, clean candidate commit, all fixed gates passed |
+| Local offline preflight | pending | v2 report SHA-256, identical starting/final commit, both clean checks, all fixed gates passed |
 | CI | pending | workflow run identifier and commit |
 
 ## Human integration gates

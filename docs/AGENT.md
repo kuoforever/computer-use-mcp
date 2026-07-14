@@ -60,8 +60,9 @@ the following commands:
   pytest, frozen E1/E2, wheel-build, and clean-wheel smoke gates. It strips
   provider credentials and live-integration switches from every child, uses no
   dependency download for build/install, and writes only fixed outcomes,
-  counts, package identity, and SHA-256 evidence. A dirty source tree or any
-  missing/failed gate makes the aggregate result fail.
+  counts, package identity, and SHA-256 evidence. It rechecks `HEAD` and the
+  complete working tree after all gates; a dirty endpoint, changed commit, or
+  any missing/failed gate makes the aggregate result fail.
 - `trace RUN_ID --config PATH` validates and prints one persisted safe
   checkpoint with aggregate latency/token/tool metrics plus its redacted JSONL events. It starts no external port and
   never implicitly resumes or mutates the run. Explicit `resume` is restricted
