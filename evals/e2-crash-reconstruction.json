@@ -68,7 +68,7 @@
         ["tool_1", "tool", "completed", "side_effect", "success"]
       ],
       "context": {},
-      "runtime_calls": [],
+      "runtime_calls": ["tool:ui_snapshot"],
       "expected": ["mandatory_reobserve", "SIDE_EFFECT_COMPLETED", "VERIFYING"]
     },
     {

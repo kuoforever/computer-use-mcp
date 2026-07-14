@@ -6,8 +6,8 @@
 > `prepared -> dispatch_intent -> completed` boundaries, conservative crash
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
 > strict planner, atomic sequence-checked intent/completion commits under the
-> run lock, and an explicit CLI entry point exist for the two completed
-> read-only boundaries. Recovery remains one step at a time and never replays
+> run lock, and an explicit CLI entry point exist for three completed
+> read-only recovery boundaries. Recovery remains one step at a time and never replays
 > uncertain dispatches or pending side effects.
 
 ## Safety boundary
@@ -207,14 +207,16 @@ the original task again.
    live provider and MCP dispatch when explicitly enabled. All reconstruction
    decisions remain non-executable and authorize zero external calls.
 3. **Implemented:** pure provider export/restore, strict attach planning, and a
-   controlled one-step executor cover the two read-only completed boundaries.
+   controlled one-step executor cover the completed read-only boundaries.
    `agent recover ... --execute-read-only` holds the run lock, compares both
    persisted sequences, durably commits intent before exactly one external call,
    then commits its normalized completion. Torn cross-file updates and repeated
    attaches fail closed on sequence mismatch. The full 14-case runtime E2 matrix
    freezes exact external-call counts for enabled and rejected boundaries.
-4. Enable completed-side-effect recovery only into mandatory re-observation,
-   after the no-replay E2 matrix is frozen and reviewed.
+4. **Implemented:** a completed side effect can dispatch exactly one synthetic
+   `ui_snapshot` under the same locked intent/completion protocol. It never
+   repeats the action, reuses approval, or continues the old provider exchange;
+   successful observation persists `next_step=stop` and requires a new run.
 5. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.

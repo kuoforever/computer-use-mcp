@@ -6,7 +6,7 @@
 > implemented. The CLI can inspect desktop text and bounded screenshots through four observation
 > tools. Opt-in locally approved actions are implemented against fake ports;
 > isolated desktop action smoke and broader multi-step recovery remain unavailable.
-> Opt-in one-step recovery exists only for two completed read-only boundaries.
+> Opt-in one-step recovery exists only for three reviewed completed boundaries.
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
@@ -62,8 +62,8 @@ the following commands:
   to a pre-provider initial checkpoint; `cancel` closes a non-terminal record.
 - `recover RUN_ID --config PATH --task TEXT --execute-read-only` executes at
   most one sequence-checked observation or provider-continuation boundary from
-  opt-in private persistence. It holds the run lock and never replays uncertain
-  work or a pending side effect.
+  opt-in private persistence. A completed side effect may trigger one synthetic
+  `ui_snapshot`, then stops. The command never replays uncertain work or an action.
 - `report --config PATH` aggregates phase/success/failure and token/call/latency
   metrics from bounded validated checkpoints only. It opens no trace JSONL,
   provider, MCP, approval, or desktop port and fails closed on corrupt records.

@@ -893,7 +893,23 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
         if plan.decision.action in {
             ReconstructionAction.DISPATCH_OBSERVATION,
             ReconstructionAction.CONTINUE_PROVIDER,
+            ReconstructionAction.MANDATORY_REOBSERVE,
         }:
+            if plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
+                assert plan.call is not None
+                desktop = FakeDesktopMCP(
+                    results=deque(
+                        [
+                            ToolResult(
+                                plan.call.identity,
+                                plan.call.name,
+                                ToolResultStatus.SUCCESS,
+                                DispatchCertainty.DISPATCHED,
+                                sanitized_text="verified desktop state",
+                            )
+                        ]
+                    )
+                )
             lock = RunLock(config.application_state_dir)
             lock.acquire()
             try:
@@ -920,7 +936,10 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
                         desktop=(
                             desktop
                             if plan.decision.action
-                            is ReconstructionAction.DISPATCH_OBSERVATION
+                            in {
+                                ReconstructionAction.DISPATCH_OBSERVATION,
+                                ReconstructionAction.MANDATORY_REOBSERVE,
+                            }
                             else None
                         ),
                         commit_intent=persistence.commit_intent,
@@ -929,6 +948,20 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
                 )
             finally:
                 lock.release()
+            if plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
+                completed = read_continuation(config.state_dir, state.run_id)
+                completed_checkpoint = read_run_checkpoint(
+                    config.state_dir, state.run_id
+                )
+                assert completed.payload["boundary"]["next_step"] == "stop"
+                assert completed_checkpoint["recovery_status"] == "stopped"
+                second_plan = plan_read_only_recovery(
+                    completed_checkpoint, completed, config, task=state.task
+                )
+                assert (
+                    second_plan.decision.action
+                    is ReconstructionAction.START_NEW_RUN
+                )
         actual_calls.extend(f"tool:{item.name}" for item in desktop.tool_calls)
         actual_calls.extend(
             f"provider:{item['turn_id']}" for item in provider.calls
