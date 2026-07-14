@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,9 @@ def test_release_preflight_records_sanitized_offline_evidence(
     monkeypatch.setenv("OPENAI_API_KEY", "secret-openai")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "secret-anthropic")
     monkeypatch.setenv("RUN_OPENAI_INTEGRATION", "1")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-aws")
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-github")
+    monkeypatch.setenv("UNRELATED_SECRET", "secret-unrelated")
     environments = _install_fake_commands(monkeypatch)
     artifacts = tmp_path / "artifacts"
     report_path = tmp_path / "preflight.json"
@@ -126,10 +130,43 @@ def test_release_preflight_records_sanitized_offline_evidence(
     assert "SENSITIVE_SUBPROCESS_OUTPUT" not in raw
     assert all("OPENAI_API_KEY" not in environment for environment in environments)
     assert all("ANTHROPIC_API_KEY" not in environment for environment in environments)
+    assert all("AWS_SECRET_ACCESS_KEY" not in environment for environment in environments)
+    assert all("GITHUB_TOKEN" not in environment for environment in environments)
+    assert all("UNRELATED_SECRET" not in environment for environment in environments)
     assert all(environment["RUN_OPENAI_INTEGRATION"] == "0" for environment in environments)
     assert all(
         environment["RUN_ANTHROPIC_INTEGRATION"] == "0" for environment in environments
     )
+    assert all(environment["PIP_NO_INDEX"] == "1" for environment in environments)
+    assert all(environment["PIP_NO_INPUT"] == "1" for environment in environments)
+    assert all(environment["PYTHONNOUSERSITE"] == "1" for environment in environments)
+
+
+def test_offline_environment_uses_a_platform_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATH", "reviewed-path")
+    monkeypatch.setenv("TEMP", "reviewed-temp")
+    monkeypatch.setenv("HOME", "reviewed-home")
+    monkeypatch.setenv("AZURE_CLIENT_SECRET", "secret-azure")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "secret-google")
+    monkeypatch.setenv("PYTHONPATH", "unreviewed-import-path")
+    monkeypatch.setenv("PIP_INDEX_URL", "https://unreviewed.example")
+
+    environment = release._offline_environment()
+
+    assert environment["PATH"] == "reviewed-path"
+    assert environment["TEMP"] == "reviewed-temp"
+    assert environment["HOME"] == "reviewed-home"
+    assert "AZURE_CLIENT_SECRET" not in environment
+    assert "GOOGLE_APPLICATION_CREDENTIALS" not in environment
+    assert "PYTHONPATH" not in environment
+    assert "PIP_INDEX_URL" not in environment
+    assert environment["PIP_CONFIG_FILE"] == os.devnull
+    assert environment["PIP_DISABLE_PIP_VERSION_CHECK"] == "1"
+    assert environment["PIP_NO_INDEX"] == "1"
+    assert environment["PIP_NO_INPUT"] == "1"
+    assert environment["PYTHONNOUSERSITE"] == "1"
 
 
 def test_release_preflight_fails_closed_for_dirty_source(

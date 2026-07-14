@@ -41,6 +41,11 @@ candidate gate until those edits are reviewed and committed.
 The preflight checks the candidate identity again after every gate. Do not move
 `HEAD`, stage files, or edit the working tree while it runs; either endpoint
 drift makes the v2 evidence fail closed.
+Its child processes do not inherit arbitrary shell variables. If a local tool
+requires another environment variable, review and add that exact platform
+requirement to the allowlist with a regression test; do not restore broad host
+environment inheritance. Pip index/input/config discovery and Python user site
+loading remain disabled for the preflight.
 
 ## Desktop smoke scripts
 
