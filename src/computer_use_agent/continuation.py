@@ -27,7 +27,7 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 4
+CONTINUATION_VERSION = 5
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
 MAX_JSON_DEPTH = 32
@@ -329,6 +329,7 @@ class ContinuationEnvelope:
                         "request_contract_digest",
                         "memory_context_used",
                         "initial_input",
+                        "output_batches",
                     }
                 ),
                 "CONTINUATION_INVALID",
@@ -337,6 +338,7 @@ class ContinuationEnvelope:
             contract_digest = openai_state["request_contract_digest"]
             memory_context_used = openai_state["memory_context_used"]
             initial_input = openai_state["initial_input"]
+            output_batches = openai_state["output_batches"]
             if not isinstance(memory_context_used, bool):
                 raise ContinuationError("CONTINUATION_INVALID")
             if response_id is not None:
@@ -348,10 +350,12 @@ class ContinuationEnvelope:
                 _validate_openai_initial_input(
                     task, initial_input, memory_context_used
                 )
+                _validate_openai_output_batches(output_batches, response_id)
             elif (
                 contract_digest is not None
                 or memory_context_used
                 or initial_input is not None
+                or output_batches != []
             ):
                 raise ContinuationError("CONTINUATION_INVALID")
             prior_context_tokens = _uint(
@@ -422,6 +426,33 @@ def _validate_openai_initial_input(
             raise ContinuationError("CONTINUATION_INVALID")
         _nonempty(item["scope"], maximum=128, code="CONTINUATION_INVALID")
     if total_content > 8192:
+        raise ContinuationError("CONTINUATION_INVALID")
+
+
+def _validate_openai_output_batches(value: object, response_id: object) -> None:
+    if not isinstance(value, list) or not value or len(value) > 64:
+        raise ContinuationError("CONTINUATION_INVALID")
+    response_ids: list[str] = []
+    for raw_batch in value:
+        batch = _object(
+            raw_batch,
+            frozenset({"response_id", "items"}),
+            "CONTINUATION_INVALID",
+        )
+        batch_response_id = _nonempty(
+            batch["response_id"], maximum=256, code="CONTINUATION_INVALID"
+        )
+        if batch_response_id in response_ids:
+            raise ContinuationError("CONTINUATION_INVALID")
+        response_ids.append(batch_response_id)
+        items = batch["items"]
+        if not isinstance(items, list) or len(items) > 256:
+            raise ContinuationError("CONTINUATION_INVALID")
+        for raw_item in items:
+            if not isinstance(raw_item, Mapping):
+                raise ContinuationError("CONTINUATION_INVALID")
+            _nonempty(raw_item.get("type"), maximum=128, code="CONTINUATION_INVALID")
+    if response_ids[-1] != response_id:
         raise ContinuationError("CONTINUATION_INVALID")
 
 
@@ -567,6 +598,7 @@ class RuntimeContinuationRecorder:
                 "request_contract_digest": None,
                 "memory_context_used": False,
                 "initial_input": None,
+                "output_batches": [],
             }
             if provider_name == "openai"
             else {"messages": []}

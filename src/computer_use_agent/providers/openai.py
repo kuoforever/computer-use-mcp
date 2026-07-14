@@ -156,6 +156,62 @@ def _request_size(request: object) -> int:
     )
 
 
+def _output_item(item: object) -> dict[str, JSONValue]:
+    raw: object = item
+    if not isinstance(raw, Mapping):
+        model_dump = getattr(raw, "model_dump", None)
+        if callable(model_dump):
+            try:
+                raw = model_dump(mode="json")
+            except Exception as exc:
+                raise OpenAIProviderError("OPENAI_RESPONSE_INVALID") from exc
+        elif hasattr(raw, "__dict__"):
+            raw = vars(raw)
+    try:
+        value = to_json_value(raw)
+    except (TypeError, ValueError) as exc:
+        raise OpenAIProviderError("OPENAI_RESPONSE_INVALID") from exc
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get("type"), str)
+        or not value["type"]
+        or len(value["type"]) > 128
+    ):
+        raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
+    return value
+
+
+def _output_batches(value: object) -> list[dict[str, JSONValue]]:
+    if not isinstance(value, list) or len(value) > 64:
+        raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
+    batches: list[dict[str, JSONValue]] = []
+    response_ids: set[str] = set()
+    for raw_batch in value:
+        if not isinstance(raw_batch, Mapping) or set(raw_batch) != {
+            "response_id",
+            "items",
+        }:
+            raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
+        response_id = raw_batch.get("response_id")
+        items = raw_batch.get("items")
+        if (
+            not isinstance(response_id, str)
+            or not response_id
+            or len(response_id) > 256
+            or response_id in response_ids
+            or not isinstance(items, list)
+            or len(items) > 256
+        ):
+            raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
+        try:
+            normalized_items = [_output_item(item) for item in items]
+        except OpenAIProviderError as exc:
+            raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID") from exc
+        response_ids.add(response_id)
+        batches.append({"response_id": response_id, "items": normalized_items})
+    return batches
+
+
 def _instructions(*, allow_actions: bool, memory_context_used: bool) -> str:
     value = ACTION_INSTRUCTIONS if allow_actions else SYSTEM_INSTRUCTIONS
     return value + (("\n\n" + MEMORY_RULE) if memory_context_used else "")
@@ -215,6 +271,9 @@ class OpenAIResponsesProvider:
         default_factory=dict, init=False, repr=False
     )
     _initial_inputs: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _output_item_batches: dict[str, list[dict[str, JSONValue]]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
@@ -345,6 +404,18 @@ class OpenAIResponsesProvider:
         raw_output = _read(response, "output", ())
         if not isinstance(raw_output, (list, tuple)):
             raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
+        if len(raw_output) > 256:
+            raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
+        serialized_output = [_output_item(item) for item in raw_output]
+        prior_output_batches = self._output_item_batches.get(run_id, [])
+        if any(batch["response_id"] == response_id for batch in prior_output_batches):
+            raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
+        output_batches = [
+            *prior_output_batches,
+            {"response_id": response_id, "items": serialized_output},
+        ]
+        if len(output_batches) > 64 or _request_size(output_batches) > self.max_request_bytes:
+            raise OpenAIProviderError("OPENAI_RESPONSE_OUTPUT_TOO_LARGE")
         for item in raw_output:
             if _read(item, "type") != "function_call":
                 continue
@@ -394,6 +465,7 @@ class OpenAIResponsesProvider:
         self._request_contract_digests[run_id] = contract_digest
         self._memory_context_used[run_id] = memory_context_used
         self._initial_inputs[run_id] = initial_input
+        self._output_item_batches[run_id] = output_batches
         return turn
 
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
@@ -405,6 +477,7 @@ class OpenAIResponsesProvider:
             "request_contract_digest": self._request_contract_digests.get(run_id),
             "memory_context_used": self._memory_context_used.get(run_id, False),
             "initial_input": self._initial_inputs.get(run_id),
+            "output_batches": to_json_value(self._output_item_batches.get(run_id, [])),
         }
 
     def stateless_replay_readiness(self) -> StatelessReplayReadiness:
@@ -413,7 +486,6 @@ class OpenAIResponsesProvider:
         return StatelessReplayReadiness(
             strategy=self.continuation_strategy,
             blockers=(
-                StatelessReplayBlocker.PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED,
                 StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
             ),
         )
@@ -429,6 +501,7 @@ class OpenAIResponsesProvider:
             "request_contract_digest",
             "memory_context_used",
             "initial_input",
+            "output_batches",
         }:
             raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
         response_id = state.get("response_id")
@@ -436,6 +509,7 @@ class OpenAIResponsesProvider:
         request_contract_digest = state.get("request_contract_digest")
         memory_context_used = state.get("memory_context_used")
         initial_input = state.get("initial_input")
+        output_batches = _output_batches(state.get("output_batches"))
         if (
             not isinstance(response_id, str)
             or not response_id
@@ -448,6 +522,9 @@ class OpenAIResponsesProvider:
             or not isinstance(initial_input, str)
             or not initial_input
             or len(initial_input) > 2_000_000
+            or not output_batches
+            or output_batches[-1]["response_id"] != response_id
+            or _request_size(output_batches) > self.max_request_bytes
         ):
             raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
         if run_id in self._previous_response_ids:
@@ -473,6 +550,7 @@ class OpenAIResponsesProvider:
         self._request_contract_digests[run_id] = request_contract_digest
         self._memory_context_used[run_id] = memory_context_used
         self._initial_inputs[run_id] = initial_input
+        self._output_item_batches[run_id] = output_batches
 
 
 __all__ = [

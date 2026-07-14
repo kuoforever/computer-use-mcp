@@ -76,14 +76,25 @@ class FakeModelProvider:
         if not self.turns:
             raise UnexpectedFakeCall("no fake model turn was configured")
         turn = self.turns.popleft()
+        previous = self.continuation_state.get(run_id, {})
+        raw_batches = previous.get("output_batches", [])
+        output_batches = list(raw_batches) if isinstance(raw_batches, list) else []
+        output_batches.append(
+            {"response_id": turn.provider_response_id, "items": []}
+        )
         self.continuation_state[run_id] = {
             "response_id": turn.provider_response_id,
             "prior_context_tokens": (
                 (turn.usage.input_tokens or 0) + (turn.usage.output_tokens or 0)
             ),
             "request_contract_digest": "0" * 64,
-            "memory_context_used": bool(memories),
-            "initial_input": _initial_input(task, memories),
+            "memory_context_used": previous.get(
+                "memory_context_used", bool(memories)
+            ),
+            "initial_input": previous.get(
+                "initial_input", _initial_input(task, memories)
+            ),
+            "output_batches": output_batches,
         }
         return turn
 
@@ -97,6 +108,7 @@ class FakeModelProvider:
                     "request_contract_digest": None,
                     "memory_context_used": False,
                     "initial_input": None,
+                    "output_batches": [],
                 },
             )
         )  # type: ignore[return-value]
