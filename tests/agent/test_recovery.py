@@ -9,6 +9,7 @@ import pytest
 
 from computer_use_agent.config import (
     AgentConfig,
+    ContinuationConfig,
     MCPLaunchConfig,
     PolicyConfig,
     ProviderConfig,
@@ -16,13 +17,16 @@ from computer_use_agent.config import (
 from computer_use_agent.continuation import RuntimeContinuationRecorder, read_continuation
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.recovery import (
+    LockedRecoveryPersistence,
     RecoveryExecutionError,
     RecoveryPlanError,
     execute_read_only_recovery_step,
     plan_read_only_recovery,
 )
 from computer_use_agent.reconstruction import ReconstructionAction
+from computer_use_agent.run_lock import RunLock
 from computer_use_agent.tool_registry import reviewed_registry_digest
+from computer_use_agent.trace import RunPhase, RunRecorder, read_run_checkpoint
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -45,6 +49,7 @@ def _config(tmp_path: Path, monkeypatch: object) -> AgentConfig:
         provider=ProviderConfig("openai", "model-v1"),
         mcp=MCPLaunchConfig(tmp_path / "mcp.exe", (), tmp_path, {}),
         policy=PolicyConfig(max_model_turns=4, max_tool_calls=4),
+        continuation=ContinuationConfig(enabled=True),
     )
 
 
@@ -440,3 +445,247 @@ def test_executor_stale_attach_has_zero_commits_and_external_calls(
     assert commits == []
     assert provider.calls == []
     assert desktop.tool_calls == []
+
+
+def test_locked_recovery_persists_observation_intent_and_completion_atomically(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    call = ToolCall(CallIdentity("run_1", "turn_1", "call_1"), "list_windows", {})
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
+        provider_state={"response_id": "response_1"},
+        checkpoint_sequence=3,
+    )
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(state)
+    safe.record(state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    envelope = read_continuation(config.state_dir, state.run_id)
+    result = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+    desktop = FakeDesktopMCP(results=deque([result]))
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        step = asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=None,
+                desktop=desktop,
+                commit_intent=persistence.commit_intent,
+                commit_completion=persistence.commit_completion,
+            )
+        )
+    finally:
+        lock.release()
+
+    persisted = read_continuation(config.state_dir, state.run_id)
+    current = read_run_checkpoint(config.state_dir, state.run_id)
+    assert step.tool_result == result
+    assert persisted.payload["checkpoint_sequence"] == 5
+    assert current["checkpoint_sequence"] == 5
+    assert persisted.payload["boundary"] == {
+        "operation_kind": "tool",
+        "stage": "completed",
+        "operation_id": "run_1:turn_1:call_1",
+        "effect": "observation",
+        "dispatch": "dispatched",
+        "next_step": "provider_continue",
+    }
+    assert persisted.payload["budget"]["tool_calls_used"] == 1
+    assert persisted.payload["observation"]["verified_epoch"] == 1
+
+
+def test_locked_recovery_leaves_durable_unknown_intent_when_external_call_fails(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    call = ToolCall(CallIdentity("run_1", "turn_1", "call_1"), "list_windows", {})
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
+        provider_state={"response_id": "response_1"},
+        checkpoint_sequence=3,
+    )
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(state)
+    safe.record(state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    envelope = read_continuation(config.state_dir, state.run_id)
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        with pytest.raises(RuntimeError, match="no fake tool result"):
+            asyncio.run(
+                execute_read_only_recovery_step(
+                    checkpoint,
+                    envelope,
+                    config,
+                    task=state.task,
+                    provider=None,
+                    desktop=FakeDesktopMCP(),
+                    commit_intent=persistence.commit_intent,
+                    commit_completion=persistence.commit_completion,
+                )
+            )
+    finally:
+        lock.release()
+
+    persisted = read_continuation(config.state_dir, state.run_id)
+    assert persisted.payload["checkpoint_sequence"] == 4
+    assert persisted.payload["boundary"]["stage"] == "dispatch_intent"
+    assert persisted.payload["boundary"]["dispatch"] == "unknown"
+
+    repeated_desktop = FakeDesktopMCP(results=deque([ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+    )]))
+    lock.acquire()
+    try:
+        repeated = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        with pytest.raises(RecoveryExecutionError, match="RECOVERY_SEQUENCE_MISMATCH"):
+            asyncio.run(
+                execute_read_only_recovery_step(
+                    checkpoint,
+                    envelope,
+                    config,
+                    task=state.task,
+                    provider=None,
+                    desktop=repeated_desktop,
+                    commit_intent=repeated.commit_intent,
+                    commit_completion=repeated.commit_completion,
+                )
+            )
+    finally:
+        lock.release()
+    assert repeated_desktop.tool_calls == []
+
+
+def test_locked_recovery_persists_provider_intent_and_completion(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    call = ToolCall(CallIdentity("run_1", "turn_1", "call_1"), "list_windows", {})
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
+        provider_state={"response_id": "response_1"},
+        checkpoint_sequence=3,
+    )
+    tool_state = replace(
+        state,
+        observation_epoch=1,
+        verified_observation_epoch=1,
+        budgets=RunBudget(4, 4, 8, model_turns_used=1, tool_calls_used=1),
+    )
+    result = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+    recorder.prepare_tool(
+        tool_state, call, effect=ToolEffect.OBSERVATION, checkpoint_sequence=4
+    )
+    recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
+    recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(tool_state)
+    safe.record(tool_state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(tool_state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    for _ in range(3):
+        safe.record(tool_state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    envelope = read_continuation(config.state_dir, state.run_id)
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn("run_1", "turn_2", "response_2", "done")])
+    )
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        step = asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=None,
+                commit_intent=persistence.commit_intent,
+                commit_completion=persistence.commit_completion,
+            )
+        )
+    finally:
+        lock.release()
+
+    persisted = read_continuation(config.state_dir, state.run_id)
+    assert step.model_turn is not None and step.model_turn.text == "done"
+    assert persisted.payload["checkpoint_sequence"] == 8
+    assert persisted.payload["provider_state"] == {"response_id": "response_2"}
+    assert persisted.payload["budget"]["model_turns_used"] == 2
+    assert persisted.payload["boundary"] == {
+        "operation_kind": "provider",
+        "stage": "completed",
+        "operation_id": "run_1:turn_2:provider",
+        "effect": None,
+        "dispatch": "dispatched",
+        "next_step": "stop",
+    }

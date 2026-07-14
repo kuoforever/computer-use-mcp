@@ -92,6 +92,20 @@ The output contains only run ID, phase, fixed action/reason, resume eligibility,
 and task length. An initial `resume_initial` classification remains conditional
 on supplying the original task to the separate `resume` command.
 
+When opt-in continuation persistence is enabled, execute exactly one reviewed
+read-only recovery boundary with an explicit confirmation flag:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe recover <run_id> `
+  --config agent.toml --task "<original task>" --execute-read-only
+~~~
+
+The command can dispatch one pending observation from a completed provider turn,
+or send one new provider continuation after a completed observation. It acquires
+the run lock, persists a sequence-checked dispatch intent before the call, and
+persists completion afterward. A call failure leaves the intent uncertain and
+non-replayable. Each invocation executes at most one external call.
+
 Aggregate all local checkpoints without opening JSONL traces:
 
 ~~~powershell
@@ -135,6 +149,6 @@ resume attach path: `resume_initial/INITIAL_CHECKPOINT`,
 or `none/RUN_SUCCEEDED`. Policy/task/budget drift at an otherwise initial phase
 classifies as `start_new_run/CHECKPOINT_MISMATCH`.
 
-The host never automatically replays a tool call. Resume after a provider call
-or any tool dispatch requires a future reviewed persistence format and
-provider-specific continuation tests.
+The host never automatically replays a tool call. Dispatch intent without a
+completion, pending side effects, unknown outcomes, and configuration or
+identity drift remain non-executable.

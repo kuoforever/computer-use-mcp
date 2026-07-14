@@ -1,13 +1,14 @@
 # Persisted continuation and crash reconstruction design
 
-> **Status: opt-in runtime write-ahead persistence and pure read-only attach
-> planning implemented; runtime resume execution not implemented.** The strict
+> **Status: opt-in runtime write-ahead persistence and controlled one-step
+> read-only recovery implemented.** The strict
 > bounded v1 envelope, private atomic reader/writer, provider/MCP
 > `prepared -> dispatch_intent -> completed` boundaries, conservative crash
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
-> strict planner, and a one-step commit-before-call execution primitive for the
-> two completed read-only boundaries exist. No runner or CLI path invokes that
-> primitive, so no additional persisted run is resumable yet.
+> strict planner, atomic sequence-checked intent/completion commits under the
+> run lock, and an explicit CLI entry point exist for the two completed
+> read-only boundaries. Recovery remains one step at a time and never replays
+> uncertain dispatches or pending side effects.
 
 ## Safety boundary
 
@@ -204,12 +205,12 @@ the original task again.
    freeze the 14-case E2 matrix, and persist the boundaries immediately around
    live provider and MCP dispatch when explicitly enabled. All reconstruction
    decisions remain non-executable and authorize zero external calls.
-3. **In progress:** pure provider export/restore, strict attach planning, and an
-   internal one-step executor are implemented for the two read-only completed
-   boundaries. The executor requires an atomic sequence-checking intent commit,
-   performs exactly one new external call, and rejects stale attaches before the
-   commit. Durable completion updates and the runner/CLI entry point are not
-   enabled yet.
+3. **Implemented:** pure provider export/restore, strict attach planning, and a
+   controlled one-step executor cover the two read-only completed boundaries.
+   `agent recover ... --execute-read-only` holds the run lock, compares both
+   persisted sequences, durably commits intent before exactly one external call,
+   then commits its normalized completion. Torn cross-file updates and repeated
+   attaches fail closed on sequence mismatch.
 4. Enable completed-side-effect recovery only into mandatory re-observation,
    after the no-replay E2 matrix is frozen and reviewed.
 5. Keep uncertain dispatches, pending side-effects, drift, corruption, and
