@@ -117,6 +117,10 @@ Claude may first remove oldest complete local tool-use/result pairs while
 preserving the task and newest complete pair, including images. A fixed notice
 marks the omission. Mandatory overflow still fails before SDK I/O, and OpenAI
 never silently breaks its remote `previous_response_id` chain.
+Both adapters expose an explicit provider-neutral continuation strategy.
+OpenAI's non-executable stateless-replay readiness remains blocked on exact
+original request and provider output persistence, request-contract digest
+binding, and a reviewed compiler; see [Stateless replay](STATELESS_REPLAY.md).
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the
@@ -401,9 +405,11 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
 | Provider requests have a byte gate | Both adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or Claude-history requests before network I/O | implemented request-budget test |
 | Provider requests have a token-window gate | Both adapters conservatively bound the complete final request plus output reserve before SDK I/O; OpenAI also carries forward reported remote-context usage across live and persisted recovery, and no atomic tool/result/image group is split | implemented provider token-window and recovery-state tests |
+| OpenAI stateless replay is explicitly gated | Provider continuation strategies are typed, and the OpenAI adapter reports fixed missing-evidence/compiler blockers instead of silently rebuilding or cutting its remote chain | implemented offline readiness contract; replay unavailable |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 
-The remaining work adds broader post-provider resumable state, semantic context
-compression, isolated desktop smokes, and release review. The current slice is experimental and must
-not be presented as the complete safety MVP.
+The remaining work adds stateless replay execution, broader post-provider
+resumable state, semantic context compression, isolated desktop smokes, and
+release review. The current slice is experimental and must not be presented as
+the complete safety MVP.

@@ -23,6 +23,7 @@ from computer_use_agent.types import (
     LedgerEvent,
     LedgerEventKind,
     MemoryContextItem,
+    ProviderContinuationStrategy,
     SafeArgumentSummary,
     ToolResult,
     ToolResultStatus,
@@ -33,6 +34,16 @@ _PNG_BASE64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
     "+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
+
+
+def test_claude_declares_local_message_history_continuation() -> None:
+    scripted = ScriptedMessages([])
+    provider = AnthropicMessagesProvider(model="test-model", messages=scripted)
+
+    assert provider.continuation_strategy is (
+        ProviderContinuationStrategy.LOCAL_MESSAGE_HISTORY
+    )
+    assert scripted.calls == []
 
 
 @dataclass

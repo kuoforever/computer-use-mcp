@@ -13,6 +13,7 @@ from .types import (
     MemoryContextItem,
     ModelTurn,
     PolicyDecision,
+    ProviderContinuationStrategy,
     ToolCall,
     ToolResult,
     JSONValue,
@@ -27,6 +28,9 @@ class UnexpectedFakeCall(RuntimeError):
 @dataclass
 class FakeModelProvider:
     name: str = "fake"
+    continuation_strategy: ProviderContinuationStrategy = (
+        ProviderContinuationStrategy.REMOTE_RESPONSE_ID
+    )
     turns: deque[ModelTurn] = field(default_factory=deque)
     calls: list[dict[str, object]] = field(default_factory=list)
     continuation_state: dict[str, Mapping[str, JSONValue]] = field(default_factory=dict)

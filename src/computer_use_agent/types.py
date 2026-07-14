@@ -99,6 +99,22 @@ class RecoveryStatus(str, Enum):
     STOPPED = "stopped"
 
 
+class ProviderContinuationStrategy(str, Enum):
+    """Where an adapter keeps the provider-native state for the next turn."""
+
+    REMOTE_RESPONSE_ID = "remote_response_id"
+    LOCAL_MESSAGE_HISTORY = "local_message_history"
+
+
+class StatelessReplayBlocker(str, Enum):
+    """Missing reviewed evidence that prevents lossless stateless replay."""
+
+    ORIGINAL_REQUEST_NOT_PERSISTED = "original_request_not_persisted"
+    PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED = "provider_output_items_not_persisted"
+    REQUEST_CONTRACT_NOT_DIGEST_BOUND = "request_contract_not_digest_bound"
+    REPLAY_COMPILER_NOT_IMPLEMENTED = "replay_compiler_not_implemented"
+
+
 class PolicyDecisionKind(str, Enum):
     ALLOW = "allow"
     DENY = "deny"
@@ -217,6 +233,28 @@ class ModelUsage:
                 isinstance(value, bool) or not isinstance(value, int) or value < 0
             ):
                 raise ValueError(f"{field_name} must be a non-negative integer or None")
+
+
+@dataclass(frozen=True)
+class StatelessReplayReadiness:
+    """Non-executable assessment for replacing provider-native continuation."""
+
+    strategy: ProviderContinuationStrategy
+    blockers: tuple[StatelessReplayBlocker, ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.strategy, ProviderContinuationStrategy):
+            raise ValueError("strategy must be a ProviderContinuationStrategy")
+        if not isinstance(self.blockers, tuple) or not all(
+            isinstance(blocker, StatelessReplayBlocker) for blocker in self.blockers
+        ):
+            raise ValueError("blockers must contain StatelessReplayBlocker values")
+        if len(self.blockers) != len(set(self.blockers)):
+            raise ValueError("stateless replay blockers must be unique")
+
+    @property
+    def eligible(self) -> bool:
+        return not self.blockers
 
 
 @dataclass(frozen=True)
@@ -727,6 +765,7 @@ class ModelProviderPort(Protocol):
     """Provider adapter boundary. Implementations compile the reviewed registry."""
 
     name: str
+    continuation_strategy: ProviderContinuationStrategy
 
     async def create_turn(
         self,
