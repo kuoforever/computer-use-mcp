@@ -27,7 +27,7 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 3
+CONTINUATION_VERSION = 4
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
 MAX_JSON_DEPTH = 32
@@ -221,7 +221,9 @@ class ContinuationEnvelope:
         _uint(root.get("checkpoint_sequence"), "CONTINUATION_INVALID")
         _nonempty(root.get("policy_version"), maximum=128, code="CONTINUATION_INVALID")
         _digest(root.get("registry_digest"), "CONTINUATION_INVALID")
-        _nonempty(root.get("task"), maximum=1_000_000, code="CONTINUATION_INVALID")
+        task = _nonempty(
+            root.get("task"), maximum=1_000_000, code="CONTINUATION_INVALID"
+        )
 
         provider = _object(
             root.get("provider"), frozenset({"name", "model"}), "CONTINUATION_INVALID"
@@ -326,6 +328,7 @@ class ContinuationEnvelope:
                         "prior_context_tokens",
                         "request_contract_digest",
                         "memory_context_used",
+                        "initial_input",
                     }
                 ),
                 "CONTINUATION_INVALID",
@@ -333,12 +336,23 @@ class ContinuationEnvelope:
             response_id = openai_state["response_id"]
             contract_digest = openai_state["request_contract_digest"]
             memory_context_used = openai_state["memory_context_used"]
+            initial_input = openai_state["initial_input"]
             if not isinstance(memory_context_used, bool):
                 raise ContinuationError("CONTINUATION_INVALID")
             if response_id is not None:
                 _nonempty(response_id, maximum=256, code="CONTINUATION_INVALID")
                 _digest(contract_digest, "CONTINUATION_INVALID")
-            elif contract_digest is not None or memory_context_used:
+                _nonempty(
+                    initial_input, maximum=2_000_000, code="CONTINUATION_INVALID"
+                )
+                _validate_openai_initial_input(
+                    task, initial_input, memory_context_used
+                )
+            elif (
+                contract_digest is not None
+                or memory_context_used
+                or initial_input is not None
+            ):
                 raise ContinuationError("CONTINUATION_INVALID")
             prior_context_tokens = _uint(
                 openai_state["prior_context_tokens"], "CONTINUATION_INVALID"
@@ -363,6 +377,52 @@ class ContinuationEnvelope:
         if verify_digest and supplied_digest != _payload_digest(root):
             raise ContinuationError("CONTINUATION_DIGEST_MISMATCH")
         return cls(to_json_value(root))
+
+
+def _validate_openai_initial_input(
+    task: str, initial_input: object, memory_context_used: bool
+) -> None:
+    if not isinstance(initial_input, str):
+        raise ContinuationError("CONTINUATION_INVALID")
+    if not memory_context_used:
+        if initial_input != task:
+            raise ContinuationError("CONTINUATION_INVALID")
+        return
+    prefix = task + "\n\nOptional memory context (JSON data):\n"
+    if not initial_input.startswith(prefix):
+        raise ContinuationError("CONTINUATION_INVALID")
+    encoded = initial_input[len(prefix) :]
+    try:
+        memories = json.loads(encoded)
+    except json.JSONDecodeError as exc:
+        raise ContinuationError("CONTINUATION_INVALID") from exc
+    if (
+        not isinstance(memories, list)
+        or not memories
+        or len(memories) > 8
+        or json.dumps(memories, separators=(",", ":"), sort_keys=True) != encoded
+    ):
+        raise ContinuationError("CONTINUATION_INVALID")
+    total_content = 0
+    for value in memories:
+        item = _object(
+            value,
+            frozenset({"kind", "content", "source", "scope"}),
+            "CONTINUATION_INVALID",
+        )
+        if item["kind"] not in {"preference", "verified_procedure"}:
+            raise ContinuationError("CONTINUATION_INVALID")
+        content = _nonempty(
+            item["content"], maximum=4096, code="CONTINUATION_INVALID"
+        )
+        if any(ord(char) < 32 for char in content):
+            raise ContinuationError("CONTINUATION_INVALID")
+        total_content += len(content)
+        if item["source"] != "user_confirmed":
+            raise ContinuationError("CONTINUATION_INVALID")
+        _nonempty(item["scope"], maximum=128, code="CONTINUATION_INVALID")
+    if total_content > 8192:
+        raise ContinuationError("CONTINUATION_INVALID")
 
 
 def _contains_raw_type_text(data: object) -> bool:
@@ -506,6 +566,7 @@ class RuntimeContinuationRecorder:
                 "prior_context_tokens": 0,
                 "request_contract_digest": None,
                 "memory_context_used": False,
+                "initial_input": None,
             }
             if provider_name == "openai"
             else {"messages": []}

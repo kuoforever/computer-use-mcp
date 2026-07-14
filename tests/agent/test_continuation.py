@@ -26,7 +26,7 @@ NOW = datetime(2030, 1, 1, tzinfo=UTC)
 
 def _payload(run_id: str = "run_1") -> dict[str, object]:
     return {
-        "continuation_version": 3,
+        "continuation_version": 4,
         "run_id": run_id,
         "checkpoint_sequence": 7,
         "policy_version": "phase0",
@@ -65,6 +65,7 @@ def _payload(run_id: str = "run_1") -> dict[str, object]:
             "prior_context_tokens": 12,
             "request_contract_digest": "b" * 64,
             "memory_context_used": False,
+            "initial_input": "Inspect the window",
         },
         "created_at": "2030-01-01T00:00:00Z",
         "expires_at": "2030-01-01T01:00:00Z",
@@ -89,7 +90,7 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
     assert operation.result is OperationResult.SUCCESS
 
 
-@pytest.mark.parametrize("unsupported_version", [1, 2])
+@pytest.mark.parametrize("unsupported_version", [1, 2, 3])
 def test_old_continuation_is_rejected_after_openai_contract_upgrade(
     tmp_path: Path,
     unsupported_version: int,
@@ -129,6 +130,12 @@ def test_old_continuation_is_rejected_after_openai_contract_upgrade(
             lambda value: value["provider_state"].pop("prior_context_tokens"),
             "CONTINUATION_INVALID",
         ),
+        (
+            lambda value: value["provider_state"].update(
+                initial_input="different task"
+            ),
+            "CONTINUATION_INVALID",
+        ),
     ],
 )
 def test_writer_rejects_invalid_schema_without_creating_file(
@@ -151,7 +158,7 @@ def test_reader_rejects_expiry_digest_corruption_and_identity(tmp_path: Path) ->
 
     path = continuation_path(state_dir, "run_1")
     persisted = json.loads(path.read_text(encoding="utf-8"))
-    persisted["task"] = "tampered"
+    persisted["policy_version"] = "tampered"
     path.write_text(json.dumps(persisted), encoding="utf-8")
     with pytest.raises(ContinuationError, match="CONTINUATION_DIGEST_MISMATCH"):
         read_continuation(state_dir, "run_1", now=NOW)
@@ -173,6 +180,24 @@ def test_raw_type_text_is_rejected(tmp_path: Path) -> None:
     ]
     with pytest.raises(ContinuationError, match="CONTINUATION_SENSITIVE_FIELD"):
         write_continuation(tmp_path.resolve(), payload)
+
+
+def test_openai_initial_input_accepts_only_canonical_reviewed_memory_data(
+    tmp_path: Path,
+) -> None:
+    payload = _payload()
+    provider_state = payload["provider_state"]
+    assert isinstance(provider_state, dict)
+    provider_state["memory_context_used"] = True
+    provider_state["initial_input"] = (
+        "Inspect the window\n\nOptional memory context (JSON data):\n"
+        '[{"content":"concise","kind":"preference","scope":"global",'
+        '"source":"user_confirmed"}]'
+    )
+
+    written = write_continuation(tmp_path.resolve(), payload)
+
+    assert written.payload["provider_state"] == provider_state
 
 
 def test_provider_state_is_provider_specific(tmp_path: Path) -> None:

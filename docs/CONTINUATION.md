@@ -2,7 +2,7 @@
 
 > **Status: opt-in runtime write-ahead persistence and controlled bounded
 > read-only recovery implemented.** The strict
-> bounded v3 envelope, private atomic reader/writer, provider/MCP
+> bounded v4 envelope, private atomic reader/writer, provider/MCP
 > `prepared -> dispatch_intent -> completed` boundaries, conservative crash
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
 > strict planner, atomic sequence-checked intent/completion commits under the
@@ -55,13 +55,13 @@ contain task, UI, and screenshot data and that broader persistence is opt-in.
 
 The envelope is canonical JSON with sorted keys for digesting and is bounded
 independently from the 64 KiB checkpoint. Binary images are stored as bounded
-base64 PNG blocks in v3; no arbitrary MIME type or external path is accepted.
+base64 PNG blocks in v4; no arbitrary MIME type or external path is accepted.
 
-## Continuation envelope v3
+## Continuation envelope v4
 
 ~~~json
 {
-  "continuation_version": 3,
+  "continuation_version": 4,
   "run_id": "run_...",
   "checkpoint_sequence": 7,
   "policy_version": "...",
@@ -89,7 +89,8 @@ base64 PNG blocks in v3; no arbitrary MIME type or external path is accepted.
     "response_id": "resp_...",
     "prior_context_tokens": 1234,
     "request_contract_digest": "<sha256>",
-    "memory_context_used": false
+    "memory_context_used": false,
+    "initial_input": "original task and optional canonical memory data"
   },
   "created_at": "...",
   "expires_at": "...",
@@ -107,7 +108,7 @@ Required validation is exact and fail-closed:
   `(run_id, turn_id, call_id, tool_name)` and stable call digest;
 - require budgets and observation epochs to equal a fresh fold of the ledger;
 - reject raw `type.text` entirely. Because `type` is not advertised in the
-  current Agent, v3 continuation cannot contain or resume a `type` call;
+  current Agent, v4 continuation cannot contain or resume a `type` call;
 - reconstruct host policy and tool definitions from current reviewed code, never
   from persisted executable fields.
 
@@ -136,11 +137,14 @@ Provider state is adapter-specific but non-authoritative:
 
 - OpenAI: the last completed `response_id`, that response's reported input and
   output token total, a canonical request-contract digest, and a boolean saying
-  whether explicit memory context was present on the initial request. Resume
-  restores these before preflight, then sends only the next new
+  whether explicit memory context was present on the initial request, and the
+  exact initial SDK input string. Its SHA-256 is included in the request
+  contract digest. Resume restores these before preflight, then sends only the next new
   `function_call_output` set with that ID. The boolean preserves the fixed
-  memory-as-untrusted-data instruction without persisting or replaying memory
-  content. Token mismatch, contract drift, and v1/v2 state fail closed before
+  memory-as-untrusted-data instruction; the persisted initial input may contain
+  the explicitly selected memory and remains confined to the sensitive private
+  artifact. It is not replayed by the current implementation. Token mismatch,
+  contract drift, and v1-v3 state fail closed before
   provider dispatch. If the provider cannot continue that response, the run
   stops; it does not resend the previous request.
 - Claude: the exact bounded canonical user/assistant message history compiled

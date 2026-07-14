@@ -14,9 +14,9 @@ examples preserve `response.output` and then append each matching
 
 Those wire items are richer than the current canonical host ledger. The ledger
 normalizes assistant text, reviewed function calls, usage, and tool results; it
-does not persist the exact original request or every provider output item, such
-as reasoning items. Reconstructing a plausible transcript from normalized
-events would therefore be lossy and is prohibited.
+now persists the exact initial input, but it does not persist every provider
+output item, such as reasoning items. Reconstructing a plausible transcript
+from normalized events would therefore still be lossy and is prohibited.
 
 Official protocol references:
 
@@ -31,18 +31,21 @@ returns a `StatelessReplayReadiness` with these blockers:
 
 | Blocker | Required evidence before removal |
 | --- | --- |
-| `original_request_not_persisted` | Persist the exact initial input, including whether explicit memory was disclosed, without turning it into policy or approval. |
 | `provider_output_items_not_persisted` | Preserve every required Responses API output item in exact order, not only normalized text/function calls. |
 | `replay_compiler_not_implemented` | Add a separately reviewed compiler that emits one bounded request and never dispatches historical tools. |
 
-The request-contract prerequisite is now delivered independently of replay.
-Continuation v3 binds the model, instructions, reviewed tool definitions,
+The initial-input and request-contract prerequisites are now delivered
+independently of replay. Continuation v4 stores the exact initial SDK `input`
+string inside the already-sensitive private artifact. This includes the task
+and any explicitly selected memory data, is never copied into trace/report/error
+surfaces, and is not itself executable. The contract digest binds its SHA-256
+along with the model, instructions, reviewed tool definitions,
 action mode, memory-disclosure marker, parallel-call setting, request-byte gate,
 context window, output reserve, and contract version under a canonical SHA-256
 digest. Restore or active-chain drift fails with
 `OPENAI_REQUEST_CONTRACT_MISMATCH` before provider I/O and before restored state
-is attached. This removes one readiness blocker but does not make replay
-executable.
+is attached. These delivered prerequisites remove two readiness blockers but
+do not make replay executable.
 
 The assessment is descriptive and non-executable. No CLI/config switch invokes
 it, and an empty blocker set alone would not authorize provider or desktop I/O.

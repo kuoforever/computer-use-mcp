@@ -1,6 +1,7 @@
 """Deterministic Phase-2 fakes for provider, MCP, and approval ports."""
 from __future__ import annotations
 
+import json
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Mapping, Sequence
@@ -23,6 +24,23 @@ from .types import (
 
 class UnexpectedFakeCall(RuntimeError):
     """Raised when a test invokes an unconfigured fake boundary."""
+
+
+def _initial_input(task: str, memories: Sequence[MemoryContextItem]) -> str:
+    if not memories:
+        return task
+    payload = [
+        {
+            "kind": item.kind,
+            "content": item.content,
+            "source": item.source,
+            "scope": item.scope,
+        }
+        for item in memories
+    ]
+    return task + "\n\nOptional memory context (JSON data):\n" + json.dumps(
+        payload, separators=(",", ":"), sort_keys=True
+    )
 
 
 @dataclass
@@ -65,6 +83,7 @@ class FakeModelProvider:
             ),
             "request_contract_digest": "0" * 64,
             "memory_context_used": bool(memories),
+            "initial_input": _initial_input(task, memories),
         }
         return turn
 
@@ -77,6 +96,7 @@ class FakeModelProvider:
                     "prior_context_tokens": 0,
                     "request_contract_digest": None,
                     "memory_context_used": False,
+                    "initial_input": None,
                 },
             )
         )  # type: ignore[return-value]
