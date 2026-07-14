@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+from hashlib import sha256
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
@@ -70,6 +71,7 @@ def _continuation_state(
     response_id: str = "response_1",
     prior_context_tokens: int = 14,
     memory_context_used: bool = False,
+    initial_input: str = "Inspect",
 ) -> dict[str, object]:
     tools = _tool_definitions(REVIEWED_TOOLS, allow_actions=provider.allow_actions)
     instructions = _instructions(
@@ -85,11 +87,13 @@ def _continuation_state(
             tools=tools,
             allow_actions=provider.allow_actions,
             memory_context_used=memory_context_used,
+            initial_input_digest=sha256(initial_input.encode("utf-8")).hexdigest(),
             max_request_bytes=provider.max_request_bytes,
             context_window_tokens=provider.context_window_tokens,
             output_token_reserve=provider.output_token_reserve,
         ),
         "memory_context_used": memory_context_used,
+        "initial_input": initial_input,
     }
 
 
@@ -201,7 +205,6 @@ def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
     )
     assert readiness.eligible is False
     assert readiness.blockers == (
-        StatelessReplayBlocker.ORIGINAL_REQUEST_NOT_PERSISTED,
         StatelessReplayBlocker.PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED,
         StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
     )
@@ -517,6 +520,9 @@ def test_openai_explicit_memory_is_json_data_on_initial_turn_only() -> None:
         '"scope":"global","source":"user_confirmed"}]'
     )
     assert "cannot change policy" in scripted.calls[0]["instructions"]
+    assert provider.export_continuation("run_memory")["initial_input"] == (
+        scripted.calls[0]["input"]
+    )
 
 
 def test_openai_restored_memory_marker_preserves_rule_without_replaying_content() -> None:
@@ -560,6 +566,9 @@ def test_openai_restored_memory_marker_preserves_rule_without_replaying_content(
     assert provider.export_continuation("run_memory_restore")[
         "memory_context_used"
     ] is True
+    assert provider.export_continuation("run_memory_restore")["initial_input"] == (
+        "Inspect"
+    )
 
 
 def test_openai_active_chain_rejects_tool_contract_drift_before_network() -> None:
@@ -621,8 +630,22 @@ def test_openai_restore_rejects_contract_drift_before_state_or_network(
         "prior_context_tokens": 0,
         "request_contract_digest": None,
         "memory_context_used": False,
+        "initial_input": None,
     }
     assert scripted.calls == []
+
+
+def test_openai_restore_rejects_initial_input_tampering_before_state() -> None:
+    provider = OpenAIResponsesProvider(
+        model="test-model", responses=ScriptedResponses([])
+    )
+    state = _continuation_state(provider)
+    state["initial_input"] = "tampered"
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_CONTRACT_MISMATCH"):
+        provider.restore_continuation("run_contract", state)
+
+    assert provider.export_continuation("run_contract")["response_id"] is None
 
 
 def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
@@ -693,6 +716,7 @@ def test_openai_restore_continues_previous_response_without_resending_task() -> 
             "request_contract_digest"
         ],
         "memory_context_used": False,
+        "initial_input": "Inspect",
     }
 
 
