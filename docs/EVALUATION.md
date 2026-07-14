@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift detection | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -78,6 +78,11 @@ OpenAI/Anthropic credentials and forces both E3 switches off for every child.
 Both source and installed-wheel E1/E2 runs verify the frozen manifest; their
 reports and the wheel are retained by SHA-256, while subprocess output is not
 copied into the evidence report. E3/E4 are never inferred from a preflight pass.
+Report schema v2 records the starting and final commit and clean-state checks.
+The aggregate fails if `HEAD` changes, either endpoint is dirty, or either Git
+query fails. Unit fixtures exercise both mid-run commit drift and a working tree
+that becomes dirty; these are E0 release-evidence failures, not safety escapes
+or substitutes for the frozen E1/E2 trace matrix.
 
 ## Deterministic E1/E2 runner
 

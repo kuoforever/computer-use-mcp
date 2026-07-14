@@ -38,6 +38,9 @@ E1/E2 and wheel hashes under `out/`. It deliberately uses `build
 --no-isolation` and `pip install --no-deps`; install the `dev` extra before
 running it. A working tree with milestone edits is expected to fail the clean
 candidate gate until those edits are reviewed and committed.
+The preflight checks the candidate identity again after every gate. Do not move
+`HEAD`, stage files, or edit the working tree while it runs; either endpoint
+drift makes the v2 evidence fail closed.
 
 ## Desktop smoke scripts
 

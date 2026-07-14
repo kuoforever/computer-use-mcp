@@ -18,7 +18,7 @@ from typing import Mapping, Sequence
 from computer_use_mcp import __version__ as runtime_version
 
 
-PREFLIGHT_REPORT_VERSION = 1
+PREFLIGHT_REPORT_VERSION = 2
 _PYTEST_SUMMARY = re.compile(
     r"(?P<passed>\d+) passed(?:, (?P<skipped>\d+) skipped)?(?:, (?P<failed>\d+) failed)?"
 )
@@ -174,6 +174,23 @@ def _remove_existing(path: Path) -> bool:
     return True
 
 
+def _candidate_state(
+    root: Path, environment: Mapping[str, str]
+) -> tuple[str | None, bool]:
+    commit_command = _run(
+        ["git", "rev-parse", "--verify", "HEAD"], cwd=root, environment=environment
+    )
+    commit = commit_command.stdout.strip()
+    if not commit_command.passed or not re.fullmatch(r"[0-9a-fA-F]{40}", commit):
+        commit = None
+    clean_command = _run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=root,
+        environment=environment,
+    )
+    return commit, clean_command.passed and not clean_command.stdout.strip()
+
+
 def run_release_preflight(
     root: Path,
     artifacts: Path,
@@ -190,18 +207,7 @@ def run_release_preflight(
     artifacts.mkdir(parents=True, exist_ok=True)
     environment = _offline_environment()
 
-    commit_command = _run(
-        ["git", "rev-parse", "--verify", "HEAD"], cwd=root, environment=environment
-    )
-    commit = commit_command.stdout.strip()
-    if not commit_command.passed or not re.fullmatch(r"[0-9a-fA-F]{40}", commit):
-        commit = None
-    clean_command = _run(
-        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-        cwd=root,
-        environment=environment,
-    )
-    source_clean = clean_command.passed and not clean_command.stdout.strip()
+    commit, source_clean = _candidate_state(root, environment)
     project_version = _read_project_version(root)
     version_consistent = project_version is not None and project_version == runtime_version
 
@@ -334,7 +340,20 @@ def run_release_preflight(
             except OSError:
                 install_gate = {"passed": False}
 
+    final_commit, final_source_clean = _candidate_state(root, environment)
+    candidate_stability = {
+        "passed": bool(
+            commit is not None
+            and commit == final_commit
+            and source_clean
+            and final_source_clean
+        ),
+        "head_unchanged": commit is not None and commit == final_commit,
+        "source_clean_at_start": source_clean,
+        "source_clean_at_end": final_source_clean,
+    }
     gates = {
+        "candidate_stability": candidate_stability,
         "diff_check": _gate(diff_check),
         "ruff": _gate(ruff),
         "pytest": _pytest_gate(pytest),
@@ -343,9 +362,7 @@ def run_release_preflight(
         "wheel_install": install_gate,
     }
     passed = bool(
-        commit
-        and source_clean
-        and version_consistent
+        version_consistent
         and all(bool(gate["passed"]) for gate in gates.values())
     )
     payload: dict[str, object] = {
@@ -353,7 +370,9 @@ def run_release_preflight(
         "passed": passed,
         "candidate": {
             "commit": commit,
+            "final_commit": final_commit,
             "source_clean": source_clean,
+            "final_source_clean": final_source_clean,
             "package_version": project_version,
             "runtime_version": runtime_version,
             "version_consistent": version_consistent,
