@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from .tool_registry import ToolSpec, reviewed_mcp_descriptors
 from .types import (
@@ -15,6 +15,8 @@ from .types import (
     PolicyDecision,
     ToolCall,
     ToolResult,
+    JSONValue,
+    to_json_value,
 )
 
 
@@ -27,6 +29,7 @@ class FakeModelProvider:
     name: str = "fake"
     turns: deque[ModelTurn] = field(default_factory=deque)
     calls: list[dict[str, object]] = field(default_factory=list)
+    continuation_state: dict[str, Mapping[str, JSONValue]] = field(default_factory=dict)
 
     async def create_turn(
         self,
@@ -50,7 +53,17 @@ class FakeModelProvider:
         )
         if not self.turns:
             raise UnexpectedFakeCall("no fake model turn was configured")
-        return self.turns.popleft()
+        turn = self.turns.popleft()
+        self.continuation_state[run_id] = {"response_id": turn.provider_response_id}
+        return turn
+
+    def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
+        return to_json_value(self.continuation_state.get(run_id, {"response_id": None}))  # type: ignore[return-value]
+
+    def restore_continuation(
+        self, run_id: str, state: Mapping[str, JSONValue]
+    ) -> None:
+        self.continuation_state[run_id] = to_json_value(state)  # type: ignore[assignment]
 
 
 @dataclass

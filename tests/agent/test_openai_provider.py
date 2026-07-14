@@ -398,3 +398,49 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "click",
         "key",
     ]
+
+
+def test_openai_restore_continues_previous_response_without_resending_task() -> None:
+    scripted = ScriptedResponses([_response("response_2", text="done")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    provider.restore_continuation("run_restore", {"response_id": "response_1"})
+    identity = CallIdentity("run_restore", "turn_1", "call_1")
+    result = ToolResult(
+        identity,
+        "list_windows",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+    ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=identity,
+            tool_result=result,
+        ),
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_restore",
+            turn_id="turn_2",
+            task="ORIGINAL_TASK_MUST_NOT_BE_SENT",
+            ledger=ledger,
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    assert scripted.calls[0]["previous_response_id"] == "response_1"
+    assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(scripted.calls[0])
+    assert provider.export_continuation("run_restore") == {"response_id": "response_2"}
+
+
+def test_openai_restore_rejects_invalid_or_repeated_attach() -> None:
+    provider = OpenAIResponsesProvider(model="test-model", responses=ScriptedResponses([]))
+    with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_INVALID"):
+        provider.restore_continuation("run_1", {"response_id": None})
+    provider.restore_continuation("run_1", {"response_id": "response_1"})
+    with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_ALREADY_ATTACHED"):
+        provider.restore_continuation("run_1", {"response_id": "response_1"})

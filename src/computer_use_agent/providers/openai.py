@@ -5,7 +5,7 @@ import asyncio
 import base64
 import json
 from dataclasses import dataclass, field
-from typing import Protocol, Sequence
+from typing import Mapping, Protocol, Sequence
 
 from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..types import (
@@ -18,6 +18,7 @@ from ..types import (
     ModelUsage,
     ToolCall,
     ToolEffect,
+    JSONValue,
     to_json_value,
 )
 
@@ -277,6 +278,25 @@ class OpenAIResponsesProvider:
             tool_calls=tuple(calls),
             usage=ModelUsage(input_tokens=input_tokens, output_tokens=output_tokens),
         )
+
+    def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError("run_id must be non-empty")
+        return {"response_id": self._previous_response_ids.get(run_id)}
+
+    def restore_continuation(
+        self, run_id: str, state: Mapping[str, JSONValue]
+    ) -> None:
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError("run_id must be non-empty")
+        if not isinstance(state, Mapping) or set(state) != {"response_id"}:
+            raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
+        response_id = state.get("response_id")
+        if not isinstance(response_id, str) or not response_id:
+            raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
+        if run_id in self._previous_response_ids:
+            raise OpenAIProviderError("OPENAI_CONTINUATION_ALREADY_ATTACHED")
+        self._previous_response_ids[run_id] = response_id
 
 
 __all__ = ["OpenAIProviderError", "OpenAIResponsesProvider"]

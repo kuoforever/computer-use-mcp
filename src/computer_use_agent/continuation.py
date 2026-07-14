@@ -479,7 +479,9 @@ class RuntimeContinuationRecorder:
                 "data": {"task": state.task},
             }
         ]
-        self.response_id: str | None = None
+        self.provider_state: Mapping[str, JSONValue] = (
+            {"response_id": None} if provider_name == "openai" else {"messages": []}
+        )
         self._current: OperationState | None = None
 
     def _event(self, kind: str, data: Mapping[str, object]) -> None:
@@ -500,9 +502,10 @@ class RuntimeContinuationRecorder:
         }
 
     def _provider_state(self) -> dict[str, JSONValue]:
-        if self.provider_name == "openai":
-            return {"response_id": self.response_id}
-        return {"messages": to_json_value(self.ledger)}
+        state = to_json_value(self.provider_state)
+        if not isinstance(state, dict):
+            raise ContinuationError("CONTINUATION_INVALID")
+        return state
 
     def _payload(
         self,
@@ -615,7 +618,12 @@ class RuntimeContinuationRecorder:
         return self._write(state, checkpoint_sequence=checkpoint_sequence)
 
     def complete_provider(
-        self, state: RunState, turn: ModelTurn, *, checkpoint_sequence: int
+        self,
+        state: RunState,
+        turn: ModelTurn,
+        *,
+        provider_state: Mapping[str, JSONValue],
+        checkpoint_sequence: int,
     ) -> ContinuationEnvelope:
         if self._current is None:
             raise ContinuationError("CONTINUATION_INVALID")
@@ -627,7 +635,7 @@ class RuntimeContinuationRecorder:
                 result=OperationResult.SUCCESS,
             )
         )
-        self.response_id = turn.provider_response_id
+        self.provider_state = provider_state
         self._event(
             "model_turn",
             {
