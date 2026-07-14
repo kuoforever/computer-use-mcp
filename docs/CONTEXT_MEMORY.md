@@ -33,8 +33,10 @@ the current run's provider-native continuation state. The adapters now declare
 those strategies explicitly. OpenAI also exposes a non-executable
 [stateless-replay readiness](STATELESS_REPLAY.md) assessment that remains
 blocked on exact original-request/provider-output persistence, request-contract
-digest binding, and a reviewed replay compiler. Safe semantic summarization
-remains future work; model-turn limits continue to bound the current run.
+and a reviewed replay compiler. Canonical request-contract digest binding is
+now delivered in continuation v3; drift fails before network I/O, but replay
+remains unavailable. Safe semantic summarization remains future work;
+model-turn limits continue to bound the current run.
 
 Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
 between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request

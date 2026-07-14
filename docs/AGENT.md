@@ -111,16 +111,18 @@ request byte is charged as one input token; OpenAI continuations additionally
 carry forward the preceding provider-reported input/output usage. The gate
 fails with a fixed provider code and never splits mandatory atomic groups.
 Persisted OpenAI recovery restores that usage together with the required
-`previous_response_id`; missing or non-correlated token state fails before the
-next provider dispatch.
+`previous_response_id`, a canonical request-contract digest, and the safe
+memory-disclosure marker; missing, non-correlated, or drifted state fails before
+the next provider dispatch.
 Claude may first remove oldest complete local tool-use/result pairs while
 preserving the task and newest complete pair, including images. A fixed notice
 marks the omission. Mandatory overflow still fails before SDK I/O, and OpenAI
 never silently breaks its remote `previous_response_id` chain.
 Both adapters expose an explicit provider-neutral continuation strategy.
 OpenAI's non-executable stateless-replay readiness remains blocked on exact
-original request and provider output persistence, request-contract digest
-binding, and a reviewed compiler; see [Stateless replay](STATELESS_REPLAY.md).
+original request and provider output persistence plus a reviewed compiler.
+Request-contract digest binding is delivered, but does not enable replay; see
+[Stateless replay](STATELESS_REPLAY.md).
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false`. It preserves the provider `call_id` in the

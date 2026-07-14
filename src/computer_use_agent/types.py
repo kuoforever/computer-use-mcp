@@ -111,7 +111,6 @@ class StatelessReplayBlocker(str, Enum):
 
     ORIGINAL_REQUEST_NOT_PERSISTED = "original_request_not_persisted"
     PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED = "provider_output_items_not_persisted"
-    REQUEST_CONTRACT_NOT_DIGEST_BOUND = "request_contract_not_digest_bound"
     REPLAY_COMPILER_NOT_IMPLEMENTED = "replay_compiler_not_implemented"
 
 
