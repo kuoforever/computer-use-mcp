@@ -50,9 +50,19 @@ deliberately conservative. Claude's complete local history is visible. For an
 OpenAI continuation, the next check also includes the preceding response's
 provider-reported input and output usage to cover remote context conservatively.
 
-The gate checks the final request as one unit: it never truncates or separates
-tool calls, tool results, image blocks, approval state, or recovery evidence.
-No automatic summary is generated because it could discard those semantics.
+When Claude's locally visible history exceeds this gate, the adapter may remove
+oldest completed `assistant tool_use` plus adjacent `user tool_result` pairs and
+retry the estimate. It preserves the original task and newest complete pair,
+including every image block, and adds a fixed host-authored truncation notice.
+If that mandatory set still exceeds the window, the request fails before the
+SDK call. Candidate results and packed history are committed only after a valid
+provider response, so a failed preflight cannot leave a half-appended result.
+
+OpenAI's `previous_response_id` history is remote and cannot be selectively
+rewritten. Its adapter therefore remains fail-closed instead of silently
+breaking the chain. Neither adapter truncates individual tool calls, results,
+images, approval state, or recovery evidence. No model-generated summary is
+created because it could discard those semantics.
 Operators must review the configured context value whenever the provider/model
 pair changes; config loading fails if either token-window value is absent.
 
