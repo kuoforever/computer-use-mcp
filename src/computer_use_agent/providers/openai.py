@@ -320,21 +320,35 @@ class OpenAIResponsesProvider:
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
         if not isinstance(run_id, str) or not run_id:
             raise ValueError("run_id must be non-empty")
-        return {"response_id": self._previous_response_ids.get(run_id)}
+        return {
+            "response_id": self._previous_response_ids.get(run_id),
+            "prior_context_tokens": self._prior_context_tokens.get(run_id, 0),
+        }
 
     def restore_continuation(
         self, run_id: str, state: Mapping[str, JSONValue]
     ) -> None:
         if not isinstance(run_id, str) or not run_id:
             raise ValueError("run_id must be non-empty")
-        if not isinstance(state, Mapping) or set(state) != {"response_id"}:
+        if not isinstance(state, Mapping) or set(state) != {
+            "response_id",
+            "prior_context_tokens",
+        }:
             raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
         response_id = state.get("response_id")
-        if not isinstance(response_id, str) or not response_id:
+        prior_context_tokens = state.get("prior_context_tokens")
+        if (
+            not isinstance(response_id, str)
+            or not response_id
+            or isinstance(prior_context_tokens, bool)
+            or not isinstance(prior_context_tokens, int)
+            or prior_context_tokens < 0
+        ):
             raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
         if run_id in self._previous_response_ids:
             raise OpenAIProviderError("OPENAI_CONTINUATION_ALREADY_ATTACHED")
         self._previous_response_ids[run_id] = response_id
+        self._prior_context_tokens[run_id] = prior_context_tokens
 
 
 __all__ = ["OpenAIProviderError", "OpenAIResponsesProvider"]

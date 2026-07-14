@@ -407,7 +407,7 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
     continuation.complete_provider(
         state,
         ModelTurn(state.run_id, "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1"},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
         checkpoint_sequence=3,
     )
     safe = RunRecorder(config.state_dir, state.run_id)
@@ -518,7 +518,7 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     continuation.complete_provider(
         state,
         ModelTurn(state.run_id, "turn_1", "response_1", "", (action,)),
-        provider_state={"response_id": "response_1"},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
         checkpoint_sequence=3,
     )
     action_state = replace(
@@ -659,7 +659,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
     continuation.complete_provider(
         state,
         ModelTurn(state.run_id, "turn_1", "response_1", "", (observation,)),
-        provider_state={"response_id": "response_1"},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
         checkpoint_sequence=3,
     )
     safe = RunRecorder(config.state_dir, state.run_id)

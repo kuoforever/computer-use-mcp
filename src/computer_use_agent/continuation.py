@@ -27,7 +27,7 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 1
+CONTINUATION_VERSION = 2
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
 MAX_JSON_DEPTH = 32
@@ -168,7 +168,7 @@ def _is_unsafe_path(path: Path) -> bool:
 
 @dataclass(frozen=True)
 class ContinuationEnvelope:
-    """Validated v1 recovery data, still non-authoritative and non-executable."""
+    """Validated v2 recovery data, still non-authoritative and non-executable."""
 
     payload: Mapping[str, JSONValue]
 
@@ -319,11 +319,14 @@ class ContinuationEnvelope:
         _validate_json(provider_state)
         if provider["name"] == "openai":
             openai_state = _object(
-                provider_state, frozenset({"response_id"}), "CONTINUATION_INVALID"
+                provider_state,
+                frozenset({"response_id", "prior_context_tokens"}),
+                "CONTINUATION_INVALID",
             )
             response_id = openai_state["response_id"]
             if response_id is not None:
                 _nonempty(response_id, maximum=256, code="CONTINUATION_INVALID")
+            _uint(openai_state["prior_context_tokens"], "CONTINUATION_INVALID")
         else:
             anthropic_state = _object(
                 provider_state, frozenset({"messages"}), "CONTINUATION_INVALID"
@@ -480,7 +483,9 @@ class RuntimeContinuationRecorder:
             }
         ]
         self.provider_state: Mapping[str, JSONValue] = (
-            {"response_id": None} if provider_name == "openai" else {"messages": []}
+            {"response_id": None, "prior_context_tokens": 0}
+            if provider_name == "openai"
+            else {"messages": []}
         )
         self._current: OperationState | None = None
 

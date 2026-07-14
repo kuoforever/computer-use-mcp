@@ -194,7 +194,22 @@ def _validate_provider_correlation(
     )
     model_turn = _last_event(_ledger(envelope), "model_turn")
     if provider.get("name") == "openai":
-        if state.get("response_id") != model_turn.get("provider_response_id"):
+        usage = _mapping(
+            model_turn.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID"
+        )
+        raw_input_tokens = usage.get("input_tokens")
+        raw_output_tokens = usage.get("output_tokens")
+        if (
+            state.get("response_id") != model_turn.get("provider_response_id")
+            or isinstance(raw_input_tokens, bool)
+            or raw_input_tokens is not None
+            and (not isinstance(raw_input_tokens, int) or raw_input_tokens < 0)
+            or isinstance(raw_output_tokens, bool)
+            or raw_output_tokens is not None
+            and (not isinstance(raw_output_tokens, int) or raw_output_tokens < 0)
+            or state.get("prior_context_tokens")
+            != (raw_input_tokens or 0) + (raw_output_tokens or 0)
+        ):
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
         return
     messages = state.get("messages")

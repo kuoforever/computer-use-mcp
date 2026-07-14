@@ -54,11 +54,20 @@ class FakeModelProvider:
         if not self.turns:
             raise UnexpectedFakeCall("no fake model turn was configured")
         turn = self.turns.popleft()
-        self.continuation_state[run_id] = {"response_id": turn.provider_response_id}
+        self.continuation_state[run_id] = {
+            "response_id": turn.provider_response_id,
+            "prior_context_tokens": (
+                (turn.usage.input_tokens or 0) + (turn.usage.output_tokens or 0)
+            ),
+        }
         return turn
 
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
-        return to_json_value(self.continuation_state.get(run_id, {"response_id": None}))  # type: ignore[return-value]
+        return to_json_value(
+            self.continuation_state.get(
+                run_id, {"response_id": None, "prior_context_tokens": 0}
+            )
+        )  # type: ignore[return-value]
 
     def restore_continuation(
         self, run_id: str, state: Mapping[str, JSONValue]

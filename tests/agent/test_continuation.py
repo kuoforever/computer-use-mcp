@@ -26,7 +26,7 @@ NOW = datetime(2030, 1, 1, tzinfo=UTC)
 
 def _payload(run_id: str = "run_1") -> dict[str, object]:
     return {
-        "continuation_version": 1,
+        "continuation_version": 2,
         "run_id": run_id,
         "checkpoint_sequence": 7,
         "policy_version": "phase0",
@@ -60,7 +60,10 @@ def _payload(run_id: str = "run_1") -> dict[str, object]:
             "dispatch": "dispatched",
             "next_step": "provider_continue",
         },
-        "provider_state": {"response_id": "response_1"},
+        "provider_state": {
+            "response_id": "response_1",
+            "prior_context_tokens": 12,
+        },
         "created_at": "2030-01-01T00:00:00Z",
         "expires_at": "2030-01-01T01:00:00Z",
     }
@@ -84,6 +87,18 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
     assert operation.result is OperationResult.SUCCESS
 
 
+def test_v1_continuation_is_rejected_after_openai_token_state_upgrade(
+    tmp_path: Path,
+) -> None:
+    payload = _payload()
+    payload["continuation_version"] = 1
+
+    with pytest.raises(ContinuationError, match="CONTINUATION_VERSION_UNSUPPORTED"):
+        write_continuation(tmp_path.resolve(), payload)
+
+    assert not continuation_path(tmp_path.resolve(), "run_1").exists()
+
+
 @pytest.mark.parametrize(
     ("mutation", "code"),
     [
@@ -104,6 +119,10 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
             lambda value: value["boundary"].update(
                 stage="dispatch_intent", dispatch="not_dispatched"
             ),
+            "CONTINUATION_INVALID",
+        ),
+        (
+            lambda value: value["provider_state"].pop("prior_context_tokens"),
             "CONTINUATION_INVALID",
         ),
     ],
