@@ -101,7 +101,8 @@ read-only recovery boundary with an explicit confirmation flag:
 ~~~
 
 The command can dispatch one pending observation from a completed provider turn,
-or send one new provider continuation after a completed observation. It acquires
+send one new provider continuation after a completed observation, or issue one
+synthetic `ui_snapshot` after a completed side effect and then stop. It acquires
 the run lock, persists a sequence-checked dispatch intent before the call, and
 persists completion afterward. A call failure leaves the intent uncertain and
 non-replayable. Each invocation executes at most one external call.

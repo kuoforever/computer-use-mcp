@@ -340,7 +340,10 @@ async def _recover_live_async(path: Path, run_id: str, task: str) -> int:
             lock=lock,
         )
         provider = None
-        if plan.decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
+        if plan.decision.action in {
+            ReconstructionAction.DISPATCH_OBSERVATION,
+            ReconstructionAction.MANDATORY_REOBSERVE,
+        }:
             desktop = StdioDesktopMCP(config.mcp)
             verify_discovered_tools(await desktop.discover_tools())
         elif plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER:

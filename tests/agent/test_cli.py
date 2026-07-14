@@ -389,6 +389,149 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
     assert desktop.close_calls == 1
 
 
+def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from collections import deque
+    from dataclasses import replace
+
+    import computer_use_agent.desktop_mcp as desktop_module
+    from computer_use_agent.config import load_agent_config
+    from computer_use_agent.continuation import RuntimeContinuationRecorder
+    from computer_use_agent.fakes import FakeDesktopMCP
+    from computer_use_agent.tool_registry import reviewed_registry_digest
+    from computer_use_agent.trace import RunPhase, RunRecorder
+    from computer_use_agent.types import (
+        CallIdentity,
+        DispatchCertainty,
+        ModelTurn,
+        RecoveryStatus,
+        RunBudget,
+        RunState,
+        ToolCall,
+        ToolEffect,
+        ToolResult,
+        ToolResultStatus,
+    )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _ = _config_text(tmp_path)
+    text += "\n[continuation]\nenabled = true\nttl_seconds = 900\n"
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    config = load_agent_config(config_path)
+    task = "RECOVER_ACTION_TASK_SECRET"
+    state = RunState(
+        "run_cli_action_recovery",
+        task,
+        config.policy_version,
+        0,
+        RunBudget(
+            config.policy.max_model_turns,
+            config.policy.max_tool_calls,
+            config.policy.max_side_effects,
+            max_input_tokens=config.policy.max_input_tokens,
+            model_turns_used=1,
+        ),
+    )
+    action = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "click",
+        {"ref": "ref_1"},
+    )
+    continuation = RuntimeContinuationRecorder(
+        state_dir=config.state_dir,
+        state=state,
+        provider_name=config.provider.name,
+        provider_model=config.provider.model,
+        registry_digest=reviewed_registry_digest(),
+        ttl_seconds=900,
+        mcp_generation=1,
+    )
+    continuation.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    continuation.dispatch_provider(state, checkpoint_sequence=2)
+    continuation.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (action,)),
+        provider_state={"response_id": "response_1"},
+        checkpoint_sequence=3,
+    )
+    action_state = replace(
+        state,
+        budgets=replace(state.budgets, tool_calls_used=1, side_effects_used=1),
+        recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+    )
+    continuation.prepare_tool(
+        action_state,
+        action,
+        effect=ToolEffect.SIDE_EFFECT,
+        checkpoint_sequence=4,
+    )
+    continuation.dispatch_tool(action_state, checkpoint_sequence=5)
+    continuation.complete_tool(
+        action_state,
+        ToolResult(
+            action.identity,
+            action.name,
+            ToolResultStatus.SUCCESS,
+            DispatchCertainty.DISPATCHED,
+        ),
+        checkpoint_sequence=6,
+    )
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(action_state)
+    safe.record(action_state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(action_state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    for _ in range(3):
+        safe.record(action_state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    mandatory_identity = CallIdentity(
+        state.run_id, "recovery_7", "mandatory_ui_snapshot"
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    mandatory_identity,
+                    "ui_snapshot",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="verified desktop state",
+                )
+            ]
+        )
+    )
+    monkeypatch.setattr(desktop_module, "StdioDesktopMCP", lambda _config: desktop)
+
+    assert main(
+        [
+            "recover",
+            state.run_id,
+            "--config",
+            str(config_path),
+            "--task",
+            task,
+            "--execute-read-only",
+        ]
+    ) == 0
+
+    raw = capsys.readouterr().out
+    output = json.loads(raw)
+    assert task not in raw
+    assert output == {
+        "action": "mandatory_reobserve",
+        "checkpoint_sequence": 8,
+        "next_step": "stop",
+        "reason": "SIDE_EFFECT_COMPLETED",
+        "run_id": state.run_id,
+        "tool_code": None,
+        "tool_status": "success",
+    }
+    assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
+    assert desktop.close_calls == 1
+
+
 def test_report_cli_is_read_only_for_empty_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

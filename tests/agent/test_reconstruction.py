@@ -148,6 +148,7 @@ def test_e2_crash_reconstruction_matrix_is_fail_closed_and_side_effect_free() ->
     } == {
         "e2_resume_provider_completed_observation_pending": ["tool:list_windows"],
         "e2_resume_observation_completed": ["provider:turn_2"],
+        "e2_resume_action_completed": ["tool:ui_snapshot"],
     }
 
     for case in cases:
