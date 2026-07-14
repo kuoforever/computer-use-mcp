@@ -41,6 +41,7 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["--help"],
         ["run", "--help"],
         ["eval", "--help"],
+        ["release", "preflight", "--help"],
         ["trace", "--help"],
         ["report", "--help"],
         ["resume", "--help"],
@@ -63,6 +64,42 @@ def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> N
 def test_cli_without_a_command_prints_help_and_returns_success(capsys: pytest.CaptureFixture[str]) -> None:
     assert main([]) == 0
     assert "Safe local Agent Host foundation" in capsys.readouterr().out
+
+
+def test_release_preflight_cli_returns_the_report_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    expected = {"passed": False, "gates": {"ruff": {"passed": False}}}
+    captured: list[tuple[Path, Path, Path]] = []
+
+    def fake_preflight(root: Path, artifacts: Path, report: Path) -> dict[str, object]:
+        captured.append((root, artifacts, report))
+        return expected
+
+    monkeypatch.setattr(
+        "computer_use_agent.release.run_release_preflight", fake_preflight
+    )
+    root = tmp_path / "root"
+    artifacts = tmp_path / "artifacts"
+    report = tmp_path / "report.json"
+
+    assert main(
+        [
+            "release",
+            "preflight",
+            "--root",
+            str(root),
+            "--artifacts",
+            str(artifacts),
+            "--report",
+            str(report),
+        ]
+    ) == 1
+
+    assert captured == [(root, artifacts, report)]
+    assert json.loads(capsys.readouterr().out) == expected
 
 
 def test_config_validation_has_no_filesystem_or_external_side_effect(

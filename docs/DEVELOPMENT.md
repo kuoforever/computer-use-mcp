@@ -32,6 +32,13 @@ GitHub Actions repeats the offline suite on Windows/Python 3.11-3.13 and runs a
 clean wheel-install smoke. It never enables live provider or desktop tests.
 See [Release checklist](RELEASE.md).
 
+For a clean release-candidate checkout, `computer-use-agent release preflight`
+composes the same local checks and writes sanitized evidence plus retained
+E1/E2 and wheel hashes under `out/`. It deliberately uses `build
+--no-isolation` and `pip install --no-deps`; install the `dev` extra before
+running it. A working tree with milestone edits is expected to fail the clean
+candidate gate until those edits are reviewed and committed.
+
 ## Desktop smoke scripts
 
 Scripts named `scripts/smoke_*.py` interact with the real desktop. They can

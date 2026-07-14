@@ -4,6 +4,24 @@
 > Automated CI covers offline E0-E2 and wheel installation. Live provider and
 > isolated desktop evidence remain explicit human gates.
 
+Run the matching local preflight from a clean candidate checkout:
+
+~~~powershell
+.\.venv\Scripts\computer-use-agent.exe release preflight `
+  --root . `
+  --artifacts out\release-preflight `
+  --report out\release-preflight.json
+~~~
+
+The command fails if the source tree is dirty, public package versions differ,
+Ruff/pytest/diff checks fail, the frozen E1/E2 manifest drifts, a safety escape
+occurs, or the wheel cannot be built and smoke-tested in a temporary no-deps
+environment. Build isolation and dependency resolution are disabled, so all
+required development/build dependencies must already be installed. Provider
+credentials are removed and E3 is forced off; no desktop path is invoked.
+The JSON evidence intentionally excludes subprocess output and cannot satisfy
+CI, E3, E4, license, changelog, reviewer, or approval gates.
+
 ## Automated pull-request gates
 
 `.github/workflows/ci.yml` runs on Windows for Python 3.11, 3.12, and 3.13 with
