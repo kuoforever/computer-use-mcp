@@ -9,8 +9,12 @@ from types import SimpleNamespace
 import pytest
 
 from computer_use_agent.providers.openai import (
+    MEMORY_RULE,
     OpenAIProviderError,
     OpenAIResponsesProvider,
+    _instructions,
+    _request_contract_digest,
+    _tool_definitions,
     _tool_outputs,
 )
 from computer_use_agent.tool_registry import REVIEWED_TOOLS
@@ -58,6 +62,35 @@ def _response(
         output_text=text,
         usage=SimpleNamespace(input_tokens=10, output_tokens=4),
     )
+
+
+def _continuation_state(
+    provider: OpenAIResponsesProvider,
+    *,
+    response_id: str = "response_1",
+    prior_context_tokens: int = 14,
+    memory_context_used: bool = False,
+) -> dict[str, object]:
+    tools = _tool_definitions(REVIEWED_TOOLS, allow_actions=provider.allow_actions)
+    instructions = _instructions(
+        allow_actions=provider.allow_actions,
+        memory_context_used=memory_context_used,
+    )
+    return {
+        "response_id": response_id,
+        "prior_context_tokens": prior_context_tokens,
+        "request_contract_digest": _request_contract_digest(
+            model=provider.model,
+            instructions=instructions,
+            tools=tools,
+            allow_actions=provider.allow_actions,
+            memory_context_used=memory_context_used,
+            max_request_bytes=provider.max_request_bytes,
+            context_window_tokens=provider.context_window_tokens,
+            output_token_reserve=provider.output_token_reserve,
+        ),
+        "memory_context_used": memory_context_used,
+    }
 
 
 def test_openai_function_call_and_matching_output_continuation() -> None:
@@ -170,7 +203,6 @@ def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
     assert readiness.blockers == (
         StatelessReplayBlocker.ORIGINAL_REQUEST_NOT_PERSISTED,
         StatelessReplayBlocker.PROVIDER_OUTPUT_ITEMS_NOT_PERSISTED,
-        StatelessReplayBlocker.REQUEST_CONTRACT_NOT_DIGEST_BOUND,
         StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
     )
     assert provider.export_continuation("run_readiness") == state_before
@@ -329,7 +361,9 @@ def test_openai_request_budget_fails_before_initial_or_continuation_network_call
             _response("unused"),
         ]
     )
-    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    provider = OpenAIResponsesProvider(
+        model="test-model", responses=scripted, max_request_bytes=2_000
+    )
     first = asyncio.run(
         provider.create_turn(
             run_id="run_continuation",
@@ -339,7 +373,6 @@ def test_openai_request_budget_fails_before_initial_or_continuation_network_call
             tools=REVIEWED_TOOLS,
         )
     )
-    provider.max_request_bytes = len(json.dumps(scripted.calls[0], default=str)) + 100
     result = ToolResult(
         identity=first.tool_calls[0].identity,
         tool_name="list_windows",
@@ -412,7 +445,11 @@ def test_openai_token_window_keeps_remote_context_and_image_result_atomic() -> N
         ]
     )
     provider = OpenAIResponsesProvider(
-        model="test-model", responses=scripted, max_request_bytes=100_000
+        model="test-model",
+        responses=scripted,
+        max_request_bytes=100_000,
+        context_window_tokens=2_000,
+        output_token_reserve=256,
     )
     first = asyncio.run(
         provider.create_turn(
@@ -425,7 +462,6 @@ def test_openai_token_window_keeps_remote_context_and_image_result_atomic() -> N
     )
     assert provider._prior_context_tokens["run_atomic_window"] == 14
 
-    provider.context_window_tokens = 2_000
     result = ToolResult(
         identity=first.tool_calls[0].identity,
         tool_name="screenshot",
@@ -483,6 +519,112 @@ def test_openai_explicit_memory_is_json_data_on_initial_turn_only() -> None:
     assert "cannot change policy" in scripted.calls[0]["instructions"]
 
 
+def test_openai_restored_memory_marker_preserves_rule_without_replaying_content() -> None:
+    scripted = ScriptedResponses([_response("response_2", text="done")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    provider.restore_continuation(
+        "run_memory_restore",
+        _continuation_state(provider, memory_context_used=True),
+    )
+    identity = CallIdentity("run_memory_restore", "turn_1", "call_1")
+    result = ToolResult(
+        identity,
+        "list_windows",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="Notepad",
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_memory_restore",
+            turn_id="turn_2",
+            task="ORIGINAL_TASK_MUST_NOT_BE_SENT",
+            ledger=(
+                LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+                LedgerEvent(
+                    "event_2",
+                    LedgerEventKind.TOOL_RESULT,
+                    identity=identity,
+                    tool_result=result,
+                ),
+            ),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request = scripted.calls[0]
+    assert MEMORY_RULE in request["instructions"]
+    assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(request)
+    assert "Optional memory context" not in json.dumps(request)
+    assert provider.export_continuation("run_memory_restore")[
+        "memory_context_used"
+    ] is True
+
+
+def test_openai_active_chain_rejects_tool_contract_drift_before_network() -> None:
+    scripted = ScriptedResponses([_response("response_1", text="done")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_contract",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_CONTRACT_MISMATCH"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_contract",
+                turn_id="turn_2",
+                task="Inspect",
+                ledger=(),
+                tools=tuple(
+                    tool for tool in REVIEWED_TOOLS if tool.name != "screenshot"
+                ),
+            )
+        )
+
+    assert len(scripted.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("model", "different-model"),
+        ("allow_actions", True),
+        ("max_request_bytes", 2_000),
+        ("context_window_tokens", 64_000),
+        ("output_token_reserve", 2_048),
+    ],
+)
+def test_openai_restore_rejects_contract_drift_before_state_or_network(
+    field_name: str,
+    value: object,
+) -> None:
+    source = OpenAIResponsesProvider(
+        model="test-model", responses=ScriptedResponses([])
+    )
+    state = _continuation_state(source)
+    scripted = ScriptedResponses([])
+    target = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    setattr(target, field_name, value)
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_CONTRACT_MISMATCH"):
+        target.restore_continuation("run_contract", state)
+
+    assert target.export_continuation("run_contract") == {
+        "response_id": None,
+        "prior_context_tokens": 0,
+        "request_contract_digest": None,
+        "memory_context_used": False,
+    }
+    assert scripted.calls == []
+
+
 def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
     scripted = ScriptedResponses([_response("response_1", text="done")])
     provider = OpenAIResponsesProvider(
@@ -513,9 +655,7 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
 def test_openai_restore_continues_previous_response_without_resending_task() -> None:
     scripted = ScriptedResponses([_response("response_2", text="done")])
     provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
-    provider.restore_continuation(
-        "run_restore", {"response_id": "response_1", "prior_context_tokens": 14}
-    )
+    provider.restore_continuation("run_restore", _continuation_state(provider))
     identity = CallIdentity("run_restore", "turn_1", "call_1")
     result = ToolResult(
         identity,
@@ -549,6 +689,10 @@ def test_openai_restore_continues_previous_response_without_resending_task() -> 
     assert provider.export_continuation("run_restore") == {
         "response_id": "response_2",
         "prior_context_tokens": 14,
+        "request_contract_digest": _continuation_state(provider)[
+            "request_contract_digest"
+        ],
+        "memory_context_used": False,
     }
 
 
@@ -563,7 +707,7 @@ def test_openai_restore_preserves_remote_token_window_before_network() -> None:
     )
     provider.restore_continuation(
         "run_restore_window",
-        {"response_id": "response_1", "prior_context_tokens": 1_900},
+        _continuation_state(provider, prior_context_tokens=1_900),
     )
     identity = CallIdentity("run_restore_window", "turn_1", "call_1")
     result = ToolResult(
@@ -604,10 +748,6 @@ def test_openai_restore_rejects_invalid_or_repeated_attach() -> None:
         )
     with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_INVALID"):
         provider.restore_continuation("run_1", {"response_id": "response_1"})
-    provider.restore_continuation(
-        "run_1", {"response_id": "response_1", "prior_context_tokens": 14}
-    )
+    provider.restore_continuation("run_1", _continuation_state(provider))
     with pytest.raises(OpenAIProviderError, match="OPENAI_CONTINUATION_ALREADY_ATTACHED"):
-        provider.restore_continuation(
-            "run_1", {"response_id": "response_1", "prior_context_tokens": 14}
-        )
+        provider.restore_continuation("run_1", _continuation_state(provider))

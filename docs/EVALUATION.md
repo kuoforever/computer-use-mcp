@@ -57,7 +57,7 @@ provider credentials, a child process, or a desktop.
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
 | Claude returns a tool-use block | Normalize its name/input/ID, reject malformed or unadvertised calls and invalid stop reasons, then append the assistant block and adjacent matching user `tool_result`. |
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
-| OpenAI stateless replay readiness is inspected | Report the remote-response strategy and all four fixed blockers; expose no replay request or provider/MCP dispatch path. |
+| OpenAI stateless replay readiness is inspected | Report the remote-response strategy and the three remaining fixed blockers; expose no replay request or provider/MCP dispatch path. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
@@ -84,10 +84,11 @@ Both source and installed-wheel E1/E2 runs verify the frozen manifest; their
 reports and the wheel are retained by SHA-256, while subprocess output is not
 copied into the evidence report. E3/E4 are never inferred from a preflight pass.
 Provider E0 fixtures also prove that OpenAI recovery restores both the remote
-`previous_response_id` and its correlated preceding-response token usage. A
-missing or mismatched token field and an over-window restored request stop
-before the fake provider records any network call; this does not add an E1/E2
-case or change action authority.
+`previous_response_id`, its correlated preceding-response token usage, the
+request-contract digest, and the memory-disclosure marker. Missing or mismatched
+token state, contract drift, and an over-window restored request stop before the
+fake provider records any network call; this does not add an E1/E2 case or
+change action authority.
 Report schema v3 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable

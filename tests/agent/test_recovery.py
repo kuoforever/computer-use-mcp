@@ -125,7 +125,7 @@ def test_completed_provider_reconstructs_exactly_one_pending_observation(
     recorder.complete_provider(
         state,
         turn,
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     envelope = read_continuation(config.state_dir, "run_1")
@@ -153,7 +153,7 @@ def test_completed_observation_reconstructs_result_without_mcp_replay(
     recorder.complete_provider(
         state,
         turn,
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     tool_state = RunState(
@@ -199,7 +199,7 @@ def test_attach_drift_never_returns_external_work(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
 
@@ -230,6 +230,8 @@ def test_attach_rejects_provider_state_that_does_not_correlate_to_turn(
         provider_state={
             "response_id": "different_response",
             "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
         },
         checkpoint_sequence=3,
     )
@@ -260,6 +262,8 @@ def test_attach_rejects_openai_token_state_that_does_not_correlate_to_turn(
         provider_state={
             "response_id": "response_1",
             "prior_context_tokens": 1,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
         },
         checkpoint_sequence=3,
     )
@@ -335,7 +339,7 @@ def test_budget_counters_must_equal_a_fresh_ledger_fold(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
 
@@ -370,7 +374,7 @@ def test_executor_commits_before_exactly_one_observation_dispatch(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     desktop = FakeDesktopMCP(results=deque([expected]))
@@ -412,7 +416,7 @@ def test_executor_restores_then_commits_one_new_provider_continuation(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     tool_state = replace(
@@ -443,6 +447,8 @@ def test_executor_restores_then_commits_one_new_provider_continuation(
         assert provider.continuation_state["run_1"] == {
             "response_id": "response_1",
             "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
         }
         commits.append((sequence, operation_id, action))
 
@@ -481,7 +487,7 @@ def test_executor_stale_attach_has_zero_commits_and_external_calls(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     provider = FakeModelProvider()
@@ -518,7 +524,7 @@ def test_locked_recovery_persists_observation_intent_and_completion_atomically(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     safe = RunRecorder(config.state_dir, state.run_id)
@@ -590,7 +596,7 @@ def test_locked_recovery_leaves_durable_unknown_intent_when_external_call_fails(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     safe = RunRecorder(config.state_dir, state.run_id)
@@ -677,7 +683,7 @@ def test_locked_recovery_persists_provider_intent_and_completion(
     recorder.complete_provider(
         state,
         ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0},
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False},
         checkpoint_sequence=3,
     )
     tool_state = replace(
@@ -741,6 +747,8 @@ def test_locked_recovery_persists_provider_intent_and_completion(
     assert persisted.payload["provider_state"] == {
         "response_id": "response_2",
         "prior_context_tokens": 0,
+        "request_contract_digest": "0" * 64,
+        "memory_context_used": False,
     }
     assert persisted.payload["budget"]["model_turns_used"] == 2
     assert persisted.payload["boundary"] == {
@@ -800,6 +808,8 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
             provider_state={
                 "response_id": "response_1",
                 "prior_context_tokens": 0,
+                "request_contract_digest": "0" * 64,
+                "memory_context_used": False,
             },
             checkpoint_sequence=3,
         )

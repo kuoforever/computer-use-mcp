@@ -63,13 +63,21 @@ class FakeModelProvider:
             "prior_context_tokens": (
                 (turn.usage.input_tokens or 0) + (turn.usage.output_tokens or 0)
             ),
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": bool(memories),
         }
         return turn
 
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
         return to_json_value(
             self.continuation_state.get(
-                run_id, {"response_id": None, "prior_context_tokens": 0}
+                run_id,
+                {
+                    "response_id": None,
+                    "prior_context_tokens": 0,
+                    "request_contract_digest": None,
+                    "memory_context_used": False,
+                },
             )
         )  # type: ignore[return-value]
 

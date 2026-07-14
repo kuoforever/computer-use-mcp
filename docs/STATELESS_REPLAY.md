@@ -33,8 +33,16 @@ returns a `StatelessReplayReadiness` with these blockers:
 | --- | --- |
 | `original_request_not_persisted` | Persist the exact initial input, including whether explicit memory was disclosed, without turning it into policy or approval. |
 | `provider_output_items_not_persisted` | Preserve every required Responses API output item in exact order, not only normalized text/function calls. |
-| `request_contract_not_digest_bound` | Bind model, instructions, tool definitions, relevant request settings, and their reviewed schema/version to the replay artifact. |
 | `replay_compiler_not_implemented` | Add a separately reviewed compiler that emits one bounded request and never dispatches historical tools. |
+
+The request-contract prerequisite is now delivered independently of replay.
+Continuation v3 binds the model, instructions, reviewed tool definitions,
+action mode, memory-disclosure marker, parallel-call setting, request-byte gate,
+context window, output reserve, and contract version under a canonical SHA-256
+digest. Restore or active-chain drift fails with
+`OPENAI_REQUEST_CONTRACT_MISMATCH` before provider I/O and before restored state
+is attached. This removes one readiness blocker but does not make replay
+executable.
 
 The assessment is descriptive and non-executable. No CLI/config switch invokes
 it, and an empty blocker set alone would not authorize provider or desktop I/O.

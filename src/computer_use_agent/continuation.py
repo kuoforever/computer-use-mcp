@@ -27,7 +27,7 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 2
+CONTINUATION_VERSION = 3
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
 MAX_JSON_DEPTH = 32
@@ -320,13 +320,31 @@ class ContinuationEnvelope:
         if provider["name"] == "openai":
             openai_state = _object(
                 provider_state,
-                frozenset({"response_id", "prior_context_tokens"}),
+                frozenset(
+                    {
+                        "response_id",
+                        "prior_context_tokens",
+                        "request_contract_digest",
+                        "memory_context_used",
+                    }
+                ),
                 "CONTINUATION_INVALID",
             )
             response_id = openai_state["response_id"]
+            contract_digest = openai_state["request_contract_digest"]
+            memory_context_used = openai_state["memory_context_used"]
+            if not isinstance(memory_context_used, bool):
+                raise ContinuationError("CONTINUATION_INVALID")
             if response_id is not None:
                 _nonempty(response_id, maximum=256, code="CONTINUATION_INVALID")
-            _uint(openai_state["prior_context_tokens"], "CONTINUATION_INVALID")
+                _digest(contract_digest, "CONTINUATION_INVALID")
+            elif contract_digest is not None or memory_context_used:
+                raise ContinuationError("CONTINUATION_INVALID")
+            prior_context_tokens = _uint(
+                openai_state["prior_context_tokens"], "CONTINUATION_INVALID"
+            )
+            if response_id is None and prior_context_tokens != 0:
+                raise ContinuationError("CONTINUATION_INVALID")
         else:
             anthropic_state = _object(
                 provider_state, frozenset({"messages"}), "CONTINUATION_INVALID"
@@ -483,7 +501,12 @@ class RuntimeContinuationRecorder:
             }
         ]
         self.provider_state: Mapping[str, JSONValue] = (
-            {"response_id": None, "prior_context_tokens": 0}
+            {
+                "response_id": None,
+                "prior_context_tokens": 0,
+                "request_contract_digest": None,
+                "memory_context_used": False,
+            }
             if provider_name == "openai"
             else {"messages": []}
         )
