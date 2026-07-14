@@ -142,7 +142,10 @@ Provider state is adapter-specific but non-authoritative:
   output token total, a canonical request-contract digest, and a boolean saying
   whether explicit memory context was present on the initial request, and the
   exact initial SDK input string, and ordered per-response batches containing
-  every canonical JSON `response.output` item. Its SHA-256 is included in the request
+  every canonical JSON `response.output` item. OpenAI requests explicitly include
+  `reasoning.encrypted_content`, and request-contract version 3 binds that include
+  list so portable encrypted reasoning cannot be silently omitted. The initial
+  input's SHA-256 is included in the request
   contract digest. Resume restores these before preflight, then sends only the next new
   `function_call_output` set with that ID. The boolean preserves the fixed
   memory-as-untrusted-data instruction; the persisted initial input may contain

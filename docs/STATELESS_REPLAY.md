@@ -35,13 +35,18 @@ returns a `StatelessReplayReadiness` with these blockers:
 | `replay_compiler_not_implemented` | Add a separately reviewed compiler that emits one bounded request and never dispatches historical tools. |
 
 The initial-input, provider-output, and request-contract prerequisites are now
-delivered independently of replay. Continuation v5 stores the exact initial SDK `input`
+delivered independently of replay. Every OpenAI Responses request explicitly
+includes `reasoning.encrypted_content`, so persisted reasoning items can carry
+the provider's portable encrypted payload instead of depending only on remote
+response storage. This setting is mandatory: the adapter does not retry without
+it. Continuation v5 stores the exact initial SDK `input`
 string inside the already-sensitive private artifact. This includes the task
 and any explicitly selected memory data, is never copied into trace/report/error
 surfaces, and is not itself executable. The contract digest binds its SHA-256
 along with the model, instructions, reviewed tool definitions,
-action mode, memory-disclosure marker, parallel-call setting, request-byte gate,
-context window, output reserve, and contract version under a canonical SHA-256
+action mode, memory-disclosure marker, parallel-call setting, encrypted-reasoning
+include list, request-byte gate, context window, output reserve, and request
+contract version 3 under a canonical SHA-256
 digest. Restore or active-chain drift fails with
 `OPENAI_REQUEST_CONTRACT_MISMATCH` before provider I/O and before restored state
 is attached. Each completed response also appends one bounded batch containing

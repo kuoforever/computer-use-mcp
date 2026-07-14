@@ -33,8 +33,9 @@ the current run's provider-native continuation state. The adapters now declare
 those strategies explicitly. OpenAI also exposes a non-executable
 [stateless-replay readiness](STATELESS_REPLAY.md) assessment that remains
 blocked on a reviewed replay compiler. Exact initial-input persistence,
-ordered provider-output-item batches, and canonical request-contract digest
-binding are now delivered in continuation v5; drift fails before network I/O,
+ordered provider-output-item batches (including explicitly requested portable
+encrypted reasoning), and canonical request-contract v3 digest binding are now
+delivered in continuation v5; drift fails before network I/O,
 but replay remains unavailable. Safe semantic summarization remains future work;
 model-turn limits continue to bound the current run.
 
