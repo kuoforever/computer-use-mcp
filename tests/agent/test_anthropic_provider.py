@@ -9,10 +9,12 @@ from types import SimpleNamespace
 import pytest
 
 from computer_use_agent.providers.anthropic import (
+    CONTEXT_PACKING_NOTICE,
     AnthropicMessagesProvider,
     AnthropicProviderError,
     _tool_results,
 )
+from computer_use_agent.token_window import conservative_input_token_bound
 from computer_use_agent.tool_registry import REVIEWED_TOOLS
 from computer_use_agent.types import (
     CallIdentity,
@@ -424,6 +426,198 @@ def test_claude_token_window_fails_before_network_and_reserves_output() -> None:
         )
 
     assert scripted.calls == []
+    assert provider.export_continuation("run_token_window") == {"messages": []}
+
+
+def test_claude_token_window_drops_only_oldest_complete_group() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_1",
+                content=[
+                    SimpleNamespace(
+                        type="tool_use", id="toolu_1", name="list_windows", input={}
+                    )
+                ],
+                stop_reason="tool_use",
+            ),
+            _response(
+                "message_2",
+                content=[
+                    SimpleNamespace(
+                        type="tool_use", id="toolu_2", name="screenshot", input={}
+                    )
+                ],
+                stop_reason="tool_use",
+            ),
+            _response(
+                "message_3",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            ),
+        ]
+    )
+    provider = AnthropicMessagesProvider(
+        model="test-model",
+        messages=scripted,
+        max_request_bytes=100_000,
+        context_window_tokens=100_000,
+    )
+    first = asyncio.run(
+        provider.create_turn(
+            run_id="run_pack",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    first_result = ToolResult(
+        first.tool_calls[0].identity,
+        "list_windows",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="old observation " * 1_000,
+    )
+    first_ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=first_result.identity,
+            tool_result=first_result,
+        ),
+    )
+    second = asyncio.run(
+        provider.create_turn(
+            run_id="run_pack",
+            turn_id="turn_2",
+            task="Inspect",
+            ledger=first_ledger,
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    second_result = ToolResult(
+        second.tool_calls[0].identity,
+        "screenshot",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        images=(ImageContent("image/png", base64.b64decode(_PNG_BASE64), 1, 1),),
+    )
+    second_ledger = (
+        LedgerEvent("event_3", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_4",
+            LedgerEventKind.TOOL_RESULT,
+            identity=second_result.identity,
+            tool_result=second_result,
+        ),
+    )
+
+    full_request = dict(scripted.calls[1])
+    full_messages = [
+        *provider._history["run_pack"],
+        {"role": "user", "content": _tool_results(second_ledger)},
+    ]
+    full_request["messages"] = full_messages
+    packed_request = dict(full_request)
+    packed_request["messages"] = [full_messages[0], *full_messages[-2:]]
+    packed_request["system"] = full_request["system"] + "\n\n" + CONTEXT_PACKING_NOTICE
+    provider.context_window_tokens = (
+        conservative_input_token_bound(packed_request) + provider.max_tokens
+    )
+    assert (
+        conservative_input_token_bound(full_request) + provider.max_tokens
+        > provider.context_window_tokens
+    )
+
+    final = asyncio.run(
+        provider.create_turn(
+            run_id="run_pack",
+            turn_id="turn_3",
+            task="Inspect",
+            ledger=second_ledger,
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    assert final.text == "done"
+    assert len(scripted.calls) == 3
+    packed_messages = scripted.calls[2]["messages"]
+    assert [message["role"] for message in packed_messages] == [
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert packed_messages[1]["content"][0]["id"] == "toolu_2"
+    assert packed_messages[2]["content"][0]["tool_use_id"] == "toolu_2"
+    assert packed_messages[2]["content"][0]["content"][1]["type"] == "image"
+    assert CONTEXT_PACKING_NOTICE in scripted.calls[2]["system"]
+    assert "old observation" not in json.dumps(scripted.calls[2])
+
+
+def test_claude_mandatory_latest_group_overflow_fails_without_history_mutation() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_1",
+                content=[
+                    SimpleNamespace(
+                        type="tool_use", id="toolu_1", name="list_windows", input={}
+                    )
+                ],
+                stop_reason="tool_use",
+            ),
+            _response("unused", content=[], stop_reason="end_turn"),
+        ]
+    )
+    provider = AnthropicMessagesProvider(
+        model="test-model",
+        messages=scripted,
+        max_request_bytes=100_000,
+        context_window_tokens=100_000,
+    )
+    first = asyncio.run(
+        provider.create_turn(
+            run_id="run_mandatory_overflow",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    result = ToolResult(
+        first.tool_calls[0].identity,
+        "list_windows",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="required latest observation " * 1_000,
+    )
+    ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=result.identity,
+            tool_result=result,
+        ),
+    )
+    history_before = provider.export_continuation("run_mandatory_overflow")
+    provider.context_window_tokens = 2_000
+
+    with pytest.raises(AnthropicProviderError, match="ANTHROPIC_TOKEN_WINDOW_EXCEEDED"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_mandatory_overflow",
+                turn_id="turn_2",
+                task="Inspect",
+                ledger=ledger,
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert len(scripted.calls) == 1
+    assert provider.export_continuation("run_mandatory_overflow") == history_before
 
 
 def test_claude_explicit_memory_is_json_data_on_initial_turn_only() -> None:
