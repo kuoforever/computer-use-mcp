@@ -93,6 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Maximum reviewed external calls while holding the run lock (1-4).",
     )
+    recover.add_argument(
+        "--stateless-replay",
+        action="store_true",
+        help="Explicitly replace the current OpenAI remote continuation once.",
+    )
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -336,7 +341,12 @@ def _show_recovery(path: Path, run_id: str) -> int:
 
 
 async def _recover_live_async(
-    path: Path, run_id: str, task: str, *, max_steps: int = 1
+    path: Path,
+    run_id: str,
+    task: str,
+    *,
+    max_steps: int = 1,
+    stateless_replay: bool = False,
 ) -> int:
     from .continuation import read_continuation
     from .desktop_mcp import StdioDesktopMCP
@@ -353,6 +363,8 @@ async def _recover_live_async(
     config = load_agent_config(path)
     if not config.continuation.enabled:
         raise RunnerError("CONTINUATION_DISABLED")
+    if stateless_replay and config.provider.name != "openai":
+        raise RunnerError("STATELESS_REPLAY_OPENAI_ONLY")
     lock = RunLock(config.application_state_dir)
     lock.acquire(recover_stale=True)
     desktop = None
@@ -363,6 +375,8 @@ async def _recover_live_async(
             checkpoint = read_run_checkpoint(config.state_dir, run_id)
             envelope = read_continuation(config.state_dir, run_id)
             plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
+            if stateless_replay and not step_outputs and plan.decision.action is not ReconstructionAction.CONTINUE_PROVIDER:
+                raise RunnerError("STATELESS_REPLAY_NOT_APPLICABLE")
             if plan.decision.action in {
                 ReconstructionAction.DISPATCH_OBSERVATION,
                 ReconstructionAction.MANDATORY_REOBSERVE,
@@ -415,6 +429,7 @@ async def _recover_live_async(
                 desktop=desktop,
                 commit_intent=persistence.commit_intent,
                 commit_completion=persistence.commit_completion,
+                use_stateless_replay=stateless_replay and not step_outputs,
             )
             completed = read_continuation(config.state_dir, run_id)
             boundary = completed.payload["boundary"]
@@ -453,8 +468,23 @@ async def _recover_live_async(
         lock.release()
 
 
-def _recover_live(path: Path, run_id: str, task: str, *, max_steps: int = 1) -> int:
-    return asyncio.run(_recover_live_async(path, run_id, task, max_steps=max_steps))
+def _recover_live(
+    path: Path,
+    run_id: str,
+    task: str,
+    *,
+    max_steps: int = 1,
+    stateless_replay: bool = False,
+) -> int:
+    return asyncio.run(
+        _recover_live_async(
+            path,
+            run_id,
+            task,
+            max_steps=max_steps,
+            stateless_replay=stateless_replay,
+        )
+    )
 
 
 def _remember(args: argparse.Namespace) -> int:
@@ -516,7 +546,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not 1 <= args.max_steps <= 4:
                 raise ValueError("RECOVERY_MAX_STEPS_INVALID")
             return _recover_live(
-                args.config, args.run_id, args.task, max_steps=args.max_steps
+                args.config,
+                args.run_id,
+                args.task,
+                max_steps=args.max_steps,
+                stateless_replay=args.stateless_replay,
             )
         if args.command == "resume":
             return _resume_live(args.config, args.run_id, args.task)

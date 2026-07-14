@@ -764,6 +764,7 @@ async def execute_read_only_recovery_step(
     desktop: DesktopMCPPort | None,
     commit_intent: Callable[[int, str, ReconstructionAction], None],
     commit_completion: Callable[[int, str, ReadOnlyRecoveryStep], None] | None = None,
+    use_stateless_replay: bool = False,
 ) -> ReadOnlyRecoveryStep:
     """Commit and execute exactly one newly authorized read-only boundary.
 
@@ -819,6 +820,11 @@ async def execute_read_only_recovery_step(
         if not isinstance(provider_state, Mapping):
             raise RecoveryExecutionError("RECOVERY_PROVIDER_STATE_INVALID")
         provider.restore_continuation(run_id, provider_state)
+        if use_stateless_replay:
+            prepare_replay = getattr(provider, "prepare_stateless_replay", None)
+            if not callable(prepare_replay):
+                raise RecoveryExecutionError("STATELESS_REPLAY_UNAVAILABLE")
+            prepare_replay(run_id, envelope)
         operation_id = f"{run_id}:{turn_id}:provider"
         commit_intent(sequence, operation_id, plan.decision.action)
         ledger = (

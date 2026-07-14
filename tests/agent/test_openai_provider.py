@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import json
 from hashlib import sha256
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -18,7 +20,12 @@ from computer_use_agent.providers.openai import (
     _tool_definitions,
     _tool_outputs,
 )
-from computer_use_agent.tool_registry import REVIEWED_TOOLS
+from computer_use_agent.continuation import (
+    RuntimeContinuationRecorder,
+    read_continuation,
+    write_continuation,
+)
+from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -26,10 +33,13 @@ from computer_use_agent.types import (
     LedgerEvent,
     LedgerEventKind,
     MemoryContextItem,
+    ModelTurn,
     ProviderContinuationStrategy,
+    RunBudget,
+    RunState,
     SafeArgumentSummary,
-    StatelessReplayBlocker,
     ToolCall,
+    ToolEffect,
     ToolResult,
     ToolResultStatus,
 )
@@ -49,6 +59,15 @@ class ScriptedResponses:
     async def create(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
         return self.responses.pop(0)
+
+
+@dataclass
+class FailingResponses:
+    calls: list[dict[str, object]] = field(default_factory=list)
+
+    async def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        raise RuntimeError("provider unavailable")
 
 
 @dataclass
@@ -238,7 +257,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
     ]
 
 
-def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
+def test_openai_declares_explicit_stateless_replay_readiness() -> None:
     scripted = ScriptedResponses([])
     provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
     state_before = provider.export_continuation("run_readiness")
@@ -248,12 +267,267 @@ def test_openai_declares_remote_chain_and_stateless_replay_blockers() -> None:
     assert provider.continuation_strategy is (
         ProviderContinuationStrategy.REMOTE_RESPONSE_ID
     )
-    assert readiness.eligible is False
-    assert readiness.blockers == (
-        StatelessReplayBlocker.REPLAY_COMPILER_NOT_IMPLEMENTED,
-    )
+    assert readiness.eligible is True
+    assert readiness.blockers == ()
     assert provider.export_continuation("run_readiness") == state_before
     assert scripted.calls == []
+
+
+def _completed_replay_envelope(
+    tmp_path: Path,
+    provider: OpenAIResponsesProvider,
+    *,
+    output_items: list[dict[str, object]] | None = None,
+    tool_name: str = "list_windows",
+    result_text: str = "Notepad",
+    result_images: tuple[ImageContent, ...] = (),
+):
+    run_id = "run_replay"
+    call = ToolCall(CallIdentity(run_id, "turn_1", "call_1"), tool_name, {})
+    state = RunState(
+        run_id,
+        "Inspect",
+        "policy-v1",
+        0,
+        RunBudget(4, 4, 8, model_turns_used=1, tool_calls_used=1),
+    )
+    recorder = RuntimeContinuationRecorder(
+        state_dir=tmp_path,
+        state=state,
+        provider_name="openai",
+        provider_model=provider.model,
+        registry_digest=reviewed_registry_digest(),
+        ttl_seconds=900,
+        mcp_generation=1,
+    )
+    items = output_items or [
+        {
+            "type": "reasoning",
+            "id": "reasoning_1",
+            "encrypted_content": "opaque",
+            "content": [],
+            "summary": [],
+        },
+        {
+            "type": "function_call",
+            "name": tool_name,
+            "call_id": "call_1",
+            "arguments": "{}",
+        },
+    ]
+    provider_state = _continuation_state(
+        provider, response_id="response_1", initial_input="Inspect", output_items=items
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn(run_id, "turn_1", "response_1", "", (call,)),
+        provider_state=provider_state,
+        checkpoint_sequence=3,
+    )
+    result = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text=result_text,
+        images=result_images,
+    )
+    recorder.prepare_tool(
+        state, call, effect=ToolEffect.OBSERVATION, checkpoint_sequence=4
+    )
+    recorder.dispatch_tool(state, checkpoint_sequence=5)
+    recorder.complete_tool(state, result, checkpoint_sequence=6)
+    return read_continuation(tmp_path, run_id), provider_state
+
+
+def test_explicit_stateless_replay_compiles_exact_order_and_reanchors_remote_chain(
+    tmp_path: Path,
+) -> None:
+    scripted = ScriptedResponses([_response("response_2", text="done")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    envelope, provider_state = _completed_replay_envelope(tmp_path, provider)
+    provider.restore_continuation("run_replay", provider_state)
+
+    provider.prepare_stateless_replay("run_replay", envelope)
+    assert provider.continuation_strategy is ProviderContinuationStrategy.STATELESS_REPLAY
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_replay",
+            turn_id="turn_2",
+            task="must not replace exact initial input",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request = scripted.calls[0]
+    assert "previous_response_id" not in request
+    assert request["input"] == [
+        {"role": "user", "content": "Inspect"},
+        {
+            "type": "reasoning",
+            "id": "reasoning_1",
+            "encrypted_content": "opaque",
+            "content": [],
+            "summary": [],
+        },
+        {
+            "type": "function_call",
+            "name": "list_windows",
+            "call_id": "call_1",
+            "arguments": "{}",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": '{"content":"Notepad","ok":true,"status":"success"}',
+        },
+    ]
+    assert provider.continuation_strategy is ProviderContinuationStrategy.REMOTE_RESPONSE_ID
+    assert provider.export_continuation("run_replay")["response_id"] == "response_2"
+
+
+def test_stateless_replay_preserves_exact_screenshot_function_output(
+    tmp_path: Path,
+) -> None:
+    scripted = ScriptedResponses([_response("response_2")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    image = ImageContent("image/png", base64.b64decode(_PNG_BASE64), 1, 1)
+    envelope, provider_state = _completed_replay_envelope(
+        tmp_path,
+        provider,
+        tool_name="screenshot",
+        result_text="captured",
+        result_images=(image,),
+    )
+    provider.restore_continuation("run_replay", provider_state)
+    provider.prepare_stateless_replay("run_replay", envelope)
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_replay",
+            turn_id="turn_2",
+            task="Inspect",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    output = scripted.calls[0]["input"][-1]
+    assert output == {
+        "type": "function_call_output",
+        "call_id": "call_1",
+        "output": [
+            {
+                "type": "input_text",
+                "text": '{"content":"captured","ok":true,"status":"success"}',
+            },
+            {
+                "type": "input_image",
+                "image_url": f"data:image/png;base64,{_PNG_BASE64}",
+                "detail": "high",
+            },
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        [{"type": "unknown_provider_item"}],
+        [
+            {
+                "type": "function_call",
+                "name": "find",
+                "call_id": "call_1",
+                "arguments": '{"query":"x"}',
+            }
+        ],
+    ],
+)
+def test_stateless_replay_rejects_unknown_or_mismatched_transcript_before_dispatch(
+    tmp_path: Path, items: list[dict[str, object]]
+) -> None:
+    scripted = ScriptedResponses([_response("unused")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    envelope, provider_state = _completed_replay_envelope(
+        tmp_path, provider, output_items=items
+    )
+    provider.restore_continuation("run_replay", provider_state)
+    before = provider.export_continuation("run_replay")
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_STATELESS_REPLAY_INVALID"):
+        provider.prepare_stateless_replay("run_replay", envelope)
+
+    assert provider.export_continuation("run_replay") == before
+    assert provider.continuation_strategy is ProviderContinuationStrategy.REMOTE_RESPONSE_ID
+    assert scripted.calls == []
+
+
+def test_stateless_replay_budget_failure_preserves_remote_chain_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    scripted = ScriptedResponses([_response("unused")])
+    provider = OpenAIResponsesProvider(
+        model="test-model", responses=scripted, max_request_bytes=1_000
+    )
+    envelope, provider_state = _completed_replay_envelope(tmp_path, provider)
+    provider.restore_continuation("run_replay", provider_state)
+    before = provider.export_continuation("run_replay")
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_TOO_LARGE"):
+        provider.prepare_stateless_replay("run_replay", envelope)
+
+    assert provider.export_continuation("run_replay") == before
+    assert provider.continuation_strategy is ProviderContinuationStrategy.REMOTE_RESPONSE_ID
+    assert scripted.calls == []
+
+
+def test_stateless_replay_rejects_missing_matching_result_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    scripted = ScriptedResponses([_response("unused")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    envelope, provider_state = _completed_replay_envelope(tmp_path, provider)
+    payload = copy.deepcopy(envelope.payload)
+    payload["ledger"] = [
+        event for event in payload["ledger"] if event["kind"] != "tool_result"
+    ]
+    missing = write_continuation(tmp_path / "missing", payload)
+    provider.restore_continuation("run_replay", provider_state)
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_STATELESS_REPLAY_INVALID"):
+        provider.prepare_stateless_replay("run_replay", missing)
+
+    assert provider.export_continuation("run_replay")["response_id"] == "response_1"
+    assert scripted.calls == []
+
+
+def test_stateless_replay_request_failure_does_not_cut_remote_chain(
+    tmp_path: Path,
+) -> None:
+    failing = FailingResponses()
+    provider = OpenAIResponsesProvider(model="test-model", responses=failing)
+    envelope, provider_state = _completed_replay_envelope(tmp_path, provider)
+    provider.restore_continuation("run_replay", provider_state)
+    before = provider.export_continuation("run_replay")
+    provider.prepare_stateless_replay("run_replay", envelope)
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_FAILED"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_replay",
+                turn_id="turn_2",
+                task="Inspect",
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+    assert provider.export_continuation("run_replay") == before
+    assert "previous_response_id" not in failing.calls[0]
 
 
 @pytest.mark.parametrize(

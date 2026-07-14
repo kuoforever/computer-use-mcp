@@ -1,8 +1,8 @@
 # OpenAI stateless replay readiness
 
-> **Status: design and fail-closed readiness gate implemented; replay is not
-> implemented.** The runtime continues only through `previous_response_id` and
-> never silently falls back to a new stateless request.
+> **Status: explicit read-only recovery replay implemented.** Normal runtime
+> continues through `previous_response_id`. Replay requires the operator's
+> `recover --stateless-replay` flag and is never an automatic fallback.
 
 ## Why this is a separate capability
 
@@ -15,24 +15,21 @@ examples preserve `response.output` and then append each matching
 Those wire items are richer than the current canonical host ledger. The ledger
 normalizes assistant text, reviewed function calls, usage, and tool results; it
 now persists the exact initial input and every bounded provider output item in
-response order. Compiling those records into a new stateless request is still
-a separate, unimplemented capability; reconstructing a plausible transcript
-through any other path remains prohibited.
+response order. The recovery compiler constructs one request from those exact
+persisted records. Reconstructing a plausible transcript through any other
+path remains prohibited.
 
 Official protocol references:
 
 - [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state)
 - [Function calling](https://developers.openai.com/api/docs/guides/function-calling)
 
-## Executable readiness contract
+## Executable contract
 
-`ProviderContinuationStrategy` distinguishes OpenAI's
-`remote_response_id` from Claude's `local_message_history`. The OpenAI adapter
-returns a `StatelessReplayReadiness` with these blockers:
-
-| Blocker | Required evidence before removal |
-| --- | --- |
-| `replay_compiler_not_implemented` | Add a separately reviewed compiler that emits one bounded request and never dispatches historical tools. |
+`ProviderContinuationStrategy` distinguishes OpenAI's normal
+`remote_response_id`, its one-request `stateless_replay` transition, and
+Claude's `local_message_history`. OpenAI readiness now has no blocker, but
+eligibility alone performs no I/O and grants no action authority.
 
 The initial-input, provider-output, and request-contract prerequisites are now
 delivered independently of replay. Every OpenAI Responses request explicitly
@@ -53,16 +50,19 @@ is attached. Each completed response also appends one bounded batch containing
 the response ID and every canonical JSON `response.output` item in original
 order, including reasoning items. Invalid JSON, duplicate/mismatched response
 IDs, excessive item counts, and oversized accumulated batches fail before
-state commit. These delivered prerequisites remove three readiness blockers
-but do not make replay executable.
+state commit. The compiler additionally revalidates the complete envelope
+digest, response-batch/model-turn order, exact call ID/name/arguments, reviewed
+observation-only tool identity, and one ordered matching tool result per call.
 
-The assessment is descriptive and non-executable. No CLI/config switch invokes
-it, and an empty blocker set alone would not authorize provider or desktop I/O.
+The CLI invokes replay only with both `--execute-read-only` and
+`--stateless-replay`, at a completed `provider_continue` boundary. Compilation
+and request byte/token gates finish before the durable provider dispatch
+intent. Historical calls are appended to Responses input only; the compiler
+does not call host policy, approval, recovery planning, or MCP.
 
 ## Activation invariants
 
-A future implementation must satisfy all of the following in one separately
-reviewed milestone:
+The implementation enforces all of the following:
 
 1. Replay uses only a complete, validated, digest-bound transcript. Missing,
    unknown, reordered, summarized, or provider-unsupported items fail before
@@ -81,6 +81,9 @@ reviewed milestone:
    screenshots, missing output items, contract drift, and over-budget requests;
    every rejected case records zero provider and desktop calls.
 
-Until those gates are implemented, OpenAI context pressure remains
-fail-closed. Claude's existing atomic local-history packing is a different
-provider strategy and does not establish OpenAI replay safety.
+The switch is one-shot and atomic. Preflight failure leaves the provider in
+`remote_response_id`. After staging, provider failure or invalid output leaves
+the exported old response ID unchanged and never retries with either strategy.
+Only a valid new response commits its ID and returns the adapter to normal
+remote continuation. Claude's atomic local-history packing remains a different
+provider strategy and does not use this compiler.

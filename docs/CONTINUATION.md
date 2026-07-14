@@ -216,9 +216,10 @@ run lock, and uses fake provider/MCP ports to prove zero action replay.
 
 For both providers, duplicate the completed-provider and completed-observation
 cases to prove exact call/result correlation. OpenAI assertions freeze the
-`previous_response_id`; Claude assertions freeze the reconstructed assistant
-`tool_use` plus user `tool_result` pair. Neither suite may fall back to sending
-the original task again.
+default `previous_response_id` path and the separately explicit stateless
+request's complete item order; Claude assertions freeze the reconstructed
+assistant `tool_use` plus user `tool_result` pair. Neither suite may trigger an
+automatic fallback.
 
 ## Delivery sequence
 

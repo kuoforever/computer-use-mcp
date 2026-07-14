@@ -57,7 +57,7 @@ provider credentials, a child process, or a desktop.
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
 | Claude returns a tool-use block | Normalize its name/input/ID, reject malformed or unadvertised calls and invalid stop reasons, then append the assistant block and adjacent matching user `tool_result`. |
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
-| OpenAI stateless replay readiness is inspected | Report the remote-response strategy and the one remaining fixed compiler blocker; expose no replay request or provider/MCP dispatch path. |
+| OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
