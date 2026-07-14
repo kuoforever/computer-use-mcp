@@ -8,8 +8,11 @@ from dataclasses import dataclass, field
 from typing import Mapping, Protocol, Sequence
 
 from ..tool_registry import ToolSpec, validate_tool_arguments
+from ..token_window import exceeds_token_window
 from ..types import (
     CallIdentity,
+    DEFAULT_PROVIDER_CONTEXT_TOKENS,
+    DEFAULT_PROVIDER_OUTPUT_TOKENS,
     DEFAULT_PROVIDER_REQUEST_BYTES,
     LedgerEvent,
     LedgerEventKind,
@@ -154,8 +157,11 @@ class OpenAIResponsesProvider:
     responses: _ResponsesPort
     allow_actions: bool = False
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
+    context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
+    output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
     name: str = field(default="openai", init=False)
     _previous_response_ids: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _prior_context_tokens: dict[str, int] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
@@ -168,6 +174,21 @@ class OpenAIResponsesProvider:
             or self.max_request_bytes <= 0
         ):
             raise ValueError("max_request_bytes must be a positive integer")
+        if (
+            isinstance(self.context_window_tokens, bool)
+            or not isinstance(self.context_window_tokens, int)
+            or self.context_window_tokens <= 0
+        ):
+            raise ValueError("context_window_tokens must be a positive integer")
+        if (
+            isinstance(self.output_token_reserve, bool)
+            or not isinstance(self.output_token_reserve, int)
+            or self.output_token_reserve <= 0
+            or self.output_token_reserve >= self.context_window_tokens
+        ):
+            raise ValueError(
+                "output_token_reserve must be positive and smaller than context_window_tokens"
+            )
 
     @classmethod
     def from_environment(
@@ -176,6 +197,8 @@ class OpenAIResponsesProvider:
         *,
         allow_actions: bool = False,
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
+        context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
+        output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "OpenAIResponsesProvider":
         try:
             from openai import AsyncOpenAI
@@ -187,6 +210,8 @@ class OpenAIResponsesProvider:
             responses=client.responses,
             allow_actions=allow_actions,
             max_request_bytes=max_request_bytes,
+            context_window_tokens=context_window_tokens,
+            output_token_reserve=output_token_reserve,
         )
 
     async def create_turn(
@@ -210,6 +235,7 @@ class OpenAIResponsesProvider:
             + (("\n\n" + MEMORY_RULE) if memories else ""),
             "tools": definitions,
             "parallel_tool_calls": False,
+            "max_output_tokens": self.output_token_reserve,
         }
         if previous_response_id is None:
             request["input"] = _initial_input(task, memories)
@@ -221,6 +247,13 @@ class OpenAIResponsesProvider:
             request["input"] = outputs
         if _request_size(request) > self.max_request_bytes:
             raise OpenAIProviderError("OPENAI_REQUEST_TOO_LARGE")
+        if exceeds_token_window(
+            request,
+            context_window_tokens=self.context_window_tokens,
+            output_token_reserve=self.output_token_reserve,
+            prior_context_tokens=self._prior_context_tokens.get(run_id, 0),
+        ):
+            raise OpenAIProviderError("OPENAI_TOKEN_WINDOW_EXCEEDED")
         try:
             response = await self.responses.create(**request)
         except asyncio.CancelledError:
@@ -231,7 +264,6 @@ class OpenAIResponsesProvider:
         response_id = _read(response, "id")
         if not isinstance(response_id, str) or not response_id:
             raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
-        self._previous_response_ids[run_id] = response_id
 
         calls: list[ToolCall] = []
         raw_output = _read(response, "output", ())
@@ -265,12 +297,15 @@ class OpenAIResponsesProvider:
         usage = _read(response, "usage")
         input_tokens = _read(usage, "input_tokens", 0)
         output_tokens = _read(usage, "output_tokens", 0)
-        if not isinstance(input_tokens, int) or not isinstance(output_tokens, int):
+        if any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in (input_tokens, output_tokens)
+        ):
             raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
         text = _read(response, "output_text", "")
         if not isinstance(text, str):
             raise OpenAIProviderError("OPENAI_RESPONSE_INVALID")
-        return ModelTurn(
+        turn = ModelTurn(
             run_id=run_id,
             turn_id=turn_id,
             provider_response_id=response_id,
@@ -278,6 +313,9 @@ class OpenAIResponsesProvider:
             tool_calls=tuple(calls),
             usage=ModelUsage(input_tokens=input_tokens, output_tokens=output_tokens),
         )
+        self._previous_response_ids[run_id] = response_id
+        self._prior_context_tokens[run_id] = input_tokens + output_tokens
+        return turn
 
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
         if not isinstance(run_id, str) or not run_id:

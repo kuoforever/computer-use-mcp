@@ -182,6 +182,8 @@ async def _run_live_async(
             config.provider.model,
             allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
             max_request_bytes=config.provider.max_request_bytes,
+            context_window_tokens=config.provider.context_window_tokens,
+            output_token_reserve=config.provider.output_token_reserve,
         )
     elif config.provider.name == "anthropic":
         from .providers.anthropic import AnthropicMessagesProvider
@@ -190,6 +192,8 @@ async def _run_live_async(
             config.provider.model,
             allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
             max_request_bytes=config.provider.max_request_bytes,
+            context_window_tokens=config.provider.context_window_tokens,
+            output_token_reserve=config.provider.output_token_reserve,
         )
     else:
         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
@@ -358,6 +362,8 @@ async def _recover_live_async(
                             config.provider.model,
                             allow_actions=False,
                             max_request_bytes=config.provider.max_request_bytes,
+                            context_window_tokens=config.provider.context_window_tokens,
+                            output_token_reserve=config.provider.output_token_reserve,
                         )
                     elif config.provider.name == "anthropic":
                         from .providers.anthropic import AnthropicMessagesProvider
@@ -366,6 +372,8 @@ async def _recover_live_async(
                             config.provider.model,
                             allow_actions=False,
                             max_request_bytes=config.provider.max_request_bytes,
+                            context_window_tokens=config.provider.context_window_tokens,
+                            output_token_reserve=config.provider.output_token_reserve,
                         )
                     else:
                         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")

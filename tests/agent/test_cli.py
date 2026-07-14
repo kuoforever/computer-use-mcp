@@ -23,6 +23,8 @@ policy_version = "phase2"
 [provider]
 name = "openai"
 model = "test-model"
+context_window_tokens = 128000
+output_token_reserve = 1024
 
 [mcp]
 executable = "{(tmp_path / 'computer-use-mcp.exe').as_posix()}"
@@ -857,4 +859,6 @@ def test_live_cli_passes_configured_request_budget_to_provider(
 
     assert captured["model"] == "test-model"
     assert captured["max_request_bytes"] == 4096
+    assert captured["context_window_tokens"] == 128_000
+    assert captured["output_token_reserve"] == 1_024
     assert json.loads(capsys.readouterr().out)["text"] == "done"
