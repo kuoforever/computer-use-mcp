@@ -283,6 +283,30 @@ def test_recover_cli_requires_explicit_read_only_execution_confirmation(
     assert not config_path.exists()
 
 
+@pytest.mark.parametrize("maximum", [0, 5])
+def test_recover_cli_rejects_unreviewed_step_bounds_before_loading_config(
+    maximum: int, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config_path = tmp_path / "agent.toml"
+
+    assert main(
+        [
+            "recover",
+            "run_1",
+            "--config",
+            str(config_path),
+            "--task",
+            "Inspect",
+            "--execute-read-only",
+            "--max-steps",
+            str(maximum),
+        ]
+    ) == 2
+
+    assert "RECOVERY_MAX_STEPS_INVALID" in capsys.readouterr().err
+    assert not config_path.exists()
+
+
 def test_recover_cli_executes_one_persisted_observation_boundary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -529,6 +553,151 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
         "tool_status": "success",
     }
     assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
+    assert desktop.close_calls == 1
+
+
+@pytest.mark.parametrize("provider_requests_action", [False, True])
+def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action(
+    provider_requests_action: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from collections import deque
+
+    import computer_use_agent.desktop_mcp as desktop_module
+    from computer_use_agent.config import load_agent_config
+    from computer_use_agent.continuation import RuntimeContinuationRecorder
+    from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
+    from computer_use_agent.providers.openai import OpenAIResponsesProvider
+    from computer_use_agent.tool_registry import reviewed_registry_digest
+    from computer_use_agent.trace import RunPhase, RunRecorder
+    from computer_use_agent.types import (
+        CallIdentity,
+        DispatchCertainty,
+        ModelTurn,
+        RunBudget,
+        RunState,
+        ToolCall,
+        ToolResult,
+        ToolResultStatus,
+    )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _ = _config_text(tmp_path)
+    text += "\n[continuation]\nenabled = true\nttl_seconds = 900\n"
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    config = load_agent_config(config_path)
+    task = "MULTISTEP_RECOVERY_TASK_SECRET"
+    state = RunState(
+        "run_cli_multistep",
+        task,
+        config.policy_version,
+        0,
+        RunBudget(
+            config.policy.max_model_turns,
+            config.policy.max_tool_calls,
+            config.policy.max_side_effects,
+            max_input_tokens=config.policy.max_input_tokens,
+            model_turns_used=1,
+        ),
+    )
+    observation = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"), "list_windows", {}
+    )
+    continuation = RuntimeContinuationRecorder(
+        state_dir=config.state_dir,
+        state=state,
+        provider_name=config.provider.name,
+        provider_model=config.provider.model,
+        registry_digest=reviewed_registry_digest(),
+        ttl_seconds=900,
+        mcp_generation=1,
+    )
+    continuation.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    continuation.dispatch_provider(state, checkpoint_sequence=2)
+    continuation.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (observation,)),
+        provider_state={"response_id": "response_1"},
+        checkpoint_sequence=3,
+    )
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(state)
+    safe.record(state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    observation.identity,
+                    observation.name,
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="Notepad",
+                )
+            ]
+        )
+    )
+    next_calls = (
+        (
+            ToolCall(
+                CallIdentity(state.run_id, "turn_2", "action_1"),
+                "click",
+                {"ref": "ref_1"},
+            ),
+        )
+        if provider_requests_action
+        else ()
+    )
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    state.run_id,
+                    "turn_2",
+                    "response_2",
+                    "" if provider_requests_action else "done",
+                    next_calls,
+                )
+            ]
+        )
+    )
+    monkeypatch.setattr(desktop_module, "StdioDesktopMCP", lambda _config: desktop)
+    monkeypatch.setattr(
+        OpenAIResponsesProvider,
+        "from_environment",
+        staticmethod(lambda _model, **_kwargs: provider),
+    )
+
+    assert main(
+        [
+            "recover",
+            state.run_id,
+            "--config",
+            str(config_path),
+            "--task",
+            task,
+            "--execute-read-only",
+            "--max-steps",
+            "4",
+        ]
+    ) == 0
+
+    raw = capsys.readouterr().out
+    output = json.loads(raw)
+    assert task not in raw
+    assert output["steps_executed"] == 2
+    assert [step["action"] for step in output["steps"]] == [
+        "dispatch_observation",
+        "continue_provider",
+    ]
+    assert output["checkpoint_sequence"] == 7
+    assert output["next_step"] == "stop"
+    assert output["tool_call_count"] == int(provider_requests_action)
+    assert [call.name for call in desktop.tool_calls] == ["list_windows"]
+    assert len(provider.calls) == 1
     assert desktop.close_calls == 1
 
 
