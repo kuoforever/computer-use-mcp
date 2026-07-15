@@ -44,6 +44,7 @@ class ReconstructionAction(str, Enum):
     CONTINUE_PROVIDER = "continue_provider"
     MANDATORY_REOBSERVE = "mandatory_reobserve"
     FINALIZE_SUCCESS = "finalize_success"
+    FINALIZE_BLOCKED = "finalize_blocked"
     FAIL_CLOSED = "fail_closed"
 
 
@@ -340,8 +341,8 @@ def classify_operation_state(
                 ReconstructionPhase.SUCCESS,
             )
         return _decision(
-            ReconstructionAction.START_NEW_RUN,
-            "PENDING_SIDE_EFFECT",
+            ReconstructionAction.FINALIZE_BLOCKED,
+            "RECOVERED_ACTION_REQUESTED",
             ReconstructionPhase.FAILED,
         )
     if current.effect is OperationEffect.OBSERVATION:

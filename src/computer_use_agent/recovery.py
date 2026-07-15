@@ -34,6 +34,7 @@ from .run_lock import RunLock
 from .trace import (
     RunPhase,
     advance_recovery_checkpoint,
+    finalize_recovery_blocked_action,
     finalize_recovery_success,
     read_run_checkpoint,
 )
@@ -69,25 +70,57 @@ class ReadOnlyRecoveryPlan:
     call: ToolCall | None = None
     result: ToolResult | None = None
     final_text: str | None = None
+    blocked_call_count: int | None = None
 
     def __post_init__(self) -> None:
         if self.decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
-            if self.call is None or self.result is not None or self.final_text is not None:
+            if (
+                self.call is None
+                or self.result is not None
+                or self.final_text is not None
+                or self.blocked_call_count is not None
+            ):
                 raise ValueError("observation dispatch plan requires exactly one call")
         elif self.decision.action is ReconstructionAction.CONTINUE_PROVIDER:
-            if self.result is None or self.call is not None or self.final_text is not None:
+            if (
+                self.result is None
+                or self.call is not None
+                or self.final_text is not None
+                or self.blocked_call_count is not None
+            ):
                 raise ValueError("provider continuation plan requires exactly one result")
         elif self.decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
-            if self.call is None or self.result is not None or self.final_text is not None:
+            if (
+                self.call is None
+                or self.result is not None
+                or self.final_text is not None
+                or self.blocked_call_count is not None
+            ):
                 raise ValueError("mandatory re-observation plan requires exactly one call")
         elif self.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
             if (
                 not isinstance(self.final_text, str)
                 or self.call is not None
                 or self.result is not None
+                or self.blocked_call_count is not None
             ):
                 raise ValueError("success finalization plan requires final text only")
-        elif self.call is not None or self.result is not None or self.final_text is not None:
+        elif self.decision.action is ReconstructionAction.FINALIZE_BLOCKED:
+            if (
+                isinstance(self.blocked_call_count, bool)
+                or not isinstance(self.blocked_call_count, int)
+                or self.blocked_call_count < 1
+                or self.call is not None
+                or self.result is not None
+                or self.final_text is not None
+            ):
+                raise ValueError("blocked finalization plan requires a call count only")
+        elif (
+            self.call is not None
+            or self.result is not None
+            or self.final_text is not None
+            or self.blocked_call_count is not None
+        ):
             raise ValueError("non-executable recovery plan cannot carry external work")
 
 
@@ -198,8 +231,10 @@ def _validated_call(name: str, identity: CallIdentity, arguments: object) -> Too
 
 
 def _validate_provider_correlation(
-    envelope: ContinuationEnvelope, call: ToolCall
+    envelope: ContinuationEnvelope, calls: tuple[ToolCall, ...]
 ) -> None:
+    if not calls:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     payload = envelope.payload
     provider = _mapping(payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID")
     state = _mapping(
@@ -237,39 +272,52 @@ def _validate_provider_correlation(
         for block in content
         if isinstance(block, Mapping) and block.get("type") == "tool_use"
     ]
-    if len(tool_uses) != 1:
+    if len(tool_uses) != len(calls):
         raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
-    tool_use = tool_uses[0]
-    if (
-        tool_use.get("id") != call.identity.call_id
-        or tool_use.get("name") != call.name
-        or tool_use.get("input") != call.arguments
-    ):
-        raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+    for tool_use, call in zip(tool_uses, calls, strict=True):
+        if (
+            tool_use.get("id") != call.identity.call_id
+            or tool_use.get("name") != call.name
+            or tool_use.get("input") != call.arguments
+        ):
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+
+
+def _pending_calls(envelope: ContinuationEnvelope) -> tuple[ToolCall, ...]:
+    data = _last_event(_ledger(envelope), "model_turn")
+    calls = data.get("tool_calls")
+    if not isinstance(calls, list) or not calls:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    validated: list[ToolCall] = []
+    identities: set[CallIdentity] = set()
+    for item in calls:
+        raw = _mapping(item, "CONTINUATION_LEDGER_INVALID")
+        if set(raw) != {"identity", "tool_name", "arguments", "call_digest"}:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        identity = _identity(raw["identity"], str(envelope.payload["run_id"]))
+        name = raw.get("tool_name")
+        if not isinstance(name, str) or identity in identities:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        call = _validated_call(name, identity, raw.get("arguments"))
+        if raw.get("call_digest") != call.digest:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        identities.add(identity)
+        validated.append(call)
+    return tuple(validated)
 
 
 def _pending_observation(envelope: ContinuationEnvelope) -> ToolCall:
-    data = _last_event(_ledger(envelope), "model_turn")
-    calls = data.get("tool_calls")
-    if not isinstance(calls, list) or len(calls) != 1:
-        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    raw = _mapping(calls[0], "CONTINUATION_LEDGER_INVALID")
-    if set(raw) != {"identity", "tool_name", "arguments", "call_digest"}:
-        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    identity = _identity(raw["identity"], str(envelope.payload["run_id"]))
-    name = raw.get("tool_name")
-    if not isinstance(name, str):
-        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    try:
-        spec = get_tool_spec(name)
-    except ToolValidationError as exc:
-        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID") from exc
-    if spec.effect is not ToolEffect.OBSERVATION:
+    calls = _pending_calls(envelope)
+    if len(calls) != 1 or get_tool_spec(calls[0].name).effect is not ToolEffect.OBSERVATION:
         raise RecoveryPlanError("PENDING_SIDE_EFFECT")
-    call = _validated_call(name, identity, raw.get("arguments"))
-    if raw.get("call_digest") != call.digest:
+    return calls[0]
+
+
+def _pending_side_effects(envelope: ContinuationEnvelope) -> tuple[ToolCall, ...]:
+    calls = _pending_calls(envelope)
+    if not any(get_tool_spec(call.name).effect is ToolEffect.SIDE_EFFECT for call in calls):
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    return call
+    return calls
 
 
 def _completed_tool(
@@ -477,6 +525,14 @@ def plan_read_only_recovery(
         pending_effect=pending_effect,
     )
     decision = classify_operation_state(envelope.operation_state, context=context)
+    if decision.action is ReconstructionAction.FINALIZE_BLOCKED:
+        if next_step != "stop" or raw_effect != ToolEffect.SIDE_EFFECT.value:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        calls = _pending_side_effects(envelope)
+        _validate_provider_correlation(envelope, calls)
+        return ReadOnlyRecoveryPlan(
+            decision, blocked_call_count=len(calls)
+        )
     if decision.action is ReconstructionAction.FINALIZE_SUCCESS:
         if next_step != "stop" or raw_effect is not None:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
@@ -488,7 +544,7 @@ def plan_read_only_recovery(
         expected_id = f"{call.identity.run_id}:{call.identity.turn_id}:provider"
         if envelope.operation_state.operation_id != expected_id:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        _validate_provider_correlation(envelope, call)
+        _validate_provider_correlation(envelope, (call,))
         return ReadOnlyRecoveryPlan(decision, call=call)
     if decision.action is ReconstructionAction.CONTINUE_PROVIDER:
         if next_step == "stop":
@@ -505,7 +561,7 @@ def plan_read_only_recovery(
         )
         if envelope.operation_state.operation_id != expected_id:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        _validate_provider_correlation(envelope, call)
+        _validate_provider_correlation(envelope, (call,))
         return ReadOnlyRecoveryPlan(decision, result=result)
     if decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
         call, result = _completed_side_effect(envelope)
@@ -514,7 +570,7 @@ def plan_read_only_recovery(
         )
         if envelope.operation_state.operation_id != expected_id:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        _validate_provider_correlation(envelope, call)
+        _validate_provider_correlation(envelope, (call,))
         sequence = payload["checkpoint_sequence"]
         if isinstance(sequence, bool) or not isinstance(sequence, int):
             raise RecoveryPlanError("CONTINUATION_INVALID")
@@ -874,6 +930,27 @@ class LockedRecoveryPersistence:
             final_text_length=len(plan.final_text),
         )
         return plan.final_text, completed
+
+    def finalize_blocked_action(
+        self, sequence: int
+    ) -> tuple[int, Mapping[str, JSONValue]]:
+        """Fail one complete recovered action request without dispatching it."""
+
+        checkpoint, envelope = self._current(sequence)
+        plan = plan_read_only_recovery(
+            checkpoint, envelope, self.config, task=self.task
+        )
+        if (
+            plan.decision.action is not ReconstructionAction.FINALIZE_BLOCKED
+            or plan.blocked_call_count is None
+        ):
+            raise RecoveryExecutionError("RECOVERY_BLOCKED_NOT_APPLICABLE")
+        completed = finalize_recovery_blocked_action(
+            self.state_dir,
+            self.run_id,
+            expected_sequence=sequence,
+        )
+        return plan.blocked_call_count, completed
 
 
 async def execute_read_only_recovery_step(

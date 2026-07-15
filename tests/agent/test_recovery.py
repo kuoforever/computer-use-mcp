@@ -297,6 +297,54 @@ def test_completed_claude_final_turn_also_plans_local_success(
     assert plan.final_text == "done"
 
 
+def test_completed_provider_multiple_action_requests_are_blocked_as_one_terminal_step(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    calls = (
+        ToolCall(
+            CallIdentity(state.run_id, "turn_1", "call_1"),
+            "click",
+            {"ref": "ref_1"},
+        ),
+        ToolCall(
+            CallIdentity(state.run_id, "turn_1", "call_2"),
+            "key",
+            {"combo": "CTRL+L"},
+        ),
+    )
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", calls),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+
+    plan = plan_read_only_recovery(
+        _checkpoint(state, 3),
+        read_continuation(config.state_dir, state.run_id),
+        config,
+        task=state.task,
+    )
+
+    assert plan.decision.action is ReconstructionAction.FINALIZE_BLOCKED
+    assert plan.decision.reason == "RECOVERED_ACTION_REQUESTED"
+    assert plan.blocked_call_count == 2
+    assert plan.call is None
+    assert plan.result is None
+
+
 def test_attach_drift_never_returns_external_work(
     tmp_path: Path, monkeypatch: object
 ) -> None:
@@ -1164,6 +1212,31 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
             assert text == "done"
             assert completed_checkpoint["phase"] == RunPhase.SUCCESS.value
             assert completed_checkpoint["final_text_length"] == 4
+            with pytest.raises(ContinuationError, match="CONTINUATION_READ_FAILED"):
+                read_continuation(config.state_dir, state.run_id)
+        elif plan.decision.action is ReconstructionAction.FINALIZE_BLOCKED:
+            lock = RunLock(config.application_state_dir)
+            lock.acquire()
+            try:
+                persistence = LockedRecoveryPersistence(
+                    state_dir=config.state_dir,
+                    checkpoint=checkpoint,
+                    envelope=envelope,
+                    config=config,
+                    task=state.task,
+                    lock=lock,
+                )
+                blocked_call_count, completed_checkpoint = (
+                    persistence.finalize_blocked_action(boundary_sequence)
+                )
+            finally:
+                lock.release()
+            assert blocked_call_count == 1
+            assert completed_checkpoint["phase"] == RunPhase.FAILED.value
+            assert (
+                completed_checkpoint["failure_code"]
+                == "RECOVERED_ACTION_REQUESTED"
+            )
             with pytest.raises(ContinuationError, match="CONTINUATION_READ_FAILED"):
                 read_continuation(config.state_dir, state.run_id)
         actual_calls.extend(f"tool:{item.name}" for item in desktop.tool_calls)

@@ -115,6 +115,11 @@ step: the command verifies its final ledger/provider correlation, atomically
 advances the safe checkpoint to `SUCCESS`, records final-text length only,
 deletes `continuation.json`, and returns the already persisted final text.
 Hidden function calls, sequence drift, or mismatched provider state fail closed.
+A completed provider turn that requests any action is never sent to policy,
+approval, or MCP during recovery. After strict call/provider correlation, the
+command advances the checkpoint to `FAILED` with
+`RECOVERED_ACTION_REQUESTED`, deletes the continuation, reports the blocked
+call count, and exits nonzero. Multiple calls grant no additional authority.
 
 Aggregate all local checkpoints without opening JSONL traces:
 

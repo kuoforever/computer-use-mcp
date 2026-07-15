@@ -180,7 +180,7 @@ The conservative reconstruction matrix is:
 | --- | --- |
 | `prepared`, provider request | Do not send it; start a new run. |
 | `dispatch_intent`, provider request, no completion | `UNKNOWN_OUTCOME`; do not resend. |
-| `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A pending side-effect requires a new run. |
+| `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A provider-requested side effect is validated as an input record, terminalized as a fixed failure, and never dispatched. |
 | `prepared`, tool call | Observation may be dispatched once only if no dispatch intent exists. Pending side-effect requires a new run. |
 | `dispatch_intent`, any tool call, no completion | `UNKNOWN_OUTCOME`; do not call the tool again. |
 | `completed`, observation result | Consume the result and issue only the next new provider continuation. |
@@ -202,7 +202,7 @@ run lock, and uses fake provider/MCP ports to prove zero action replay.
 | --- | --- | --- |
 | `e2_resume_provider_completed_observation_pending` | Completed provider turn requests `ui_snapshot`; no tool dispatch intent | Dispatch `ui_snapshot` once, never repeat the provider request. |
 | `e2_resume_provider_dispatch_uncertain` | Provider `dispatch_intent`; no completed response | `UNKNOWN_OUTCOME`; zero provider and tool calls. |
-| `e2_resume_provider_completed_action_pending` | Completed turn requests `click`; no tool dispatch intent | Non-resumable/start new run; zero tool calls and no approval reuse. |
+| `e2_resume_provider_completed_action_pending` | Completed turn requests `click`; no tool dispatch intent | Validate the input record, terminalize as `FAILED/RECOVERED_ACTION_REQUESTED`, delete the continuation, and dispatch zero policy/approval/MCP calls. |
 | `e2_resume_provider_completed_final` | Completed provider turn has exact final text and no tool calls | Validate correlation, advance to `SUCCESS`, and delete the continuation with zero provider/MCP calls. |
 | `e2_resume_observation_completed` | Completed `ui_snapshot` result | Call provider continuation once with the persisted result; zero MCP calls. |
 | `e2_resume_observation_dispatch_uncertain` | Observation `dispatch_intent`; no result | `UNKNOWN_OUTCOME`; zero MCP/provider calls. |
@@ -258,6 +258,10 @@ desktop integration.
    tool calls locally under the run lock. This records `SUCCESS` and final-text
    length in the safe checkpoint, deletes the sensitive continuation, returns
    the already persisted text, and performs zero provider/MCP calls.
-6. Keep uncertain dispatches, pending side-effects, drift, corruption, and
+6. **Implemented:** terminalize complete recovered provider action requests as
+   fixed local failures. One or more calls are correlated as input records only;
+   the checkpoint advances to `FAILED`, the continuation is deleted, the CLI
+   exits nonzero, and policy/approval/MCP receive zero calls.
+7. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.

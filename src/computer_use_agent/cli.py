@@ -371,10 +371,12 @@ async def _recover_live_async(
     provider = None
     try:
         step_outputs: list[dict[str, object]] = []
+        terminal_failure = False
         for _ in range(max_steps):
             checkpoint = read_run_checkpoint(config.state_dir, run_id)
             envelope = read_continuation(config.state_dir, run_id)
             plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
+            blocked_call_count: int | None = None
             if stateless_replay and not step_outputs and plan.decision.action is not ReconstructionAction.CONTINUE_PROVIDER:
                 raise RunnerError("STATELESS_REPLAY_NOT_APPLICABLE")
             if plan.decision.action in {
@@ -408,7 +410,10 @@ async def _recover_live_async(
                         )
                     else:
                         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
-            elif plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+            elif plan.decision.action in {
+                ReconstructionAction.FINALIZE_SUCCESS,
+                ReconstructionAction.FINALIZE_BLOCKED,
+            }:
                 pass
             else:
                 if step_outputs:
@@ -439,6 +444,26 @@ async def _recover_live_async(
                     }
                 )
                 break
+            if plan.decision.action is ReconstructionAction.FINALIZE_BLOCKED:
+                sequence = envelope.payload["checkpoint_sequence"]
+                assert isinstance(sequence, int) and not isinstance(sequence, bool)
+                blocked_count, completed_checkpoint = (
+                    persistence.finalize_blocked_action(sequence)
+                )
+                terminal_failure = True
+                step_outputs.append(
+                    {
+                        "action": plan.decision.action.value,
+                        "reason": plan.decision.reason,
+                        "checkpoint_sequence": completed_checkpoint[
+                            "checkpoint_sequence"
+                        ],
+                        "next_step": "stop",
+                        "failure_code": "RECOVERED_ACTION_REQUESTED",
+                        "tool_call_count": blocked_count,
+                    }
+                )
+                break
             step = await execute_read_only_recovery_step(
                 checkpoint,
                 envelope,
@@ -462,6 +487,17 @@ async def _recover_live_async(
                     completed_sequence
                 )
                 checkpoint_sequence = completed_checkpoint["checkpoint_sequence"]
+            elif (
+                step.model_turn is not None
+                and step.model_turn.tool_calls
+                and boundary.get("effect") == "side_effect"
+            ):
+                blocked_call_count, completed_checkpoint = (
+                    persistence.finalize_blocked_action(completed_sequence)
+                )
+                terminal_failure = True
+                text = None
+                checkpoint_sequence = completed_checkpoint["checkpoint_sequence"]
             else:
                 text = None
                 checkpoint_sequence = completed_sequence
@@ -477,6 +513,10 @@ async def _recover_live_async(
             if step.model_turn is not None:
                 item["text"] = step.model_turn.text if text is None else text
                 item["tool_call_count"] = len(step.model_turn.tool_calls)
+                if blocked_call_count is not None:
+                    item["reason"] = "RECOVERED_ACTION_REQUESTED"
+                    item["failure_code"] = "RECOVERED_ACTION_REQUESTED"
+                    item["tool_call_count"] = blocked_call_count
             step_outputs.append(item)
             if boundary["next_step"] == "stop":
                 break
@@ -487,7 +527,7 @@ async def _recover_live_async(
             output["steps_executed"] = len(step_outputs)
             output["steps"] = step_outputs
         _print_json(output)
-        return 0
+        return 1 if terminal_failure else 0
     finally:
         active_error = sys.exc_info()[0] is not None
         if desktop is not None:

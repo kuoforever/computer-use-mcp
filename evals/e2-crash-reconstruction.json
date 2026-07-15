@@ -37,7 +37,7 @@
       ],
       "context": {"pending_effect": "side_effect"},
       "runtime_calls": [],
-      "expected": ["start_new_run", "PENDING_SIDE_EFFECT", "FAILED"]
+      "expected": ["finalize_blocked", "RECOVERED_ACTION_REQUESTED", "FAILED"]
     },
     {
       "id": "e2_resume_provider_completed_final",
