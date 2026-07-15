@@ -3,8 +3,8 @@
 > **Status: non-executable contract and private persistence implemented.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
-> a one-shot provider-neutral PlannerPort contract, and an isolated OpenAI
-> Responses adapter are implemented. No runtime command asks a provider for or
+> a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
+> Claude adapters are implemented. No runtime command asks a provider for or
 > executes a plan.
 
 ## Boundary
@@ -14,7 +14,7 @@ A plan is untrusted declarative data, not an authorization capability:
 ~~~text
 bounded task + exact host-scoped non-sensitive schemas
   -> one-shot PlannerPort with no retry/fallback or execution methods
-  -> optional OpenAI Structured Outputs request with no tools or continuation
+  -> optional OpenAI/Claude Structured Outputs request with no tools or continuation
   -> untrusted planner candidate
   -> exact JSON shape and byte/count bounds
   -> explicit host-scoped reviewed tools
@@ -97,7 +97,7 @@ atomically replacing the file. A stale or failed write leaves the previous
 snapshot unchanged. The store imports no provider, policy, approval, MCP, or
 desktop port.
 
-The isolated OpenAI adapter can only produce the already bounded candidate
+The isolated provider adapters can only produce the already bounded candidate
 format. Executor consumption remains a later, independent review and must
 reconstruct fresh call identity and pass every existing policy, grounding, budget, approval, MCP,
 write-ahead, and verification boundary.
@@ -120,8 +120,8 @@ through `compile_task_plan`, where IDs and effect/approval metadata are still
 host-derived.
 
 The current implementation includes the provider-neutral port, a deterministic
-fake, and an isolated `OpenAIPlanner`. The adapter makes exactly one Responses
-API request using strict `text.format` Structured Outputs. It sends no
+fake, and isolated `OpenAIPlanner` and `AnthropicPlanner` adapters. OpenAI makes
+exactly one Responses API request using strict `text.format` Structured Outputs. It sends no
 function tools, `previous_response_id`, replay history, or reasoning include;
 sets `store=false`; has complete canonical request-byte and conservative token
 preflight gates; and never retries or falls back. Incomplete responses,
@@ -130,10 +130,19 @@ excessive bytes, and tools outside the request scope fail through fixed errors.
 At most 64 output items are accepted; known `reasoning` items may accompany the
 single assistant message but are ignored and never retained or compiled.
 
-The strict provider wire schema carries tool arguments as JSON text because
+Claude makes exactly one Messages request using GA
+[`output_config.format`](https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
+It
+sends no tools, tool choice, history, thinking, continuation, or metadata and
+never retries or falls back. Only one `end_turn` text block is accepted;
+`refusal`, `max_tokens`, tool use, missing/extra content, malformed envelopes,
+excessive bytes, and tools outside scope fail through fixed errors. The
+`agent-anthropic` extra requires SDK 0.77 or newer for this GA request shape.
+
+The shared strict provider wire schema carries tool arguments as JSON text because
 the host schemas contain optional and mutually exclusive fields. The adapter
 losslessly decodes that text into the ordinary candidate shape, then the
 existing compiler alone enforces the exact reviewed tool-argument schema.
-Historical function calls never exist on this adapter path. It is not connected
-to CLI, Runner, PlanStore, policy, approval, MCP, or Executor. A Claude Planner
-adapter and the bounded Executor remain separate reviews.
+Historical function/tool calls never exist on these adapter paths. Neither is
+connected to CLI, Runner, PlanStore, policy, approval, MCP, or Executor. The
+bounded Executor remains a separate review.
