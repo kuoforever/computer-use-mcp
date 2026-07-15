@@ -118,9 +118,13 @@ Messages request using GA `output_config.format`, with no tools, history,
 thinking, retry, or fallback. It rejects refusal, token truncation, tool-use,
 extra content, malformed output, and scope drift. Both adapters share the
 bounded `planner_wire.py` envelope converter before the existing exact host
-compiler. Compiling, storing, or
-locally transitioning a plan performs no policy, approval, MCP, or desktop call and
-grants no tool authority. No CLI, Runner, PlanStore, or Executor path consumes
+compiler. Compiling, storing, or locally transitioning a plan performs no
+policy, approval, MCP, or desktop call and grants no tool authority.
+`executor.py` adds a pure first-step preflight only: it rechecks the exact
+persisted sequence and plan digest, current run/task/registry bindings, ordered
+pending status, and fresh call identity, then reconstructs a `requested`
+`ToolCall`. It does not mutate the plan or enter policy, grounding, budget,
+approval, write-ahead, MCP, or verification code. No CLI or Runner path consumes
 Planner output yet; see [Task planning](PLANNING.md).
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
@@ -282,6 +286,7 @@ contract. It contains no provider SDK, desktop library, or MCP-server import.
 | `PolicyDecision` / `ApprovalRequest` | Auditable local-human approval boundary bound to host request ID, `CallIdentity`, and call digest. Approval exposes no raw `ToolCall`. |
 | `MCPToolDescriptor` | Normalized local-child discovery name and input schema used for exact startup verification. |
 | `TaskPlan` / `PlanStep` | Immutable, digest-bound, non-executable planning data. Provider candidates cannot supply IDs, statuses, effects, approval flags, or dispatch authority. |
+| `PreparedPlanToolCall` | Pure preflight output binding one exact pending plan snapshot to a fresh `requested` call. It is not authorized and cannot be dispatched without every ordinary host boundary. |
 
 The ports are deliberately narrow:
 
@@ -472,7 +477,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
 | Planner output remains untrusted data | The one-shot port receives only a bounded task and exact host-scoped non-sensitive schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry, persistence, ToolCall, policy, approval, or MCP path. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling | implemented provider-neutral port and offline fake-client dual-provider adapter tests; runtime not connected |
+| Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 
-The remaining work adds a bounded Executor, broader post-provider resumable state, semantic
+The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
 slice is experimental and must not be presented as the complete safety MVP.

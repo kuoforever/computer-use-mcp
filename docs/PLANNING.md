@@ -1,6 +1,7 @@
 # Task planning contract
 
-> **Status: non-executable contract and private persistence implemented.**
+> **Status: non-executable contract, private persistence, and pure Executor
+> preflight implemented.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
 > a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
@@ -98,9 +99,37 @@ snapshot unchanged. The store imports no provider, policy, approval, MCP, or
 desktop port.
 
 The isolated provider adapters can only produce the already bounded candidate
-format. Executor consumption remains a later, independent review and must
-reconstruct fresh call identity and pass every existing policy, grounding, budget, approval, MCP,
-write-ahead, and verification boundary.
+format. The first Executor increment is a pure preflight compiler; runtime
+consumption remains a later, independent review and must pass every existing
+policy, grounding, budget, approval, MCP, write-ahead, and verification boundary.
+
+## Pure Executor step preflight
+
+`executor.py` accepts one already validated `PersistedTaskPlan`, the current
+in-memory `RunState`, the caller's exact expected snapshot sequence and plan
+digest, and new host-scoped turn/call identifiers. It then fails closed unless:
+
+- run ID, exact task digest, and current reviewed registry digest match;
+- sequence and plan digest match the caller's snapshot expectation;
+- the first non-completed step is still `pending` and is a tool step;
+- the registry still validates the tool arguments and host-derived metadata;
+- the reconstructed `CallIdentity` does not already occur in the run ledger.
+
+Success returns `PreparedPlanToolCall` containing only a newly reconstructed
+`ToolCall` in `requested` state plus its source plan/step/snapshot binding. The
+preflight has no external ports. It does not transition the plan, consume a
+budget, authorize the call, write an intent, request approval, dispatch MCP, or
+verify an outcome. Exhausted budgets can therefore still compile a requested
+call: the ordinary host budget boundary remains mandatory and authoritative.
+Started steps are rejected rather than replayed, and `final_response` remains
+non-executable because the plan contains no trusted response text.
+
+The next Executor increment must keep the application `RunLock`, reread the
+snapshot with compare-and-swap expectations, and route the fresh requested call
+through the ordinary Runner boundaries. Plan transitions may record outcomes,
+but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
+replace policy, grounding, budget, approval, write-ahead, MCP, or mandatory
+post-action observation.
 
 ## One-shot Planner port
 
