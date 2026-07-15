@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from time import perf_counter_ns
 
-from .continuation import RuntimeContinuationRecorder
+from .continuation import RuntimeContinuationRecorder, read_continuation
 from .executor import BoundedExecutorSession, ExecutorSessionError
 from .executor_final import (
     ExecutorFinalError,
@@ -294,7 +294,18 @@ class RuntimeExecutorSession:
         )
         intent_written = False
         try:
-            prepared = final_store.create(request, step_id=final_step.step_id)
+            source_continuation = read_continuation(
+                self.runner.config.state_dir, self.state.run_id
+            )
+            continuation_digest = source_continuation.payload.get("payload_digest")
+            if not isinstance(continuation_digest, str):
+                raise ExecutorRuntimeError("EXECUTOR_FINAL_EVIDENCE_INVALID")
+            prepared = final_store.create(
+                request,
+                step_id=final_step.step_id,
+                checkpoint_sequence=self.recorder.checkpoint_sequence,
+                continuation_digest=continuation_digest,
+            )
             running = self.store.transition(
                 self.state.run_id,
                 final_step.step_id,
@@ -310,9 +321,13 @@ class RuntimeExecutorSession:
             intent_written = True
             provider_started_ns = perf_counter_ns()
             result = await port.create_final_response(request)
+            provider_latency_ms = max(
+                0, (perf_counter_ns() - provider_started_ns) // 1_000_000
+            )
             completed = final_store.complete(
                 self.state.run_id,
                 result,
+                provider_latency_ms=provider_latency_ms,
                 expected_sequence=intent.sequence,
                 expected_digest=intent.envelope_digest,
             )
@@ -329,9 +344,7 @@ class RuntimeExecutorSession:
             self.state = self.runner._consume_model_turn(
                 self.state,
                 turn,
-                latency_ms=max(
-                    0, (perf_counter_ns() - provider_started_ns) // 1_000_000
-                ),
+                latency_ms=provider_latency_ms,
             )
             finished = self.store.transition(
                 self.state.run_id,

@@ -22,6 +22,9 @@ from computer_use_agent.executor_runtime import (
 )
 from computer_use_agent import executor_runtime as executor_runtime_module
 from computer_use_agent.executor_final import FinalResponseRequest, FinalResponseResult
+from computer_use_agent.executor_final_reconciliation import (
+    compile_final_response_reconciliation,
+)
 from computer_use_agent.executor_final_store import (
     FinalResponseStage,
     FinalResponseStore,
@@ -503,6 +506,26 @@ def test_runtime_final_plan_commit_failure_preserves_completed_result(
     assert wal.stage is FinalResponseStage.COMPLETED
     assert wal.result is not None
     assert wal.result.text == "Completed but not terminalized"
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        plan = TaskPlanStore(config.state_dir, lock).read("run_1")
+        final_snapshot = FinalResponseStore(config.state_dir, lock).read("run_1")
+        prepared = compile_final_response_reconciliation(
+            plan,
+            final_snapshot,
+            read_continuation(config.state_dir, "run_1"),
+            read_run_record(config.state_dir, "run_1"),
+            task=TASK,
+            expected_plan_sequence=plan.sequence,
+            expected_plan_digest=plan.plan.digest,
+            expected_final_sequence=final_snapshot.sequence,
+            expected_final_digest=final_snapshot.envelope_digest,
+        )
+    finally:
+        lock.release()
+    assert prepared.terminal_event_already_recorded
+    assert prepared.terminal_state.budgets.model_turns_used == 1
 
 
 def test_runtime_final_preflight_before_observations_is_inert(

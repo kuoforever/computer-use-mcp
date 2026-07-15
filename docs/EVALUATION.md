@@ -187,7 +187,8 @@ Dedicated final-response WAL tests add E0 persistence evidence for strict
 private round-trip, correlated response identity/usage, safe representations,
 owner-lock requirements, non-replacement, exact sequence/digest CAS, legal
 prepared/intent/completed ordering, atomic unchanged-state failure, corruption,
-and identity drift. The store is structurally separate from ordinary provider
+identity drift, exact source plan/checkpoint/continuation binding, provider
+latency, and fail-closed rejection of legacy version 1. The store is structurally separate from ordinary provider
 continuation and has no provider or recovery executor. This does not yet prove
 runtime provider ordering, budget consumption, final-step CAS, terminal trace,
 or crash reconciliation by themselves.
@@ -204,7 +205,20 @@ retries. An injected final plan-write failure retains the completed sensitive
 result for later local reconciliation without publishing it or replaying the
 provider call. Calling final response before observations is inert. Ordinary
 provider, approval, and MCP paths receive no new calls. This is not E3/E4,
-completed-WAL reconciliation, CLI, or side-effect evidence.
+reconciliation application, CLI, or side-effect evidence.
+
+Completed final-response reconciliation adds E0 preflight evidence without
+changing the frozen 13-case manifest. Tests reconstruct both the pre-terminal
+crash shape and the fixed `FAILED/EXECUTOR_FINAL_UNCERTAIN` shape, recompile the
+exact original request, validate source plan/checkpoint/continuation and safe
+trace evidence, and recognize an already-completed plan CAS. Byte-for-byte
+checks prove no plan, final WAL, continuation, trace, or checkpoint mutation;
+structural checks freeze the absence of provider, MCP, recovery-executor, and
+store-writer ports. A runtime integration test feeds the actual injected
+final-plan-CAS failure artifacts into the compiler. Request, task,
+continuation, trace, stage, sequence, or digest drift fails closed. This does
+not prove terminal CAS/cleanup application, CLI resume, provider replay, E3/E4,
+or side-effect authority.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable

@@ -184,8 +184,10 @@ never repeats the call to repair bookkeeping.
 
 The runtime module contains no direct `desktop.call_tool` site and cannot bypass
 the Runner boundary. It rejects side effects before a plan transition, requires
-an explicit cancellation for a remaining untouched step, never calls a model,
-never treats `final_response` as trusted text, and never resumes implicitly.
+an explicit cancellation for a remaining untouched step, and never treats
+`final_response` as trusted or authoritative text. Its only model-capable path
+is the separately injected, one-shot, tool-free final-response port described
+below; it never resumes provider or plan execution implicitly.
 
 ## Completed-observation reconciliation
 
@@ -209,10 +211,11 @@ continuation, or expose a CLI resume command.
 ## Tool-free final-response request contract
 
 `executor_final.py` adds a pure local compiler for the next boundary; it does
-not call either existing provider adapter. The current adapters' first request
-contains only the task, so connecting them directly after plan observations
-would omit the observation results. The new `FinalResponsePort` therefore has
-one separate tool-free method whose implementation remains future work.
+not call either existing provider adapter. The ordinary provider adapters'
+first request contains only the task, so connecting them directly after plan
+observations would omit the observation results. `FinalResponsePort` therefore
+defines one separate tool-free method, implemented by the isolated adapters
+below and injected explicitly into the internal runtime.
 
 Compilation requires an exact snapshot with one to four successfully completed
 observation steps followed by the still-pending `final_response`. Run, task,
@@ -264,10 +267,13 @@ normal continuation provider operation, so the existing recovery executor
 cannot mistake a plan final response for a resumable provider/tool turn. The
 strict digest-bound state machine is only `prepared -> dispatch_intent ->
 completed`; every change uses sequence plus envelope-digest CAS and atomic
-owner-only replacement. The request/plan/step/turn bindings are retained in
-all stages, while sensitive final text and usage exist only after a correlated
-completion. `PreparedRun.final_response_store()` exposes the store only while
-the run lock remains live.
+owner-only replacement. Store version 2 retains the request/plan/step/turn
+bindings, source plan sequence/digest, source checkpoint sequence, exact
+ordinary-continuation payload digest, and provider latency needed to reconstruct
+the host terminal state. Sensitive final text and usage exist only after a
+correlated completion. Version 1 artifacts lack that evidence and are rejected
+rather than migrated or inferred. `PreparedRun.final_response_store()` exposes
+the store only while the run lock remains live.
 
 The WAL imports no adapter, policy, approval, MCP, trace, plan transition, or
 recovery executor. Reading `completed` does not complete the plan, consume a
@@ -300,13 +306,33 @@ available for its required observation. Any failure during preparation closes
 without provider I/O. Any cancellation, provider failure, invalid result, or
 local failure after intent preserves the dedicated WAL and ordinary
 continuation, keeps the final step `in_progress`, closes all live authority,
-and never retries. A completed WAL therefore remains sufficient evidence for a
-future local-only reconciliation, but this increment does not infer budget,
-plan, or trace completion from it and exposes no resume or CLI path.
+and never retries. A completed WAL therefore preserves the result needed by the
+explicit local-only reconciliation preflight below; the runtime itself never
+retries or infers missing state and exposes no resume or CLI path.
 
-The next Executor increment should add exact local reconciliation for the
-crash windows after a completed final-response WAL and before budget/plan/trace
-terminalization, before any CLI wiring. Any side-effect
+## Completed final-response reconciliation preflight
+
+`executor_final_reconciliation.py` is a pure, non-writing compiler for the
+crash windows after correlated final-response completion. It accepts only
+caller-pinned plan and final-WAL sequences/digests, revalidates the ordinary
+continuation payload and its exact checkpoint binding, reconstructs the
+lossless observation ledger and safe trace/checkpoint, and recompiles the exact
+original `FinalResponseRequest`. The final WAL must be `completed`; prepared or
+dispatch-intent state remains uncertain and non-replayable.
+
+On exact evidence it returns a bounded reconciliation value containing the
+canonical terminal `RunState`, provider usage/latency, source CAS bindings, and
+whether the final plan CAS or terminal model-turn record is already present. It
+accepts only the two observed local crash shapes: before terminal bookkeeping,
+or the runtime's fixed `FAILED/EXECUTOR_FINAL_UNCERTAIN` checkpoint after the
+terminal event was recorded but a later plan CAS failed. It performs no plan,
+trace, continuation, or final-WAL write and cannot publish text, call a provider,
+dispatch MCP, enter approval/policy, or invoke the recovery executor. All
+persisted inputs remain non-authorizing evidence.
+
+The next Executor increment should apply this prepared value with separately
+reviewed, idempotent sequence/digest CAS ordering and terminal cleanup before
+any CLI wiring. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
