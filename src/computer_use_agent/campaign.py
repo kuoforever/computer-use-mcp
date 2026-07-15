@@ -21,11 +21,12 @@ from typing import Mapping, Sequence
 from .run_lock import RunLock
 
 
-CAMPAIGN_VERSION = 1
+CAMPAIGN_VERSION = 2
 MAX_CAMPAIGN_MANIFEST_BYTES = 16 * 1024
 MAX_CAMPAIGN_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_BATCH_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_ITEMS = 10_000
+MAX_ITEM_LEASE_SECONDS = 60 * 60
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _ITEM_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\Z")
 _KIND = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
@@ -135,9 +136,11 @@ def _require_timestamp(value: object) -> str:
     if not isinstance(value, str) or not value or len(value) > 64:
         raise CampaignStoreError("CAMPAIGN_INVALID")
     try:
-        datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError as exc:
         raise CampaignStoreError("CAMPAIGN_INVALID") from exc
+    if parsed.tzinfo is None:
+        raise CampaignStoreError("CAMPAIGN_INVALID")
     return value
 
 
@@ -223,6 +226,7 @@ class ItemTransition:
     attempt: int
     at: str
     run_id: str | None = None
+    lease_expires_at: str | None = None
     boundary: str | None = None
     code: str | None = None
     content_digest: str | None = None
@@ -237,6 +241,8 @@ class ItemTransition:
         _require_timestamp(self.at)
         if self.run_id is not None:
             _require_identifier(self.run_id)
+        if self.lease_expires_at is not None:
+            _require_timestamp(self.lease_expires_at)
         if self.boundary is not None and (
             not isinstance(self.boundary, str) or _IDENTIFIER.fullmatch(self.boundary) is None
         ):
@@ -250,10 +256,24 @@ class ItemTransition:
         if self.status is ItemStatus.DISCOVERED:
             if any(
                 value is not None
-                for value in (self.run_id, self.boundary, self.code, self.content_digest)
+                for value in (
+                    self.run_id,
+                    self.lease_expires_at,
+                    self.boundary,
+                    self.code,
+                    self.content_digest,
+                )
             ) or self.attempt != 0:
                 raise CampaignStoreError("CAMPAIGN_INVALID")
         elif self.run_id is None or self.boundary is None:
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+        if self.status is ItemStatus.CLAIMED:
+            if self.lease_expires_at is None:
+                raise CampaignStoreError("CAMPAIGN_INVALID")
+            lease_duration = datetime.fromisoformat(self.lease_expires_at) - datetime.fromisoformat(self.at)
+            if lease_duration.total_seconds() <= 0 or lease_duration.total_seconds() > MAX_ITEM_LEASE_SECONDS:
+                raise CampaignStoreError("CAMPAIGN_INVALID")
+        elif self.lease_expires_at is not None:
             raise CampaignStoreError("CAMPAIGN_INVALID")
         if self.status is ItemStatus.COMMITTED:
             if self.content_digest is None or self.code is None:
@@ -270,6 +290,7 @@ class ItemTransition:
             "attempt": self.attempt,
             "at": self.at,
             "run_id": self.run_id,
+            "lease_expires_at": self.lease_expires_at,
             "boundary": self.boundary,
             "code": self.code,
             "content_digest": self.content_digest,
@@ -464,6 +485,7 @@ def _decode_transition(value: object) -> ItemTransition:
         "attempt",
         "at",
         "run_id",
+        "lease_expires_at",
         "boundary",
         "code",
         "content_digest",
@@ -479,6 +501,7 @@ def _decode_transition(value: object) -> ItemTransition:
             attempt=value.get("attempt"),
             at=value.get("at"),
             run_id=value.get("run_id"),
+            lease_expires_at=value.get("lease_expires_at"),
             boundary=value.get("boundary"),
             code=value.get("code"),
             content_digest=value.get("content_digest"),
@@ -632,6 +655,7 @@ class CampaignStore:
             attempt=transition.attempt,
             at=transition.at,
             run_id=transition.run_id,
+            lease_expires_at=transition.lease_expires_at,
             boundary=transition.boundary,
             code=transition.code,
             content_digest=transition.content_digest,
@@ -720,6 +744,7 @@ __all__ = [
     "CAMPAIGN_VERSION",
     "MAX_CAMPAIGN_BATCH_LEDGER_BYTES",
     "MAX_CAMPAIGN_ITEMS",
+    "MAX_ITEM_LEASE_SECONDS",
     "BatchProjection",
     "BatchStatus",
     "BatchTransition",

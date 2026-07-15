@@ -19,6 +19,8 @@ def _transition(
     kwargs: dict[str, object] = {}
     if status is not ItemStatus.DISCOVERED:
         kwargs = {"run_id": "run_1", "boundary": "observed", "code": "RETRY"}
+    if status is ItemStatus.CLAIMED:
+        kwargs["lease_expires_at"] = "2026-07-15T00:10:00+00:00"
     return ItemTransition(
         sequence=sequence,
         ordinal=ordinal,

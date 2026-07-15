@@ -39,10 +39,14 @@ def _transition(
     item_key: str = "boss:job_1",
     attempt: int = 0,
     run_id: str | None = None,
+    lease_expires_at: str | None = None,
+    use_default_lease: bool = True,
     boundary: str | None = None,
     code: str | None = None,
     content_digest: str | None = None,
 ) -> ItemTransition:
+    if status is ItemStatus.CLAIMED and lease_expires_at is None and use_default_lease:
+        lease_expires_at = "2026-07-15T00:10:00+00:00"
     return ItemTransition(
         sequence=999,
         ordinal=ordinal,
@@ -51,6 +55,7 @@ def _transition(
         attempt=attempt,
         at="2026-07-15T00:00:00+00:00",
         run_id=run_id,
+        lease_expires_at=lease_expires_at,
         boundary=boundary,
         code=code,
         content_digest=content_digest,
@@ -141,7 +146,6 @@ def test_campaign_reducer_rejects_duplicate_discovery_illegal_transition_and_att
                 ),
             )
         )
-
     with pytest.raises(CampaignStoreError, match="CAMPAIGN_LEDGER_INVALID"):
         reduce_item_ledger(
             (
@@ -153,6 +157,22 @@ def test_campaign_reducer_rejects_duplicate_discovery_illegal_transition_and_att
                     boundary="claim",
                 ),
             )
+        )
+
+
+@pytest.mark.parametrize(
+    "lease_expires_at",
+    [None, "2026-07-15T00:00:00+00:00", "2026-07-15T02:00:00+00:00"],
+)
+def test_claim_requires_a_bounded_future_lease(lease_expires_at: str | None) -> None:
+    with pytest.raises(CampaignStoreError, match="CAMPAIGN_INVALID"):
+        _transition(
+            ItemStatus.CLAIMED,
+            attempt=1,
+            run_id="run_1",
+            boundary="claim",
+            lease_expires_at=lease_expires_at,
+            use_default_lease=False,
         )
 
 
