@@ -3,8 +3,9 @@
 > **Status: non-executable contract and private persistence implemented.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
-> a one-shot provider-neutral PlannerPort contract are implemented. No live
-> Planner adapter or runtime command asks a provider for or executes a plan.
+> a one-shot provider-neutral PlannerPort contract, and an isolated OpenAI
+> Responses adapter are implemented. No runtime command asks a provider for or
+> executes a plan.
 
 ## Boundary
 
@@ -13,6 +14,7 @@ A plan is untrusted declarative data, not an authorization capability:
 ~~~text
 bounded task + exact host-scoped non-sensitive schemas
   -> one-shot PlannerPort with no retry/fallback or execution methods
+  -> optional OpenAI Structured Outputs request with no tools or continuation
   -> untrusted planner candidate
   -> exact JSON shape and byte/count bounds
   -> explicit host-scoped reviewed tools
@@ -95,10 +97,9 @@ atomically replacing the file. A stale or failed write leaves the previous
 snapshot unchanged. The store imports no provider, policy, approval, MCP, or
 desktop port.
 
-The next milestone may introduce a separately reviewed concrete Planner
-provider adapter that can only produce the already bounded candidate format. Executor
-consumption remains a later, independent review and must reconstruct fresh call
-identity and pass every existing policy, grounding, budget, approval, MCP,
+The isolated OpenAI adapter can only produce the already bounded candidate
+format. Executor consumption remains a later, independent review and must
+reconstruct fresh call identity and pass every existing policy, grounding, budget, approval, MCP,
 write-ahead, and verification boundary.
 
 ## One-shot Planner port
@@ -118,8 +119,21 @@ fixed and never retried or routed to another provider. Successful output goes
 through `compile_task_plan`, where IDs and effect/approval metadata are still
 host-derived.
 
-The current implementation includes only the provider-neutral port and a
-deterministic fake. It does not include OpenAI/Claude Planner adapters and does
-not connect to CLI, Runner, PlanStore, policy, approval, MCP, or Executor. The
-next milestone can add one concrete Planner adapter with its own complete
-request byte/token gates; the bounded Executor remains a separate review.
+The current implementation includes the provider-neutral port, a deterministic
+fake, and an isolated `OpenAIPlanner`. The adapter makes exactly one Responses
+API request using strict `text.format` Structured Outputs. It sends no
+function tools, `previous_response_id`, replay history, or reasoning include;
+sets `store=false`; has complete canonical request-byte and conservative token
+preflight gates; and never retries or falls back. Incomplete responses,
+refusals, unexpected or ambiguous output/content items, malformed envelopes,
+excessive bytes, and tools outside the request scope fail through fixed errors.
+At most 64 output items are accepted; known `reasoning` items may accompany the
+single assistant message but are ignored and never retained or compiled.
+
+The strict provider wire schema carries tool arguments as JSON text because
+the host schemas contain optional and mutually exclusive fields. The adapter
+losslessly decodes that text into the ordinary candidate shape, then the
+existing compiler alone enforces the exact reviewed tool-argument schema.
+Historical function calls never exist on this adapter path. It is not connected
+to CLI, Runner, PlanStore, policy, approval, MCP, or Executor. A Claude Planner
+adapter and the bounded Executor remain separate reviews.
