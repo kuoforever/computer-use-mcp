@@ -112,6 +112,13 @@ digest verification, RunLock ownership, monotonic sequence plus plan-digest
 compare-and-swap behavior, atomic replacement failure, and rejection of stale
 or illegal transitions. No Planner or Executor is connected, so this milestone
 does not add workflow trace cases, provider calls, MCP calls, or safety escapes.
+The provider-neutral PlannerPort is another E0-only contract. Its fake freezes
+the exact one-call request scope, immutable schemas, request byte/version/digest
+bounds, successful compilation, fixed provider failure, and rejection of
+out-of-scope, authority-bearing, oversized, malformed, or invalid-UTF-8 output
+without retry. No live provider adapter, persistence connection, policy,
+approval, ToolCall, MCP dispatch, or Executor exists, so frozen workflow E1/E2
+cases remain unchanged.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable
