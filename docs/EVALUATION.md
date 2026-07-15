@@ -120,7 +120,10 @@ without retry. Offline fake-client tests for the isolated OpenAI Planner freeze
 the exact stateless tool-free Structured Outputs wire request, `store=false`,
 byte/token failure before provider I/O, one-call failure behavior, refusal and
 ambiguous-output rejection, scope checks, and final host compiler validation of
-tool arguments. The adapter has no runtime, persistence, policy, approval,
+tool arguments. Matching Claude Planner tests freeze the GA
+`output_config.format` request, absence of tools/history/thinking, refusal and
+token-truncation rejection, tool-use/extra-content rejection, complete
+preflight, and the same shared wire/compiler boundary. The adapters have no runtime, persistence, policy, approval,
 ToolCall, MCP dispatch, or Executor connection, so frozen workflow E1/E2 cases
 remain unchanged and no credentialed E3/E4 is run.
 Report schema v5 records the UTC generation time; Python version and

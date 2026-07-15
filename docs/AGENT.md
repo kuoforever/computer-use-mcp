@@ -112,7 +112,13 @@ same compiler. Planner failures are fixed, never retried, and never fall back.
 Responses API Structured Outputs request. It advertises no function tools,
 continuation, replay history, or reasoning payload; sets `store=false`; applies
 complete byte/token preflight before I/O; and rejects refusals, incomplete or
-ambiguous output, malformed arguments, and scope drift. Compiling, storing, or
+ambiguous output, malformed arguments, and scope drift.
+`providers/anthropic_planner.py` provides the same boundary through one Claude
+Messages request using GA `output_config.format`, with no tools, history,
+thinking, retry, or fallback. It rejects refusal, token truncation, tool-use,
+extra content, malformed output, and scope drift. Both adapters share the
+bounded `planner_wire.py` envelope converter before the existing exact host
+compiler. Compiling, storing, or
 locally transitioning a plan performs no policy, approval, MCP, or desktop call and
 grants no tool authority. No CLI, Runner, PlanStore, or Executor path consumes
 Planner output yet; see [Task planning](PLANNING.md).
@@ -465,9 +471,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
-| Planner output remains untrusted data | The one-shot port receives only a bounded task and exact host-scoped non-sensitive schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry, persistence, ToolCall, policy, approval, or MCP path. The isolated OpenAI adapter uses one tool-free stateless Structured Outputs request with complete byte/token preflight and strict refusal/output-shape handling | implemented provider-neutral port and offline fake-client OpenAI adapter tests; runtime not connected |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and exact host-scoped non-sensitive schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry, persistence, ToolCall, policy, approval, or MCP path. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling | implemented provider-neutral port and offline fake-client dual-provider adapter tests; runtime not connected |
 
-The remaining work adds a separately reviewed Claude Planner adapter and a
-bounded Executor, broader post-provider resumable state, semantic
+The remaining work adds a bounded Executor, broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
 slice is experimental and must not be presented as the complete safety MVP.
