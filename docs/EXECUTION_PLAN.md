@@ -35,11 +35,12 @@ batches, and deterministic handoff described in
 saved-job review across multiple provider contexts and at least one forced
 restart. Conversation history must not be required for continuation.
 
-The initial private control-state foundation is implemented: strict campaign
-manifest validation, a RunLock-bound append-only item-transition reducer,
-atomic persistence, and a fixed handoff projection. It has no batch runner,
-CLI command, provider, MCP, or desktop connection. Bounded batches and
-deterministic cross-session execution remain the next step.
+The initial private control-state and planning foundations are implemented:
+strict campaign manifest validation, a RunLock-bound append-only
+item-transition reducer, atomic persistence, a fixed handoff projection, and a
+pure batch policy/selector with deterministic limit reasons. It has no batch
+runner, CLI command, provider, MCP, or desktop connection. Durable batch
+records and deterministic cross-session execution remain the next step.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
