@@ -172,8 +172,9 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - E2 prompt-injection-induced typing with redacted trace metadata;
 - E2 write-ahead crash reconstruction across 15 durable boundaries, with exact
   classification/final-phase assertions, zero-I/O final-provider
-  terminalization, and frozen zero automatic resume, zero unauthorized external
-  calls, and zero safety escapes;
+  terminalization, fixed local failure for recovered action requests, and
+  frozen zero automatic resume, zero unauthorized external calls, and zero
+  safety escapes;
 - E2 explicit OpenAI stateless replay with exact text and screenshot wire
   order, plus unknown, missing, mismatched, reordered, side-effecting,
   over-budget, and provider-failure cases. Every preflight rejection freezes

@@ -759,7 +759,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
             "--max-steps",
             "4",
         ]
-    ) == 0
+    ) == int(provider_requests_action)
 
     raw = capsys.readouterr().out
     output = json.loads(raw)
@@ -769,21 +769,22 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
         "dispatch_observation",
         "continue_provider",
     ]
-    assert output["checkpoint_sequence"] == (7 if provider_requests_action else 8)
+    assert output["checkpoint_sequence"] == 8
     assert output["next_step"] == "stop"
     assert output["tool_call_count"] == int(provider_requests_action)
+    if provider_requests_action:
+        assert output["reason"] == "RECOVERED_ACTION_REQUESTED"
+        assert output["failure_code"] == "RECOVERED_ACTION_REQUESTED"
     assert [call.name for call in desktop.tool_calls] == ["list_windows"]
     assert len(provider.calls) == 1
     assert desktop.close_calls == 1
     checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
     assert checkpoint["phase"] == (
-        RunPhase.PLANNING.value
+        RunPhase.FAILED.value
         if provider_requests_action
         else RunPhase.SUCCESS.value
     )
-    assert continuation_path(config.state_dir, state.run_id).exists() is bool(
-        provider_requests_action
-    )
+    assert continuation_path(config.state_dir, state.run_id).exists() is False
 
 
 def test_report_cli_is_read_only_for_empty_state(

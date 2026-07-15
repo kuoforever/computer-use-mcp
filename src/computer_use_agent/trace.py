@@ -627,6 +627,46 @@ def finalize_recovery_success(
     return to_json_value(updated)
 
 
+def finalize_recovery_blocked_action(
+    state_dir: Path,
+    run_id: str,
+    *,
+    expected_sequence: int,
+) -> dict[str, JSONValue]:
+    """Close one validated recovered action request without dispatching it."""
+
+    if (
+        isinstance(expected_sequence, bool)
+        or not isinstance(expected_sequence, int)
+        or expected_sequence < 1
+    ):
+        raise ValueError("invalid blocked recovery sequence")
+    checkpoint = read_run_checkpoint(state_dir, run_id)
+    if checkpoint.get("checkpoint_sequence") != expected_sequence:
+        raise TraceError("RECOVERY_CHECKPOINT_SEQUENCE_MISMATCH")
+    try:
+        current_phase = RunPhase(checkpoint["phase"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TraceError("CHECKPOINT_READ_FAILED") from exc
+    if current_phase is not RunPhase.PLANNING:
+        raise TraceError("RECOVERY_BLOCKED_PHASE_INVALID")
+    validate_transition(current_phase, RunPhase.FAILED)
+    updated = dict(checkpoint)
+    updated.update(
+        checkpoint_sequence=expected_sequence + 1,
+        phase=RunPhase.FAILED.value,
+        recovery_status="stopped",
+        failure_code="RECOVERED_ACTION_REQUESTED",
+        resume_allowed=False,
+        recovery_action="inspect_trace_then_start_new_run",
+        updated_at=_now(),
+    )
+    updated.pop("final_text_length", None)
+    _atomic_json(RunRecorder(state_dir, run_id).checkpoint_path, updated)
+    delete_continuation(state_dir, run_id)
+    return to_json_value(updated)
+
+
 __all__ = [
     "RecoveryDecision",
     "RunPhase",
@@ -634,6 +674,7 @@ __all__ = [
     "advance_recovery_checkpoint",
     "cancel_run_record",
     "classify_run_recovery",
+    "finalize_recovery_blocked_action",
     "finalize_recovery_success",
     "TraceError",
     "read_run_checkpoint",
