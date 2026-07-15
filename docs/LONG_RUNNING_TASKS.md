@@ -1,8 +1,10 @@
 # Long-running task contract
 
-> **Status: planned orchestration contract.** This document defines the target
-> behavior for hour- or day-scale desktop work. The current Agent Host does not
-> yet implement the complete queue, heartbeat, or cross-session handoff model.
+> **Status: initial control-state foundation implemented; orchestration remains
+> planned.** The private campaign schema, append-only item ledger, reducer, and
+> fixed handoff projection are implemented without execution authority. The
+> current Agent Host does not yet implement a batch runner, heartbeat, CLI
+> command, or complete cross-session handoff model.
 
 ## Goal
 
@@ -276,7 +278,10 @@ takeover are durable transitions, not informal chat instructions.
 
 ## Delivery sequence
 
-1. Read-only campaign schema and item ledger.
+1. Read-only campaign schema and item ledger. **Initial private foundation
+   implemented:** strict manifest, durable append-only transition reducer,
+   RunLock-bound atomic writes, and fixed handoff projection; no batch runner,
+   provider, MCP, desktop, or CLI connection.
 2. Batch runner and deterministic handoff command.
 3. Heartbeat, pause, and stale-run inspection.
 4. BOSS read-only 100-item evaluation.
