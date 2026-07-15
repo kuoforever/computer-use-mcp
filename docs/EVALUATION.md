@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -57,6 +57,7 @@ provider credentials, a child process, or a desktop.
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
 | Claude returns a tool-use block | Normalize its name/input/ID, reject malformed or unadvertised calls and invalid stop reasons, then append the assistant block and adjacent matching user `tool_result`. |
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
+| A planner candidate contains unknown fields/tools, invalid arguments, sensitive tool input, excessive bytes/steps, reordered final response, or spoofed status/effect/approval metadata | Reject it before constructing a TaskPlan; call zero provider, policy, approval, MCP, or desktop ports. |
 | OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
