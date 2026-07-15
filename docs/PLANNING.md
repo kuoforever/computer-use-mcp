@@ -1,9 +1,9 @@
 # Task planning contract
 
-> **Status: non-executable contract implemented.** The current milestone adds
-> strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
-> candidate compiler, and pure ordered status transitions. No runtime command
-> asks a provider for a plan or executes a plan yet.
+> **Status: non-executable contract and private persistence implemented.**
+> Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
+> candidate compiler, pure ordered transitions, and atomic private snapshots
+> are implemented. No runtime command asks a provider for or executes a plan.
 
 ## Boundary
 
@@ -16,6 +16,8 @@ untrusted planner candidate
   -> reviewed argument schemas
   -> host-derived effect and approval metadata
   -> immutable digest-bound TaskPlan
+  -> private strict snapshot under the existing application RunLock
+  -> sequence + plan-digest compare-and-swap transition
   -> no provider, policy, approval, MCP, or desktop call
 ~~~
 
@@ -70,7 +72,28 @@ Completed steps must form an ordered prefix. At most one step may be active or
 terminal, and untouched later steps remain pending. `TaskPlan.status` is
 derived from step state; it is not accepted from a provider.
 
-These transitions are pure immutable replacements. They are not durable state
-machine commits. The next milestone must define private plan persistence and
-atomic sequence/digest validation before introducing a Planner provider port or
-Executor loop.
+These transitions are pure immutable replacements. They grant no execution
+authority by themselves.
+
+## Private atomic persistence
+
+`TaskPlanStore` persists one `task-plan.json` beneath the private run directory.
+The canonical envelope is capped at 128 KiB and contains only the plan contract,
+its current status, a monotonic sequence, and plan/envelope SHA-256 digests. It
+retains the task digest but never raw task text. Unknown fields, malformed
+types, unsupported versions, identity drift, registry drift, digest corruption,
+unsafe paths, oversized data, and illegal transitions fail closed.
+
+Every create, read, or transition requires the caller to hold the existing
+OS-backed application `RunLock`. Creation never replaces an existing plan.
+A transition rereads the validated snapshot and requires both the exact current
+sequence and plan digest before applying the pure ordered transition and
+atomically replacing the file. A stale or failed write leaves the previous
+snapshot unchanged. The store imports no provider, policy, approval, MCP, or
+desktop port.
+
+The next milestone may introduce a separately reviewed Planner provider port
+that can only produce the already bounded candidate format. Executor
+consumption remains a later, independent review and must reconstruct fresh call
+identity and pass every existing policy, grounding, budget, approval, MCP,
+write-ahead, and verification boundary.

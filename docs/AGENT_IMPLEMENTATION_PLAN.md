@@ -17,7 +17,7 @@ report rather than this audit because the suite changes with every milestone.
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
-| Task planning | Contract implemented; runtime not connected | `planning.py` provides a strict 64 KiB/16-step JSON compiler, immutable task/registry-digest-bound plans, reviewed tool/argument validation, sensitive-argument exclusion, host-derived approval metadata, and ordered pure transitions. It calls no external port and grants no authority. Plan persistence, Planner provider calls, and Executor consumption remain separate milestones. |
+| Task planning | Contract and private persistence implemented; runtime not connected | `planning.py` provides a strict 64 KiB/16-step JSON compiler, immutable task/registry-digest-bound plans, reviewed tool/argument validation, sensitive-argument exclusion, host-derived approval metadata, and ordered pure transitions. `plan_store.py` adds strict 128 KiB private snapshots with registry/plan/envelope digest verification and atomic sequence/plan-digest compare-and-swap transitions under the existing application RunLock. Neither module calls an external port or grants authority. Planner provider calls and Executor consumption remain separate milestones. |
 | Reviewed desktop tools | Implemented | All eight tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
@@ -94,6 +94,7 @@ src/computer_use_agent/
   config.py              # file and environment configuration; no stored keys
   types.py               # canonical provider-neutral data types and ports
   planning.py            # non-executable TaskPlan contract and candidate compiler
+  plan_store.py          # private atomic non-executable plan snapshots
   runner.py              # bounded observe -> act -> verify state machine
   policy.py              # action authorization, budgets, retries, and run lock
   approvals.py           # console/native approval port

@@ -97,13 +97,17 @@ the following commands:
   procedure records. Add requires confirmation and a future expiry; no memory
   is automatically extracted or injected into provider context.
 
-`src/computer_use_agent/planning.py` now defines a separate non-executable
-TaskPlan contract. Its strict JSON compiler accepts only host-scoped reviewed
-tools, derives effect and approval metadata from the registry, forbids
-sensitive arguments, binds task and registry digests, and assigns ordered step
-IDs. Compiling or locally transitioning a plan performs no provider, policy,
-approval, MCP, or desktop call and grants no tool authority. No CLI or Runner
-path consumes plans yet; see [Task planning](PLANNING.md).
+`src/computer_use_agent/planning.py` defines a separate non-executable TaskPlan
+contract. Its strict JSON compiler accepts only host-scoped reviewed tools,
+derives effect and approval metadata from the registry, forbids sensitive
+arguments, binds task and registry digests, and assigns ordered step IDs.
+`plan_store.py` adds strict bounded private snapshots beneath the run directory.
+Creating, reading, or transitioning them requires the existing application
+RunLock; transitions atomically replace state only after exact sequence and
+plan-digest comparison. Compiling, storing, or locally transitioning a plan
+performs no provider, policy, approval, MCP, or desktop call and grants no tool
+authority. No CLI or Runner path consumes plans yet; see
+[Task planning](PLANNING.md).
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
@@ -449,8 +453,9 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
+| Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
 
-The remaining work adds durable plan persistence, a separately reviewed Planner
-port and bounded Executor, broader post-provider resumable state, semantic
+The remaining work adds a separately reviewed Planner port and bounded
+Executor, broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
 slice is experimental and must not be presented as the complete safety MVP.

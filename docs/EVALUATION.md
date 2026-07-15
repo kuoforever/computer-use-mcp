@@ -106,6 +106,12 @@ requests and freeze the encrypted reasoning payload in the persisted output
 batch. Request-contract version 3 binds that include list; no fallback request
 may silently omit it.
 This does not add an E1/E2 case or change action authority.
+Task-plan persistence is likewise an E0-only storage contract. Offline tests
+freeze strict schema/size/path checks, task-text omission, registry/plan/envelope
+digest verification, RunLock ownership, monotonic sequence plus plan-digest
+compare-and-swap behavior, atomic replacement failure, and rejection of stale
+or illegal transitions. No Planner or Executor is connected, so this milestone
+does not add workflow trace cases, provider calls, MCP calls, or safety escapes.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable

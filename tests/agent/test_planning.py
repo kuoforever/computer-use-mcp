@@ -101,6 +101,7 @@ def test_compiler_rejects_sensitive_plan_arguments_without_echoing_them() -> Non
         "[]",
         json.dumps({"version": 1, "steps": [], "extra": True}),
         _candidate({"action": "final_response"}, version=True),
+        _candidate({"action": "final_response"}, version=1.0),
         _candidate({"action": "unknown"}),
         _candidate({"action": "final_response", "tool": "ui_snapshot"}),
         _candidate(
@@ -229,6 +230,23 @@ def test_illegal_skip_completion_and_terminal_reentry_are_rejected() -> None:
 
 
 def test_direct_contract_construction_rejects_registry_metadata_spoofing() -> None:
+    with pytest.raises(PlanValidationError, match="requires_approval"):
+        PlanStep(
+            step_id="step_1",
+            action=PlanStepAction.FINAL_RESPONSE,
+            requires_approval=0,  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(PlanValidationError, match="contract version"):
+        TaskPlan(
+            plan_id="plan_1",
+            run_id="run_1",
+            task_digest="0" * 64,
+            registry_digest=reviewed_registry_digest(),
+            steps=(PlanStep(step_id="step_1", action=PlanStepAction.FINAL_RESPONSE),),
+            contract_version=1.0,  # type: ignore[arg-type]
+        )
+
     with pytest.raises(PlanValidationError, match="metadata"):
         PlanStep(
             step_id="step_1",
