@@ -94,6 +94,11 @@ def test_compiler_rejects_sensitive_plan_arguments_without_echoing_them() -> Non
     assert "sensitive" in str(captured.value)
 
 
+def test_compiler_rejects_non_utf8_candidate_text_with_a_fixed_error() -> None:
+    with pytest.raises(PlanValidationError, match="valid UTF-8"):
+        _compile("\ud800")
+
+
 @pytest.mark.parametrize(
     "candidate",
     [

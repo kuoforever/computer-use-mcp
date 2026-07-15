@@ -6,6 +6,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Mapping, Sequence
 
+from .planner import PlannerRequest
 from .tool_registry import ToolSpec, reviewed_mcp_descriptors
 from .types import (
     ApprovalRequest,
@@ -24,6 +25,24 @@ from .types import (
 
 class UnexpectedFakeCall(RuntimeError):
     """Raised when a test invokes an unconfigured fake boundary."""
+
+
+@dataclass
+class FakePlanner:
+    """One-shot candidate fake with no provider continuation or execution port."""
+
+    name: str = "fake-planner"
+    candidates: deque[str | Exception] = field(default_factory=deque)
+    calls: list[PlannerRequest] = field(default_factory=list)
+
+    async def create_candidate(self, request: PlannerRequest) -> str:
+        self.calls.append(request)
+        if not self.candidates:
+            raise UnexpectedFakeCall("no fake plan candidate was configured")
+        candidate = self.candidates.popleft()
+        if isinstance(candidate, Exception):
+            raise candidate
+        return candidate
 
 
 def _initial_input(task: str, memories: Sequence[MemoryContextItem]) -> str:

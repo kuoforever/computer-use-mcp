@@ -2,15 +2,18 @@
 
 > **Status: non-executable contract and private persistence implemented.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
-> candidate compiler, pure ordered transitions, and atomic private snapshots
-> are implemented. No runtime command asks a provider for or executes a plan.
+> candidate compiler, pure ordered transitions, atomic private snapshots, and
+> a one-shot provider-neutral PlannerPort contract are implemented. No live
+> Planner adapter or runtime command asks a provider for or executes a plan.
 
 ## Boundary
 
 A plan is untrusted declarative data, not an authorization capability:
 
 ~~~text
-untrusted planner candidate
+bounded task + exact host-scoped non-sensitive schemas
+  -> one-shot PlannerPort with no retry/fallback or execution methods
+  -> untrusted planner candidate
   -> exact JSON shape and byte/count bounds
   -> explicit host-scoped reviewed tools
   -> reviewed argument schemas
@@ -92,8 +95,31 @@ atomically replacing the file. A stale or failed write leaves the previous
 snapshot unchanged. The store imports no provider, policy, approval, MCP, or
 desktop port.
 
-The next milestone may introduce a separately reviewed Planner provider port
-that can only produce the already bounded candidate format. Executor
+The next milestone may introduce a separately reviewed concrete Planner
+provider adapter that can only produce the already bounded candidate format. Executor
 consumption remains a later, independent review and must reconstruct fresh call
 identity and pass every existing policy, grounding, budget, approval, MCP,
 write-ahead, and verification boundary.
+
+## One-shot Planner port
+
+`PlannerRequest` is immutable, canonical-JSON bounded to 128 KiB, versioned,
+and digest-bound. It contains host-selected run/plan IDs, task text, the current
+registry digest, and only the exact names, descriptions, and input schemas of
+the explicit non-sensitive tool scope. It contains no ledger, memory,
+observation, approval/effect metadata, provider continuation, or execution
+state. The task is excluded from request `repr`.
+
+`PlannerPort.create_candidate()` is called exactly once. The result is only
+untrusted text: invalid JSON, unknown or authority-bearing fields, tools outside
+the request scope, malformed arguments, excessive bytes, and invalid UTF-8
+text fail through a fixed error after that one call. Provider failure is also
+fixed and never retried or routed to another provider. Successful output goes
+through `compile_task_plan`, where IDs and effect/approval metadata are still
+host-derived.
+
+The current implementation includes only the provider-neutral port and a
+deterministic fake. It does not include OpenAI/Claude Planner adapters and does
+not connect to CLI, Runner, PlanStore, policy, approval, MCP, or Executor. The
+next milestone can add one concrete Planner adapter with its own complete
+request byte/token gates; the bounded Executor remains a separate review.

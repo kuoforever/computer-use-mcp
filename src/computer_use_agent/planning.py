@@ -258,7 +258,11 @@ class TaskPlan:
 def _parse_candidate(candidate: str) -> dict[str, object]:
     if not isinstance(candidate, str) or not candidate:
         raise PlanValidationError("plan candidate must be non-empty JSON text")
-    if len(candidate.encode("utf-8")) > MAX_PLAN_CANDIDATE_BYTES:
+    try:
+        candidate_bytes = candidate.encode("utf-8")
+    except UnicodeError as exc:
+        raise PlanValidationError("plan candidate is not valid UTF-8 text") from exc
+    if len(candidate_bytes) > MAX_PLAN_CANDIDATE_BYTES:
         raise PlanValidationError("plan candidate exceeds the reviewed byte limit")
     try:
         value = json.loads(candidate)

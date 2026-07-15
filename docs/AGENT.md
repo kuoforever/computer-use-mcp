@@ -104,10 +104,14 @@ arguments, binds task and registry digests, and assigns ordered step IDs.
 `plan_store.py` adds strict bounded private snapshots beneath the run directory.
 Creating, reading, or transitioning them requires the existing application
 RunLock; transitions atomically replace state only after exact sequence and
-plan-digest comparison. Compiling, storing, or locally transitioning a plan
-performs no provider, policy, approval, MCP, or desktop call and grants no tool
-authority. No CLI or Runner path consumes plans yet; see
-[Task planning](PLANNING.md).
+plan-digest comparison. `planner.py` adds a one-shot provider-neutral port: its
+bounded immutable request contains only task text and host-selected exact
+non-sensitive tool schemas, and its only result is untrusted JSON passed to the
+same compiler. Planner failures are fixed, never retried, and never fall back.
+No OpenAI/Claude Planner adapter exists yet. Compiling, storing, or locally
+transitioning a plan performs no policy, approval, MCP, or desktop call and
+grants no tool authority. No CLI, Runner, PlanStore, or Executor path consumes
+Planner output yet; see [Task planning](PLANNING.md).
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
@@ -274,6 +278,9 @@ The ports are deliberately narrow:
 - `ModelProviderPort` turns the canonical ledger plus reviewed tools into a
   `ModelTurn`. OpenAI and Claude adapters compile the same registry but do not
   own policy.
+- `PlannerPort` receives one bounded immutable planning request and returns only
+  untrusted JSON candidate text. It has no continuation, policy, approval, MCP,
+  persistence, or execution method, and the host never retries it automatically.
 - `DesktopMCPPort` discovers child `MCPToolDescriptor` values, dispatches a
   normalized `ToolCall`, converts it to a `ToolResult`, and closes the child.
   It is the only host port that can reach a desktop.
@@ -454,8 +461,9 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and exact host-scoped non-sensitive schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry, persistence, ToolCall, policy, approval, or MCP path | implemented provider-neutral port contract test; no live adapter |
 
-The remaining work adds a separately reviewed Planner port and bounded
-Executor, broader post-provider resumable state, semantic
+The remaining work adds separately reviewed OpenAI/Claude Planner adapters and
+a bounded Executor, broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
 slice is experimental and must not be presented as the complete safety MVP.
