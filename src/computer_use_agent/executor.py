@@ -11,8 +11,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from hashlib import sha256
+from uuid import uuid4
 
-from .plan_store import PersistedTaskPlan
+from .plan_store import PersistedTaskPlan, TaskPlanStore
 from .planning import PlanStepAction, PlanStepStatus
 from .tool_registry import (
     ToolValidationError,
@@ -20,14 +21,30 @@ from .tool_registry import (
     reviewed_registry_digest,
     validate_tool_arguments,
 )
-from .types import CallIdentity, LedgerEvent, RunState, ToolCall, ToolCallStatus
+from .types import (
+    CallIdentity,
+    LedgerEvent,
+    LedgerEventKind,
+    RunBudget,
+    RunState,
+    ToolCall,
+    ToolCallStatus,
+    ToolEffect,
+    ToolResultStatus,
+    to_json_value,
+)
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+MAX_EXECUTOR_SESSION_STEPS = 4
 
 
 class ExecutorPreflightError(RuntimeError):
     """A fixed, non-sensitive rejection before any execution boundary."""
+
+
+class ExecutorSessionError(RuntimeError):
+    """A fixed rejection from the non-executing bounded session contract."""
 
 
 @dataclass(frozen=True)
@@ -137,8 +154,178 @@ def compile_plan_tool_preflight(
     )
 
 
+def _same_budget_limits(previous: RunBudget, current: RunBudget) -> bool:
+    return (
+        previous.max_model_turns == current.max_model_turns
+        and previous.max_tool_calls == current.max_tool_calls
+        and previous.max_side_effects == current.max_side_effects
+        and previous.max_input_tokens == current.max_input_tokens
+    )
+
+
+def _state_advances(previous: RunState, current: RunState) -> bool:
+    return (
+        previous.run_id == current.run_id
+        and previous.task == current.task
+        and previous.policy_version == current.policy_version
+        and current.event_log[: len(previous.event_log)] == previous.event_log
+        and _same_budget_limits(previous.budgets, current.budgets)
+        and current.budgets.model_turns_used >= previous.budgets.model_turns_used
+        and current.budgets.tool_calls_used >= previous.budgets.tool_calls_used
+        and current.budgets.side_effects_used >= previous.budgets.side_effects_used
+        and current.budgets.input_tokens_used >= previous.budgets.input_tokens_used
+        and current.observation_epoch >= previous.observation_epoch
+    )
+
+
+class BoundedExecutorSession:
+    """Lock-scoped sequencing for future execution, with no execution methods.
+
+    The session reads one ``TaskPlanStore`` while its existing application lock
+    remains held. It creates fresh requested calls and later verifies that an
+    external caller used the shared Runner boundary and persisted the matching
+    plan transition. It has no provider, approval, recovery, MCP, trace, or
+    desktop port and cannot authorize or dispatch its prepared calls.
+    """
+
+    def __init__(self, store: TaskPlanStore, initial_state: RunState) -> None:
+        if not isinstance(store, TaskPlanStore) or not isinstance(initial_state, RunState):
+            raise ExecutorSessionError("EXECUTOR_SESSION_INPUT_INVALID")
+        if not store.lock.acquired:
+            raise ExecutorSessionError("EXECUTOR_SESSION_LOCK_REQUIRED")
+        self._store = store
+        self._state = initial_state
+        self._outstanding: PreparedPlanToolCall | None = None
+        self._prepared_steps = 0
+        self._closed = False
+
+    @property
+    def prepared_steps(self) -> int:
+        return self._prepared_steps
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        self._closed = True
+
+    def _require_active(self) -> None:
+        if self._closed:
+            raise ExecutorSessionError("EXECUTOR_SESSION_CLOSED")
+        if not self._store.lock.acquired:
+            raise ExecutorSessionError("EXECUTOR_SESSION_LOCK_REQUIRED")
+
+    def prepare_next(self, current_state: RunState) -> PreparedPlanToolCall:
+        """Prepare one fresh observation request without granting authority."""
+
+        self._require_active()
+        if not isinstance(current_state, RunState) or not _state_advances(
+            self._state, current_state
+        ):
+            raise ExecutorSessionError("EXECUTOR_SESSION_STATE_DRIFT")
+        if self._outstanding is not None:
+            raise ExecutorSessionError("EXECUTOR_SESSION_CALL_OUTSTANDING")
+        if self._prepared_steps >= MAX_EXECUTOR_SESSION_STEPS:
+            raise ExecutorSessionError("EXECUTOR_SESSION_STEP_LIMIT")
+
+        snapshot = self._store.read(current_state.run_id)
+        turn_number = self._prepared_steps + 1
+        try:
+            prepared = compile_plan_tool_preflight(
+                snapshot,
+                current_state,
+                expected_sequence=snapshot.sequence,
+                expected_plan_digest=snapshot.plan.digest,
+                turn_id=f"executor_turn_{turn_number}",
+                call_id=uuid4().hex,
+            )
+        except ExecutorPreflightError as exc:
+            raise ExecutorSessionError(str(exc)) from exc
+        if get_tool_spec(prepared.call.name).effect is not ToolEffect.OBSERVATION:
+            raise ExecutorSessionError("EXECUTOR_SESSION_SIDE_EFFECT_UNSUPPORTED")
+
+        self._state = current_state
+        self._outstanding = prepared
+        self._prepared_steps = turn_number
+        return prepared
+
+    def accept_boundary_outcome(
+        self, prepared: PreparedPlanToolCall, current_state: RunState
+    ) -> None:
+        """Accept exact ledger and plan evidence produced outside this contract."""
+
+        self._require_active()
+        if prepared is not self._outstanding:
+            raise ExecutorSessionError("EXECUTOR_SESSION_CALL_MISMATCH")
+        if not isinstance(current_state, RunState) or not _state_advances(
+            self._state, current_state
+        ):
+            raise ExecutorSessionError("EXECUTOR_SESSION_STATE_DRIFT")
+
+        call_events = [
+            event
+            for event in current_state.event_log
+            if event.kind is LedgerEventKind.TOOL_CALL
+            and event.identity == prepared.call.identity
+        ]
+        result_events = [
+            event
+            for event in current_state.event_log
+            if event.kind is LedgerEventKind.TOOL_RESULT
+            and event.identity == prepared.call.identity
+        ]
+        if len(call_events) != 1 or len(result_events) != 1:
+            raise ExecutorSessionError("EXECUTOR_SESSION_BOUNDARY_EVIDENCE_MISSING")
+        call_index = current_state.event_log.index(call_events[0])
+        result_index = current_state.event_log.index(result_events[0])
+        if call_index >= result_index:
+            raise ExecutorSessionError("EXECUTOR_SESSION_BOUNDARY_EVIDENCE_INVALID")
+        result = result_events[0].tool_result
+        if result is None or result.tool_name != prepared.call.name:
+            raise ExecutorSessionError("EXECUTOR_SESSION_BOUNDARY_EVIDENCE_INVALID")
+
+        snapshot = self._store.read(current_state.run_id)
+        if snapshot.plan.plan_id != prepared.plan_id:
+            raise ExecutorSessionError("EXECUTOR_SESSION_PLAN_MISMATCH")
+        step = next(
+            (item for item in snapshot.plan.steps if item.step_id == prepared.step_id),
+            None,
+        )
+        if step is None:
+            raise ExecutorSessionError("EXECUTOR_SESSION_PLAN_MISMATCH")
+        if (
+            step.tool_name != prepared.call.name
+            or to_json_value(step.arguments) != to_json_value(prepared.call.arguments)
+            or step.effect is not ToolEffect.OBSERVATION
+        ):
+            raise ExecutorSessionError("EXECUTOR_SESSION_PLAN_MISMATCH")
+        if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+            if (
+                snapshot.sequence != prepared.snapshot_sequence + 1
+                or step.status is not PlanStepStatus.IN_PROGRESS
+            ):
+                raise ExecutorSessionError("EXECUTOR_SESSION_TRANSITION_MISMATCH")
+            self._closed = True
+        else:
+            expected = (
+                PlanStepStatus.COMPLETED if result.ok else PlanStepStatus.FAILED
+            )
+            if (
+                snapshot.sequence != prepared.snapshot_sequence + 2
+                or step.status is not expected
+            ):
+                raise ExecutorSessionError("EXECUTOR_SESSION_TRANSITION_MISMATCH")
+
+        self._state = current_state
+        self._outstanding = None
+
+
 __all__ = [
+    "BoundedExecutorSession",
     "ExecutorPreflightError",
+    "ExecutorSessionError",
+    "MAX_EXECUTOR_SESSION_STEPS",
     "PreparedPlanToolCall",
     "compile_plan_tool_preflight",
 ]

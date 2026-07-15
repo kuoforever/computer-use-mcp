@@ -125,7 +125,13 @@ persisted sequence and plan digest, current run/task/registry bindings, ordered
 pending status, and fresh call identity, then reconstructs a `requested`
 `ToolCall`. It does not mutate the plan or enter policy, grounding, budget,
 approval, write-ahead, MCP, or verification code. No CLI or Runner path consumes
-Planner output yet; see [Task planning](PLANNING.md).
+Planner output yet. Its non-executing `BoundedExecutorSession` keeps the same
+live PlanStore lock for up to four observation steps, generates identities
+inside the host, allows one outstanding call, preserves the complete ledger as
+a monotonic prefix, and accepts progress only after exact call/result ledger
+evidence plus the matching plan transition. Unknown outcomes must remain
+`in_progress` and close the session. It has no external ports and still cannot
+dispatch; see [Task planning](PLANNING.md).
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
@@ -484,6 +490,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
 | Planner output remains untrusted data | The one-shot port receives only a bounded task and exact host-scoped non-sensitive schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry, persistence, ToolCall, policy, approval, or MCP path. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling | implemented provider-neutral port and offline fake-client dual-provider adapter tests; runtime not connected |
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
+| Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | The provider workflow delegates each normalized request to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. A structural test freezes the single-site invariant while existing read-only/action workflows freeze behavior | implemented shared host boundary; no plan runtime connection |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic

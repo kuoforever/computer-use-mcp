@@ -2,29 +2,39 @@ from __future__ import annotations
 
 from dataclasses import replace
 from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
 from computer_use_agent.executor import (
+    BoundedExecutorSession,
     ExecutorPreflightError,
+    ExecutorSessionError,
+    MAX_EXECUTOR_SESSION_STEPS,
     PreparedPlanToolCall,
     compile_plan_tool_preflight,
 )
-from computer_use_agent.plan_store import PersistedTaskPlan
+from computer_use_agent.plan_store import PersistedTaskPlan, TaskPlanStore
 from computer_use_agent.planning import (
     PlanStepStatus,
+    TaskPlanStatus,
     compile_task_plan,
     transition_plan_step,
 )
+from computer_use_agent.run_lock import RunLock
 from computer_use_agent.types import (
     CallIdentity,
+    DispatchCertainty,
     LedgerEvent,
     LedgerEventKind,
+    RecoveryStatus,
     RunBudget,
     RunState,
     SafeArgumentSummary,
     ToolCall,
     ToolCallStatus,
+    ToolResult,
+    ToolResultStatus,
 )
 
 
@@ -249,3 +259,236 @@ def test_task_binding_is_exact_sha256_without_retaining_task_on_result() -> None
 
     assert _snapshot().plan.task_digest == sha256(TASK.encode("utf-8")).hexdigest()
     assert not hasattr(prepared, "task")
+
+
+def _session(
+    tmp_path: Path,
+    *,
+    candidate: str | None = None,
+    allowed_tools: tuple[str, ...] = ("ui_snapshot",),
+) -> tuple[BoundedExecutorSession, TaskPlanStore, RunLock, RunState]:
+    lock = RunLock((tmp_path / "app").resolve())
+    lock.acquire()
+    store = TaskPlanStore((tmp_path / "state").resolve(), lock)
+    plan = compile_task_plan(
+        candidate
+        or '{"version":1,"steps":['
+        '{"action":"tool","tool":"ui_snapshot","arguments":{}},'
+        '{"action":"final_response"}]}',
+        plan_id="plan_1",
+        run_id="run_1",
+        task=TASK,
+        allowed_tools=allowed_tools,
+    )
+    store.create(plan)
+    state = _state()
+    return BoundedExecutorSession(store, state), store, lock, state
+
+
+def _boundary_state(
+    state: RunState,
+    prepared: PreparedPlanToolCall,
+    *,
+    status: ToolResultStatus = ToolResultStatus.SUCCESS,
+    dispatch: DispatchCertainty = DispatchCertainty.DISPATCHED,
+) -> RunState:
+    call_event = LedgerEvent(
+        event_id=f"run_1:event:{len(state.event_log) + 1}",
+        kind=LedgerEventKind.TOOL_CALL,
+        identity=prepared.call.identity,
+        safe_argument_summary=SafeArgumentSummary.from_tool_call(
+            prepared.call, sensitive_arguments=frozenset()
+        ),
+    )
+    result = ToolResult(
+        identity=prepared.call.identity,
+        tool_name=prepared.call.name,
+        status=status,
+        dispatch=dispatch,
+        code=(
+            "MCP_TRANSPORT_ERROR"
+            if status is ToolResultStatus.UNKNOWN_OUTCOME
+            else "MCP_TIMEOUT_BEFORE_DISPATCH"
+            if status is ToolResultStatus.TRANSPORT_ERROR
+            else None
+        ),
+        sanitized_text="observed" if status is ToolResultStatus.SUCCESS else "",
+    )
+    result_event = LedgerEvent(
+        event_id=f"run_1:event:{len(state.event_log) + 2}",
+        kind=LedgerEventKind.TOOL_RESULT,
+        identity=prepared.call.identity,
+        tool_result=result,
+    )
+    return replace(
+        state,
+        event_log=state.event_log + (call_event, result_event),
+        budgets=replace(
+            state.budgets, tool_calls_used=state.budgets.tool_calls_used + 1
+        ),
+        recovery_status=(
+            RecoveryStatus.UNKNOWN_OUTCOME
+            if status is ToolResultStatus.UNKNOWN_OUTCOME
+            else state.recovery_status
+        ),
+    )
+
+
+def _transition_prepared(
+    store: TaskPlanStore,
+    prepared: PreparedPlanToolCall,
+    target: PlanStepStatus,
+) -> None:
+    snapshot = store.read("run_1")
+    running = store.transition(
+        "run_1",
+        prepared.step_id,
+        PlanStepStatus.IN_PROGRESS,
+        expected_sequence=snapshot.sequence,
+        expected_plan_digest=snapshot.plan.digest,
+    )
+    if target is not PlanStepStatus.IN_PROGRESS:
+        store.transition(
+            "run_1",
+            prepared.step_id,
+            target,
+            expected_sequence=running.sequence,
+            expected_plan_digest=running.plan.digest,
+        )
+
+
+def test_session_prepares_one_host_identity_and_accepts_exact_boundary_evidence(
+    tmp_path: Path,
+) -> None:
+    session, store, lock, state = _session(tmp_path)
+    try:
+        prepared = session.prepare_next(state)
+        assert prepared.call.identity.run_id == "run_1"
+        assert prepared.call.identity.turn_id == "executor_turn_1"
+        assert len(prepared.call.identity.call_id) == 32
+        assert prepared.call.status is ToolCallStatus.REQUESTED
+        assert session.prepared_steps == 1
+
+        with pytest.raises(
+            ExecutorSessionError, match="^EXECUTOR_SESSION_CALL_OUTSTANDING$"
+        ):
+            session.prepare_next(state)
+
+        _transition_prepared(store, prepared, PlanStepStatus.COMPLETED)
+        advanced = _boundary_state(state, prepared)
+        session.accept_boundary_outcome(prepared, advanced)
+        assert not session.closed
+    finally:
+        lock.release()
+
+
+def test_session_rejects_side_effects_without_creating_authority(tmp_path: Path) -> None:
+    session, _store, lock, state = _session(
+        tmp_path,
+        candidate='{"version":1,"steps":['
+        '{"action":"tool","tool":"click","arguments":{"ref":"ref_1"}},'
+        '{"action":"final_response"}]}',
+        allowed_tools=("click",),
+    )
+    try:
+        with pytest.raises(
+            ExecutorSessionError,
+            match="^EXECUTOR_SESSION_SIDE_EFFECT_UNSUPPORTED$",
+        ):
+            session.prepare_next(state)
+        assert session.prepared_steps == 0
+    finally:
+        lock.release()
+
+
+def test_session_requires_monotonic_state_and_matching_plan_transition(
+    tmp_path: Path,
+) -> None:
+    session, _store, lock, state = _session(tmp_path)
+    try:
+        with pytest.raises(
+            ExecutorSessionError, match="^EXECUTOR_SESSION_STATE_DRIFT$"
+        ):
+            session.prepare_next(_state(task="different task"))
+
+        prepared = session.prepare_next(state)
+        advanced = _boundary_state(state, prepared)
+        with pytest.raises(
+            ExecutorSessionError, match="^EXECUTOR_SESSION_TRANSITION_MISMATCH$"
+        ):
+            session.accept_boundary_outcome(prepared, advanced)
+    finally:
+        lock.release()
+
+
+def test_session_unknown_outcome_keeps_step_in_progress_and_closes(
+    tmp_path: Path,
+) -> None:
+    session, store, lock, state = _session(tmp_path)
+    try:
+        prepared = session.prepare_next(state)
+        _transition_prepared(store, prepared, PlanStepStatus.IN_PROGRESS)
+        unknown = _boundary_state(
+            state,
+            prepared,
+            status=ToolResultStatus.UNKNOWN_OUTCOME,
+            dispatch=DispatchCertainty.UNKNOWN,
+        )
+        session.accept_boundary_outcome(prepared, unknown)
+        assert session.closed
+        assert store.read("run_1").plan.steps[0].status is PlanStepStatus.IN_PROGRESS
+        with pytest.raises(ExecutorSessionError, match="^EXECUTOR_SESSION_CLOSED$"):
+            session.prepare_next(unknown)
+    finally:
+        lock.release()
+
+
+def test_session_accepts_known_failure_only_after_failed_transition(
+    tmp_path: Path,
+) -> None:
+    session, store, lock, state = _session(tmp_path)
+    try:
+        prepared = session.prepare_next(state)
+        _transition_prepared(store, prepared, PlanStepStatus.FAILED)
+        failed = _boundary_state(
+            state,
+            prepared,
+            status=ToolResultStatus.TRANSPORT_ERROR,
+            dispatch=DispatchCertainty.NOT_DISPATCHED,
+        )
+        session.accept_boundary_outcome(prepared, failed)
+        assert not session.closed
+        assert store.read("run_1").plan.status is TaskPlanStatus.FAILED
+    finally:
+        lock.release()
+
+
+def test_session_never_exceeds_four_prepared_steps(tmp_path: Path) -> None:
+    steps = ",".join(
+        '{"action":"tool","tool":"ui_snapshot","arguments":{}}'
+        for _ in range(MAX_EXECUTOR_SESSION_STEPS + 1)
+    )
+    candidate = f'{{"version":1,"steps":[{steps},{{"action":"final_response"}}]}}'
+    session, store, lock, state = _session(tmp_path, candidate=candidate)
+    try:
+        for _ in range(MAX_EXECUTOR_SESSION_STEPS):
+            prepared = session.prepare_next(state)
+            _transition_prepared(store, prepared, PlanStepStatus.COMPLETED)
+            state = _boundary_state(state, prepared)
+            session.accept_boundary_outcome(prepared, state)
+        with pytest.raises(
+            ExecutorSessionError, match="^EXECUTOR_SESSION_STEP_LIMIT$"
+        ):
+            session.prepare_next(state)
+    finally:
+        lock.release()
+
+
+def test_session_requires_the_same_live_application_lock(tmp_path: Path) -> None:
+    session, _store, lock, state = _session(tmp_path)
+    lock.release()
+
+    with pytest.raises(
+        ExecutorSessionError, match="^EXECUTOR_SESSION_LOCK_REQUIRED$"
+    ):
+        session.prepare_next(state)
