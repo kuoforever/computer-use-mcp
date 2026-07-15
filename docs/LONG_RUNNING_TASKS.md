@@ -167,6 +167,10 @@ now records a fixed-schema `STARTED`/`FINISHED` lifecycle and bounded measured
 counters, but it does not measure time or start work. Clock measurement and
 item claiming belong to the future worker.
 
+The current coordinator may durably open a nonempty plan and close it only at a
+derived hard limit or after every planned item is accounted for. It does not
+perform those item operations, take a clock reading, or connect a provider.
+
 At a batch boundary, close the current run cleanly, write `handoff.json`, and
 start a fresh provider context. A new Codex session should need only the
 campaign ID and config path.
