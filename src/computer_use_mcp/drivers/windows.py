@@ -109,7 +109,11 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
         try:
             for caller, other in pairs:
                 if not user32.AttachThreadInput(caller, other, True):
-                    raise OSError(f"AttachThreadInput failed for threads {caller} and {other}")
+                    error = int(kernel32.GetLastError())
+                    raise OSError(
+                        "AttachThreadInput failed for threads "
+                        f"{caller} and {other} (win32 error {error})"
+                    )
                 attached.append((caller, other))
 
             if not user32.BringWindowToTop(hwnd):
