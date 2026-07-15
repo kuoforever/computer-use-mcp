@@ -61,7 +61,7 @@ state_dir/
 
 ~~~json
 {
-  "campaign_version": 1,
+  "campaign_version": 2,
   "campaign_id": "campaign_...",
   "kind": "saved_job_review",
   "created_at": "...",
@@ -101,7 +101,7 @@ Required item metadata:
 
 - stable item key and ordinal;
 - current state and attempt count;
-- claiming `run_id` and bounded lease time;
+- claiming `run_id` and a lease expiry no more than one hour after the claim;
 - last completed operation boundary;
 - fixed result or failure code;
 - content digest for committed output;
@@ -182,7 +182,7 @@ campaign ID and config path.
 ~~~json
 {
   "campaign_id": "campaign_...",
-  "campaign_version": 1,
+  "campaign_version": 2,
   "next_item_ordinal": 41,
   "completed_count": 40,
   "retryable_count": 1,
