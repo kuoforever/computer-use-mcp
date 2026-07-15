@@ -145,6 +145,16 @@ and cannot be retried. The module contains no direct MCP dispatch call. It does
 not call a provider, execute `final_response`, permit side effects, expose a CLI,
 or resume an earlier session implicitly.
 
+`executor_reconciliation.py` adds a narrower explicit crash repair, not a
+general resume path. Under the existing RunLock it strictly cross-checks an
+`in_progress` observation plan step against the final correlated tool
+call/result in a revalidated completed WAL envelope. Only a known completed
+outcome can CAS the plan locally to `completed` or `failed`; the WAL is retained
+and no external port is called. Dispatch intent, unknown outcome, side effects,
+snapshot/task/registry/call drift, and malformed evidence leave the plan
+unchanged. It cannot continue execution, restore Runner state, execute final
+text, or replay historical calls.
+
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
 That method is the only Runner MCP dispatch site and contains the existing
@@ -505,6 +515,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow and the internal observation-plan runtime delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid a direct runtime dispatch site | implemented shared host boundary; CLI plan runtime not connected |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and provider/final/CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
+| Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current

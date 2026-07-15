@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight and bounded lock-scoped session, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight and bounded lock-scoped session, local-only completed-observation reconciliation, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -156,6 +156,14 @@ They also prove side effects and WAL-disabled startup make zero calls, provider
 and approval ports remain unused, final cancellation deletes completed WAL, and
 the runtime source contains no direct MCP dispatch site. This is not E3/E4
 evidence and does not imply a complete Executor or safety MVP.
+
+Completed-observation reconciliation adds E0 evidence for the narrow crash
+window after a known tool completion but before the terminal plan CAS. Tests
+prove exact successful and known-failure repair, retained WAL, one historical
+desktop call with zero replay, and zero provider/approval calls. Dispatch
+intent, unknown outcome, task/sequence/digest drift, and malformed bindings
+leave the plan byte-for-byte unchanged. This evidence does not establish
+general resume, provider/final-response orchestration, or isolated execution.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable
