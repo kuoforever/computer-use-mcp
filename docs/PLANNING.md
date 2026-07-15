@@ -232,8 +232,27 @@ transition the final step, write WAL, call a model, validate returned text, or
 terminalize a run. A future dual-provider adapter must still apply its exact
 configured byte/token gates and one-shot no-tool/no-retry contract before I/O.
 
-The next Executor increment must implement and review those isolated
-dual-provider final-response adapters before orchestration, or add broader
+`final_response_wire.py` and the isolated `providers/openai_final.py` and
+`providers/anthropic_final.py` adapters now implement that tool-free provider
+boundary. The shared compiler emits canonical JSON containing the task,
+observation text, exact plan/request bindings, and ordered SHA-256/dimension
+descriptors for each PNG; image bytes are then sent as provider-native ordered
+image blocks. Object representations expose only sizes/counts.
+
+Each adapter makes exactly one stateless request with no tools, tool choice,
+continuation ID/history, retry, fallback, approval, MCP, or execution port.
+OpenAI uses one Responses request with `store=false`; Claude uses one Messages
+request. Both apply the configured canonical request-byte limit and conservative
+token-window gate before I/O, propagate cancellation, convert provider failures
+to fixed codes, and accept only one bounded non-empty final text. Incomplete,
+refused, truncated, tool/function-call, missing, or multi-content responses
+fail closed after that one call. Returned text remains untrusted and neither
+adapter writes WAL, consumes host budget, transitions the plan, or terminalizes
+the run.
+
+The next Executor increment must separately review WAL intent/completion,
+budget consumption, final-step CAS, trace terminalization, and failure cleanup
+before connecting these adapters to `RuntimeExecutorSession`, or add broader
 explicit resume state before CLI wiring. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,

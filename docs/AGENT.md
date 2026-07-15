@@ -166,6 +166,17 @@ work. The tool-free `FinalResponsePort` has no implementation yet; the compiler
 does not call a provider, consume budget, write WAL, transition the plan, or
 trust/terminalize response text.
 
+`final_response_wire.py` plus isolated OpenAI and Claude final-response adapters
+now implement that port without connecting it to the runtime. Canonical task
+and observation text remains untrusted JSON data; PNGs are digest/dimension
+bound and sent as ordered provider-native image blocks. Each adapter performs
+one stateless request with no tools, continuation, retry, fallback, policy,
+approval, or MCP surface, and applies exact request-byte plus conservative
+token-window gates before I/O. Only one bounded non-empty text response is
+accepted. The adapters do not write continuation state, consume host budget,
+transition the final step, record terminal trace state, or make returned text
+authoritative.
+
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
 That method is the only Runner MCP dispatch site and contains the existing
@@ -527,7 +538,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Runner call authority has one boundary | Provider workflow and the internal observation-plan runtime delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid a direct runtime dispatch site | implemented shared host boundary; CLI plan runtime not connected |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and provider/final/CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
-| Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; no provider, WAL, transition, terminalization, or CLI path exists | implemented pure request contract; dual-provider adapters and orchestration unavailable |
+| Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; no WAL, transition, terminalization, or CLI path exists | implemented pure request contract; isolated adapters consume it but orchestration is unavailable |
+| Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters; WAL/budget/final-step/trace orchestration unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
