@@ -29,11 +29,11 @@ The implemented transition validator recognizes:
 `CREATED`, `OBSERVING`, `PLANNING`, `WAITING_APPROVAL`, `EXECUTING`,
 `VERIFYING`, `SUCCESS`, `FAILED`, `UNKNOWN_OUTCOME`, and `CANCELLED`.
 
-The current read-only Runner uses `CREATED -> OBSERVING -> PLANNING`, moves to
-`EXECUTING` for each authorized observation, records the resulting observation,
-and returns to `PLANNING`. Terminal phases cannot transition. Illegal jumps
-fail closed. `WAITING_APPROVAL` and `VERIFYING` are reserved for the future
-approved-action workflow.
+The Runner uses `CREATED -> OBSERVING -> PLANNING`, moves to `EXECUTING` for
+authorized observations, and returns to `PLANNING` after recording the result.
+Approved side effects pass through `WAITING_APPROVAL`, then `EXECUTING`, then
+`VERIFYING` before the next planning or terminal decision. Terminal phases
+cannot transition. Illegal jumps fail closed.
 
 `SUCCESS` is written only after the desktop bridge closes cleanly. Fixed
 failure codes are checkpointed for reviewed Runner failures. Cancellation is
@@ -62,9 +62,10 @@ by presence and length plus whether a ref was supplied.
 Each model-turn trace event records integer provider latency and normalized
 input/output token counts. Each dispatched tool-result event records integer
 tool latency. The checkpoint aggregates model/tool call counts, token totals,
-provider/tool latency, non-success tool results, screenshot-result count, and
+provider/tool latency, non-success tool results, image-result count, and
 terminal wall-clock run duration. Missing provider token usage is counted as
-zero. `retry_count` is currently zero because the host never automatically
+zero in checkpoint v1, so a viewer cannot distinguish missing usage from a
+reported zero without a future coverage field. `retry_count` is currently zero because the host never automatically
 retries provider calls or desktop actions.
 
 Metrics contain no task, model response, observation, image, typed value,

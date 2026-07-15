@@ -19,6 +19,45 @@
 
 ## Next validation priorities
 
+### P0 - repair foreground activation
+
+Fix the reproduced `activate_window` defect before treating approved desktop
+actions as reliable. The driver must attach the caller, foreground, and target
+input threads as required, release every attachment in `finally`, restore a
+minimized target, and verify the resulting foreground HWND. Add pure ordering
+tests plus the isolated regression matrix in [E4 smoke](E4_SMOKE.md).
+
+### P1 - long-running campaign foundation
+
+Implement the read-only campaign manifest, append-only item ledger, bounded
+batches, and deterministic handoff described in
+[Long-running tasks](LONG_RUNNING_TASKS.md). The first target is a 100-item BOSS
+saved-job review across multiple provider contexts and at least one forced
+restart. Conversation history must not be required for continuation.
+
+After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
+cases, then the cross-application campaign in
+[Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md).
+Expand to Excel, PDF, Figma/Canva, and one Electron client only after the Wave 1
+campaign and observation measurements are reproducible. Remote Desktop,
+system-dialog boundaries, legacy UI, and modal GPU applications remain later
+waves.
+
+### P1 - bounded multi-source observation
+
+The BOSS live probe established that important static text may be absent from
+the interactive UIA tree. Implement the source envelope and escalation rules in
+[Observation contract](OBSERVATION_CONTRACT.md), beginning with bounded OCR or
+document text and region-scoped image capture. Measure the result using
+[Token efficiency](TOKEN_EFFICIENCY.md).
+
+### P1 - passive operator progress viewer
+
+Implement the checkpoint-to-view-model reducer and non-activating Windows
+overlay from [Operator progress viewer](PROGRESS_VIEWER.md). Do not display
+active elapsed time, screenshot count, token coverage, or liveness as known
+until the checkpoint/campaign schemas expose those facts.
+
 ### Agent Host remaining-work ledger
 
 The following items are intentionally unfinished. They must remain visible in
@@ -53,7 +92,10 @@ Test dynamic and content-heavy pages for:
 - Stability after the current warm-up strategy.
 - Whether flat refs and `find()` remain adequate.
 
-Do not add hierarchy, parent refs, or text-run merging without observed need.
+The observed static-content gap justifies a bounded text/OCR path. Do not add
+hierarchy, parent refs, or text-run merging until a case specifically requires
+them; follow the shared observation envelope rather than returning unbounded
+page text.
 
 ### 3. Define a real multi-monitor model
 
@@ -66,8 +108,9 @@ Before advertising support, decide and validate:
 
 ### 4. Finish release policy
 
-Choose a license/redistribution policy, reconcile public version sources, and
-add release automation only after the supported behavior is stable.
+The source distribution uses Apache-2.0. Reconcile public version sources,
+review dependency and artifact redistribution terms for each release, and add
+release automation only after the supported behavior is stable.
 
 ## Future architecture
 

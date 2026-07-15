@@ -12,6 +12,11 @@ a typed Driver Contract v1.0.0, and a single in-process Windows implementation.
 The shared core is testable with fake drivers; desktop integration is exercised
 by explicit smoke scripts.
 
+The product direction is now broader than the current MCP surface: a universal
+GUI agent with pixel fallback, opportunistic structured observations, and
+day-scale resumable campaigns. The implemented runtime remains narrower. Read
+the status header of every design document before treating it as available.
+
 Before changing behavior, inspect the current worktree and run the unit suite:
 
 ~~~powershell
@@ -65,6 +70,36 @@ docs/                  canonical English documentation
 9. **Same-desktop UIA is not background-safe.** A controlled ValuePattern
    operation can alter foreground state. Use an isolated runtime for true
    background work.
+10. **Window activation has a reproduced defect.** A valid listed Chrome window
+    failed to regain foreground after Codex became active. Treat
+    `activate_window` repair and its isolated regression matrix as P0.
+11. **Interactive UIA is not document text.** The BOSS probe exposed useful
+    controls while static job-description content was absent. Use the planned
+    observation ladder rather than assuming a full UIA snapshot contains page
+    content.
+
+## Starting a fresh maintenance session
+
+For long-running feature work, read only the documents needed for the current
+layer:
+
+1. [Operator session notes](docs/OPERATOR_SESSION_NOTES.md) for sanitized live
+   evidence and the latest reproduced defect.
+2. [Roadmap](docs/EXECUTION_PLAN.md) for P0/P1 ordering.
+3. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
+   batching, and cross-session handoff.
+4. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
+   the BOSS, Google Docs, WeChat, and cross-application acceptance cases.
+5. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
+   [Observation contract](docs/OBSERVATION_CONTRACT.md) for model-context and
+   perception changes.
+6. [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
+   status UI.
+
+When campaign persistence is implemented, a new Codex session should resume
+from `campaign_id`, the validated manifest, and `handoff.json`; it should not
+need prior conversational text. Until then, use these documents as the durable
+cross-session source of truth.
 
 ## Guardrail checklist for new actions
 

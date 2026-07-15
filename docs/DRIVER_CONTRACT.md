@@ -89,7 +89,14 @@ returned as plaintext.
 | `click(x, y, button="left", modifiers=None)` | Performs a coordinate click. |
 | `key(combo)` | Sends a key chord. |
 | `type(text)` | Types into the focused native control. |
-| `activate_window(window_id)` | Activates a window. |
+| `activate_window(window_id)` | Attempts to restore and activate a window. Success means the driver verified that the target is the foreground window before returning. |
+
+`activate_window` is idempotent when the target is already foreground. Native
+input-thread attachments must be released in `finally`, including partial-
+failure paths. A stale window, platform denial, or failed foreground
+postcondition is a failure, not best-effort success. More specific activation
+codes are planned for the next backward-compatible contract revision; the
+current implementation may still collapse them into `DRIVER_ERROR`.
 
 The current Windows driver implements these primitives. The public MCP layer
 currently exposes only a full primary-display `screenshot()`; it does not pass
@@ -144,4 +151,5 @@ behavior; driver authors should not rely on the core to negotiate versions yet.
 
 - **1.0.0** — Defines the shared data model, the twelve desktop primitives,
   `capabilities()`, and the `activate_window(window_id)` action. The Windows
-  implementation was validated against the project's on-device smoke paths.
+  implementation later reproduced an unresolved Windows foreground-activation
+  defect; see [operator session notes](OPERATOR_SESSION_NOTES.md).

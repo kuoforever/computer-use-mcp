@@ -30,13 +30,18 @@ Chromium, Chrome, and Edge receive a best-effort UIA warm-up. Their page-level
 accessibility behavior is still experimental and needs application-specific
 validation.
 
-## Deliberately excluded today
+## Not implemented today
 
-- A generic browser/WebDriver layer.
+- A generic browser-native adapter. Browser interaction currently uses the same
+  UIA, screenshot, and input paths as other Windows applications.
 - `pyautogui`.
 - A claim of foreground-free ref actions on the user's desktop.
 - A default full-control mode.
 - Host-to-guest MCP transport or guest lifecycle automation.
+
+The planned universal-GUI direction may add bounded OCR, document-text, or
+browser-native observation adapters behind a shared observation contract. It
+does not require stealth automation or evasion of site security controls.
 
 ## Planned platform and worker options
 

@@ -79,6 +79,40 @@ with an explanatory result.
 **Acceptance signal:** `pytest` runs without desktop side effects; a matching
 `smoke_*.py` script exists for changed native behavior where practical.
 
+## Long-running stability
+
+**Goal:** Hour- or day-scale work survives provider-context rotation, process
+failure, and Codex-session replacement without depending on chat history.
+
+- Decompose campaigns into independently committed items and bounded batches.
+- Persist a deterministic cursor and append-only item transitions.
+- Never advance past an item before its result commit is durable.
+- Do not replay a dispatched action with an unknown outcome.
+- Bound attempts, consecutive failures, wall time, screenshots, and tokens.
+- Produce a compact handoff that a fresh session can validate without model
+  prose from the previous session.
+
+**Acceptance signal:** A 100-item read-only campaign crosses at least two fresh
+provider contexts and one forced restart with one committed result per stable
+item key.
+
+## Context efficiency
+
+**Goal:** Provider context scales with the current item rather than total
+campaign history.
+
+- Prefer `find`, scoped UIA, document text, OCR regions, and cropped images in
+  that order when each cheaper source is sufficient.
+- Keep screenshots out of text serialization and retain local digests for
+  reuse.
+- Rotate provider context at bounded batch or token limits.
+- Measure provider-reported tokens per committed item.
+- Treat missing usage as unknown, not reported zero.
+
+**Acceptance signal:** Evaluation reports tokens, image pixels, and tool calls
+per committed item and proves that an optimization does not increase uncertain
+or incorrect outcomes.
+
 ## Portability, performance, and maintenance
 
 **Goal:** The core stays small enough to support native drivers without

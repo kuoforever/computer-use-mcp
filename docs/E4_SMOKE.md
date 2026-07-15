@@ -71,6 +71,19 @@ text, save data, or click an unclassified coordinate. If Notepad is already
 foreground, place another non-sensitive test window in front before starting
 the action case; do not interact with the desktop after the run begins.
 
+Before running the provider matrix, complete the Windows activation regression:
+
+| ID | Setup | Required result |
+| --- | --- | --- |
+| E4-WIN-ACT-ALREADY | Target Notepad is already foreground | Idempotent success; no leaked input-thread attachment. |
+| E4-WIN-ACT-CROSS | Calculator or another benign process is foreground; target Notepad was freshly listed | Target becomes the verified foreground HWND. |
+| E4-WIN-ACT-MIN | Target Notepad is minimized | Target is restored and becomes foreground. |
+| E4-WIN-ACT-STALE | Target window is closed after listing | Fixed failure; no activation of another window. |
+| E4-WIN-ACT-FAIL | Inject a native-call or verification failure in the driver harness | Every successful attachment is detached in `finally`; no false success. |
+
+The provider action cells are invalid evidence if this regression does not pass
+on the same Windows revision.
+
 ## Execution procedure
 
 For each matrix cell:

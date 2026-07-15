@@ -110,9 +110,27 @@ driver performs a best-effort warm-up for Chrome, Chromium, and Edge snapshots,
 and reports an explicit incomplete-content hint when the tree still resembles
 browser chrome only.
 
-This does not turn the project into a general browser automation solution.
+The long-term product boundary is universal GUI interaction, not a UIA-only
+automation server. Browser windows are one application class within that
+boundary. Pixel interaction remains the universal fallback; UIA, bounded OCR,
+document-text extraction, and optional browser-native adapters may improve
+grounding when available. The current runtime does not yet implement a generic
+browser adapter and does not claim to bypass site challenges or automation
+controls.
+
 Validate each complex application with a read-only probe before relying on
-snapshot shape, duplicate names, truncation behavior, or process ancestry.
+snapshot shape, duplicate names, truncation behavior, process ancestry, or the
+availability of static document text. See [Observation contract](OBSERVATION_CONTRACT.md)
+for the planned multi-source observation model.
+
+## Long-running orchestration
+
+Day-scale work must not depend on one provider context or one Codex session.
+The Agent Host should execute bounded work units, persist a cursor and item
+ledger, and resume from durable checkpoints without replaying uncertain side
+effects. Conversation context is an operator interface, not the source of truth
+for task progress. See [Long-running tasks](LONG_RUNNING_TASKS.md) and
+[Token efficiency](TOKEN_EFFICIENCY.md).
 
 ## Planned extension points
 

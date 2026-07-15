@@ -21,7 +21,7 @@ incomplete.
 
 | Tool | Parameters | Behavior |
 | --- | --- | --- |
-| `activate_window` | `window_id` | Brings a listed window to the foreground. In safe mode it is e-stop/human-activity guarded and audited, but not foreground-allowlist gated. |
+| `activate_window` | `window_id` | Attempts to restore and activate a listed window. It returns success only after the driver verifies the target is foreground. In safe mode it is e-stop/human-activity guarded and audited, but not foreground-allowlist gated. |
 | `click` | `ref` **or** `x, y` | Invokes an accessible control by ref, or clicks a primary-display coordinate. Supply one form only. |
 | `type` | `text, ref=None` | With a ref, prefers UIA ValuePattern; without one, types into the current focus. |
 | `key` | `combo` | Sends a key chord such as `Ctrl+S` to the foreground window. |
@@ -60,6 +60,11 @@ specific reason where available, for example:
 | `STALE_ELEMENT` | The requested ref no longer resolves after one relocation attempt. |
 | `OUT_OF_BOUNDS` | A coordinate lies outside the current supported capture space. |
 | `DRIVER_ERROR` | The platform driver could not perform the operation. |
+
+Until the planned activation-specific error codes are implemented, stale
+window IDs, Windows foreground-lock denial, and a failed foreground
+postcondition may all appear as `DRIVER_ERROR`. Re-list windows and diagnose the
+failure; do not retry an activation indefinitely.
 
 The driver may also report `NOT_INVOKABLE` or `PERMISSION_DENIED`. Treat
 errors as information for the next observation step, not as a reason to repeat

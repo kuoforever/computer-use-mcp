@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Model-agnostic computer-use MCP server for Windows (A-path, in-process Python)."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = [
     "mcp>=1.27.2,<2",        # MCP server/client SDK; tested stdio contract
     "mss>=9.0",              # screen capture
@@ -19,7 +21,7 @@ dependencies = [
 # uiautomation.SendKeys — no pyautogui dependency needed.
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5", "build>=1.2", "setuptools>=68"]
+dev = ["pytest>=8", "ruff>=0.5", "build>=1.2", "setuptools>=77.0.3"]
 agent-openai = ["openai>=1.68,<3"]
 agent-anthropic = ["anthropic>=0.77,<1"]
 agent = ["openai>=1.68,<3", "anthropic>=0.77,<1"]

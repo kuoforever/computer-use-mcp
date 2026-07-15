@@ -19,6 +19,7 @@ and expected safety outcome.
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | ready for operator execution; evidence pending |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
+| E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, then a cross-application campaign | planned |
 
 ## Phase-0 E0 cases
 
@@ -67,7 +68,9 @@ provider credentials, a child process, or a desktop.
 
 CI must always run E0 through E2 without provider credentials and without a
 desktop side effect. E3 is explicit opt-in. E4 and E5 may run only in an
-isolated environment, never on a developer's active desktop.
+isolated environment, never on a developer's active desktop. E6 uses dedicated
+test data or accounts and explicit operator scheduling; it is never a default
+CI job.
 
 New policy, schema, adapter, or trace changes must add or update an expected
 canonical trace before they can be accepted. A safety escape is a failing test,

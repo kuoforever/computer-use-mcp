@@ -9,9 +9,11 @@ Windows desktop applications. It combines screenshots for vision-capable agents
 with UI Automation (UIA) snapshots and stable element references for text-first
 agents.
 
-It is intended for local, explicitly authorized desktop automation. It is not a
-background worker, remote-control service, or general browser automation
-framework.
+It is intended for local, explicitly authorized desktop automation. The long-
+term direction is a universal GUI agent: pixel input remains the fallback while
+UIA, OCR, document text, and optional browser adapters provide progressively
+more structured observations. The current runtime is still a foreground Windows
+MCP server, not a background worker or a complete browser automation framework.
 
 ## Supported today
 
@@ -94,7 +96,7 @@ environment values above are the portable part.
 | `find(query, scope="foreground")` | Returns a smaller matching subset of a UIA snapshot. |
 | `list_windows()` | Lists visible top-level windows, including owned dialogs. |
 | `screenshot()` | Returns a PNG of the primary display; it has no MCP region parameter. |
-| `activate_window(window_id)` | Brings a listed window to the foreground. |
+| `activate_window(window_id)` | Attempts to restore and activate a listed window; success requires the driver to verify that it became foreground. |
 | `click(ref=...)` / `click(x=..., y=...)` | Invokes an accessible control or performs a coordinate click. |
 | `type(text, ref=None)` | Sets an accessible value when a ref is supplied, otherwise types into focus. |
 | `key(combo)` | Sends a key chord to the foreground window. |
@@ -128,7 +130,11 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Test or maintain the project | [Development](docs/DEVELOPMENT.md) and [Maintainer handoff](HANDOFF.md) |
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
 | Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
+| Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |
+| Run staged real-application campaigns and coverage benchmarks | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
+| Reduce model context and observation cost | [Token efficiency](docs/TOKEN_EFFICIENCY.md) |
 
 ## License
 
-No license file is currently included. Do not assume redistribution rights.
+Licensed under the [Apache License 2.0](LICENSE). You may use, modify, and
+distribute this project, including commercially, subject to the license terms.
