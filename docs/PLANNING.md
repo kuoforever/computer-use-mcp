@@ -206,8 +206,35 @@ desktop port and never reconstructs a historical call for dispatch. It cannot
 continue the plan, restore Runner state, execute `final_response`, delete the
 continuation, or expose a CLI resume command.
 
-The next Executor increment must add provider/final-response orchestration or
-broader separately reviewed explicit resume state before CLI wiring. Any side-effect
+## Tool-free final-response request contract
+
+`executor_final.py` adds a pure local compiler for the next boundary; it does
+not call either existing provider adapter. The current adapters' first request
+contains only the task, so connecting them directly after plan observations
+would omit the observation results. The new `FinalResponsePort` therefore has
+one separate tool-free method whose implementation remains future work.
+
+Compilation requires an exact snapshot with one to four successfully completed
+observation steps followed by the still-pending `final_response`. Run, task,
+registry, sequence/digest, recovery status, verified observation epoch, and
+model/input budgets are rechecked. The in-memory ledger must be exactly one
+`USER_TASK` followed by one correlated `TOOL_CALL`, successful `TOOL_RESULT`,
+and `OBSERVATION` group per plan step, with exact tool/argument/order binding.
+Provider turns, policy/recovery events, side effects, failures, unknown results,
+missing observations, redacted arguments, and drift fail closed.
+
+Success produces a digest-bound, 48 MiB-capped `FinalResponseRequest` containing
+the task and lossless text/image observation data. Historical calls exist only
+as compiler evidence and are not included as `ToolCall` values, tool schemas,
+approval records, or dispatch authority. Sensitive task/output values are
+excluded from object representations. The compiler does not consume budgets,
+transition the final step, write WAL, call a model, validate returned text, or
+terminalize a run. A future dual-provider adapter must still apply its exact
+configured byte/token gates and one-shot no-tool/no-retry contract before I/O.
+
+The next Executor increment must implement and review those isolated
+dual-provider final-response adapters before orchestration, or add broader
+explicit resume state before CLI wiring. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
