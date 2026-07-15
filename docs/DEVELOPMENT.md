@@ -18,6 +18,7 @@ emit non-ASCII text.
 
 ~~~powershell
 .\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest tests\agent\test_openai_replay_evaluation.py -q
 .\.venv\Scripts\ruff.exe check src tests scripts
 .\.venv\Scripts\computer-use-agent.exe eval --cases evals\cases --report out\e1-e2.json
 .\.venv\Scripts\python.exe -m build --wheel
@@ -40,9 +41,10 @@ running it. A working tree with milestone edits is expected to fail the clean
 candidate gate until those edits are reviewed and committed.
 The preflight checks the candidate identity again after every gate. Do not move
 `HEAD`, stage files, or edit the working tree while it runs; either endpoint
-drift makes the v3 evidence fail closed. The report records UTC and the current
+drift makes the v4 evidence fail closed. The report records UTC and the current
 Python/platform identity without retaining a user name, host name, or executable
-path. It describes one local runtime; use CI for supported Python matrix
+path. It also records the independent replay gate's canonical fixture and
+manifest hashes plus case/test counts. It describes one local runtime; use CI for supported Python matrix
 evidence.
 Its child processes do not inherit arbitrary shell variables. If a local tool
 requires another environment variable, review and add that exact platform
