@@ -52,6 +52,16 @@ def test_compiler_creates_a_digest_bound_non_executable_ordered_plan() -> None:
     assert len(plan.digest) == 64
 
 
+def test_final_response_step_default_arguments_are_independent_and_immutable() -> None:
+    first = PlanStep(step_id="step_1", action=PlanStepAction.FINAL_RESPONSE)
+    second = PlanStep(step_id="step_2", action=PlanStepAction.FINAL_RESPONSE)
+
+    assert first.arguments == second.arguments == {}
+    assert first.arguments is not second.arguments
+    with pytest.raises(TypeError):
+        first.arguments["unexpected"] = True  # type: ignore[index]
+
+
 def test_action_plan_records_reviewed_approval_metadata_but_no_authorization() -> None:
     plan = _compile(
         _candidate(

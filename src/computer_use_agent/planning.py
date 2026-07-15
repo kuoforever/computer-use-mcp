@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from hashlib import sha256
 from types import MappingProxyType
@@ -92,7 +92,9 @@ class PlanStep:
     action: PlanStepAction
     status: PlanStepStatus = PlanStepStatus.PENDING
     tool_name: str | None = None
-    arguments: Mapping[str, JSONValue] = MappingProxyType({})
+    arguments: Mapping[str, JSONValue] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
     effect: ToolEffect | None = None
     requires_approval: bool = False
 
