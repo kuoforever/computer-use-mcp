@@ -24,6 +24,7 @@ from computer_use_agent.types import ModelUsage
 
 
 SECRET = "sensitive final response"
+CONTINUATION_DIGEST = "b" * 64
 
 
 def _request() -> FinalResponseRequest:
@@ -81,13 +82,26 @@ def _store(tmp_path: Path) -> tuple[FinalResponseStore, RunLock]:
     return FinalResponseStore((tmp_path / "state").resolve(), lock), lock
 
 
+def _create(store: FinalResponseStore):
+    return store.create(
+        _request(),
+        step_id="step_2",
+        checkpoint_sequence=4,
+        continuation_digest=CONTINUATION_DIGEST,
+    )
+
+
 def test_final_response_wal_round_trip_and_exact_transitions(tmp_path: Path) -> None:
     store, lock = _store(tmp_path)
     try:
-        prepared = store.create(_request(), step_id="step_2")
+        prepared = _create(store)
         assert prepared.stage is FinalResponseStage.PREPARED
         assert prepared.sequence == 0
         assert prepared.result is None
+        assert prepared.plan_digest == "a" * 64
+        assert prepared.snapshot_sequence == 2
+        assert prepared.checkpoint_sequence == 4
+        assert prepared.continuation_digest == CONTINUATION_DIGEST
 
         intent = store.mark_dispatch_intent(
             "run_1",
@@ -101,6 +115,7 @@ def test_final_response_wal_round_trip_and_exact_transitions(tmp_path: Path) -> 
         completed = store.complete(
             "run_1",
             _result(),
+            provider_latency_ms=17,
             expected_sequence=intent.sequence,
             expected_digest=intent.envelope_digest,
         )
@@ -113,6 +128,7 @@ def test_final_response_wal_round_trip_and_exact_transitions(tmp_path: Path) -> 
     assert completed.sequence == 2
     assert completed.result is not None
     assert completed.result.text == SECRET
+    assert completed.provider_latency_ms == 17
     assert SECRET not in repr(completed)
     assert SECRET not in repr(completed.result)
     path = final_response_path((tmp_path / "state").resolve(), "run_1")
@@ -127,13 +143,13 @@ def test_store_requires_lock_and_never_replaces_existing_wal(tmp_path: Path) -> 
     lock = RunLock(tmp_path / "application")
     store = FinalResponseStore((tmp_path / "state").resolve(), lock)
     with pytest.raises(FinalResponseStoreError, match="LOCK_REQUIRED"):
-        store.create(_request(), step_id="step_2")
+        _create(store)
 
     lock.acquire()
     try:
-        store.create(_request(), step_id="step_2")
+        _create(store)
         with pytest.raises(FinalResponseStoreError, match="ALREADY_EXISTS"):
-            store.create(_request(), step_id="step_2")
+            _create(store)
     finally:
         lock.release()
 
@@ -141,7 +157,7 @@ def test_store_requires_lock_and_never_replaces_existing_wal(tmp_path: Path) -> 
 def test_stale_or_illegal_transition_leaves_disk_unchanged(tmp_path: Path) -> None:
     store, lock = _store(tmp_path)
     try:
-        prepared = store.create(_request(), step_id="step_2")
+        prepared = _create(store)
         path = final_response_path(store.state_dir, "run_1")
         before = path.read_bytes()
         with pytest.raises(FinalResponseStoreError, match="STALE_WRITE"):
@@ -155,6 +171,7 @@ def test_stale_or_illegal_transition_leaves_disk_unchanged(tmp_path: Path) -> No
             store.complete(
                 "run_1",
                 _result(),
+                provider_latency_ms=1,
                 expected_sequence=prepared.sequence,
                 expected_digest=prepared.envelope_digest,
             )
@@ -166,7 +183,7 @@ def test_stale_or_illegal_transition_leaves_disk_unchanged(tmp_path: Path) -> No
 def test_result_identity_mismatch_does_not_complete_intent(tmp_path: Path) -> None:
     store, lock = _store(tmp_path)
     try:
-        prepared = store.create(_request(), step_id="step_2")
+        prepared = _create(store)
         intent = store.mark_dispatch_intent(
             "run_1",
             expected_sequence=0,
@@ -178,6 +195,7 @@ def test_result_identity_mismatch_does_not_complete_intent(tmp_path: Path) -> No
             store.complete(
                 "run_1",
                 _result(turn_id="different"),
+                provider_latency_ms=1,
                 expected_sequence=intent.sequence,
                 expected_digest=intent.envelope_digest,
             )
@@ -190,7 +208,7 @@ def test_result_identity_mismatch_does_not_complete_intent(tmp_path: Path) -> No
 def test_corrupt_or_forged_wal_fails_closed(tmp_path: Path, field: str) -> None:
     store, lock = _store(tmp_path)
     try:
-        store.create(_request(), step_id="step_2")
+        _create(store)
         path = final_response_path(store.state_dir, "run_1")
         payload = json.loads(path.read_text(encoding="utf-8"))
         if field == "stage":
@@ -203,6 +221,35 @@ def test_corrupt_or_forged_wal_fails_closed(tmp_path: Path, field: str) -> None:
             payload["envelope_digest"] = "0" * 64
         path.write_text(json.dumps(payload), encoding="utf-8")
         with pytest.raises(FinalResponseStoreError):
+            store.read("run_1")
+    finally:
+        lock.release()
+
+
+def test_create_rejects_zero_checkpoint_before_writing(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        with pytest.raises(FinalResponseStoreError, match="INVALID"):
+            store.create(
+                _request(),
+                step_id="step_2",
+                checkpoint_sequence=0,
+                continuation_digest=CONTINUATION_DIGEST,
+            )
+        assert not final_response_path(store.state_dir, "run_1").exists()
+    finally:
+        lock.release()
+
+
+def test_legacy_final_response_wal_fails_closed(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        _create(store)
+        path = final_response_path(store.state_dir, "run_1")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["store_version"] = 1
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        with pytest.raises(FinalResponseStoreError, match="VERSION_UNSUPPORTED"):
             store.read("run_1")
     finally:
         lock.release()

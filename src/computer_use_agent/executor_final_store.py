@@ -23,7 +23,7 @@ from .run_lock import RunLock
 from .types import ModelUsage
 
 
-FINAL_RESPONSE_STORE_VERSION = 1
+FINAL_RESPONSE_STORE_VERSION = 2
 MAX_FINAL_RESPONSE_STORE_BYTES = 512 * 1024
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -47,11 +47,16 @@ class PersistedFinalResponse:
     plan_id: str
     step_id: str
     turn_id: str
+    plan_digest: str
+    snapshot_sequence: int
+    checkpoint_sequence: int
+    continuation_digest: str
     request_digest: str
     stage: FinalResponseStage
     sequence: int
     envelope_digest: str
     result: FinalResponseResult | None = None
+    provider_latency_ms: int | None = None
 
     def __repr__(self) -> str:
         return (
@@ -59,6 +64,7 @@ class PersistedFinalResponse:
             f"run_id={self.run_id!r}, plan_id={self.plan_id!r}, "
             f"step_id={self.step_id!r}, turn_id={self.turn_id!r}, "
             f"stage={self.stage.value!r}, sequence={self.sequence}, "
+            f"checkpoint_sequence={self.checkpoint_sequence}, "
             f"has_result={self.result is not None})"
         )
 
@@ -126,6 +132,7 @@ def _payload(snapshot: PersistedFinalResponse) -> dict[str, object]:
             "text": snapshot.result.text,
             "input_tokens": snapshot.result.usage.input_tokens,
             "output_tokens": snapshot.result.usage.output_tokens,
+            "latency_ms": snapshot.provider_latency_ms,
         }
     unsigned = {
         "store_version": FINAL_RESPONSE_STORE_VERSION,
@@ -133,6 +140,10 @@ def _payload(snapshot: PersistedFinalResponse) -> dict[str, object]:
         "plan_id": snapshot.plan_id,
         "step_id": snapshot.step_id,
         "turn_id": snapshot.turn_id,
+        "plan_digest": snapshot.plan_digest,
+        "snapshot_sequence": snapshot.snapshot_sequence,
+        "checkpoint_sequence": snapshot.checkpoint_sequence,
+        "continuation_digest": snapshot.continuation_digest,
         "request_digest": snapshot.request_digest,
         "stage": snapshot.stage.value,
         "sequence": snapshot.sequence,
@@ -148,6 +159,10 @@ def _decode(value: object, *, expected_run_id: str) -> PersistedFinalResponse:
         "plan_id",
         "step_id",
         "turn_id",
+        "plan_digest",
+        "snapshot_sequence",
+        "checkpoint_sequence",
+        "continuation_digest",
         "request_digest",
         "stage",
         "sequence",
@@ -164,6 +179,12 @@ def _decode(value: object, *, expected_run_id: str) -> PersistedFinalResponse:
     plan_id = _identifier(value["plan_id"])
     step_id = _identifier(value["step_id"])
     turn_id = _identifier(value["turn_id"])
+    plan_digest = _sha(value["plan_digest"])
+    snapshot_sequence = _uint(value["snapshot_sequence"])
+    checkpoint_sequence = _uint(value["checkpoint_sequence"])
+    if checkpoint_sequence < 1:
+        raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
+    continuation_digest = _sha(value["continuation_digest"])
     request_digest = _sha(value["request_digest"])
     try:
         stage = FinalResponseStage(value["stage"])
@@ -172,12 +193,14 @@ def _decode(value: object, *, expected_run_id: str) -> PersistedFinalResponse:
     sequence = _uint(value["sequence"])
     response = value["response"]
     result = None
+    provider_latency_ms = None
     if stage is FinalResponseStage.COMPLETED:
         response_fields = {
             "provider_response_id",
             "text",
             "input_tokens",
             "output_tokens",
+            "latency_ms",
         }
         if not isinstance(response, Mapping) or set(response) != response_fields:
             raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
@@ -190,6 +213,7 @@ def _decode(value: object, *, expected_run_id: str) -> PersistedFinalResponse:
             raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
         try:
             usage = ModelUsage(response["input_tokens"], response["output_tokens"])
+            provider_latency_ms = _uint(response["latency_ms"])
             result = FinalResponseResult(
                 run_id=run_id,
                 turn_id=turn_id,
@@ -201,7 +225,7 @@ def _decode(value: object, *, expected_run_id: str) -> PersistedFinalResponse:
             raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID") from exc
         if sequence != 2:
             raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
-    elif response is not None or sequence != (
+    elif response is not None or provider_latency_ms is not None or sequence != (
         0 if stage is FinalResponseStage.PREPARED else 1
     ):
         raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
@@ -214,11 +238,16 @@ def _decode(value: object, *, expected_run_id: str) -> PersistedFinalResponse:
         plan_id=plan_id,
         step_id=step_id,
         turn_id=turn_id,
+        plan_digest=plan_digest,
+        snapshot_sequence=snapshot_sequence,
+        checkpoint_sequence=checkpoint_sequence,
+        continuation_digest=continuation_digest,
         request_digest=request_digest,
         stage=stage,
         sequence=sequence,
         envelope_digest=supplied,
         result=result,
+        provider_latency_ms=provider_latency_ms,
     )
 
 
@@ -299,9 +328,19 @@ class FinalResponseStore:
             raise FinalResponseStoreError("FINAL_RESPONSE_STORE_READ_FAILED") from exc
         return _decode(value, expected_run_id=run_id)
 
-    def create(self, request: FinalResponseRequest, *, step_id: str) -> PersistedFinalResponse:
+    def create(
+        self,
+        request: FinalResponseRequest,
+        *,
+        step_id: str,
+        checkpoint_sequence: int,
+        continuation_digest: str,
+    ) -> PersistedFinalResponse:
         self._require_lock()
         if not isinstance(request, FinalResponseRequest):
+            raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
+        validated_checkpoint_sequence = _uint(checkpoint_sequence)
+        if validated_checkpoint_sequence < 1:
             raise FinalResponseStoreError("FINAL_RESPONSE_STORE_INVALID")
         return self._write(
             PersistedFinalResponse(
@@ -309,6 +348,10 @@ class FinalResponseStore:
                 plan_id=request.plan_id,
                 step_id=_identifier(step_id),
                 turn_id=request.turn_id,
+                plan_digest=request.plan_digest,
+                snapshot_sequence=request.snapshot_sequence,
+                checkpoint_sequence=validated_checkpoint_sequence,
+                continuation_digest=_sha(continuation_digest),
                 request_digest=request.request_digest,
                 stage=FinalResponseStage.PREPARED,
                 sequence=0,
@@ -332,6 +375,7 @@ class FinalResponseStore:
         run_id: str,
         result: FinalResponseResult,
         *,
+        provider_latency_ms: int,
         expected_sequence: int,
         expected_digest: str,
     ) -> PersistedFinalResponse:
@@ -350,6 +394,7 @@ class FinalResponseStore:
                     "sequence": current.sequence + 1,
                     "envelope_digest": "0" * 64,
                     "result": result,
+                    "provider_latency_ms": _uint(provider_latency_ms),
                 }
             ),
             create=False,

@@ -154,16 +154,16 @@ snapshot/task/registry/call drift, and malformed evidence leave the plan
 unchanged. It cannot continue execution, restore Runner state, execute final
 text, or replay historical calls.
 
-`executor_final.py` defines the next non-executing boundary. Its compiler
+`executor_final.py` defines the final-request compilation boundary. Its compiler
 accepts only an exact plan with one to four completed observation steps and a
 pending final step, plus a canonical in-memory ledger containing exactly the
 matching successful call/result/observation groups. It rechecks task, registry,
 snapshot, recovery, verified observation, and budget state, then produces a
 bounded digest-bound `FinalResponseRequest`. Historical calls are input
 evidence only and are not exposed as tool calls, schemas, approvals, or dispatch
-work. The tool-free `FinalResponsePort` has no implementation yet; the compiler
-does not call a provider, consume budget, write WAL, transition the plan, or
-trust/terminalize response text.
+work. Isolated tool-free adapters implement `FinalResponsePort`, while the
+compiler itself does not call a provider, consume budget, write WAL, transition
+the plan, or trust/terminalize response text.
 
 `final_response_wire.py` plus isolated OpenAI and Claude final-response adapters
 now implement that port without connecting it to the runtime. Canonical task
@@ -179,8 +179,10 @@ authoritative.
 Final adapters return a correlated `FinalResponseResult` containing response
 identity, bounded sensitive text, and normalized usage rather than a bare
 string. `executor_final_store.py` adds an independent RunLock-bound private WAL
-with exact plan/step/turn/request binding and only prepared, dispatch-intent,
-and completed CAS transitions. It is deliberately separate from the ordinary
+whose version 2 evidence binds the exact plan/step/turn/request, source plan and
+checkpoint sequences/digests, ordinary continuation payload, and provider
+latency, with only prepared, dispatch-intent, and completed CAS transitions.
+Version 1 fails closed rather than being migrated. It is deliberately separate from the ordinary
 provider continuation envelope, so existing recovery cannot interpret final
 text as a resumable provider/tool turn. A completed WAL remains non-authorizing:
 it does not consume budget, transition the plan, write terminal trace state,
@@ -196,8 +198,17 @@ may the final plan step become `completed` and the safe checkpoint become
 `SUCCESS`. The ordinary observation continuation is then removed and all live
 ports and the run lock close. Any intent-or-later failure preserves both WALs,
 keeps the final step non-terminal, closes without retry, and never enters normal
-provider recovery, policy, approval, or MCP. Completed-WAL reconciliation and
-CLI wiring remain absent.
+provider recovery, policy, approval, or MCP. CLI wiring remains absent.
+
+`executor_final_reconciliation.py` adds a pure, non-writing preflight for an
+exact completed-final crash window. It revalidates caller-pinned plan/final WAL,
+ordinary continuation, safe checkpoint/trace, task/registry, observation
+ledger, and the recompiled original request. Only completed provider evidence
+can yield a canonical terminal state and explicit already-recorded flags;
+prepared/intent state, drift, and malformed evidence fail closed. The module
+has no store writer or external/recovery port, cannot publish final text, and
+does not apply plan, trace, budget, or continuation changes. Applying the
+prepared CAS and cleanup remains a separate review before CLI exposure.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
@@ -562,7 +573,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 | Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; compilation itself grants no authority | implemented pure request contract consumed only by the internal final runtime and isolated adapters |
 | Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters plus injected internal runtime port; no CLI or real-provider evidence |
-| Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime tests; completed-WAL reconciliation and CLI unavailable |
+| Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime tests; reconciliation application and CLI unavailable |
+| Completed final-response reconciliation is preflight-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence, reconstructs the original request and canonical terminal state, and recognizes only the pre-terminal or fixed uncertain-checkpoint crash shapes. It writes nothing and has no provider/MCP/recovery/store port | implemented offline no-mutation and real runtime-failure artifact tests; CAS application and CLI unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
