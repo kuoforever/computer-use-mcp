@@ -1,17 +1,24 @@
-"""First bounded runtime bridge from observation plans to the host call boundary."""
+"""Bounded observation and tool-free final-response plan runtime."""
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from hashlib import sha256
+from time import perf_counter_ns
 
 from .continuation import RuntimeContinuationRecorder
 from .executor import BoundedExecutorSession, ExecutorSessionError
+from .executor_final import (
+    ExecutorFinalError,
+    FinalResponsePort,
+    compile_final_response_request,
+)
 from .grounding import GroundingState
-from .planning import PlanStepStatus, TaskPlan
+from .planning import PlanStepAction, PlanStepStatus, TaskPlan
 from .runner import AgentRunner, PreparedRun, RunFailure
 from .trace import RunPhase, RunRecorder
 from .tool_registry import reviewed_registry_digest, verify_discovered_tools
-from .types import RunState, ToolResult
+from .types import ModelTurn, RunState, ToolResult
 
 
 class ExecutorRuntimeError(RuntimeError):
@@ -26,6 +33,25 @@ class RuntimePlanStepOutcome:
     result: ToolResult
     plan_sequence: int
     plan_digest: str
+
+
+@dataclass(frozen=True, repr=False)
+class RuntimeFinalResponseOutcome:
+    """One terminal result after every final-response ordering boundary."""
+
+    text: str
+    state: RunState
+    provider_response_id: str
+    plan_sequence: int
+    plan_digest: str
+
+    def __repr__(self) -> str:
+        return (
+            "RuntimeFinalResponseOutcome("
+            f"run_id={self.state.run_id!r}, text_length={len(self.text)}, "
+            f"provider_response_id={self.provider_response_id!r}, "
+            f"plan_sequence={self.plan_sequence}, plan_digest={self.plan_digest!r})"
+        )
 
 
 class RuntimeExecutorSession:
@@ -225,6 +251,132 @@ class RuntimeExecutorSession:
             plan_digest=finished.plan.digest,
         )
 
+    async def execute_final_response(
+        self, port: FinalResponsePort
+    ) -> RuntimeFinalResponseOutcome:
+        """Execute one tool-free final response through its dedicated WAL.
+
+        The persisted plan and final-response WAL remain non-authorizing data.
+        The provider is called exactly once, only after the final step is
+        ``in_progress`` and dispatch intent is durable. Any later failure
+        preserves both WALs, closes the session, and is never retried here.
+        """
+
+        self._require_active()
+        if not isinstance(port, FinalResponsePort):
+            raise ExecutorRuntimeError("EXECUTOR_FINAL_PORT_REQUIRED")
+
+        snapshot = self.store.read(self.state.run_id)
+        final_step = next(
+            (
+                step
+                for step in snapshot.plan.steps
+                if step.status is not PlanStepStatus.COMPLETED
+            ),
+            None,
+        )
+        if final_step is None or final_step.action is not PlanStepAction.FINAL_RESPONSE:
+            raise ExecutorRuntimeError("EXECUTOR_FINAL_PLAN_NOT_READY")
+        turn_id = "executor_final_1"
+        try:
+            request = compile_final_response_request(
+                snapshot,
+                self.state,
+                expected_sequence=snapshot.sequence,
+                expected_plan_digest=snapshot.plan.digest,
+                turn_id=turn_id,
+            )
+        except ExecutorFinalError as exc:
+            raise ExecutorRuntimeError(str(exc)) from exc
+
+        final_store = self.prepared_run.final_response_store(
+            self.runner.config.state_dir
+        )
+        intent_written = False
+        try:
+            prepared = final_store.create(request, step_id=final_step.step_id)
+            running = self.store.transition(
+                self.state.run_id,
+                final_step.step_id,
+                PlanStepStatus.IN_PROGRESS,
+                expected_sequence=snapshot.sequence,
+                expected_plan_digest=snapshot.plan.digest,
+            )
+            intent = final_store.mark_dispatch_intent(
+                self.state.run_id,
+                expected_sequence=prepared.sequence,
+                expected_digest=prepared.envelope_digest,
+            )
+            intent_written = True
+            provider_started_ns = perf_counter_ns()
+            result = await port.create_final_response(request)
+            completed = final_store.complete(
+                self.state.run_id,
+                result,
+                expected_sequence=intent.sequence,
+                expected_digest=intent.envelope_digest,
+            )
+            if completed.result is None:
+                raise ExecutorRuntimeError("EXECUTOR_FINAL_EVIDENCE_INVALID")
+            durable_result = completed.result
+            turn = ModelTurn(
+                run_id=durable_result.run_id,
+                turn_id=durable_result.turn_id,
+                provider_response_id=durable_result.provider_response_id,
+                text=durable_result.text,
+                usage=durable_result.usage,
+            )
+            self.state = self.runner._consume_model_turn(
+                self.state,
+                turn,
+                latency_ms=max(
+                    0, (perf_counter_ns() - provider_started_ns) // 1_000_000
+                ),
+            )
+            finished = self.store.transition(
+                self.state.run_id,
+                final_step.step_id,
+                PlanStepStatus.COMPLETED,
+                expected_sequence=running.sequence,
+                expected_plan_digest=running.plan.digest,
+            )
+            self.recorder.record(
+                self.state,
+                RunPhase.SUCCESS,
+                final_text_length=len(durable_result.text),
+            )
+        except asyncio.CancelledError:
+            self.recorder.record(
+                self.state,
+                RunPhase.FAILED,
+                failure_code=(
+                    "EXECUTOR_FINAL_UNCERTAIN"
+                    if intent_written
+                    else "EXECUTOR_FINAL_PREPARE_FAILED"
+                ),
+            )
+            await self._shutdown(delete_continuation=False)
+            raise
+        except BaseException as exc:
+            code = (
+                "EXECUTOR_FINAL_UNCERTAIN"
+                if intent_written
+                else "EXECUTOR_FINAL_PREPARE_FAILED"
+            )
+            self.recorder.record(self.state, RunPhase.FAILED, failure_code=code)
+            await self._shutdown(delete_continuation=False)
+            raise ExecutorRuntimeError(code) from exc
+
+        outcome = RuntimeFinalResponseOutcome(
+            text=durable_result.text,
+            state=self.state,
+            provider_response_id=durable_result.provider_response_id,
+            plan_sequence=finished.sequence,
+            plan_digest=finished.plan.digest,
+        )
+        await self._shutdown(delete_continuation=True)
+        return outcome
+
 
 async def open_runtime_executor_session(
     runner: AgentRunner, *, task: str, plan: TaskPlan
@@ -299,6 +451,7 @@ async def open_runtime_executor_session(
 __all__ = [
     "ExecutorRuntimeError",
     "RuntimeExecutorSession",
+    "RuntimeFinalResponseOutcome",
     "RuntimePlanStepOutcome",
     "open_runtime_executor_session",
 ]

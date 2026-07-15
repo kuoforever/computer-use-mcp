@@ -1,11 +1,11 @@
 # Task planning contract
 
-> **Status: non-executable contract, private persistence, and pure Executor
-> preflight implemented.**
+> **Status: non-executable contract, private persistence, bounded Executor
+> preflight, and internal observation/final runtime implemented.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
 > a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
-> Claude adapters are implemented. No runtime command asks a provider for or
+> Claude adapters are implemented. No CLI command asks a provider for or
 > executes a plan.
 
 ## Boundary
@@ -276,11 +276,37 @@ non-replayable. Corruption, unsafe paths, stale CAS, illegal transitions,
 identity drift, oversized text/envelopes, and replacement of existing WAL fail
 closed without changing valid state.
 
-The next Executor increment must separately review the orchestration ordering
-across plan `in_progress`, WAL intent/completion, provider call, host budget,
-final-step CAS, trace terminalization, and cleanup before connecting these
-adapters to `RuntimeExecutorSession`, or add broader
-explicit resume state before CLI wiring. Any side-effect
+## Tool-free final-response runtime ordering
+
+`RuntimeExecutorSession.execute_final_response()` is the first execution path
+for the final step and remains an internal API. It accepts an explicitly
+injected `FinalResponsePort`; it does not reuse `RunnerPorts.provider`, ordinary
+provider continuation, recovery, tool schemas, or MCP. The fixed ordering is:
+
+1. reread the locked pending-final snapshot and compile the exact bounded
+   request from successful observation evidence;
+2. create the dedicated WAL at `prepared`;
+3. CAS-transition that exact final step to `in_progress`;
+4. durably write `dispatch_intent`, then and only then make one tool-free
+   provider call;
+5. persist a correlated `completed` result before consuming provider-reported
+   usage into the host model/input budgets and canonical model-turn ledger;
+6. CAS-transition the final step to `completed`, write a redacted `SUCCESS`
+   checkpoint, remove the ordinary observation continuation, close the desktop,
+   release the lock, and return the still-untrusted text.
+
+Preflight rejection before WAL creation is inert and leaves the live session
+available for its required observation. Any failure during preparation closes
+without provider I/O. Any cancellation, provider failure, invalid result, or
+local failure after intent preserves the dedicated WAL and ordinary
+continuation, keeps the final step `in_progress`, closes all live authority,
+and never retries. A completed WAL therefore remains sufficient evidence for a
+future local-only reconciliation, but this increment does not infer budget,
+plan, or trace completion from it and exposes no resume or CLI path.
+
+The next Executor increment should add exact local reconciliation for the
+crash windows after a completed final-response WAL and before budget/plan/trace
+terminalization, before any CLI wiring. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
