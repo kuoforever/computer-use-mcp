@@ -130,8 +130,31 @@ approval, write-ahead, MCP, result-validation, observation, and verification
 logic; Runner has no second MCP dispatch site. This extraction does not connect
 plans or make the preflight result executable.
 
-The next Executor increment must keep the application `RunLock`, preserve one
-recorder/continuation lifetime across bounded steps, reread the snapshot with
+## Bounded non-executing session contract
+
+`BoundedExecutorSession` coordinates the pure preflight with one
+`TaskPlanStore` whose existing application `RunLock` must remain held. It still
+has no provider, policy, approval, recovery, trace, MCP, or desktop port.
+
+The session prepares observation tools only and enforces:
+
+- at most four prepared steps, without changing the independent recovery cap;
+- host-generated turn/call identities and exactly one outstanding request;
+- the same run, task, policy, budget limits, and a lossless prior-ledger prefix;
+- monotonic budget and observation counters;
+- exactly one correlated tool-call and tool-result ledger event;
+- exact plan ID, step/tool/argument binding and transition sequence;
+- `completed` after success, `failed` after a known failure, and retained
+  `in_progress` plus a closed session after an unknown outcome.
+
+The session only checks evidence produced elsewhere. It neither invokes the
+shared Runner boundary nor performs a plan transition, so forged plan status or
+ledger data cannot create dispatch authority. A repeated prepare while a call
+is outstanding, a released lock, history loss, drift, side effect, transition
+mismatch, or fifth step fails closed.
+
+The next Executor increment must preserve one recorder/continuation lifetime
+across this lock-scoped session, reread the snapshot with
 compare-and-swap expectations, and route each fresh requested call only through
 that shared Runner boundary. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or

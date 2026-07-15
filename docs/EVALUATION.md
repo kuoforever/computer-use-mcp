@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight and bounded lock-scoped session, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence with candidate-drift, child-environment, and runtime-identity controls | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, and terminal state tests implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -138,6 +138,12 @@ approval, write-ahead, result validation, and verification. Existing E1/E2
 workflow traces continue to exercise that same method for observation, approved
 action, denial, failure, and unknown-outcome cases; no fixture or expected trace
 changes because execution semantics and authority are unchanged.
+The bounded Executor session is likewise E0-only. Tests freeze the live-lock
+requirement, four-step cap, host identity generation, one outstanding request,
+lossless ledger-prefix rule, correlated call/result evidence, exact success and
+unknown-outcome transition shapes, side-effect rejection, and permanent close
+after uncertainty. The session has zero external ports and does not add an
+E1/E2 trace, provider/MCP call, approval, or safety escape.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable
