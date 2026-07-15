@@ -177,6 +177,16 @@ accepted. The adapters do not write continuation state, consume host budget,
 transition the final step, record terminal trace state, or make returned text
 authoritative.
 
+Final adapters return a correlated `FinalResponseResult` containing response
+identity, bounded sensitive text, and normalized usage rather than a bare
+string. `executor_final_store.py` adds an independent RunLock-bound private WAL
+with exact plan/step/turn/request binding and only prepared, dispatch-intent,
+and completed CAS transitions. It is deliberately separate from the ordinary
+provider continuation envelope, so existing recovery cannot interpret final
+text as a resumable provider/tool turn. A completed WAL remains non-authorizing:
+it does not consume budget, transition the plan, write terminal trace state,
+publish text, or permit replay. Runtime orchestration is still absent.
+
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
 That method is the only Runner MCP dispatch site and contains the existing
@@ -540,6 +550,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 | Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; no WAL, transition, terminalization, or CLI path exists | implemented pure request contract; isolated adapters consume it but orchestration is unavailable |
 | Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters; WAL/budget/final-step/trace orchestration unavailable |
+| Final-response WAL is separate and non-authorizing | Correlated response identity/text/usage can move a private RunLock-scoped request record only through prepared/dispatch-intent/completed atomic CAS. It is not ordinary provider continuation and cannot trigger recovery, budget consumption, plan completion, text publication, or retry | implemented strict local persistence; provider runtime ordering and terminalization unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
