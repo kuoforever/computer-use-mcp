@@ -187,6 +187,116 @@ def test_completed_observation_reconstructs_result_without_mcp_replay(
     assert plan.call is None
 
 
+def test_completed_final_provider_turn_plans_local_success_only(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "done"),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [
+                {"response_id": "response_1", "items": [{"type": "message"}]}
+            ],
+        },
+        checkpoint_sequence=3,
+    )
+
+    plan = plan_read_only_recovery(
+        _checkpoint(state, 3),
+        read_continuation(config.state_dir, state.run_id),
+        config,
+        task=state.task,
+    )
+
+    assert plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS
+    assert plan.decision.reason == "PROVIDER_COMPLETED_FINAL"
+    assert plan.final_text == "done"
+    assert plan.call is None
+    assert plan.result is None
+
+
+def test_final_provider_recovery_rejects_hidden_function_call_output(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "done"),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [
+                {"response_id": "response_1", "items": [{"type": "function_call"}]}
+            ],
+        },
+        checkpoint_sequence=3,
+    )
+
+    with pytest.raises(
+        RecoveryPlanError, match="CONTINUATION_PROVIDER_STATE_INVALID"
+    ):
+        plan_read_only_recovery(
+            _checkpoint(state, 3),
+            read_continuation(config.state_dir, state.run_id),
+            config,
+            task=state.task,
+        )
+
+
+def test_completed_claude_final_turn_also_plans_local_success(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig("anthropic", "model-v1"),
+    )
+    state = _state()
+    recorder = _recorder(config, state, provider_name="anthropic")
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "message_1", "done"),
+        provider_state={
+            "messages": [
+                {"role": "user", "content": state.task},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "done"}],
+                },
+            ]
+        },
+        checkpoint_sequence=3,
+    )
+
+    plan = plan_read_only_recovery(
+        _checkpoint(state, 3),
+        read_continuation(config.state_dir, state.run_id),
+        config,
+        task=state.task,
+    )
+
+    assert plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS
+    assert plan.final_text == "done"
+
+
 def test_attach_drift_never_returns_external_work(
     tmp_path: Path, monkeypatch: object
 ) -> None:
@@ -813,9 +923,16 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
     checkpoint_state = state
 
     if case_id != "e2_resume_provider_dispatch_uncertain":
+        final_response = case_id == "e2_resume_provider_completed_final"
         recorder.complete_provider(
             state,
-            ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
+            ModelTurn(
+                "run_1",
+                "turn_1",
+                "response_1",
+                "done" if final_response else "",
+                () if final_response else (call,),
+            ),
             provider_state={
                 "response_id": "response_1",
                 "prior_context_tokens": 0,
@@ -1027,6 +1144,28 @@ def test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls(
                     second_plan.decision.action
                     is ReconstructionAction.START_NEW_RUN
                 )
+        elif plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+            lock = RunLock(config.application_state_dir)
+            lock.acquire()
+            try:
+                persistence = LockedRecoveryPersistence(
+                    state_dir=config.state_dir,
+                    checkpoint=checkpoint,
+                    envelope=envelope,
+                    config=config,
+                    task=state.task,
+                    lock=lock,
+                )
+                text, completed_checkpoint = persistence.finalize_success(
+                    boundary_sequence
+                )
+            finally:
+                lock.release()
+            assert text == "done"
+            assert completed_checkpoint["phase"] == RunPhase.SUCCESS.value
+            assert completed_checkpoint["final_text_length"] == 4
+            with pytest.raises(ContinuationError, match="CONTINUATION_READ_FAILED"):
+                read_continuation(config.state_dir, state.run_id)
         actual_calls.extend(f"tool:{item.name}" for item in desktop.tool_calls)
         actual_calls.extend(
             f"provider:{item['turn_id']}" for item in provider.calls

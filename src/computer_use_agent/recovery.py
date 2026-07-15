@@ -31,7 +31,12 @@ from .tool_registry import (
     validate_tool_result,
 )
 from .run_lock import RunLock
-from .trace import RunPhase, advance_recovery_checkpoint, read_run_checkpoint
+from .trace import (
+    RunPhase,
+    advance_recovery_checkpoint,
+    finalize_recovery_success,
+    read_run_checkpoint,
+)
 from .types import (
     CallIdentity,
     DesktopMCPPort,
@@ -63,18 +68,26 @@ class ReadOnlyRecoveryPlan:
     decision: ReconstructionDecision
     call: ToolCall | None = None
     result: ToolResult | None = None
+    final_text: str | None = None
 
     def __post_init__(self) -> None:
         if self.decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
-            if self.call is None or self.result is not None:
+            if self.call is None or self.result is not None or self.final_text is not None:
                 raise ValueError("observation dispatch plan requires exactly one call")
         elif self.decision.action is ReconstructionAction.CONTINUE_PROVIDER:
-            if self.result is None or self.call is not None:
+            if self.result is None or self.call is not None or self.final_text is not None:
                 raise ValueError("provider continuation plan requires exactly one result")
         elif self.decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
-            if self.call is None or self.result is not None:
+            if self.call is None or self.result is not None or self.final_text is not None:
                 raise ValueError("mandatory re-observation plan requires exactly one call")
-        elif self.call is not None or self.result is not None:
+        elif self.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+            if (
+                not isinstance(self.final_text, str)
+                or self.call is not None
+                or self.result is not None
+            ):
+                raise ValueError("success finalization plan requires final text only")
+        elif self.call is not None or self.result is not None or self.final_text is not None:
             raise ValueError("non-executable recovery plan cannot carry external work")
 
 
@@ -328,6 +341,89 @@ def _completed_side_effect(envelope: ContinuationEnvelope) -> tuple[ToolCall, To
     return _completed_tool(envelope, required_effect=ToolEffect.SIDE_EFFECT)
 
 
+def _completed_final_text(envelope: ContinuationEnvelope) -> str:
+    events = _ledger(envelope)
+    data = _last_event(events, "model_turn")
+    if set(data) != {
+        "run_id",
+        "turn_id",
+        "provider_response_id",
+        "text",
+        "usage",
+        "tool_calls",
+    }:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    run_id = str(envelope.payload["run_id"])
+    turn_id = data.get("turn_id")
+    text = data.get("text")
+    calls = data.get("tool_calls")
+    response_id = data.get("provider_response_id")
+    if (
+        data.get("run_id") != run_id
+        or not isinstance(turn_id, str)
+        or fullmatch(r"turn_[1-9][0-9]{0,8}", turn_id) is None
+        or not isinstance(text, str)
+        or not isinstance(calls, list)
+        or calls
+        or not isinstance(response_id, str)
+        or not response_id
+        or envelope.operation_state.operation_id != f"{run_id}:{turn_id}:provider"
+    ):
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    provider = _mapping(
+        envelope.payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID"
+    )
+    state = _mapping(
+        envelope.payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID"
+    )
+    if provider.get("name") == "openai":
+        usage = _mapping(data.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID")
+        input_tokens = usage.get("input_tokens")
+        output_tokens = usage.get("output_tokens")
+        if (
+            state.get("response_id") != response_id
+            or isinstance(input_tokens, bool)
+            or input_tokens is not None
+            and (not isinstance(input_tokens, int) or input_tokens < 0)
+            or isinstance(output_tokens, bool)
+            or output_tokens is not None
+            and (not isinstance(output_tokens, int) or output_tokens < 0)
+            or state.get("prior_context_tokens")
+            != (input_tokens or 0) + (output_tokens or 0)
+        ):
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+        batches = state.get("output_batches")
+        if not isinstance(batches, list) or not batches:
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+        last_batch = _mapping(
+            batches[-1], "CONTINUATION_PROVIDER_STATE_INVALID"
+        )
+        items = last_batch.get("items")
+        if not isinstance(items, list) or any(
+            isinstance(item, Mapping) and item.get("type") == "function_call"
+            for item in items
+        ):
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+    else:
+        messages = state.get("messages")
+        if not isinstance(messages, list) or not messages:
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+        assistant = _mapping(
+            messages[-1], "CONTINUATION_PROVIDER_STATE_INVALID"
+        )
+        content = assistant.get("content")
+        if (
+            assistant.get("role") != "assistant"
+            or not isinstance(content, list)
+            or any(
+                isinstance(block, Mapping) and block.get("type") == "tool_use"
+                for block in content
+            )
+        ):
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+    return text
+
+
 def plan_read_only_recovery(
     checkpoint: Mapping[str, JSONValue],
     envelope: ContinuationEnvelope,
@@ -381,6 +477,12 @@ def plan_read_only_recovery(
         pending_effect=pending_effect,
     )
     decision = classify_operation_state(envelope.operation_state, context=context)
+    if decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+        if next_step != "stop" or raw_effect is not None:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return ReadOnlyRecoveryPlan(
+            decision, final_text=_completed_final_text(envelope)
+        )
     if decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
         call = _pending_observation(envelope)
         expected_id = f"{call.identity.run_id}:{call.identity.turn_id}:provider"
@@ -752,6 +854,26 @@ class LockedRecoveryPersistence:
             ),
             recovery_status=recovery_status,
         )
+
+    def finalize_success(self, sequence: int) -> tuple[str, Mapping[str, JSONValue]]:
+        """Close a fully persisted final response without external dispatch."""
+
+        checkpoint, envelope = self._current(sequence)
+        plan = plan_read_only_recovery(
+            checkpoint, envelope, self.config, task=self.task
+        )
+        if (
+            plan.decision.action is not ReconstructionAction.FINALIZE_SUCCESS
+            or plan.final_text is None
+        ):
+            raise RecoveryExecutionError("RECOVERY_SUCCESS_NOT_APPLICABLE")
+        completed = finalize_recovery_success(
+            self.state_dir,
+            self.run_id,
+            expected_sequence=sequence,
+            final_text_length=len(plan.final_text),
+        )
+        return plan.final_text, completed
 
 
 async def execute_read_only_recovery_step(

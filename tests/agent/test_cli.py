@@ -640,11 +640,14 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
 
     import computer_use_agent.desktop_mcp as desktop_module
     from computer_use_agent.config import load_agent_config
-    from computer_use_agent.continuation import RuntimeContinuationRecorder
+    from computer_use_agent.continuation import (
+        RuntimeContinuationRecorder,
+        continuation_path,
+    )
     from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
     from computer_use_agent.providers.openai import OpenAIResponsesProvider
     from computer_use_agent.tool_registry import reviewed_registry_digest
-    from computer_use_agent.trace import RunPhase, RunRecorder
+    from computer_use_agent.trace import RunPhase, RunRecorder, read_run_checkpoint
     from computer_use_agent.types import (
         CallIdentity,
         DispatchCertainty,
@@ -766,12 +769,21 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
         "dispatch_observation",
         "continue_provider",
     ]
-    assert output["checkpoint_sequence"] == 7
+    assert output["checkpoint_sequence"] == (7 if provider_requests_action else 8)
     assert output["next_step"] == "stop"
     assert output["tool_call_count"] == int(provider_requests_action)
     assert [call.name for call in desktop.tool_calls] == ["list_windows"]
     assert len(provider.calls) == 1
     assert desktop.close_calls == 1
+    checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    assert checkpoint["phase"] == (
+        RunPhase.PLANNING.value
+        if provider_requests_action
+        else RunPhase.SUCCESS.value
+    )
+    assert continuation_path(config.state_dir, state.run_id).exists() is bool(
+        provider_requests_action
+    )
 
 
 def test_report_cli_is_read_only_for_empty_state(
