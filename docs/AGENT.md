@@ -134,7 +134,7 @@ evidence plus the matching plan transition. Unknown outcomes must remain
 dispatch; see [Task planning](PLANNING.md).
 
 `executor_runtime.py` adds the first plan-connected runtime, but only for
-observation steps and only as an internal API. Opening requires continuation
+observation and tool-free final-response steps and only as an internal API. Opening requires continuation
 WAL, creates one new plan/run under the application RunLock, verifies exact MCP
 discovery, and retains one recorder, continuation, grounding state, and MCP
 generation across bounded steps. Before any call reaches the shared Runner
@@ -142,8 +142,7 @@ boundary, its plan step is atomically changed to `in_progress`. Success and
 known failure then commit `completed` or `failed`; an unknown outcome leaves the
 step `in_progress`, retains the sensitive continuation, closes every live port,
 and cannot be retried. The module contains no direct MCP dispatch call. It does
-not call a provider, execute `final_response`, permit side effects, expose a CLI,
-or resume an earlier session implicitly.
+not permit side effects, expose a CLI, or resume an earlier session implicitly.
 
 `executor_reconciliation.py` adds a narrower explicit crash repair, not a
 general resume path. Under the existing RunLock it strictly cross-checks an
@@ -185,7 +184,20 @@ and completed CAS transitions. It is deliberately separate from the ordinary
 provider continuation envelope, so existing recovery cannot interpret final
 text as a resumable provider/tool turn. A completed WAL remains non-authorizing:
 it does not consume budget, transition the plan, write terminal trace state,
-publish text, or permit replay. Runtime orchestration is still absent.
+publish text, or permit replay by itself.
+
+`RuntimeExecutorSession.execute_final_response()` now supplies the first
+orchestration boundary for that WAL. It rereads and compiles an exact pending
+final step, creates `prepared`, CAS-marks the plan step `in_progress`, writes
+`dispatch_intent`, and only then calls one explicitly injected tool-free
+`FinalResponsePort`. Correlated completion is durable before provider usage is
+consumed into the host budget and canonical model-turn ledger; only afterward
+may the final plan step become `completed` and the safe checkpoint become
+`SUCCESS`. The ordinary observation continuation is then removed and all live
+ports and the run lock close. Any intent-or-later failure preserves both WALs,
+keeps the final step non-terminal, closes without retry, and never enters normal
+provider recovery, policy, approval, or MCP. Completed-WAL reconciliation and
+CLI wiring remain absent.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
@@ -546,11 +558,11 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow and the internal observation-plan runtime delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid a direct runtime dispatch site | implemented shared host boundary; CLI plan runtime not connected |
-| Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and provider/final/CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
+| Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
-| Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; no WAL, transition, terminalization, or CLI path exists | implemented pure request contract; isolated adapters consume it but orchestration is unavailable |
-| Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters; WAL/budget/final-step/trace orchestration unavailable |
-| Final-response WAL is separate and non-authorizing | Correlated response identity/text/usage can move a private RunLock-scoped request record only through prepared/dispatch-intent/completed atomic CAS. It is not ordinary provider continuation and cannot trigger recovery, budget consumption, plan completion, text publication, or retry | implemented strict local persistence; provider runtime ordering and terminalization unavailable |
+| Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; compilation itself grants no authority | implemented pure request contract consumed only by the internal final runtime and isolated adapters |
+| Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters plus injected internal runtime port; no CLI or real-provider evidence |
+| Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime tests; completed-WAL reconciliation and CLI unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current

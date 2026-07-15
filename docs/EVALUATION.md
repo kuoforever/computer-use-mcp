@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters and dedicated WAL, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -190,7 +190,21 @@ prepared/intent/completed ordering, atomic unchanged-state failure, corruption,
 and identity drift. The store is structurally separate from ordinary provider
 continuation and has no provider or recovery executor. This does not yet prove
 runtime provider ordering, budget consumption, final-step CAS, terminal trace,
-or crash reconciliation.
+or crash reconciliation by themselves.
+
+The internal final-response runtime adds offline E1 unit evidence without
+changing the frozen 13-case manifest. An injected tool-free fake proves that
+`prepared` precedes final-step `in_progress`, durable `dispatch_intent`
+precedes the one provider call, correlated WAL completion precedes host
+model/input budget and canonical model-turn ledger consumption, and final-step
+completion precedes the redacted `SUCCESS` checkpoint and ordinary continuation
+cleanup. Provider failure after intent makes exactly one call, retains both
+WALs and the `in_progress` final step, closes all live authority, and never
+retries. An injected final plan-write failure retains the completed sensitive
+result for later local reconciliation without publishing it or replaying the
+provider call. Calling final response before observations is inert. Ordinary
+provider, approval, and MCP paths receive no new calls. This is not E3/E4,
+completed-WAL reconciliation, CLI, or side-effect evidence.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable

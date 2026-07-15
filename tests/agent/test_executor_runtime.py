@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -21,6 +21,11 @@ from computer_use_agent.executor_runtime import (
     open_runtime_executor_session,
 )
 from computer_use_agent import executor_runtime as executor_runtime_module
+from computer_use_agent.executor_final import FinalResponseRequest, FinalResponseResult
+from computer_use_agent.executor_final_store import (
+    FinalResponseStage,
+    FinalResponseStore,
+)
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.plan_store import PlanStoreError, TaskPlanStore
 from computer_use_agent.planning import (
@@ -30,8 +35,11 @@ from computer_use_agent.planning import (
 )
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, RunnerPorts
+from computer_use_agent.trace import read_run_record
 from computer_use_agent.types import (
     DispatchCertainty,
+    LedgerEventKind,
+    ModelUsage,
     ToolCall,
     ToolCallStatus,
     ToolResult,
@@ -103,6 +111,23 @@ class DynamicDesktop(FakeDesktopMCP):
         )
 
 
+@dataclass
+class FakeFinalResponsePort:
+    response: FinalResponseResult | BaseException
+    on_call: Callable[[FinalResponseRequest], None] | None = None
+    calls: list[FinalResponseRequest] = field(default_factory=list)
+
+    async def create_final_response(
+        self, request: FinalResponseRequest
+    ) -> FinalResponseResult:
+        self.calls.append(request)
+        if self.on_call is not None:
+            self.on_call(request)
+        if isinstance(self.response, BaseException):
+            raise self.response
+        return self.response
+
+
 def _runner(
     config: AgentConfig,
     desktop: FakeDesktopMCP,
@@ -124,6 +149,15 @@ def _read_plan_after_close(config: AgentConfig):
     lock.acquire()
     try:
         return TaskPlanStore(config.state_dir, lock).read("run_1")
+    finally:
+        lock.release()
+
+
+def _read_final_after_close(config: AgentConfig):
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        return FinalResponseStore(config.state_dir, lock).read("run_1")
     finally:
         lock.release()
 
@@ -291,3 +325,201 @@ def test_runtime_requires_wal_before_starting_any_port(
     assert desktop.tool_calls == []
     assert provider.calls == []
     assert approvals.requests == []
+
+
+def test_runtime_final_response_orders_wal_budget_plan_trace_and_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    asyncio.run(session.execute_next_observation())
+    final = FakeFinalResponsePort(
+        FinalResponseResult(
+            run_id="run_1",
+            turn_id="executor_final_1",
+            provider_response_id="resp_final_1",
+            text="The UI is ready.",
+            usage=ModelUsage(input_tokens=10, output_tokens=4),
+        )
+    )
+
+    def inspect_dispatch(request: FinalResponseRequest) -> None:
+        snapshot = session.store.read("run_1")
+        assert snapshot.plan.steps[-1].status is PlanStepStatus.IN_PROGRESS
+        wal = session.prepared_run.final_response_store(config.state_dir).read("run_1")
+        assert wal.stage is FinalResponseStage.DISPATCH_INTENT
+        assert wal.request_digest == request.request_digest
+
+    original_consume = runner._consume_model_turn
+
+    def inspect_budget_consumption(state, turn, *, latency_ms: int):
+        wal = session.prepared_run.final_response_store(config.state_dir).read("run_1")
+        assert wal.stage is FinalResponseStage.COMPLETED
+        assert state.budgets.model_turns_used == 0
+        assert session.store.read("run_1").plan.steps[-1].status is PlanStepStatus.IN_PROGRESS
+        return original_consume(state, turn, latency_ms=latency_ms)
+
+    original_record = session.recorder.record
+
+    def inspect_terminal_trace(state, phase, **kwargs):
+        if phase.value == "SUCCESS":
+            assert state.budgets.model_turns_used == 1
+            assert session.store.read("run_1").plan.steps[-1].status is PlanStepStatus.COMPLETED
+        return original_record(state, phase, **kwargs)
+
+    final.on_call = inspect_dispatch
+    monkeypatch.setattr(runner, "_consume_model_turn", inspect_budget_consumption)
+    monkeypatch.setattr(session.recorder, "record", inspect_terminal_trace)
+    outcome = asyncio.run(session.execute_final_response(final))
+
+    assert outcome.text == "The UI is ready."
+    assert "The UI is ready." not in repr(outcome)
+    assert outcome.state.budgets.model_turns_used == 1
+    assert outcome.state.budgets.input_tokens_used == 10
+    assert outcome.state.event_log[-1].kind is LedgerEventKind.MODEL_TURN
+    assert outcome.state.event_log[-1].payload["tool_call_count"] == 0
+    assert session.closed
+    assert len(final.calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+    assert len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
+    assert not continuation_path(config.state_dir, "run_1").exists()
+    plan = _read_plan_after_close(config)
+    assert plan.plan.status is TaskPlanStatus.COMPLETED
+    assert plan.plan.steps[-1].status is PlanStepStatus.COMPLETED
+    wal = _read_final_after_close(config)
+    assert wal.stage is FinalResponseStage.COMPLETED
+    assert wal.result is not None
+    assert wal.result.text == "The UI is ready."
+    checkpoint = read_run_record(config.state_dir, "run_1")["state"]
+    assert checkpoint["phase"] == "SUCCESS"
+    assert checkpoint["final_text_length"] == len("The UI is ready.")
+    assert checkpoint["budgets"]["model_turns_used"] == 1
+
+
+def test_runtime_final_provider_failure_preserves_intent_and_never_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    asyncio.run(session.execute_next_observation())
+    final = FakeFinalResponsePort(RuntimeError("private provider failure"))
+
+    with pytest.raises(ExecutorRuntimeError, match="^EXECUTOR_FINAL_UNCERTAIN$"):
+        asyncio.run(session.execute_final_response(final))
+
+    assert session.closed
+    assert len(final.calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+    assert continuation_path(config.state_dir, "run_1").exists()
+    plan = _read_plan_after_close(config)
+    assert plan.plan.steps[-1].status is PlanStepStatus.IN_PROGRESS
+    wal = _read_final_after_close(config)
+    assert wal.stage is FinalResponseStage.DISPATCH_INTENT
+    assert wal.result is None
+    checkpoint = read_run_record(config.state_dir, "run_1")["state"]
+    assert checkpoint["phase"] == "FAILED"
+    assert checkpoint["failure_code"] == "EXECUTOR_FINAL_UNCERTAIN"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        asyncio.CancelledError(),
+        FinalResponseResult(
+            run_id="different",
+            turn_id="executor_final_1",
+            provider_response_id="resp_wrong_run",
+            text="uncorrelated",
+            usage=ModelUsage(1, 1),
+        ),
+    ],
+)
+def test_runtime_final_cancellation_or_identity_drift_is_non_replayable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: FinalResponseResult | BaseException,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, _provider, _approvals = _runner(config, desktop)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    asyncio.run(session.execute_next_observation())
+    final = FakeFinalResponsePort(response)
+
+    expected = asyncio.CancelledError if isinstance(response, asyncio.CancelledError) else ExecutorRuntimeError
+    with pytest.raises(expected):
+        asyncio.run(session.execute_final_response(final))
+
+    assert session.closed
+    assert len(final.calls) == 1
+    assert _read_plan_after_close(config).plan.steps[-1].status is PlanStepStatus.IN_PROGRESS
+    wal = _read_final_after_close(config)
+    assert wal.stage is FinalResponseStage.DISPATCH_INTENT
+    assert wal.result is None
+
+
+def test_runtime_final_plan_commit_failure_preserves_completed_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, _provider, _approvals = _runner(config, desktop)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    asyncio.run(session.execute_next_observation())
+    original_transition = session.store.transition
+
+    def fail_final_completion(*args: object, **kwargs: object):
+        if args[2] is PlanStepStatus.COMPLETED and args[1] == "step_2":
+            raise PlanStoreError("PLAN_STORE_WRITE_FAILED")
+        return original_transition(*args, **kwargs)
+
+    monkeypatch.setattr(session.store, "transition", fail_final_completion)
+    final = FakeFinalResponsePort(
+        FinalResponseResult(
+            run_id="run_1",
+            turn_id="executor_final_1",
+            provider_response_id="resp_final_1",
+            text="Completed but not terminalized",
+            usage=ModelUsage(3, 2),
+        )
+    )
+
+    with pytest.raises(ExecutorRuntimeError, match="^EXECUTOR_FINAL_UNCERTAIN$"):
+        asyncio.run(session.execute_final_response(final))
+
+    assert session.closed
+    assert len(final.calls) == 1
+    assert continuation_path(config.state_dir, "run_1").exists()
+    plan = _read_plan_after_close(config)
+    assert plan.plan.steps[-1].status is PlanStepStatus.IN_PROGRESS
+    wal = _read_final_after_close(config)
+    assert wal.stage is FinalResponseStage.COMPLETED
+    assert wal.result is not None
+    assert wal.result.text == "Completed but not terminalized"
+
+
+def test_runtime_final_preflight_before_observations_is_inert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, _provider, _approvals = _runner(config, desktop)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    final = FakeFinalResponsePort(RuntimeError("must not be called"))
+
+    with pytest.raises(ExecutorRuntimeError, match="^EXECUTOR_FINAL_PLAN_NOT_READY$"):
+        asyncio.run(session.execute_final_response(final))
+
+    assert not session.closed
+    assert final.calls == []
+    snapshot = session.store.read("run_1")
+    assert snapshot.sequence == 0
+    assert all(step.status is PlanStepStatus.PENDING for step in snapshot.plan.steps)
+    asyncio.run(session.cancel())
