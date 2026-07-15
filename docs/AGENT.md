@@ -97,6 +97,14 @@ the following commands:
   procedure records. Add requires confirmation and a future expiry; no memory
   is automatically extracted or injected into provider context.
 
+`src/computer_use_agent/planning.py` now defines a separate non-executable
+TaskPlan contract. Its strict JSON compiler accepts only host-scoped reviewed
+tools, derives effect and approval metadata from the registry, forbids
+sensitive arguments, binds task and registry digests, and assigns ordered step
+IDs. Compiling or locally transitioning a plan performs no provider, policy,
+approval, MCP, or desktop call and grants no tool authority. No CLI or Runner
+path consumes plans yet; see [Task planning](PLANNING.md).
+
 `AgentRunner` accepts the three external ports through `RunnerPorts`. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
 denies side effects by default; opt-in action mode still requires local approval. Model-turn,
@@ -255,6 +263,7 @@ contract. It contains no provider SDK, desktop library, or MCP-server import.
 | `RunState` | Task, policy version, observation epoch, budgets, event ledger, verified observation epoch, and recovery state. |
 | `PolicyDecision` / `ApprovalRequest` | Auditable local-human approval boundary bound to host request ID, `CallIdentity`, and call digest. Approval exposes no raw `ToolCall`. |
 | `MCPToolDescriptor` | Normalized local-child discovery name and input schema used for exact startup verification. |
+| `TaskPlan` / `PlanStep` | Immutable, digest-bound, non-executable planning data. Provider candidates cannot supply IDs, statuses, effects, approval flags, or dispatch authority. |
 
 The ports are deliberately narrow:
 
@@ -439,7 +448,9 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
+| Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 
-The remaining work adds broader post-provider resumable state, semantic context
-compression, isolated desktop smokes, and release review. The current slice is
-experimental and must not be presented as the complete safety MVP.
+The remaining work adds durable plan persistence, a separately reviewed Planner
+port and bounded Executor, broader post-provider resumable state, semantic
+context compression, isolated desktop smokes, and release review. The current
+slice is experimental and must not be presented as the complete safety MVP.

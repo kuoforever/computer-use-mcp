@@ -54,6 +54,7 @@ not a line-by-line mirror of every reference page.
 | Persisted continuation | Private v2 storage with correlated OpenAI recovery token state, opt-in write-ahead boundaries, conservative classification, and a locked 1-4 step read-only CLI gate including completed-side-effect mandatory observation |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
+| Task planning | Non-executable TaskPlan contract, strict candidate compiler, and ordered local transitions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
 | E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |
 | Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |
