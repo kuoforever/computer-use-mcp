@@ -187,8 +187,27 @@ the Runner boundary. It rejects side effects before a plan transition, requires
 an explicit cancellation for a remaining untouched step, never calls a model,
 never treats `final_response` as trusted text, and never resumes implicitly.
 
-The next Executor increment must add provider/final-response orchestration or a
-separately reviewed explicit resume design before CLI wiring. Any side-effect
+## Completed-observation reconciliation
+
+`executor_reconciliation.py` implements one explicit, local-only repair path;
+it is not a general resume mechanism. It accepts an exact locked plan snapshot,
+the exact task, and a strictly revalidated continuation envelope only when the
+first unfinished step is the matching `in_progress` observation and the WAL's
+last correlated tool call/result proves a known `completed` outcome. Run, task,
+registry, plan sequence/digest, step/tool/arguments, fresh call digest,
+operation identity, effect, dispatch certainty, and ledger order must all
+match. It then performs only the CAS transition to `completed` or `failed` and
+retains the WAL.
+
+`prepared`, `dispatch_intent`, unknown outcomes, side effects, stale snapshots,
+identity or argument drift, and malformed evidence fail without mutating the
+plan. The module has no provider, policy, approval, recovery-executor, MCP, or
+desktop port and never reconstructs a historical call for dispatch. It cannot
+continue the plan, restore Runner state, execute `final_response`, delete the
+continuation, or expose a CLI resume command.
+
+The next Executor increment must add provider/final-response orchestration or
+broader separately reviewed explicit resume state before CLI wiring. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
