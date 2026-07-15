@@ -155,6 +155,17 @@ snapshot/task/registry/call drift, and malformed evidence leave the plan
 unchanged. It cannot continue execution, restore Runner state, execute final
 text, or replay historical calls.
 
+`executor_final.py` defines the next non-executing boundary. Its compiler
+accepts only an exact plan with one to four completed observation steps and a
+pending final step, plus a canonical in-memory ledger containing exactly the
+matching successful call/result/observation groups. It rechecks task, registry,
+snapshot, recovery, verified observation, and budget state, then produces a
+bounded digest-bound `FinalResponseRequest`. Historical calls are input
+evidence only and are not exposed as tool calls, schemas, approvals, or dispatch
+work. The tool-free `FinalResponsePort` has no implementation yet; the compiler
+does not call a provider, consume budget, write WAL, transition the plan, or
+trust/terminalize response text.
+
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
 That method is the only Runner MCP dispatch site and contains the existing
@@ -516,6 +527,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Runner call authority has one boundary | Provider workflow and the internal observation-plan runtime delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid a direct runtime dispatch site | implemented shared host boundary; CLI plan runtime not connected |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and provider/final/CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
+| Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; no provider, WAL, transition, terminalization, or CLI path exists | implemented pure request contract; dual-provider adapters and orchestration unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current
