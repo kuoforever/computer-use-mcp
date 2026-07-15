@@ -150,7 +150,8 @@ passes, regenerate the canonical manifest explicitly:
 `--manifest` and `--write-manifest` are mutually exclusive. A failed case run
 never writes a new manifest.
 
-The thirteen workflow cases plus the frozen 14-boundary reconstruction matrix cover:
+The thirteen workflow cases, frozen 14-boundary reconstruction matrix, and
+frozen nine-case OpenAI stateless-replay matrix cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;
 - E2 cumulative provider-reported input-token exhaustion before another turn;
@@ -166,6 +167,10 @@ The thirteen workflow cases plus the frozen 14-boundary reconstruction matrix co
 - E2 write-ahead crash reconstruction across 14 durable boundaries, with exact
   classification/final-phase assertions and frozen zero automatic resume, zero
   new external calls, and zero safety escapes;
+- E2 explicit OpenAI stateless replay with exact text and screenshot wire
+  order, plus unknown, missing, mismatched, reordered, side-effecting,
+  over-budget, and provider-failure cases. Every preflight rejection freezes
+  zero provider/MCP calls and the original remote response ID;
 - approved, grounded calls rejected by human activity, foreground gate, E-stop,
   or driver outcome, each followed by mandatory re-observation; and
 - post-dispatch unknown outcome stopping immediately without replay.

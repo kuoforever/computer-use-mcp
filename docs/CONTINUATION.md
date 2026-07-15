@@ -221,6 +221,13 @@ request's complete item order; Claude assertions freeze the reconstructed
 assistant `tool_use` plus user `tool_result` pair. Neither suite may trigger an
 automatic fallback.
 
+The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
+digest-bound replay artifacts. Its manifest freezes successful text and
+screenshot compilation, unknown/missing/mismatched/reordered items,
+side-effect history, request overflow, and provider failure. A recovery
+executor test additionally proves replay preflight completes before the durable
+provider intent and that historical calls cause zero MCP dispatches.
+
 ## Delivery sequence
 
 1. **Implemented:** add persistence DTO schemas, bounded strict readers, atomic
