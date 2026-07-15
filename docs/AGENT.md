@@ -133,6 +133,18 @@ evidence plus the matching plan transition. Unknown outcomes must remain
 `in_progress` and close the session. It has no external ports and still cannot
 dispatch; see [Task planning](PLANNING.md).
 
+`executor_runtime.py` adds the first plan-connected runtime, but only for
+observation steps and only as an internal API. Opening requires continuation
+WAL, creates one new plan/run under the application RunLock, verifies exact MCP
+discovery, and retains one recorder, continuation, grounding state, and MCP
+generation across bounded steps. Before any call reaches the shared Runner
+boundary, its plan step is atomically changed to `in_progress`. Success and
+known failure then commit `completed` or `failed`; an unknown outcome leaves the
+step `in_progress`, retains the sensitive continuation, closes every live port,
+and cannot be retried. The module contains no direct MCP dispatch call. It does
+not call a provider, execute `final_response`, permit side effects, expose a CLI,
+or resume an earlier session implicitly.
+
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
 That method is the only Runner MCP dispatch site and contains the existing
@@ -491,7 +503,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Planner output remains untrusted data | The one-shot port receives only a bounded task and exact host-scoped non-sensitive schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry, persistence, ToolCall, policy, approval, or MCP path. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling | implemented provider-neutral port and offline fake-client dual-provider adapter tests; runtime not connected |
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
-| Runner call authority has one boundary | The provider workflow delegates each normalized request to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. A structural test freezes the single-site invariant while existing read-only/action workflows freeze behavior | implemented shared host boundary; no plan runtime connection |
+| Runner call authority has one boundary | Provider workflow and the internal observation-plan runtime delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid a direct runtime dispatch site | implemented shared host boundary; CLI plan runtime not connected |
+| Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and provider/final/CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current

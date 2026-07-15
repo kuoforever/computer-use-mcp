@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from time import perf_counter_ns
 from uuid import uuid4
 
@@ -11,6 +12,7 @@ from .config import AgentConfig
 from .continuation import RuntimeContinuationRecorder
 from .context import ContextBudgetError, reduce_ledger
 from .grounding import GroundingError, GroundingState
+from .plan_store import TaskPlanStore
 from .policy import HostPolicy, PolicyDisposition
 from .run_lock import RunLock
 from .tool_registry import (
@@ -81,6 +83,7 @@ class _CallBoundaryOutcome:
 
     state: RunState
     grounding: GroundingState
+    result: ToolResult
 
 
 @dataclass(frozen=True)
@@ -114,6 +117,13 @@ class PreparedRun:
         if self._closed:
             raise RuntimeError("prepared run is already closed")
         return self
+
+    def plan_store(self, state_dir: Path) -> TaskPlanStore:
+        """Create a plan store bound to this run's still-live application lock."""
+
+        if self._closed:
+            raise RuntimeError("prepared run is already closed")
+        return TaskPlanStore(state_dir, self._lock)
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
         self.close()
@@ -441,7 +451,7 @@ class AgentRunner:
             grounding = grounding.invalidate()
             recorder.record(state, RunPhase.VERIFYING)
         recorder.record(state, RunPhase.PLANNING)
-        return _CallBoundaryOutcome(state=state, grounding=grounding)
+        return _CallBoundaryOutcome(state=state, grounding=grounding, result=result)
 
     async def run(
         self,

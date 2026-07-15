@@ -153,10 +153,44 @@ ledger data cannot create dispatch authority. A repeated prepare while a call
 is outstanding, a released lock, history loss, drift, side effect, transition
 mismatch, or fifth step fails closed.
 
-The next Executor increment must preserve one recorder/continuation lifetime
-across this lock-scoped session, reread the snapshot with
-compare-and-swap expectations, and route each fresh requested call only through
-that shared Runner boundary. Plan transitions may record outcomes,
+## Observation-only runtime session
+
+`executor_runtime.py` is the first execution-capable plan consumer. It is an
+internal API with no CLI and accepts a host-compiled `TaskPlan` plus its exact
+task. Opening a new session requires configured continuation WAL, acquires one
+application RunLock, creates the private plan snapshot and safe run record,
+verifies exact MCP discovery, and retains one recorder, continuation, grounding
+state, MCP generation, and `BoundedExecutorSession` across steps.
+
+For each observation step, ordering is fixed:
+
+1. The bounded contract rereads the locked snapshot and creates a host-identified
+   fresh `requested` call.
+2. PlanStore CAS-transitions that exact step from `pending` to `in_progress`.
+3. The sole Runner call boundary applies policy and budgets, writes prepared and
+   dispatch-intent continuation state, authorizes, dispatches MCP, validates the
+   result, and updates observation/grounding state.
+4. A successful result CAS-transitions the step to `completed`; a known failure
+   transitions it to `failed`. The session contract verifies exact ledger and
+   transition evidence.
+5. An unknown result performs no terminal plan transition: `in_progress` and
+   the continuation artifact are retained, resources close, and the call is
+   never replayed.
+
+If the tool result is durably completed but the terminal plan CAS fails, the
+runtime likewise closes with the step still `in_progress` and preserves the
+completed continuation evidence. It never infers completion from the plan and
+never repeats the call to repair bookkeeping.
+
+The runtime module contains no direct `desktop.call_tool` site and cannot bypass
+the Runner boundary. It rejects side effects before a plan transition, requires
+an explicit cancellation for a remaining untouched step, never calls a model,
+never treats `final_response` as trusted text, and never resumes implicitly.
+
+The next Executor increment must add provider/final-response orchestration or a
+separately reviewed explicit resume design before CLI wiring. Any side-effect
+expansion must route fresh calls only through the shared Runner boundary and
+retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
 replace policy, grounding, budget, approval, write-ahead, MCP, or mandatory
 post-action observation.
