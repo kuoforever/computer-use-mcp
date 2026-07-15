@@ -124,9 +124,16 @@ call: the ordinary host budget boundary remains mandatory and authoritative.
 Started steps are rejected rather than replayed, and `final_response` remains
 non-executable because the plan contains no trusted response text.
 
-The next Executor increment must keep the application `RunLock`, reread the
-snapshot with compare-and-swap expectations, and route the fresh requested call
-through the ordinary Runner boundaries. Plan transitions may record outcomes,
+The ordinary Runner now exposes one internal requested-call boundary used by
+its provider workflow. It contains the existing policy, grounding, budget,
+approval, write-ahead, MCP, result-validation, observation, and verification
+logic; Runner has no second MCP dispatch site. This extraction does not connect
+plans or make the preflight result executable.
+
+The next Executor increment must keep the application `RunLock`, preserve one
+recorder/continuation lifetime across bounded steps, reread the snapshot with
+compare-and-swap expectations, and route each fresh requested call only through
+that shared Runner boundary. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
 replace policy, grounding, budget, approval, write-ahead, MCP, or mandatory
 post-action observation.

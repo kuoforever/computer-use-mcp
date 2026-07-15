@@ -76,6 +76,14 @@ class RunOutcome:
 
 
 @dataclass(frozen=True)
+class _CallBoundaryOutcome:
+    """State produced by the one authoritative host tool-call boundary."""
+
+    state: RunState
+    grounding: GroundingState
+
+
+@dataclass(frozen=True)
 class RunnerPorts:
     """Injected external boundaries used by the bounded workflow."""
 
@@ -277,6 +285,164 @@ class AgentRunner:
             budgets=replace(budget, side_effects_used=budget.side_effects_used + 1),
         )
 
+    async def _execute_requested_call_boundary(
+        self,
+        state: RunState,
+        call: ToolCall,
+        *,
+        grounding: GroundingState,
+        recorder: RunRecorder,
+        continuation: RuntimeContinuationRecorder | None,
+    ) -> _CallBoundaryOutcome:
+        """Run one fresh requested call through every ordinary host boundary.
+
+        This is the sole Runner path from a normalized request to MCP dispatch.
+        A future plan Executor may reuse it, but plan data cannot skip or alter
+        any policy, grounding, budget, approval, write-ahead, result, or
+        verification behavior implemented here.
+        """
+
+        if self.ports is None:
+            raise RunnerError("RUNNER_PORTS_REQUIRED")
+        try:
+            state = self._record_call(state, call)
+        except RunnerBudgetError as exc:
+            raise RunFailure(str(exc), state) from exc
+        except ToolValidationError as exc:
+            raise RunFailure("SCHEMA_MISMATCH", state) from exc
+        spec = get_tool_spec(call.name)
+        disposition = self.policy.disposition(spec)
+        if disposition is PolicyDisposition.DENY:
+            denied = ToolResult(
+                identity=call.identity,
+                tool_name=call.name,
+                status=ToolResultStatus.REJECTED,
+                dispatch=DispatchCertainty.NOT_DISPATCHED,
+                code="POLICY_DENIED",
+            )
+            state = self._record_result(state, denied, effect=spec.effect)
+            raise RunFailure("POLICY_DENIED", state)
+        if disposition is PolicyDisposition.APPROVAL_REQUIRED:
+            if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure("REOBSERVATION_REQUIRED", state)
+            try:
+                grounding.validate(
+                    call,
+                    spec,
+                    generation=self.ports.desktop.generation,
+                )
+                if state.budgets.side_effects_used >= state.budgets.max_side_effects:
+                    raise RunnerBudgetError("SIDE_EFFECT_BUDGET_EXHAUSTED")
+            except GroundingError as exc:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure(str(exc), state) from exc
+            except RunnerBudgetError as exc:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="BUDGET_EXHAUSTED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure(str(exc), state) from exc
+
+            request = ApprovalRequest.from_tool_call(
+                request_id=uuid4().hex,
+                call=call,
+                reason="side_effect_requires_local_approval",
+                sensitive_arguments=spec.sensitive_arguments,
+            )
+            recorder.record(state, RunPhase.WAITING_APPROVAL)
+            decision = await self.ports.approvals.request_approval(request)
+            if not request.matches(decision) or decision.kind not in {
+                PolicyDecisionKind.ALLOW,
+                PolicyDecisionKind.DENY,
+            }:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="APPROVAL_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure("APPROVAL_MISMATCH", state)
+            state = self._record_policy_decision(state, decision)
+            recorder.record(state, RunPhase.WAITING_APPROVAL)
+            if decision.kind is PolicyDecisionKind.DENY:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="APPROVAL_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure("APPROVAL_DENIED", state)
+            state = self._consume_side_effect(state)
+
+        recorder.record(state, RunPhase.EXECUTING)
+        authorized_call = replace(call, status=ToolCallStatus.AUTHORIZED)
+        tool_started_ns = perf_counter_ns()
+        if continuation is not None:
+            recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
+            continuation.prepare_tool(
+                state,
+                authorized_call,
+                effect=spec.effect,
+                checkpoint_sequence=recorder.checkpoint_sequence,
+            )
+            recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
+            continuation.dispatch_tool(
+                state, checkpoint_sequence=recorder.checkpoint_sequence
+            )
+        result = await self.ports.desktop.call_tool(authorized_call)
+        validate_tool_result(authorized_call, result)
+        state = self._record_result(
+            state,
+            result,
+            effect=spec.effect,
+            latency_ms=max(0, (perf_counter_ns() - tool_started_ns) // 1_000_000),
+        )
+        if continuation is not None:
+            recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
+            continuation.complete_tool(
+                state, result, checkpoint_sequence=recorder.checkpoint_sequence
+            )
+        if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+            raise RunFailure("UNKNOWN_OUTCOME", state)
+        if spec.effect is ToolEffect.OBSERVATION and result.ok:
+            grounding = grounding.observe(
+                result,
+                generation=self.ports.desktop.generation,
+                epoch=state.observation_epoch,
+            )
+            recorder.record(state, RunPhase.OBSERVING)
+        elif (
+            spec.effect is ToolEffect.SIDE_EFFECT
+            and result.dispatch is not DispatchCertainty.NOT_DISPATCHED
+        ):
+            grounding = grounding.invalidate()
+            recorder.record(state, RunPhase.VERIFYING)
+        recorder.record(state, RunPhase.PLANNING)
+        return _CallBoundaryOutcome(state=state, grounding=grounding)
+
     async def run(
         self,
         task: str,
@@ -406,151 +572,15 @@ class AgentRunner:
                     return RunOutcome(text=turn.text, state=state)
 
                 for call in turn.tool_calls:
-                    try:
-                        state = self._record_call(state, call)
-                    except RunnerBudgetError as exc:
-                        raise RunFailure(str(exc), state) from exc
-                    except ToolValidationError as exc:
-                        raise RunFailure("SCHEMA_MISMATCH", state) from exc
-                    spec = get_tool_spec(call.name)
-                    disposition = self.policy.disposition(spec)
-                    if disposition is PolicyDisposition.DENY:
-                        denied = ToolResult(
-                            identity=call.identity,
-                            tool_name=call.name,
-                            status=ToolResultStatus.REJECTED,
-                            dispatch=DispatchCertainty.NOT_DISPATCHED,
-                            code="POLICY_DENIED",
-                        )
-                        state = self._record_result(state, denied, effect=spec.effect)
-                        raise RunFailure("POLICY_DENIED", state)
-                    if disposition is PolicyDisposition.APPROVAL_REQUIRED:
-                        if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
-                            denied = ToolResult(
-                                identity=call.identity,
-                                tool_name=call.name,
-                                status=ToolResultStatus.REJECTED,
-                                dispatch=DispatchCertainty.NOT_DISPATCHED,
-                                code="POLICY_DENIED",
-                            )
-                            state = self._record_result(state, denied, effect=spec.effect)
-                            raise RunFailure("REOBSERVATION_REQUIRED", state)
-                        try:
-                            grounding.validate(
-                                call,
-                                spec,
-                                generation=self.ports.desktop.generation,
-                            )
-                            if state.budgets.side_effects_used >= state.budgets.max_side_effects:
-                                raise RunnerBudgetError("SIDE_EFFECT_BUDGET_EXHAUSTED")
-                        except GroundingError as exc:
-                            denied = ToolResult(
-                                identity=call.identity,
-                                tool_name=call.name,
-                                status=ToolResultStatus.REJECTED,
-                                dispatch=DispatchCertainty.NOT_DISPATCHED,
-                                code="POLICY_DENIED",
-                            )
-                            state = self._record_result(state, denied, effect=spec.effect)
-                            raise RunFailure(str(exc), state) from exc
-                        except RunnerBudgetError as exc:
-                            denied = ToolResult(
-                                identity=call.identity,
-                                tool_name=call.name,
-                                status=ToolResultStatus.REJECTED,
-                                dispatch=DispatchCertainty.NOT_DISPATCHED,
-                                code="BUDGET_EXHAUSTED",
-                            )
-                            state = self._record_result(state, denied, effect=spec.effect)
-                            raise RunFailure(str(exc), state) from exc
-
-                        request = ApprovalRequest.from_tool_call(
-                            request_id=uuid4().hex,
-                            call=call,
-                            reason="side_effect_requires_local_approval",
-                            sensitive_arguments=spec.sensitive_arguments,
-                        )
-                        recorder.record(state, RunPhase.WAITING_APPROVAL)
-                        decision = await self.ports.approvals.request_approval(request)
-                        if not request.matches(decision) or decision.kind not in {
-                            PolicyDecisionKind.ALLOW,
-                            PolicyDecisionKind.DENY,
-                        }:
-                            denied = ToolResult(
-                                identity=call.identity,
-                                tool_name=call.name,
-                                status=ToolResultStatus.REJECTED,
-                                dispatch=DispatchCertainty.NOT_DISPATCHED,
-                                code="APPROVAL_DENIED",
-                            )
-                            state = self._record_result(state, denied, effect=spec.effect)
-                            raise RunFailure("APPROVAL_MISMATCH", state)
-                        state = self._record_policy_decision(state, decision)
-                        recorder.record(state, RunPhase.WAITING_APPROVAL)
-                        if decision.kind is PolicyDecisionKind.DENY:
-                            denied = ToolResult(
-                                identity=call.identity,
-                                tool_name=call.name,
-                                status=ToolResultStatus.REJECTED,
-                                dispatch=DispatchCertainty.NOT_DISPATCHED,
-                                code="APPROVAL_DENIED",
-                            )
-                            state = self._record_result(state, denied, effect=spec.effect)
-                            raise RunFailure("APPROVAL_DENIED", state)
-                        state = self._consume_side_effect(state)
-
-                    recorder.record(state, RunPhase.EXECUTING)
-                    authorized_call = replace(call, status=ToolCallStatus.AUTHORIZED)
-                    tool_started_ns = perf_counter_ns()
-                    if continuation is not None:
-                        recorder.record(
-                            state, recorder.phase, advance_checkpoint_sequence=True
-                        )
-                        continuation.prepare_tool(
-                            state,
-                            authorized_call,
-                            effect=spec.effect,
-                            checkpoint_sequence=recorder.checkpoint_sequence,
-                        )
-                        recorder.record(
-                            state, recorder.phase, advance_checkpoint_sequence=True
-                        )
-                        continuation.dispatch_tool(
-                            state, checkpoint_sequence=recorder.checkpoint_sequence
-                        )
-                    result = await self.ports.desktop.call_tool(authorized_call)
-                    validate_tool_result(authorized_call, result)
-                    state = self._record_result(
+                    outcome = await self._execute_requested_call_boundary(
                         state,
-                        result,
-                        effect=spec.effect,
-                        latency_ms=max(
-                            0, (perf_counter_ns() - tool_started_ns) // 1_000_000
-                        ),
+                        call,
+                        grounding=grounding,
+                        recorder=recorder,
+                        continuation=continuation,
                     )
-                    if continuation is not None:
-                        recorder.record(
-                            state, recorder.phase, advance_checkpoint_sequence=True
-                        )
-                        continuation.complete_tool(
-                            state, result, checkpoint_sequence=recorder.checkpoint_sequence
-                        )
-                    if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
-                        raise RunFailure("UNKNOWN_OUTCOME", state)
-                    if spec.effect is ToolEffect.OBSERVATION and result.ok:
-                        grounding = grounding.observe(
-                            result,
-                            generation=self.ports.desktop.generation,
-                            epoch=state.observation_epoch,
-                        )
-                        recorder.record(state, RunPhase.OBSERVING)
-                    elif (
-                        spec.effect is ToolEffect.SIDE_EFFECT
-                        and result.dispatch is not DispatchCertainty.NOT_DISPATCHED
-                    ):
-                        grounding = grounding.invalidate()
-                        recorder.record(state, RunPhase.VERIFYING)
-                    recorder.record(state, RunPhase.PLANNING)
+                    state = outcome.state
+                    grounding = outcome.grounding
         except asyncio.CancelledError:
             if recorder_started:
                 recorder.record(

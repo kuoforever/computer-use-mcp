@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from collections import deque
 from pathlib import Path
@@ -78,6 +79,22 @@ def _runner(
         config,
         RunnerPorts(provider=provider, desktop=desktop, approvals=FakeApprovalPort()),
     )
+
+
+def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> None:
+    runner_source = inspect.getsource(AgentRunner)
+    boundary_source = inspect.getsource(AgentRunner._execute_requested_call_boundary)
+
+    dispatch = "await self.ports.desktop.call_tool(authorized_call)"
+    assert runner_source.count(dispatch) == 1
+    assert boundary_source.count(dispatch) == 1
+    assert "self.policy.disposition(spec)" in boundary_source
+    assert "grounding.validate(" in boundary_source
+    assert "self._consume_side_effect(state)" in boundary_source
+    assert "request_approval(request)" in boundary_source
+    assert "continuation.dispatch_tool(" in boundary_source
+    assert "validate_tool_result(authorized_call, result)" in boundary_source
+    assert "RunPhase.VERIFYING" in boundary_source
 
 
 def test_read_only_observe_then_answer_is_bounded_and_canonical(
