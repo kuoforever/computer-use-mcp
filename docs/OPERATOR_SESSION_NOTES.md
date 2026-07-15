@@ -199,5 +199,9 @@ record only an opaque alias or the minimum identifier needed for correlation.
 6. **P1:** execute the BOSS, Google Docs, and WeChat staged cases from
    [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md), beginning
    with read-only/draft-only tiers.
-7. **P2:** evaluate delta snapshots and configurable snapshot node limits after
+7. **P2:** execute the dedicated Douyin real-time-media and infinite-feed case
+   with a test account after bounded multi-source observation is available;
+   begin read-only and keep like, follow, comment, message, and publish actions
+   outside the baseline.
+8. **P2:** evaluate delta snapshots and configurable snapshot node limits after
    collecting provider-reported token measurements.

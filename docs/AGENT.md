@@ -479,6 +479,33 @@ No policy or configuration setting may downgrade the MCP server to evade its
 safety mechanisms. A timeout, crash, or provider error after dispatch is an
 `unknown_outcome`; a host must not replay the action automatically.
 
+### Planned enterprise authority boundary
+
+The current Host authorizes reviewed GUI calls; it does not yet authorize
+business operations. An enterprise extension must represent an immutable
+authority envelope containing user, tenant, role, application, stable business
+object, permitted fields and transitions, data classification, purpose,
+recipient scope, quantitative limits, expiration, and policy digest.
+
+The execution boundary must prove both layers before dispatch:
+
+1. the GUI action is structurally valid, freshly grounded, and allowed by the
+   existing Host and MCP safety controls;
+2. the intended business transition is within the current authority envelope
+   and still matches the re-observed object version and tenant.
+
+Visible access, SSO state, provider output, task text, retrieved documents, and
+instructions rendered inside an application are never authority. Enterprise
+identity providers and human approvers remain separate trusted decision points.
+Maker-checker separation, field-level restrictions, external-recipient checks,
+and financial thresholds cannot be reduced to approval of a click coordinate.
+
+Enterprise traces should retain fixed identities, policy and authority digests,
+transition codes, versions, timestamps, and redacted evidence references. Raw
+customer, employee, authentication, financial, message, attachment, screenshot,
+or model content belongs only in an explicitly classified private artifact with
+tenant isolation and retention controls.
+
 ## Sensitive data and Phase 1 baseline
 
 Typed text is sensitive regardless of its length. The contract marks the
