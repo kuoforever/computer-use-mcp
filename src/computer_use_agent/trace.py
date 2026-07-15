@@ -583,6 +583,50 @@ def advance_recovery_checkpoint(
     return to_json_value(updated)
 
 
+def finalize_recovery_success(
+    state_dir: Path,
+    run_id: str,
+    *,
+    expected_sequence: int,
+    final_text_length: int,
+) -> dict[str, JSONValue]:
+    """Atomically close one validated final-provider recovery boundary."""
+
+    if (
+        isinstance(expected_sequence, bool)
+        or not isinstance(expected_sequence, int)
+        or expected_sequence < 1
+        or isinstance(final_text_length, bool)
+        or not isinstance(final_text_length, int)
+        or final_text_length < 0
+    ):
+        raise ValueError("invalid recovery success fields")
+    checkpoint = read_run_checkpoint(state_dir, run_id)
+    if checkpoint.get("checkpoint_sequence") != expected_sequence:
+        raise TraceError("RECOVERY_CHECKPOINT_SEQUENCE_MISMATCH")
+    try:
+        current_phase = RunPhase(checkpoint["phase"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TraceError("CHECKPOINT_READ_FAILED") from exc
+    if current_phase is not RunPhase.PLANNING:
+        raise TraceError("RECOVERY_SUCCESS_PHASE_INVALID")
+    validate_transition(current_phase, RunPhase.SUCCESS)
+    updated = dict(checkpoint)
+    updated.update(
+        checkpoint_sequence=expected_sequence + 1,
+        phase=RunPhase.SUCCESS.value,
+        recovery_status="ready",
+        final_text_length=final_text_length,
+        resume_allowed=False,
+        recovery_action="none",
+        updated_at=_now(),
+    )
+    updated.pop("failure_code", None)
+    _atomic_json(RunRecorder(state_dir, run_id).checkpoint_path, updated)
+    delete_continuation(state_dir, run_id)
+    return to_json_value(updated)
+
+
 __all__ = [
     "RecoveryDecision",
     "RunPhase",
@@ -590,6 +634,7 @@ __all__ = [
     "advance_recovery_checkpoint",
     "cancel_run_record",
     "classify_run_recovery",
+    "finalize_recovery_success",
     "TraceError",
     "read_run_checkpoint",
     "read_run_record",

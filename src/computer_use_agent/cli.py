@@ -408,6 +408,8 @@ async def _recover_live_async(
                         )
                     else:
                         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+            elif plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+                pass
             else:
                 if step_outputs:
                     break
@@ -420,6 +422,23 @@ async def _recover_live_async(
                 task=task,
                 lock=lock,
             )
+            if plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+                sequence = envelope.payload["checkpoint_sequence"]
+                assert isinstance(sequence, int) and not isinstance(sequence, bool)
+                text, completed_checkpoint = persistence.finalize_success(sequence)
+                step_outputs.append(
+                    {
+                        "action": plan.decision.action.value,
+                        "reason": plan.decision.reason,
+                        "checkpoint_sequence": completed_checkpoint[
+                            "checkpoint_sequence"
+                        ],
+                        "next_step": "stop",
+                        "text": text,
+                        "tool_call_count": 0,
+                    }
+                )
+                break
             step = await execute_read_only_recovery_step(
                 checkpoint,
                 envelope,
@@ -434,17 +453,29 @@ async def _recover_live_async(
             completed = read_continuation(config.state_dir, run_id)
             boundary = completed.payload["boundary"]
             assert isinstance(boundary, dict)
+            completed_sequence = completed.payload["checkpoint_sequence"]
+            assert isinstance(completed_sequence, int) and not isinstance(
+                completed_sequence, bool
+            )
+            if step.model_turn is not None and not step.model_turn.tool_calls:
+                text, completed_checkpoint = persistence.finalize_success(
+                    completed_sequence
+                )
+                checkpoint_sequence = completed_checkpoint["checkpoint_sequence"]
+            else:
+                text = None
+                checkpoint_sequence = completed_sequence
             item: dict[str, object] = {
                 "action": plan.decision.action.value,
                 "reason": plan.decision.reason,
-                "checkpoint_sequence": completed.payload["checkpoint_sequence"],
+                "checkpoint_sequence": checkpoint_sequence,
                 "next_step": boundary["next_step"],
             }
             if step.tool_result is not None:
                 item["tool_status"] = step.tool_result.status.value
                 item["tool_code"] = step.tool_result.code
             if step.model_turn is not None:
-                item["text"] = step.model_turn.text
+                item["text"] = step.model_turn.text if text is None else text
                 item["tool_call_count"] = len(step.model_turn.tool_calls)
             step_outputs.append(item)
             if boundary["next_step"] == "stop":

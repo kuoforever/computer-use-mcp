@@ -81,6 +81,10 @@ the following commands:
   `--stateless-replay` explicitly replaces the current remote continuation for
   the next provider boundary after complete transcript, correlation, contract,
   byte, and token preflight. It is never an automatic fallback.
+  A durably completed final provider response with no tool calls can be
+  sequence-checked and terminalized locally as `SUCCESS`; this makes zero
+  provider/MCP calls, records only final-text length in the safe checkpoint,
+  and deletes the sensitive continuation artifact.
 - `report --config PATH` aggregates phase/success/failure and token/call/latency
   metrics from bounded validated checkpoints only. It opens no trace JSONL,
   provider, MCP, approval, or desktop port and fails closed on corrupt records.
@@ -425,6 +429,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | OpenAI stateless replay is explicitly gated | `recover --stateless-replay` compiles only a complete digest-bound read-only transcript, rejects unknown/missing/reordered/mismatched or over-budget state before provider dispatch, and commits a new remote response ID only after a valid response | implemented explicit recovery capability; no automatic fallback |
 | OpenAI stateless replay evaluation is frozen | A canonical nine-case fixture and SHA-256 manifest freeze exact text/screenshot input order, rejected transcript classes, provider-call counts, remote-chain preservation, and zero historical MCP dispatch through the recovery executor | implemented E2 replay matrix |
 | OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v4 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
+| Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls; hidden call output, drift, and sequence mismatch fail closed | implemented terminal recovery boundary |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 

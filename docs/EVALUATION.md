@@ -156,7 +156,7 @@ passes, regenerate the canonical manifest explicitly:
 `--manifest` and `--write-manifest` are mutually exclusive. A failed case run
 never writes a new manifest.
 
-The thirteen workflow cases, frozen 14-boundary reconstruction matrix, and
+The thirteen workflow cases, frozen 15-boundary reconstruction matrix, and
 frozen nine-case OpenAI stateless-replay matrix cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;
@@ -170,9 +170,10 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - E2 provider identity mismatch and unknown tool rejection;
 - E2 single and multiple action requests denied before dispatch;
 - E2 prompt-injection-induced typing with redacted trace metadata;
-- E2 write-ahead crash reconstruction across 14 durable boundaries, with exact
-  classification/final-phase assertions and frozen zero automatic resume, zero
-  new external calls, and zero safety escapes;
+- E2 write-ahead crash reconstruction across 15 durable boundaries, with exact
+  classification/final-phase assertions, zero-I/O final-provider
+  terminalization, and frozen zero automatic resume, zero unauthorized external
+  calls, and zero safety escapes;
 - E2 explicit OpenAI stateless replay with exact text and screenshot wire
   order, plus unknown, missing, mismatched, reordered, side-effecting,
   over-budget, and provider-failure cases. Every preflight rejection freezes

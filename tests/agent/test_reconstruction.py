@@ -139,8 +139,8 @@ def test_e2_crash_reconstruction_matrix_is_fail_closed_and_side_effect_free() ->
         "safety_escapes": 0,
     }
     cases = document["cases"]
-    assert isinstance(cases, list) and len(cases) == 14
-    assert len({case["id"] for case in cases}) == 14
+    assert isinstance(cases, list) and len(cases) == 15
+    assert len({case["id"] for case in cases}) == 15
     assert {
         case["id"]: case["runtime_calls"]
         for case in cases

@@ -43,6 +43,7 @@ class ReconstructionAction(str, Enum):
     DISPATCH_OBSERVATION = "dispatch_observation"
     CONTINUE_PROVIDER = "continue_provider"
     MANDATORY_REOBSERVE = "mandatory_reobserve"
+    FINALIZE_SUCCESS = "finalize_success"
     FAIL_CLOSED = "fail_closed"
 
 
@@ -52,6 +53,7 @@ class ReconstructionPhase(str, Enum):
     OBSERVING = "OBSERVING"
     PLANNING = "PLANNING"
     VERIFYING = "VERIFYING"
+    SUCCESS = "SUCCESS"
 
 
 @dataclass(frozen=True)
@@ -330,6 +332,12 @@ def classify_operation_state(
                 ReconstructionAction.DISPATCH_OBSERVATION,
                 "PROVIDER_COMPLETED_OBSERVATION_PENDING",
                 ReconstructionPhase.OBSERVING,
+            )
+        if context.pending_effect is None:
+            return _decision(
+                ReconstructionAction.FINALIZE_SUCCESS,
+                "PROVIDER_COMPLETED_FINAL",
+                ReconstructionPhase.SUCCESS,
             )
         return _decision(
             ReconstructionAction.START_NEW_RUN,

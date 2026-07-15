@@ -40,6 +40,17 @@
       "expected": ["start_new_run", "PENDING_SIDE_EFFECT", "FAILED"]
     },
     {
+      "id": "e2_resume_provider_completed_final",
+      "records": [
+        ["provider_1", "provider", "prepared", null, null],
+        ["provider_1", "provider", "dispatch_intent", null, null],
+        ["provider_1", "provider", "completed", null, "success"]
+      ],
+      "context": {},
+      "runtime_calls": [],
+      "expected": ["finalize_success", "PROVIDER_COMPLETED_FINAL", "SUCCESS"]
+    },
+    {
       "id": "e2_resume_observation_completed",
       "records": [
         ["tool_1", "tool", "prepared", "observation", null],

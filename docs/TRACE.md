@@ -110,6 +110,11 @@ synthetic `ui_snapshot` after a completed side effect and then stop. It acquires
 the run lock, persists a sequence-checked dispatch intent before the call, and
 persists completion afterward. A call failure leaves the intent uncertain and
 non-replayable. The default remains one external call; the reviewed hard cap is four.
+A fully persisted provider response with no tool calls requires no external
+step: the command verifies its final ledger/provider correlation, atomically
+advances the safe checkpoint to `SUCCESS`, records final-text length only,
+deletes `continuation.json`, and returns the already persisted final text.
+Hidden function calls, sequence drift, or mismatched provider state fail closed.
 
 Aggregate all local checkpoints without opening JSONL traces:
 

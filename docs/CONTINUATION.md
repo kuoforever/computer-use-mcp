@@ -7,7 +7,8 @@
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
 > strict planner, atomic sequence-checked intent/completion commits under the
 > run lock, and an explicit CLI entry point exist for three completed
-> read-only recovery boundaries. The CLI may chain up to four individually
+> read-only external recovery boundaries plus local final-response
+> terminalization. The CLI may chain up to four individually
 > committed steps under one run lock and never replays uncertain dispatches or
 > pending side effects.
 
@@ -202,6 +203,7 @@ run lock, and uses fake provider/MCP ports to prove zero action replay.
 | `e2_resume_provider_completed_observation_pending` | Completed provider turn requests `ui_snapshot`; no tool dispatch intent | Dispatch `ui_snapshot` once, never repeat the provider request. |
 | `e2_resume_provider_dispatch_uncertain` | Provider `dispatch_intent`; no completed response | `UNKNOWN_OUTCOME`; zero provider and tool calls. |
 | `e2_resume_provider_completed_action_pending` | Completed turn requests `click`; no tool dispatch intent | Non-resumable/start new run; zero tool calls and no approval reuse. |
+| `e2_resume_provider_completed_final` | Completed provider turn has exact final text and no tool calls | Validate correlation, advance to `SUCCESS`, and delete the continuation with zero provider/MCP calls. |
 | `e2_resume_observation_completed` | Completed `ui_snapshot` result | Call provider continuation once with the persisted result; zero MCP calls. |
 | `e2_resume_observation_dispatch_uncertain` | Observation `dispatch_intent`; no result | `UNKNOWN_OUTCOME`; zero MCP/provider calls. |
 | `e2_resume_action_completed` | Completed successful `click` result | Never click again; dispatch one new approved-independent observation and remain verification-gated. |
@@ -238,7 +240,7 @@ desktop integration.
    writer, expiry, and pure round-trip tests without enabling resume.
 2. **Implemented:** add operation identities, enforce
    `prepared -> dispatch_intent -> completed`, classify every crash boundary,
-   freeze the 14-case E2 matrix, and persist the boundaries immediately around
+   freeze the crash-boundary E2 matrix, and persist the boundaries immediately around
    live provider and MCP dispatch when explicitly enabled. All reconstruction
    decisions remain non-executable and authorize zero external calls.
 3. **Implemented:** pure provider export/restore, strict attach planning, and a
@@ -246,12 +248,16 @@ desktop integration.
    `agent recover ... --execute-read-only` holds the run lock, compares both
    persisted sequences, durably commits intent before exactly one external call,
    then commits its normalized completion. Torn cross-file updates and repeated
-   attaches fail closed on sequence mismatch. The full 14-case runtime E2 matrix
+   attaches fail closed on sequence mismatch. The full runtime E2 matrix
    freezes exact external-call counts for enabled and rejected boundaries.
 4. **Implemented:** a completed side effect can dispatch exactly one synthetic
    `ui_snapshot` under the same locked intent/completion protocol. It never
    repeats the action, reuses approval, or continues the old provider exchange;
    successful observation persists `next_step=stop` and requires a new run.
-5. Keep uncertain dispatches, pending side-effects, drift, corruption, and
+5. **Implemented:** terminalize a fully persisted provider response with no
+   tool calls locally under the run lock. This records `SUCCESS` and final-text
+   length in the safe checkpoint, deletes the sensitive continuation, returns
+   the already persisted text, and performs zero provider/MCP calls.
+6. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.
