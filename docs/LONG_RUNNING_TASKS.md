@@ -1,10 +1,11 @@
 # Long-running task contract
 
-> **Status: initial control-state foundation implemented; orchestration remains
-> planned.** The private campaign schema, append-only item ledger, reducer, and
-> fixed handoff projection are implemented without execution authority. The
-> current Agent Host does not yet implement a batch runner, heartbeat, CLI
-> command, or complete cross-session handoff model.
+> **Status: initial control-state and batch-planning foundations implemented;
+> orchestration remains planned.** The private campaign schema, append-only item
+> ledger, fixed handoff projection, and pure bounded batch selector are
+> implemented without execution authority. The current Agent Host does not yet
+> implement a batch runner, heartbeat, CLI command, or complete cross-session
+> handoff model.
 
 ## Goal
 
@@ -158,6 +159,11 @@ checkpoint_every_items: 1
 summary_every_items: 10
 max_consecutive_failures: 3
 ~~~
+
+The current selector is read-only: it orders only `DISCOVERED` and `RETRYABLE`
+items by stable ordinal, applies every hard cap with a fixed stop reason, and
+does not claim an item or invoke a provider. Durable batch records, clock
+measurement, and item claiming belong to the future worker.
 
 At a batch boundary, close the current run cleanly, write `handoff.json`, and
 start a fresh provider context. A new Codex session should need only the
