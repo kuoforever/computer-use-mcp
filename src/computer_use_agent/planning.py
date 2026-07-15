@@ -106,6 +106,8 @@ class PlanStep:
             raise PlanValidationError("status is invalid")
         if not isinstance(self.arguments, Mapping):
             raise PlanValidationError("arguments must be an object")
+        if not isinstance(self.requires_approval, bool):
+            raise PlanValidationError("requires_approval must be boolean")
         object.__setattr__(self, "arguments", _freeze_arguments(self.arguments))
         if self.action is PlanStepAction.FINAL_RESPONSE:
             if (
@@ -120,8 +122,6 @@ class PlanStep:
             raise PlanValidationError("tool step requires a tool name")
         if not isinstance(self.effect, ToolEffect):
             raise PlanValidationError("tool step requires a reviewed effect")
-        if not isinstance(self.requires_approval, bool):
-            raise PlanValidationError("requires_approval must be boolean")
         try:
             spec = get_tool_spec(self.tool_name)
         except ToolValidationError as exc:
@@ -153,8 +153,10 @@ class TaskPlan:
         _require_identifier(self.run_id, "run_id")
         _require_digest(self.task_digest, "task_digest")
         _require_digest(self.registry_digest, "registry_digest")
-        if self.contract_version != PLAN_CONTRACT_VERSION or isinstance(
-            self.contract_version, bool
+        if (
+            not isinstance(self.contract_version, int)
+            or isinstance(self.contract_version, bool)
+            or self.contract_version != PLAN_CONTRACT_VERSION
         ):
             raise PlanValidationError("plan contract version is unsupported")
         if not isinstance(self.steps, tuple) or not 1 <= len(self.steps) <= MAX_PLAN_STEPS:
@@ -301,7 +303,11 @@ def compile_task_plan(
     value = _parse_candidate(candidate)
     if set(value) != {"version", "steps"}:
         raise PlanValidationError("plan candidate fields do not match the contract")
-    if value["version"] != PLAN_CONTRACT_VERSION or isinstance(value["version"], bool):
+    if (
+        not isinstance(value["version"], int)
+        or isinstance(value["version"], bool)
+        or value["version"] != PLAN_CONTRACT_VERSION
+    ):
         raise PlanValidationError("plan candidate version is unsupported")
     raw_steps = value["steps"]
     if not isinstance(raw_steps, list) or not 1 <= len(raw_steps) <= MAX_PLAN_STEPS:
