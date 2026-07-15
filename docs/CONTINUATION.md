@@ -227,6 +227,10 @@ screenshot compilation, unknown/missing/mismatched/reordered items,
 side-effect history, request overflow, and provider failure. A recovery
 executor test additionally proves replay preflight completes before the durable
 provider intent and that historical calls cause zero MCP dispatches.
+Release preflight report v4 exposes this matrix as an independent fail-closed
+gate with canonical fixture/manifest hashes and case/test counts. The CI matrix
+runs it separately and retains JUnit evidence without enabling provider or
+desktop integration.
 
 ## Delivery sequence
 

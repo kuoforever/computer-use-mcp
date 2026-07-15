@@ -36,6 +36,16 @@ jobs:
         run: python -m ruff check src tests scripts
       - name: Offline tests
         run: python -m pytest -q
+      - name: OpenAI stateless replay E2 gate
+        run: python -m pytest tests\agent\test_openai_replay_evaluation.py -q --junitxml out\openai-stateless-replay-e2.xml
+      - name: Upload stateless replay report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: openai-stateless-replay-e2-python-${{ matrix.python-version }}
+          path: out/openai-stateless-replay-e2.xml
+          if-no-files-found: warn
+          retention-days: 14
       - name: Deterministic E1/E2 gate
         run: computer-use-agent eval --cases evals\cases --manifest evals\e5-case-manifest.json --report out\e1-e2-report.json
       - name: Upload evaluation report

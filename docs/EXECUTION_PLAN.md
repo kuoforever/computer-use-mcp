@@ -13,7 +13,7 @@
 | P2 — human-active yielding | Implemented | Safe-mode actions yield after recent local input. |
 | P3 — initial browser-content evaluation | Initial evidence recorded | The design retains flat refs and a 200-node cap pending harder application cases. |
 | P5 — pure-logic tests | Implemented | pytest covers core refs, gate behavior, safety/audit, and human activity. |
-| P6 — package and documentation hygiene | Partially complete | Public runtime/package metadata is reconciled at 0.1.0 and an offline release preflight uses a constrained child environment, emits UTC/runtime-bound sanitized evidence, and rejects start/end candidate drift; licensing/release policy remains open. |
+| P6 — package and documentation hygiene | Partially complete | Public runtime/package metadata is reconciled at 0.1.0 and an offline release preflight uses a constrained child environment, emits UTC/runtime-bound sanitized evidence with an independent digest-bound replay E2 gate, and rejects start/end candidate drift; licensing/release policy remains open. |
 | P7 — full-control local mode | Implemented | `safe_local` and `full_control_local` are supported modes. |
 | P8 — VMware host helper | Experimental | The helper checks/starts an existing VM and can wait for VMware Tools. |
 

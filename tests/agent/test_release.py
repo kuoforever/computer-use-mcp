@@ -28,6 +28,7 @@ def _install_fake_commands(
     final_dirty: bool = False,
     final_commit: str | None = None,
     safety_escapes: int = 0,
+    replay_failure: bool = False,
 ) -> list[dict[str, str]]:
     environments: list[dict[str, str]] = []
     rev_parse_calls = 0
@@ -54,6 +55,10 @@ def _install_fake_commands(
         if command[:2] == ["git", "diff"]:
             return release._Command(0)
         if "pytest" in command:
+            if "tests/agent/test_openai_replay_evaluation.py" in command:
+                if replay_failure:
+                    return release._Command(1, "10 passed, 1 failed in 1.00s\n")
+                return release._Command(0, "11 passed in 1.00s\n")
             return release._Command(0, "321 passed, 3 skipped in 1.00s\n")
         if "build" in command:
             output = Path(command[command.index("--outdir") + 1])
@@ -112,7 +117,7 @@ def test_release_preflight_records_sanitized_offline_evidence(
     payload = release.run_release_preflight(ROOT, artifacts, report_path)
 
     assert payload["passed"] is True
-    assert payload["report_version"] == 3
+    assert payload["report_version"] == 4
     assert payload["generated_at_utc"] == "2026-07-14T01:02:03Z"
     assert payload["execution"] == {
         "python_version": "3.13.5",
@@ -136,6 +141,14 @@ def test_release_preflight_records_sanitized_offline_evidence(
         "failed_tests": 0,
     }
     assert payload["gates"]["e1_e2"]["safety_escapes"] == 0
+    replay_gate = payload["gates"]["openai_stateless_replay_e2"]
+    assert replay_gate["passed"] is True
+    assert replay_gate["case_count"] == 9
+    assert replay_gate["passed_tests"] == 11
+    assert replay_gate["skipped_tests"] == 0
+    assert replay_gate["failed_tests"] == 0
+    assert len(replay_gate["fixture_sha256"]) == 64
+    assert len(replay_gate["manifest_sha256"]) == 64
     assert payload["gates"]["candidate_stability"] == {
         "passed": True,
         "head_unchanged": True,
@@ -235,6 +248,46 @@ def test_release_preflight_fails_closed_for_a_safety_escape(
     assert payload["gates"]["e1_e2"]["passed"] is False
     assert payload["gates"]["e1_e2"]["safety_escapes"] == 1
     assert payload["gates"]["wheel_install"]["passed"] is False
+
+
+def test_release_preflight_fails_closed_when_replay_evaluation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_commands(monkeypatch, replay_failure=True)
+
+    payload = release.run_release_preflight(
+        ROOT, tmp_path / "artifacts", tmp_path / "report.json"
+    )
+
+    assert payload["passed"] is False
+    gate = payload["gates"]["openai_stateless_replay_e2"]
+    assert gate["passed"] is False
+    assert gate["passed_tests"] == 10
+    assert gate["failed_tests"] == 1
+
+
+def test_replay_evaluation_gate_rejects_manifest_drift(tmp_path: Path) -> None:
+    fixture = tmp_path / "e2-stateless-replay.json"
+    manifest = tmp_path / "e2-stateless-replay-manifest.json"
+    fixture.write_text(
+        json.dumps({"version": 1, "cases": [{"id": "e2_case"}]}),
+        encoding="utf-8",
+    )
+    manifest.write_text(
+        json.dumps({"version": 1, "sha256": {fixture.name: "0" * 64}}),
+        encoding="utf-8",
+    )
+
+    gate = release._replay_eval_gate(
+        release._Command(0, "1 passed in 0.01s\n"), fixture, manifest
+    )
+
+    assert gate == {
+        "passed": False,
+        "passed_tests": 1,
+        "skipped_tests": 0,
+        "failed_tests": 0,
+    }
 
 
 def test_release_preflight_fails_closed_for_public_version_drift(

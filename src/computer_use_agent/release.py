@@ -20,7 +20,7 @@ from typing import Mapping, Sequence
 from computer_use_mcp import __version__ as runtime_version
 
 
-PREFLIGHT_REPORT_VERSION = 3
+PREFLIGHT_REPORT_VERSION = 4
 _PYTEST_SUMMARY = re.compile(
     r"(?P<passed>\d+) passed(?:, (?P<skipped>\d+) skipped)?(?:, (?P<failed>\d+) failed)?"
 )
@@ -162,6 +162,68 @@ def _pytest_gate(command: _Command) -> dict[str, object]:
     return result
 
 
+def _read_replay_evaluation_metadata(
+    fixture_path: Path, manifest_path: Path
+) -> dict[str, object] | None:
+    try:
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(fixture, dict) or set(fixture) != {"version", "cases"}:
+        return None
+    if fixture["version"] != 1 or isinstance(fixture["version"], bool):
+        return None
+    cases = fixture["cases"]
+    if not isinstance(cases, list) or not cases:
+        return None
+    case_ids = [case.get("id") for case in cases if isinstance(case, dict)]
+    if (
+        len(case_ids) != len(cases)
+        or any(not isinstance(case_id, str) or not case_id for case_id in case_ids)
+        or len(set(case_ids)) != len(case_ids)
+    ):
+        return None
+    canonical_fixture = json.dumps(
+        fixture, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    fixture_sha256 = hashlib.sha256(canonical_fixture).hexdigest()
+    expected_manifest = {
+        "version": 1,
+        "sha256": {fixture_path.name: fixture_sha256},
+    }
+    if manifest != expected_manifest:
+        return None
+    return {
+        "case_count": len(cases),
+        "fixture_sha256": fixture_sha256,
+        "manifest_sha256": _sha256(manifest_path),
+    }
+
+
+def _replay_eval_gate(
+    command: _Command, fixture_path: Path, manifest_path: Path
+) -> dict[str, object]:
+    pytest_result = _pytest_gate(command)
+    metadata = _read_replay_evaluation_metadata(fixture_path, manifest_path)
+    passed_tests = pytest_result.get("passed_tests")
+    skipped_tests = pytest_result.get("skipped_tests")
+    failed_tests = pytest_result.get("failed_tests")
+    passed = bool(
+        command.passed
+        and metadata is not None
+        and isinstance(passed_tests, int)
+        and passed_tests > 0
+        and skipped_tests == 0
+        and failed_tests == 0
+    )
+    result = dict(pytest_result)
+    result["passed"] = passed
+    if metadata is not None:
+        result.update(metadata)
+    return result
+
+
 def _eval_gate(command: _Command, report_path: Path) -> dict[str, object]:
     report = _read_eval_report(report_path)
     passed = bool(
@@ -265,6 +327,19 @@ def run_release_preflight(
     )
     pytest = _run(
         [str(python), "-m", "pytest", "-q"], cwd=root, environment=environment
+    )
+    replay_fixture_path = root / "evals" / "e2-stateless-replay.json"
+    replay_manifest_path = root / "evals" / "e2-stateless-replay-manifest.json"
+    replay_evaluation = _run(
+        [
+            str(python),
+            "-m",
+            "pytest",
+            "tests/agent/test_openai_replay_evaluation.py",
+            "-q",
+        ],
+        cwd=root,
+        environment=environment,
     )
     diff_check = _run(["git", "diff", "--check"], cwd=root, environment=environment)
 
@@ -404,6 +479,9 @@ def run_release_preflight(
         "diff_check": _gate(diff_check),
         "ruff": _gate(ruff),
         "pytest": _pytest_gate(pytest),
+        "openai_stateless_replay_e2": _replay_eval_gate(
+            replay_evaluation, replay_fixture_path, replay_manifest_path
+        ),
         "e1_e2": _eval_gate(evaluation, eval_report_path),
         "wheel_build": wheel_gate,
         "wheel_install": install_gate,
