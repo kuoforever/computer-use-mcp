@@ -126,6 +126,12 @@ class PlannerRequest:
             raise PlannerError("PLANNER_REQUEST_INVALID") from None
 
     @property
+    def canonical_json(self) -> str:
+        """Return the exact canonical request material covered by ``digest``."""
+
+        return self._encoded().decode("ascii")
+
+    @property
     def digest(self) -> str:
         return hashlib.sha256(self._encoded()).hexdigest()
 
