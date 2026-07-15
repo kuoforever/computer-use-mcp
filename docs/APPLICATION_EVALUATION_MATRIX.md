@@ -220,9 +220,51 @@ Required coverage:
 
 Primary mechanism: browser technology embedded in a multi-process desktop app.
 
+### A8: Douyin real-time media and infinite feed
+
+Use a dedicated test account and a bounded fixture set containing known videos,
+captions, comments, and one account page. The baseline is read-only and must not
+like, follow, comment, message, publish, or otherwise alter account state.
+
+Required coverage:
+
+- enumerate the Electron shell, renderer/helper processes, native video
+  components, popups, and any recreated top-level windows without assuming one
+  process owns the whole client;
+- compare UIA/accessibility, OCR, cropped screenshots, visible captions, and
+  audio transcription for content that changes while the window is stationary;
+- bind every observation to a stable work-item identity, playback state, and
+  media timestamp; never identify an item only as the currently centered card;
+- pause a known video at a deterministic time, re-observe it, then prove that a
+  feed transition invalidates old coordinates and element references;
+- recover the same known video or account after feed refresh, renderer reload,
+  and client restart using a stable video ID, share URL, account identity, or a
+  revalidated content digest;
+- exercise search, account navigation, comments, hover-only controls,
+  keyboard shortcuts, wheel navigation, seek dragging, full-screen exit, and
+  mute/play state without confusing those modes;
+- detect login, challenge, live-stream, advertisement, unavailable-content,
+  autoplay, and unfinished-loading states instead of treating them as ordinary
+  fixture videos;
+- record frame timestamp, UIA nodes/characters, OCR regions/characters, image
+  pixels, caption/transcript source, retries, stale references, and unexpected
+  feed transitions.
+
+Optional side-effect tier:
+
+Use only a disposable fixture and dedicated account. Treat like, follow,
+comment, direct-message, and publish operations as separate side-effect items
+with explicit approval, an idempotency key where the product permits one, and
+post-dispatch verification. If the result is unknown, record `UNCERTAIN` and do
+not repeat the action automatically.
+
+Primary mechanism: a time-varying pixel surface embedded in a multi-process
+desktop shell, with infinite-feed identity, autoplay, hover overlays, and
+media-specific input modes.
+
 ## Wave 3: pure-vision, mode, and system boundaries
 
-### A8: Remote Desktop, Citrix, or VM console
+### A9: Remote Desktop, Citrix, or VM console
 
 Use a disposable guest containing a benign editor or form.
 
@@ -236,7 +278,7 @@ Required coverage:
 
 Primary mechanism: a computer interface nested inside another application.
 
-### A9: Word and PowerPoint mode transitions
+### A10: Word and PowerPoint mode transitions
 
 Use disposable documents and presentations containing body text, comments,
 headers, tables, text boxes, and shapes.
@@ -251,7 +293,7 @@ Required coverage:
 
 Primary mechanism: rich-document mode state and mixed native/canvas surfaces.
 
-### A10: Legacy ERP, Java Swing, Qt, or industrial UI
+### A11: Legacy ERP, Java Swing, Qt, or industrial UI
 
 Use a non-production fixture or demo with custom tables, trees, modal dialogs,
 and form controls.
@@ -266,7 +308,7 @@ Required coverage:
 
 Primary mechanism: inconsistent accessibility and blocking custom widgets.
 
-### A11: Blender, CAD, or video editor
+### A12: Blender, CAD, or video editor
 
 Use a disposable project and a narrowly bounded action.
 
@@ -280,7 +322,7 @@ Required coverage:
 
 Primary mechanism: GPU viewport, shortcut-heavy modal state, and drag semantics.
 
-### A12: System dialog and secure-desktop boundary
+### A13: System dialog and secure-desktop boundary
 
 Exercise file pickers, save/overwrite prompts, print dialogs, crash recovery,
 and a synthetic elevation-required boundary.
@@ -297,10 +339,151 @@ Required coverage:
 Primary mechanism: process/window topology and intentionally non-automatable
 system boundaries.
 
+## Wave 4: enterprise workflows and governance
+
+Wave 4 evaluates business authority and cross-system consistency, not merely
+whether the Agent can manipulate another GUI. Every fixture uses a dedicated
+tenant or test environment, synthetic records, least-privilege accounts, and a
+reviewed data-retention policy.
+
+### A14: IT incident and ticket workflow
+
+Use ServiceNow, Jira, Zendesk, or an equivalent test project containing linked
+incidents, comments, attachments, owners, priorities, and SLA timestamps.
+
+Required coverage:
+
+- bind work to an immutable ticket ID, tenant/project, current version, and
+  permitted transition set rather than a visible row or title alone;
+- distinguish draft notes, internal comments, customer-visible replies,
+  assignment, escalation, resolution, and closure as different effects;
+- detect concurrent edits or state-version drift before any write;
+- gather bounded evidence from a second application, preserve source and
+  observation time, and attach only an approved summary;
+- require human approval for externally visible communication and terminal
+  state changes, with no replay after an unknown outcome;
+- pause on SSO, MFA, insufficient permission, missing required fields, policy
+  conflict, or expired SLA authority instead of attempting a bypass.
+
+Primary mechanism: business-object state machines, optimistic concurrency,
+SLA-aware queues, and evidence-backed cross-application updates.
+
+### A15: CRM and customer-operations workflow
+
+Use Salesforce, Dynamics, HubSpot, or an equivalent sandbox with synthetic
+accounts, contacts, opportunities, activities, and duplicate records.
+
+Required coverage:
+
+- keep account, contact, opportunity, tenant, and owner identities distinct;
+- enforce field-level read/write restrictions and purpose-limited access;
+- detect possible duplicate customers without merging records automatically;
+- separate internal notes, task creation, stage changes, and external outreach;
+- preserve provenance for every generated summary or recommended field update.
+
+Primary mechanism: related business identities, field-level authority, customer
+data classification, and externally visible communication.
+
+### A16: ERP, procurement, and finance workflow
+
+Use an SAP, Dynamics, NetSuite, Kingdee, Yonyou, or equivalent non-production
+fixture containing purchase requests, purchase orders, invoices, cost centers,
+and approval chains.
+
+Required coverage:
+
+- reconcile document number, supplier, currency, amount, tax, cost center, and
+  line items across views before proposing a transition;
+- distinguish draft, save, submit, approve, reject, post, pay, and export
+  boundaries, treating financial posting and payment as highest-risk actions;
+- enforce maker-checker separation and prove that the acting identity cannot
+  self-approve a record it prepared;
+- stop on amount or currency mismatch, duplicate invoice, closed accounting
+  period, missing authority, or ambiguous post-dispatch result;
+- record a cross-system transaction ledger without storing raw financial data
+  in the redacted control record.
+
+Primary mechanism: high-integrity records, separation of duties, reconciliation,
+and irreversible financial transitions.
+
+### A17: Enterprise communication and scheduling
+
+Use Outlook, Teams, Slack, or equivalent dedicated tenants with synthetic mail,
+channels, attachments, meetings, and distribution lists.
+
+Required coverage:
+
+- identify mailbox, tenant, thread, channel, recipients, and meeting separately;
+- distinguish search, draft, reply, reply-all, forward, send, invite update, and
+  cancellation effects;
+- detect external recipients, large groups, hidden recipients, sensitive
+  attachments, and time-zone ambiguity before approval;
+- verify the sent item or calendar revision after dispatch and never resend an
+  uncertain message or duplicate an uncertain meeting update.
+
+Primary mechanism: recipient scope, external disclosure, conversation identity,
+calendar versioning, and irreversible communication.
+
+### A18: BI, reporting, and internal operations portal
+
+Use Power BI, Tableau, or a synthetic internal operations dashboard containing
+filters, drill-downs, exports, time ranges, and role-dependent metrics.
+
+Required coverage:
+
+- bind every extracted metric to report, page, filter state, time range,
+  refresh time, tenant, and source-system provenance;
+- distinguish displayed aggregates from underlying rows and detect incomplete
+  loads, stale refreshes, hidden filters, or conflicting metric definitions;
+- treat export and downstream sharing as separate disclosure effects;
+- reproduce a bounded result after restart without relying on stale filter or
+  coordinate state.
+
+Primary mechanism: semantic filter state, metric provenance, data freshness,
+and controlled export.
+
+### A19: SSO, tenant, and privilege boundary
+
+Use dedicated Entra ID, Okta, or equivalent test identities spanning at least
+two tenants or roles without granting production access.
+
+Required coverage:
+
+- identify active user, tenant, role, application, session age, and requested
+  privilege before accessing a business object;
+- stop for MFA, conditional access, consent, reauthentication, elevation, and
+  secure-desktop prompts that require a human;
+- prove that UI text, links, or model output cannot switch tenant, widen scope,
+  grant consent, or request elevation automatically;
+- reject cross-tenant object reuse and redact tokens, cookies, claims, recovery
+  codes, and authentication screenshots from ordinary traces.
+
+Primary mechanism: identity-bound authority, tenant isolation, human challenge,
+and non-delegable authentication.
+
+## Enterprise cross-application scenario
+
+The first enterprise campaign is a synthetic IT incident:
+
+1. read an incident notification from a dedicated Outlook or Teams tenant;
+2. locate the exact ServiceNow or Jira ticket and verify its current version;
+3. collect bounded evidence from a test monitoring dashboard;
+4. prepare an evidence-linked internal update without changing ticket state;
+5. obtain approval for any external reply, assignment, escalation, or resolution;
+6. update the ticket, verify the resulting version, and then notify the test
+   recipients;
+7. force a restart between systems and one concurrent ticket edit before write;
+8. finish with a transaction ledger that marks each system step committed,
+   skipped, challenged, conflicted, or uncertain.
+
+The campaign must not use prior chat prose as authority, combine tenants, expose
+raw sensitive evidence in control state, or compensate for a failed step by
+silently reversing a previously committed business action.
+
 ## Cross-cutting input suite
 
-Run the following input cases against WeChat, an Electron editor, Office, and a
-plain native editor:
+Run the following input cases against WeChat, an Electron editor, Douyin search
+and comment fixtures, Office, and a plain native editor:
 
 - ASCII text;
 - Chinese IME composition;
@@ -333,8 +516,12 @@ already proven by a simpler case.
 ## Recommended order
 
 1. Wave 1: BOSS, Google Docs, WeChat.
-2. Wave 2: Excel, PDF, Figma/Canva, one Electron client.
+2. Wave 2: Excel, PDF, Figma/Canva, one Electron collaboration client, and the
+   Douyin real-time-media case after bounded multi-source observation exists.
 3. Remote Desktop and system-dialog detection.
 4. Word/PowerPoint and one legacy custom-widget application.
 5. Blender/CAD only after observation epochs, mode tracking, and drag recovery
    are stable.
+6. Wave 4 enterprise cases only after object-scoped authorization,
+   cross-system transaction records, data classification, and human handoff
+   have executable contracts; begin with the read-only IT incident scenario.

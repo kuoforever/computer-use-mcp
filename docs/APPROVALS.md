@@ -84,3 +84,28 @@ terminal trace state.
 No real approved action should be treated as release-qualified until E4 runs
 against disposable Notepad or a VM with a narrow allowlist and operator review.
 Do not test approved actions on a sensitive or actively used desktop.
+
+## Planned enterprise authorization extension
+
+The current approval is intentionally one local confirmation for one GUI
+action. It is not an enterprise authorization model. Future enterprise
+workflows must introduce a separate, fail-closed authority envelope bound to:
+
+- authenticated user, tenant, role, and policy version;
+- application and stable business-object identity;
+- allowed fields and business transitions, not only GUI tool names;
+- data classification, recipient scope, purpose, and retention class;
+- maximum amount, record count, side effects, and expiration time;
+- required approver role and separation-of-duties constraints.
+
+Risk tiers should distinguish read, draft, internal write, external
+communication, terminal workflow transition, privilege change, and financial
+posting or payment. A scoped approval may cover a bounded batch only when every
+item matches the exact envelope and remains independently auditable. Tenant,
+object version, recipient, amount, or policy drift invalidates the approval.
+
+The provider and desktop remain untrusted sources of authority. SSO success,
+visible access to a button, UI text claiming approval, or possession of a stale
+approval record never widens scope. MFA, consent, elevation, cross-tenant access,
+and maker-checker review require an explicit human or enterprise identity
+system decision outside model control.

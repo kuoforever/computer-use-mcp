@@ -89,7 +89,8 @@ layer:
 3. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
    batching, and cross-session handoff.
 4. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
-   the BOSS, Google Docs, WeChat, and cross-application acceptance cases.
+   the BOSS, Google Docs, WeChat, Douyin real-time-media, enterprise workflow,
+   and cross-application acceptance cases.
 5. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
    [Observation contract](docs/OBSERVATION_CONTRACT.md) for model-context and
    perception changes.

@@ -241,6 +241,39 @@ The first cross-application campaign should read BOSS results, write a
 structured summary to a disposable Google Doc copy, and prepare a WeChat draft
 after a fresh-session handoff.
 
+## Planned enterprise workflow ledger
+
+Enterprise campaigns require a second layer above the item ledger: a durable
+cross-system transaction record. One business item, such as an incident or
+invoice, may contain ordered operations in several applications. Each operation
+records the stable object identity, expected pre-version, requested business
+transition, authority-envelope digest, dispatch boundary, verification result,
+and resulting version.
+
+~~~text
+business item
+  -> observe source notification
+  -> verify system-of-record object and version
+  -> collect evidence from approved sources
+  -> prepare bounded proposal
+  -> wait for role-appropriate approval
+  -> dispatch one business transition
+  -> verify new object version
+  -> notify or reconcile downstream systems
+~~~
+
+The record uses fixed states such as `PREPARED`, `WAITING_APPROVAL`,
+`DISPATCHED`, `COMMITTED`, `CONFLICT`, `CHALLENGE`, and `UNCERTAIN`. It is a
+saga-style reconciliation record, not a claim of an atomic transaction across
+unrelated applications. A committed external step is never silently reversed;
+compensation requires its own reviewed operation and authority.
+
+Enterprise queue metadata additionally includes owner, priority, SLA deadline,
+tenant, data classification, escalation route, lease, and pause reason. Workers
+must stop on tenant drift, expired authority, concurrent object modification,
+classification mismatch, or loss of the required role. Reassignment and human
+takeover are durable transitions, not informal chat instructions.
+
 ## Delivery sequence
 
 1. Read-only campaign schema and item ledger.
@@ -252,3 +285,7 @@ after a fresh-session handoff.
 7. Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
 8. Only then consider resumable side-effect campaigns and higher-complexity
    remote-desktop or modal-tool workloads.
+9. Define object-scoped enterprise authority, data classification, transaction
+   reconciliation, SLA ownership, and human takeover before Wave 4.
+10. Run the synthetic read-only IT incident campaign, then add approved ticket
+    updates and notifications one effect tier at a time.

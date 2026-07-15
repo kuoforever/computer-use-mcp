@@ -38,10 +38,12 @@ restart. Conversation history must not be required for continuation.
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
 [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md).
-Expand to Excel, PDF, Figma/Canva, and one Electron client only after the Wave 1
-campaign and observation measurements are reproducible. Remote Desktop,
-system-dialog boundaries, legacy UI, and modal GPU applications remain later
-waves.
+Expand to Excel, PDF, Figma/Canva, one Electron collaboration client, and the
+Douyin real-time-media/infinite-feed case only after the Wave 1 campaign and
+observation measurements are reproducible. The Douyin case additionally waits
+for bounded OCR or image observation and timestamped media-state evidence.
+Remote Desktop, system-dialog boundaries, legacy UI, and modal GPU applications
+remain later waves.
 
 ### P1 - bounded multi-source observation
 
@@ -132,6 +134,17 @@ current support.
 `CreateDesktop` / `SwitchDesktop` can be investigated as a research route,
 but they are not the preferred isolation strategy and must not replace real
 end-to-end validation.
+
+### Enterprise workflow layer
+
+After Wave 1-3 application mechanics are reproducible, define the planned E7
+enterprise boundary before connecting the Agent to business systems. This layer
+adds stable business-object identities, object- and field-scoped authority,
+tenant isolation, data classification, maker-checker approval, SLA ownership,
+and saga-style cross-system reconciliation. The first evaluation is the
+synthetic IT incident workflow in
+[Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md); production
+records and credentials are outside the default evaluation boundary.
 
 ## Milestone discipline
 
