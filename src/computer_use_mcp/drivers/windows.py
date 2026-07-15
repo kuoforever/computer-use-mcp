@@ -58,8 +58,86 @@ _NAMED_KEYS = {
     "home": 0x24, "end": 0x23, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
 }
 _KEYEVENTF_KEYUP = 0x0002
+_SW_RESTORE = 9
 _BROWSER_PROCESS_NAMES = frozenset({"chrome.exe", "chromium.exe", "msedge.exe"})
 _BROWSER_SNAPSHOT_WARMUP_SECONDS = 1.0
+
+
+def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Result:
+    """Activate ``hwnd`` while balancing every attached input queue.
+
+    Keeping the native API objects injectable makes the ordering and cleanup
+    contract testable without interacting with the real desktop.
+    """
+    attached: list[tuple[int, int]] = []
+    operation_error: str | None = None
+    cleanup_errors: list[str] = []
+
+    try:
+        if hwnd <= 0 or not user32.IsWindow(hwnd):
+            return Result.fail(STALE_ELEMENT, "window no longer exists")
+
+        foreground_hwnd = int(user32.GetForegroundWindow() or 0)
+        if foreground_hwnd == hwnd:
+            return Result.success()
+
+        caller_thread = int(kernel32.GetCurrentThreadId() or 0)
+        target_thread = int(user32.GetWindowThreadProcessId(hwnd, None) or 0)
+        foreground_thread = (
+            int(user32.GetWindowThreadProcessId(foreground_hwnd, None) or 0)
+            if foreground_hwnd
+            else 0
+        )
+        if not caller_thread or not target_thread:
+            return Result.fail(DRIVER_ERROR, "could not resolve activation input threads")
+        if foreground_hwnd and not foreground_thread:
+            return Result.fail(DRIVER_ERROR, "could not resolve foreground input thread")
+
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, _SW_RESTORE)
+            if user32.IsIconic(hwnd):
+                return Result.fail(DRIVER_ERROR, "could not restore minimized window")
+
+        # Attaching the caller to both queues puts caller, foreground, and
+        # target in one input group. Skip identical or duplicate pairings.
+        pairs: list[tuple[int, int]] = []
+        for other_thread in (foreground_thread, target_thread):
+            pair = (caller_thread, other_thread)
+            if other_thread and caller_thread != other_thread and pair not in pairs:
+                pairs.append(pair)
+
+        try:
+            for caller, other in pairs:
+                if not user32.AttachThreadInput(caller, other, True):
+                    raise OSError(f"AttachThreadInput failed for threads {caller} and {other}")
+                attached.append((caller, other))
+
+            if not user32.BringWindowToTop(hwnd):
+                raise OSError("BringWindowToTop failed")
+            if not user32.SetForegroundWindow(hwnd):
+                raise OSError("SetForegroundWindow failed")
+        except Exception as exc:
+            operation_error = str(exc)
+        finally:
+            for caller, other in reversed(attached):
+                try:
+                    if not user32.AttachThreadInput(caller, other, False):
+                        cleanup_errors.append(f"threads {caller} and {other}")
+                except Exception as exc:
+                    cleanup_errors.append(f"threads {caller} and {other}: {exc}")
+
+        if operation_error is not None:
+            return Result.fail(DRIVER_ERROR, operation_error)
+        if cleanup_errors:
+            return Result.fail(
+                DRIVER_ERROR,
+                "could not detach input threads: " + "; ".join(cleanup_errors),
+            )
+        if int(user32.GetForegroundWindow() or 0) != hwnd:
+            return Result.fail(DRIVER_ERROR, "could not bring window to foreground")
+        return Result.success()
+    except Exception as exc:
+        return Result.fail(DRIVER_ERROR, str(exc))
 
 
 class WindowsDriver(Driver):
@@ -526,32 +604,15 @@ class WindowsDriver(Driver):
 
     def activate_window(self, window_id: str) -> Result:
         """Bring a window to the foreground (a prerequisite for keyboard input).
-        Uses AttachThreadInput to bypass the SetForegroundWindow lock that
-        otherwise blocks a background process from raising another window."""
+        Attach the caller to the foreground and target input queues while the
+        native foreground calls run, then verify the final HWND."""
         try:
             hwnd = int(window_id)
         except (TypeError, ValueError):
             return Result.fail(DRIVER_ERROR, f"bad window_id {window_id!r}")
         user32 = ctypes.windll.user32
         user32.GetForegroundWindow.restype = ctypes.c_void_p
-        try:
-            fg = int(user32.GetForegroundWindow() or 0)
-            if fg == hwnd:
-                return Result.success()
-            fg_thread = user32.GetWindowThreadProcessId(fg, None)
-            tgt_thread = user32.GetWindowThreadProcessId(hwnd, None)
-            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-            attached = bool(fg_thread != tgt_thread
-                            and user32.AttachThreadInput(fg_thread, tgt_thread, True))
-            user32.BringWindowToTop(hwnd)
-            user32.SetForegroundWindow(hwnd)
-            if attached:
-                user32.AttachThreadInput(fg_thread, tgt_thread, False)
-            if int(user32.GetForegroundWindow() or 0) == hwnd:
-                return Result.success()
-            return Result.fail(DRIVER_ERROR, "could not bring window to foreground")
-        except Exception as exc:
-            return Result.fail(DRIVER_ERROR, str(exc))
+        return _activate_window_with_api(hwnd, user32, ctypes.windll.kernel32)
 
     def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
         """Coordinate click in the shared pixel space (DPI-aware). For ref-based
