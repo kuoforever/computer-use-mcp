@@ -162,8 +162,10 @@ max_consecutive_failures: 3
 
 The current selector is read-only: it orders only `DISCOVERED` and `RETRYABLE`
 items by stable ordinal, applies every hard cap with a fixed stop reason, and
-does not claim an item or invoke a provider. Durable batch records, clock
-measurement, and item claiming belong to the future worker.
+does not claim an item or invoke a provider. The private `batches.jsonl` ledger
+now records a fixed-schema `STARTED`/`FINISHED` lifecycle and bounded measured
+counters, but it does not measure time or start work. Clock measurement and
+item claiming belong to the future worker.
 
 At a batch boundary, close the current run cleanly, write `handoff.json`, and
 start a fresh provider context. A new Codex session should need only the
