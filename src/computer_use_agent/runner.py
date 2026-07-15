@@ -12,6 +12,7 @@ from .config import AgentConfig
 from .continuation import RuntimeContinuationRecorder
 from .context import ContextBudgetError, reduce_ledger
 from .grounding import GroundingError, GroundingState
+from .executor_final_store import FinalResponseStore
 from .plan_store import TaskPlanStore
 from .policy import HostPolicy, PolicyDisposition
 from .run_lock import RunLock
@@ -124,6 +125,13 @@ class PreparedRun:
         if self._closed:
             raise RuntimeError("prepared run is already closed")
         return TaskPlanStore(state_dir, self._lock)
+
+    def final_response_store(self, state_dir: Path) -> FinalResponseStore:
+        """Create a final-response WAL bound to this run's live lock."""
+
+        if self._closed:
+            raise RuntimeError("prepared run is already closed")
+        return FinalResponseStore(state_dir, self._lock)
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
         self.close()

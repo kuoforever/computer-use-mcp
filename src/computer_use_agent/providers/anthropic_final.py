@@ -7,7 +7,7 @@ from base64 import b64encode
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ..executor_final import FinalResponseRequest
+from ..executor_final import FinalResponseRequest, FinalResponseResult
 from ..final_response_wire import (
     FinalResponseWireError,
     compile_final_response_wire,
@@ -18,6 +18,7 @@ from ..types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
     DEFAULT_PROVIDER_OUTPUT_TOKENS,
     DEFAULT_PROVIDER_REQUEST_BYTES,
+    ModelUsage,
 )
 
 
@@ -52,8 +53,13 @@ def _request_size(value: object) -> int:
         raise AnthropicFinalResponseError("ANTHROPIC_FINAL_REQUEST_INVALID") from None
 
 
-def _text_from_response(response: object) -> str:
+def _result_from_response(
+    response: object, request: FinalResponseRequest
+) -> FinalResponseResult:
     if _read(response, "stop_reason") != "end_turn":
+        raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
+    response_id = _read(response, "id")
+    if not isinstance(response_id, str) or not response_id:
         raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
     content = _read(response, "content")
     if not isinstance(content, (list, tuple)) or len(content) != 1:
@@ -62,7 +68,7 @@ def _text_from_response(response: object) -> str:
     if _read(block, "type") != "text":
         raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
     try:
-        return validate_final_response_text(_read(block, "text"))
+        text = validate_final_response_text(_read(block, "text"))
     except FinalResponseWireError as exc:
         code = (
             "ANTHROPIC_FINAL_RESPONSE_TOO_LARGE"
@@ -70,6 +76,20 @@ def _text_from_response(response: object) -> str:
             else "ANTHROPIC_FINAL_RESPONSE_INVALID"
         )
         raise AnthropicFinalResponseError(code) from exc
+    usage = _read(response, "usage")
+    input_tokens = _read(usage, "input_tokens", 0)
+    output_tokens = _read(usage, "output_tokens", 0)
+    try:
+        normalized_usage = ModelUsage(input_tokens, output_tokens)
+    except ValueError as exc:
+        raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID") from exc
+    return FinalResponseResult(
+        run_id=request.run_id,
+        turn_id=request.turn_id,
+        provider_response_id=response_id,
+        text=text,
+        usage=normalized_usage,
+    )
 
 
 @dataclass
@@ -127,7 +147,9 @@ class AnthropicFinalResponseAdapter:
             output_token_reserve=output_token_reserve,
         )
 
-    async def create_final_response(self, request: FinalResponseRequest) -> str:
+    async def create_final_response(
+        self, request: FinalResponseRequest
+    ) -> FinalResponseResult:
         if not isinstance(request, FinalResponseRequest):
             raise AnthropicFinalResponseError("ANTHROPIC_FINAL_REQUEST_INVALID")
         try:
@@ -169,7 +191,7 @@ class AnthropicFinalResponseAdapter:
         except Exception as exc:
             raise AnthropicFinalResponseError("ANTHROPIC_FINAL_REQUEST_FAILED") from exc
         try:
-            return _text_from_response(response)
+            return _result_from_response(response, request)
         except AnthropicFinalResponseError:
             raise
         except Exception as exc:

@@ -13,7 +13,7 @@ and expected safety outcome.
 
 | Level | Environment | Required evidence | Current status |
 | --- | --- | --- | --- |
-| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation and dual-provider wire adapters, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, OpenAI function-call normalization, Claude tool-use normalization, and fail-closed release-preflight evidence | implemented |
+| E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters and dedicated WAL, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
@@ -182,6 +182,15 @@ refusal, truncation, tool use, function calls, missing/extra content, and empty
 text. It freezes the absence of tools, continuation, retries, and fallback.
 These adapters are not connected to WAL, host budget accounting, final-step
 CAS, trace terminalization, recovery, CLI, or real provider E3/E4 execution.
+
+Dedicated final-response WAL tests add E0 persistence evidence for strict
+private round-trip, correlated response identity/usage, safe representations,
+owner-lock requirements, non-replacement, exact sequence/digest CAS, legal
+prepared/intent/completed ordering, atomic unchanged-state failure, corruption,
+and identity drift. The store is structurally separate from ordinary provider
+continuation and has no provider or recovery executor. This does not yet prove
+runtime provider ordering, budget consumption, final-step CAS, terminal trace,
+or crash reconciliation.
 Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable

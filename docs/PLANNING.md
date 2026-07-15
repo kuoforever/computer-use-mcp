@@ -250,9 +250,36 @@ fail closed after that one call. Returned text remains untrusted and neither
 adapter writes WAL, consumes host budget, transitions the plan, or terminalizes
 the run.
 
-The next Executor increment must separately review WAL intent/completion,
-budget consumption, final-step CAS, trace terminalization, and failure cleanup
-before connecting these adapters to `RuntimeExecutorSession`, or add broader
+## Dedicated final-response WAL
+
+The adapters now return `FinalResponseResult` rather than bare text. It binds
+the exact run/turn, provider response ID, bounded untrusted text, and normalized
+provider-reported usage while keeping text out of object representations. This
+metadata is necessary for later host budget, trace, and crash correlation; it
+still grants no terminal authority.
+
+`executor_final_store.py` provides a separate private `final-response.json`
+under the existing application RunLock. It is intentionally not encoded as a
+normal continuation provider operation, so the existing recovery executor
+cannot mistake a plan final response for a resumable provider/tool turn. The
+strict digest-bound state machine is only `prepared -> dispatch_intent ->
+completed`; every change uses sequence plus envelope-digest CAS and atomic
+owner-only replacement. The request/plan/step/turn bindings are retained in
+all stages, while sensitive final text and usage exist only after a correlated
+completion. `PreparedRun.final_response_store()` exposes the store only while
+the run lock remains live.
+
+The WAL imports no adapter, policy, approval, MCP, trace, plan transition, or
+recovery executor. Reading `completed` does not complete the plan, consume a
+budget, publish text, or authorize retry. Dispatch intent remains uncertain and
+non-replayable. Corruption, unsafe paths, stale CAS, illegal transitions,
+identity drift, oversized text/envelopes, and replacement of existing WAL fail
+closed without changing valid state.
+
+The next Executor increment must separately review the orchestration ordering
+across plan `in_progress`, WAL intent/completion, provider call, host budget,
+final-step CAS, trace terminalization, and cleanup before connecting these
+adapters to `RuntimeExecutorSession`, or add broader
 explicit resume state before CLI wiring. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,

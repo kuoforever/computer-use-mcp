@@ -101,6 +101,7 @@ def _request() -> FinalResponseRequest:
 
 def _openai_response(text: str) -> SimpleNamespace:
     return SimpleNamespace(
+        id="resp_1",
         status="completed",
         output=[
             SimpleNamespace(
@@ -109,13 +110,16 @@ def _openai_response(text: str) -> SimpleNamespace:
                 content=[SimpleNamespace(type="output_text", text=text)],
             )
         ],
+        usage=SimpleNamespace(input_tokens=11, output_tokens=7),
     )
 
 
 def _anthropic_response(text: str, *, stop_reason: str = "end_turn") -> SimpleNamespace:
     return SimpleNamespace(
+        id="msg_1",
         stop_reason=stop_reason,
         content=[SimpleNamespace(type="text", text=text)],
+        usage=SimpleNamespace(input_tokens=13, output_tokens=5),
     )
 
 
@@ -144,9 +148,12 @@ def test_openai_final_uses_one_stateless_native_image_request() -> None:
     scripted = ScriptedPort([_openai_response("final answer")])
     adapter = OpenAIFinalResponseAdapter(model="gpt-test", responses=scripted)
 
-    text = asyncio.run(adapter.create_final_response(_request()))
+    result = asyncio.run(adapter.create_final_response(_request()))
 
-    assert text == "final answer"
+    assert result.text == "final answer"
+    assert result.provider_response_id == "resp_1"
+    assert result.usage.input_tokens == 11
+    assert "final answer" not in repr(result)
     assert len(scripted.calls) == 1
     call = scripted.calls[0]
     assert set(call) == {"model", "instructions", "input", "max_output_tokens", "store"}
@@ -170,9 +177,12 @@ def test_anthropic_final_uses_one_stateless_native_image_request() -> None:
     scripted = ScriptedPort([_anthropic_response("final answer")])
     adapter = AnthropicFinalResponseAdapter(model="claude-test", messages=scripted)
 
-    text = asyncio.run(adapter.create_final_response(_request()))
+    result = asyncio.run(adapter.create_final_response(_request()))
 
-    assert text == "final answer"
+    assert result.text == "final answer"
+    assert result.provider_response_id == "msg_1"
+    assert result.usage.output_tokens == 5
+    assert "final answer" not in repr(result)
     assert len(scripted.calls) == 1
     call = scripted.calls[0]
     assert set(call) == {"model", "max_tokens", "system", "messages"}
@@ -218,6 +228,18 @@ def test_anthropic_final_uses_one_stateless_native_image_request() -> None:
             ],
         ),
         _openai_response(""),
+        SimpleNamespace(
+            id="",
+            status="completed",
+            output=_openai_response("text").output,
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+        ),
+        SimpleNamespace(
+            id="resp_bad_usage",
+            status="completed",
+            output=_openai_response("text").output,
+            usage=SimpleNamespace(input_tokens=-1, output_tokens=1),
+        ),
     ],
 )
 def test_openai_invalid_refusal_or_tool_output_is_fixed(response: object) -> None:
@@ -250,6 +272,18 @@ def test_openai_invalid_refusal_or_tool_output_is_fixed(response: object) -> Non
             ],
         ),
         _anthropic_response(""),
+        SimpleNamespace(
+            id="",
+            stop_reason="end_turn",
+            content=_anthropic_response("text").content,
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+        ),
+        SimpleNamespace(
+            id="msg_bad_usage",
+            stop_reason="end_turn",
+            content=_anthropic_response("text").content,
+            usage=SimpleNamespace(input_tokens=1, output_tokens=-1),
+        ),
     ],
 )
 def test_anthropic_invalid_refusal_or_tool_output_is_fixed(response: object) -> None:

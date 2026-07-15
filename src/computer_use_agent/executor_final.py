@@ -24,6 +24,7 @@ from .types import (
     RunState,
     ToolEffect,
     ToolResultStatus,
+    ModelUsage,
     to_json_value,
 )
 
@@ -150,11 +151,43 @@ class FinalResponseRequest:
         )
 
 
+@dataclass(frozen=True, repr=False)
+class FinalResponseResult:
+    """One bounded provider result; text remains sensitive and untrusted."""
+
+    run_id: str
+    turn_id: str
+    provider_response_id: str
+    text: str = field(repr=False)
+    usage: ModelUsage
+
+    def __post_init__(self) -> None:
+        if not all(
+            isinstance(value, str) and value
+            for value in (self.run_id, self.turn_id, self.provider_response_id)
+        ):
+            raise ValueError("final-response result identity must be non-empty")
+        if not isinstance(self.text, str) or not self.text.strip():
+            raise ValueError("final-response result text must be non-empty")
+        if not isinstance(self.usage, ModelUsage):
+            raise ValueError("usage must be ModelUsage")
+
+    def __repr__(self) -> str:
+        return (
+            "FinalResponseResult("
+            f"run_id={self.run_id!r}, turn_id={self.turn_id!r}, "
+            f"provider_response_id={self.provider_response_id!r}, "
+            f"text_length={len(self.text)}, usage={self.usage!r})"
+        )
+
+
 @runtime_checkable
 class FinalResponsePort(Protocol):
     """Tool-free one-shot adapter; returned text remains untrusted data."""
 
-    async def create_final_response(self, request: FinalResponseRequest) -> str: ...
+    async def create_final_response(
+        self, request: FinalResponseRequest
+    ) -> FinalResponseResult: ...
 
 
 def _canonical(value: object) -> bytes:
@@ -359,6 +392,7 @@ __all__ = [
     "FinalResponseObservation",
     "FinalResponsePort",
     "FinalResponseRequest",
+    "FinalResponseResult",
     "MAX_FINAL_RESPONSE_REQUEST_BYTES",
     "compile_final_response_request",
 ]
