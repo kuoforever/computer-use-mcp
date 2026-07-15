@@ -24,6 +24,7 @@ from .run_lock import RunLock
 CAMPAIGN_VERSION = 1
 MAX_CAMPAIGN_MANIFEST_BYTES = 16 * 1024
 MAX_CAMPAIGN_LEDGER_BYTES = 1024 * 1024
+MAX_CAMPAIGN_BATCH_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_ITEMS = 10_000
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _ITEM_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\Z")
@@ -54,6 +55,11 @@ class ItemStatus(str, Enum):
     SKIPPED = "SKIPPED"
     CHALLENGE = "CHALLENGE"
     UNCERTAIN = "UNCERTAIN"
+
+
+class BatchStatus(str, Enum):
+    STARTED = "STARTED"
+    FINISHED = "FINISHED"
 
 
 _ALLOWED_TRANSITIONS = {
@@ -271,6 +277,63 @@ class ItemTransition:
 
 
 @dataclass(frozen=True)
+class BatchTransition:
+    """One fixed-schema lifecycle event for a provider-context batch."""
+
+    sequence: int
+    batch_id: str
+    run_id: str
+    status: BatchStatus
+    at: str
+    stop_code: str | None = None
+    items_completed: int = 0
+    elapsed_seconds: int = 0
+    provider_turns: int = 0
+    tool_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    screenshots: int = 0
+    ocr_regions: int = 0
+    consecutive_failures: int = 0
+
+    def __post_init__(self) -> None:
+        if self.sequence <= 0:
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+        _require_identifier(self.batch_id)
+        _require_identifier(self.run_id)
+        if not isinstance(self.status, BatchStatus):
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+        _require_timestamp(self.at)
+        if self.stop_code is not None and (
+            not isinstance(self.stop_code, str) or _CODE.fullmatch(self.stop_code) is None
+        ):
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+        counters = (
+            self.items_completed, self.elapsed_seconds, self.provider_turns,
+            self.tool_calls, self.input_tokens, self.output_tokens,
+            self.screenshots, self.ocr_regions, self.consecutive_failures,
+        )
+        for counter in counters:
+            _require_nonnegative_int(counter)
+        if self.status is BatchStatus.STARTED:
+            if self.stop_code is not None or any(counters):
+                raise CampaignStoreError("CAMPAIGN_INVALID")
+        elif self.stop_code is None:
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "sequence": self.sequence, "batch_id": self.batch_id, "run_id": self.run_id,
+            "status": self.status.value, "at": self.at, "stop_code": self.stop_code,
+            "items_completed": self.items_completed, "elapsed_seconds": self.elapsed_seconds,
+            "provider_turns": self.provider_turns, "tool_calls": self.tool_calls,
+            "input_tokens": self.input_tokens, "output_tokens": self.output_tokens,
+            "screenshots": self.screenshots, "ocr_regions": self.ocr_regions,
+            "consecutive_failures": self.consecutive_failures,
+        }
+
+
+@dataclass(frozen=True)
 class CampaignProjection:
     transitions: tuple[ItemTransition, ...]
     items: Mapping[str, ItemTransition]
@@ -299,6 +362,13 @@ class CampaignProjection:
             if item.status is not ItemStatus.COMMITTED
         ]
         return min(incomplete) if incomplete else self.discovered_count + 1
+
+
+@dataclass(frozen=True)
+class BatchProjection:
+    transitions: tuple[BatchTransition, ...]
+    active: BatchTransition | None
+    finished_count: int
 
 
 def reduce_item_ledger(transitions: Sequence[ItemTransition]) -> CampaignProjection:
@@ -330,6 +400,30 @@ def reduce_item_ledger(transitions: Sequence[ItemTransition]) -> CampaignProject
     return CampaignProjection(
         transitions=tuple(transitions), items=MappingProxyType(dict(items))
     )
+
+
+def reduce_batch_ledger(transitions: Sequence[BatchTransition]) -> BatchProjection:
+    """Validate a sequential batch lifecycle ledger without executing it."""
+
+    active: BatchTransition | None = None
+    finished_count = 0
+    batch_ids: set[str] = set()
+    for expected_sequence, transition in enumerate(transitions, start=1):
+        if transition.sequence != expected_sequence:
+            raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID")
+        if transition.status is BatchStatus.STARTED:
+            if active is not None or transition.batch_id in batch_ids:
+                raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID")
+            batch_ids.add(transition.batch_id)
+            active = transition
+        elif active is None or (
+            transition.batch_id != active.batch_id or transition.run_id != active.run_id
+        ):
+            raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID")
+        else:
+            active = None
+            finished_count += 1
+    return BatchProjection(tuple(transitions), active, finished_count)
 
 
 def _decode_manifest(value: object, *, campaign_id: str) -> CampaignManifest:
@@ -391,6 +485,31 @@ def _decode_transition(value: object) -> ItemTransition:
         )
     except (TypeError, ValueError) as exc:
         raise CampaignStoreError("CAMPAIGN_LEDGER_INVALID") from exc
+
+
+def _decode_batch_transition(value: object) -> BatchTransition:
+    fields = {
+        "sequence", "batch_id", "run_id", "status", "at", "stop_code",
+        "items_completed", "elapsed_seconds", "provider_turns", "tool_calls",
+        "input_tokens", "output_tokens", "screenshots", "ocr_regions",
+        "consecutive_failures",
+    }
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID")
+    try:
+        return BatchTransition(
+            sequence=value.get("sequence"), batch_id=value.get("batch_id"),
+            run_id=value.get("run_id"), status=BatchStatus(value.get("status")),
+            at=value.get("at"), stop_code=value.get("stop_code"),
+            items_completed=value.get("items_completed"),
+            elapsed_seconds=value.get("elapsed_seconds"),
+            provider_turns=value.get("provider_turns"), tool_calls=value.get("tool_calls"),
+            input_tokens=value.get("input_tokens"), output_tokens=value.get("output_tokens"),
+            screenshots=value.get("screenshots"), ocr_regions=value.get("ocr_regions"),
+            consecutive_failures=value.get("consecutive_failures"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID") from exc
 
 
 class CampaignStore:
@@ -527,6 +646,48 @@ class CampaignStore:
         )
         return updated
 
+    def read_batches(self, campaign_id: str) -> BatchProjection:
+        self._require_lock()
+        path = self._path(campaign_id, "batches.jsonl")
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError:
+            return BatchProjection((), None, 0)
+        except OSError as exc:
+            raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_READ_FAILED") from exc
+        if len(raw) > MAX_CAMPAIGN_BATCH_LEDGER_BYTES:
+            raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_TOO_LARGE")
+        try:
+            lines = raw.decode("utf-8").splitlines()
+            transitions = tuple(_decode_batch_transition(json.loads(line)) for line in lines if line)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID") from exc
+        return reduce_batch_ledger(transitions)
+
+    def append_batch(self, campaign_id: str, transition: BatchTransition) -> BatchProjection:
+        self._require_lock()
+        if not isinstance(transition, BatchTransition):
+            raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID")
+        self.read_manifest(campaign_id)
+        projection = self.read_batches(campaign_id)
+        next_transition = BatchTransition(
+            sequence=len(projection.transitions) + 1,
+            batch_id=transition.batch_id, run_id=transition.run_id,
+            status=transition.status, at=transition.at, stop_code=transition.stop_code,
+            items_completed=transition.items_completed, elapsed_seconds=transition.elapsed_seconds,
+            provider_turns=transition.provider_turns, tool_calls=transition.tool_calls,
+            input_tokens=transition.input_tokens, output_tokens=transition.output_tokens,
+            screenshots=transition.screenshots, ocr_regions=transition.ocr_regions,
+            consecutive_failures=transition.consecutive_failures,
+        )
+        updated = reduce_batch_ledger((*projection.transitions, next_transition))
+        encoded = b"".join(_canonical(entry.as_json()) + b"\n" for entry in updated.transitions)
+        self._atomic_write(
+            self._path(campaign_id, "batches.jsonl"), encoded, create=False,
+            maximum=MAX_CAMPAIGN_BATCH_LEDGER_BYTES,
+        )
+        return updated
+
     def write_handoff(self, campaign_id: str, *, last_run_id: str) -> dict[str, object]:
         """Atomically replace a fixed-schema handoff derived from the ledger."""
 
@@ -557,7 +718,11 @@ class CampaignStore:
 
 __all__ = [
     "CAMPAIGN_VERSION",
+    "MAX_CAMPAIGN_BATCH_LEDGER_BYTES",
     "MAX_CAMPAIGN_ITEMS",
+    "BatchProjection",
+    "BatchStatus",
+    "BatchTransition",
     "CampaignManifest",
     "CampaignProjection",
     "CampaignStatus",
@@ -566,5 +731,6 @@ __all__ = [
     "ItemStatus",
     "ItemTransition",
     "campaign_dir",
+    "reduce_batch_ledger",
     "reduce_item_ledger",
 ]
