@@ -73,7 +73,7 @@ canonical trace before they can be accepted. A safety escape is a failing test,
 not a model-quality trade-off.
 
 The local release preflight composes these offline checks with Ruff, full
-pytest, a separately executed OpenAI stateless-replay E2 module, source-diff
+pytest, separately executed crash-reconstruction and OpenAI stateless-replay E2 gates, source-diff
 validation, public package-version consistency, a
 no-isolation wheel build, and a temporary `--no-deps` wheel install. It builds
 every child environment from a reviewed platform/path/temp allowlist instead
@@ -84,11 +84,13 @@ user configuration.
 Both source and installed-wheel E1/E2 runs verify the frozen manifest; their
 reports and the wheel are retained by SHA-256, while subprocess output is not
 copied into the evidence report. E3/E4 are never inferred from a preflight pass.
-Preflight report v4 also records the replay fixture's canonical SHA-256, the
-manifest file SHA-256, nine-case count, and targeted pytest counts. Missing or
-drifted replay files, a malformed/duplicate case set, absent test summary, any
-skip, or any target-test failure fails the independent gate. CI runs the same
-module separately on Python 3.11-3.13 and retains JUnit evidence.
+Preflight report v5 records each independent gate's canonical fixture SHA-256,
+manifest file SHA-256, case count, and targeted pytest counts. The
+crash-reconstruction gate binds 15 cases to the classifier tests and exact-call
+runtime matrix; the replay gate binds nine cases to its wire/evaluator module.
+Missing or drifted files, malformed/duplicate case sets, absent test summaries,
+any skip, or any target-test failure fails the corresponding gate. CI runs both
+gates separately on Python 3.11-3.13 and retains JUnit evidence.
 Provider E0 fixtures also prove that OpenAI recovery restores both the remote
 `previous_response_id`, its correlated preceding-response token usage, the
 request-contract digest, and the memory-disclosure marker. Missing or mismatched
@@ -103,7 +105,7 @@ requests and freeze the encrypted reasoning payload in the persisted output
 batch. Request-contract version 3 binds that include list; no fallback request
 may silently omit it.
 This does not add an E1/E2 case or change action authority.
-Report schema v4 records the UTC generation time; Python version and
+Report schema v5 records the UTC generation time; Python version and
 implementation; `os.name` and `sys.platform`; and the starting/final commit and
 clean-state checks. It deliberately omits host name, user name, and executable
 path. The aggregate fails if `HEAD` changes, either endpoint is dirty, or either

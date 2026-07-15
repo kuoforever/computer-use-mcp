@@ -86,7 +86,7 @@ including successful text/screenshot replay, unknown/missing/mismatched/
 reordered state, side-effect history, request overflow, and provider failure.
 The recovery-executor assertion proves compilation finishes before the durable
 provider intent and that historical calls produce zero MCP dispatches.
-Release preflight report v4 runs this module as an independent gate and records
+Release preflight report v5 runs this module as an independent gate and records
 the canonical fixture hash, manifest hash, case count, and targeted test counts.
 CI repeats the gate on every supported Python version and retains JUnit output;
 this remains offline evidence and does not imply E3 or E4 completion.

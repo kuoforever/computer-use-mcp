@@ -22,11 +22,12 @@
 | --- | --- | --- |
 | Ruff | pending | command, UTC time, commit |
 | Full offline pytest | pending | pass/skip counts, supported Python versions |
+| Crash reconstruction E2 | pending | 15 cases, targeted test counts, canonical fixture SHA-256, manifest SHA-256, CI JUnit evidence |
 | OpenAI stateless replay E2 | pending | nine cases, targeted test counts, canonical fixture SHA-256, manifest SHA-256, CI JUnit evidence |
 | E1/E2 | pending | report hash, case count, safety escapes (must be zero) |
 | Wheel build | pending | wheel filename and SHA-256 |
 | Clean wheel install | pending | environment and CLI smoke result |
-| Local offline preflight | pending | v4 report SHA-256, UTC, Python/platform identity, identical starting/final commit, both clean checks, replay fixture/manifest hashes, constrained child environment, all fixed gates passed |
+| Local offline preflight | pending | v5 report SHA-256, UTC, Python/platform identity, identical starting/final commit, both clean checks, crash/replay fixture and manifest hashes, constrained child environment, all fixed gates passed |
 | CI | pending | workflow run identifier and commit |
 
 ## Human integration gates

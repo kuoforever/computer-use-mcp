@@ -36,6 +36,16 @@ jobs:
         run: python -m ruff check src tests scripts
       - name: Offline tests
         run: python -m pytest -q
+      - name: Crash reconstruction E2 gate
+        run: python -m pytest tests\agent\test_reconstruction.py tests\agent\test_recovery.py::test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls -q --junitxml out\crash-reconstruction-e2.xml
+      - name: Upload crash reconstruction report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: crash-reconstruction-e2-python-${{ matrix.python-version }}
+          path: out/crash-reconstruction-e2.xml
+          if-no-files-found: warn
+          retention-days: 14
       - name: OpenAI stateless replay E2 gate
         run: python -m pytest tests\agent\test_openai_replay_evaluation.py -q --junitxml out\openai-stateless-replay-e2.xml
       - name: Upload stateless replay report

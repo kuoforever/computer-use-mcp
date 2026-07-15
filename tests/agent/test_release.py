@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -29,6 +30,7 @@ def _install_fake_commands(
     final_commit: str | None = None,
     safety_escapes: int = 0,
     replay_failure: bool = False,
+    reconstruction_failure: bool = False,
 ) -> list[dict[str, str]]:
     environments: list[dict[str, str]] = []
     rev_parse_calls = 0
@@ -59,6 +61,10 @@ def _install_fake_commands(
                 if replay_failure:
                     return release._Command(1, "10 passed, 1 failed in 1.00s\n")
                 return release._Command(0, "11 passed in 1.00s\n")
+            if "tests/agent/test_reconstruction.py" in command:
+                if reconstruction_failure:
+                    return release._Command(1, "21 passed, 1 failed in 1.00s\n")
+                return release._Command(0, "22 passed in 1.00s\n")
             return release._Command(0, "321 passed, 3 skipped in 1.00s\n")
         if "build" in command:
             output = Path(command[command.index("--outdir") + 1])
@@ -117,7 +123,7 @@ def test_release_preflight_records_sanitized_offline_evidence(
     payload = release.run_release_preflight(ROOT, artifacts, report_path)
 
     assert payload["passed"] is True
-    assert payload["report_version"] == 4
+    assert payload["report_version"] == 5
     assert payload["generated_at_utc"] == "2026-07-14T01:02:03Z"
     assert payload["execution"] == {
         "python_version": "3.13.5",
@@ -149,6 +155,14 @@ def test_release_preflight_records_sanitized_offline_evidence(
     assert replay_gate["failed_tests"] == 0
     assert len(replay_gate["fixture_sha256"]) == 64
     assert len(replay_gate["manifest_sha256"]) == 64
+    reconstruction_gate = payload["gates"]["crash_reconstruction_e2"]
+    assert reconstruction_gate["passed"] is True
+    assert reconstruction_gate["case_count"] == 15
+    assert reconstruction_gate["passed_tests"] == 22
+    assert reconstruction_gate["skipped_tests"] == 0
+    assert reconstruction_gate["failed_tests"] == 0
+    assert len(reconstruction_gate["fixture_sha256"]) == 64
+    assert len(reconstruction_gate["manifest_sha256"]) == 64
     assert payload["gates"]["candidate_stability"] == {
         "passed": True,
         "head_unchanged": True,
@@ -278,7 +292,7 @@ def test_replay_evaluation_gate_rejects_manifest_drift(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    gate = release._replay_eval_gate(
+    gate = release._frozen_eval_gate(
         release._Command(0, "1 passed in 0.01s\n"), fixture, manifest
     )
 
@@ -288,6 +302,93 @@ def test_replay_evaluation_gate_rejects_manifest_drift(tmp_path: Path) -> None:
         "skipped_tests": 0,
         "failed_tests": 0,
     }
+
+
+def test_release_preflight_fails_closed_when_reconstruction_evaluation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_commands(monkeypatch, reconstruction_failure=True)
+
+    payload = release.run_release_preflight(
+        ROOT, tmp_path / "artifacts", tmp_path / "report.json"
+    )
+
+    assert payload["passed"] is False
+    gate = payload["gates"]["crash_reconstruction_e2"]
+    assert gate["passed"] is False
+    assert gate["passed_tests"] == 21
+    assert gate["failed_tests"] == 1
+
+
+def test_reconstruction_evaluation_gate_rejects_manifest_drift(
+    tmp_path: Path,
+) -> None:
+    fixture = tmp_path / "e2-crash-reconstruction.json"
+    manifest = tmp_path / "e2-crash-reconstruction-manifest.json"
+    fixture.write_text(
+        json.dumps({"version": 1, "cases": [{"id": "e2_case"}]}),
+        encoding="utf-8",
+    )
+    manifest.write_text(
+        json.dumps({"version": 1, "sha256": {fixture.name: "0" * 64}}),
+        encoding="utf-8",
+    )
+
+    gate = release._frozen_eval_gate(
+        release._Command(0, "1 passed in 0.01s\n"),
+        fixture,
+        manifest,
+        require_crash_invariants=True,
+    )
+
+    assert gate == {
+        "passed": False,
+        "passed_tests": 1,
+        "skipped_tests": 0,
+        "failed_tests": 0,
+    }
+
+
+def test_reconstruction_evaluation_gate_rejects_regenerated_unsafe_invariants(
+    tmp_path: Path,
+) -> None:
+    fixture = tmp_path / "e2-crash-reconstruction.json"
+    manifest = tmp_path / "e2-crash-reconstruction-manifest.json"
+    payload = {
+        "version": 1,
+        "level": "E2",
+        "invariants": {
+            "automatic_resume": True,
+            "new_external_calls": [],
+            "safety_escapes": 0,
+        },
+        "cases": [{"id": "e2_case"}],
+    }
+    fixture.write_text(json.dumps(payload), encoding="utf-8")
+    canonical = json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "sha256": {
+                    fixture.name: hashlib.sha256(canonical).hexdigest()
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    gate = release._frozen_eval_gate(
+        release._Command(0, "1 passed in 0.01s\n"),
+        fixture,
+        manifest,
+        require_crash_invariants=True,
+    )
+
+    assert gate["passed"] is False
+    assert "case_count" not in gate
 
 
 def test_release_preflight_fails_closed_for_public_version_drift(

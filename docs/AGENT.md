@@ -57,7 +57,7 @@ the following commands:
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety
   escape. It needs no provider SDK, credential, MCP child, or desktop.
 - `release preflight` runs the clean-source, public-version, Ruff, full offline
-  pytest, an independent frozen OpenAI stateless-replay E2 gate, frozen workflow
+  pytest, independent frozen crash-reconstruction and OpenAI stateless-replay E2 gates, frozen workflow
   E1/E2, wheel-build, and clean-wheel smoke gates. Replay evidence records the
   canonical fixture and manifest hashes, case count, and targeted test counts.
   Every child
@@ -433,7 +433,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Provider requests have a token-window gate | Both adapters conservatively bound the complete final request plus output reserve before SDK I/O; OpenAI also carries forward reported remote-context usage across live and persisted recovery, and no atomic tool/result/image group is split | implemented provider token-window and recovery-state tests |
 | OpenAI stateless replay is explicitly gated | `recover --stateless-replay` compiles only a complete digest-bound read-only transcript, rejects unknown/missing/reordered/mismatched or over-budget state before provider dispatch, and commits a new remote response ID only after a valid response | implemented explicit recovery capability; no automatic fallback |
 | OpenAI stateless replay evaluation is frozen | A canonical nine-case fixture and SHA-256 manifest freeze exact text/screenshot input order, rejected transcript classes, provider-call counts, remote-chain preservation, and zero historical MCP dispatch through the recovery executor | implemented E2 replay matrix |
-| OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v4 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
+| OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v5 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
+| Crash reconstruction release evidence is explicit | Release preflight and each CI Python job run the classifier plus 15-case exact-call runtime matrix as a separate fail-closed gate; preflight v5 records case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls; hidden call output, drift, and sequence mismatch fail closed | implemented terminal recovery boundary |
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
