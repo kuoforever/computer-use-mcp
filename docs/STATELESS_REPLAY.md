@@ -81,6 +81,12 @@ The implementation enforces all of the following:
    screenshots, missing output items, contract drift, and over-budget requests;
    every rejected case records zero provider and desktop calls.
 
+`evals/e2-stateless-replay.json` and its SHA-256 manifest freeze nine cases,
+including successful text/screenshot replay, unknown/missing/mismatched/
+reordered state, side-effect history, request overflow, and provider failure.
+The recovery-executor assertion proves compilation finishes before the durable
+provider intent and that historical calls produce zero MCP dispatches.
+
 The switch is one-shot and atomic. Preflight failure leaves the provider in
 `remote_response_id`. After staging, provider failure or invalid output leaves
 the exported old response ID unchanged and never retries with either strategy.

@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "e2_replay_exact_text",
+      "mutation": "none",
+      "result_kind": "text",
+      "expected_error": null,
+      "expected_provider_calls": 1,
+      "expected_remote_response_id": "response_2"
+    },
+    {
+      "id": "e2_replay_exact_screenshot",
+      "mutation": "none",
+      "result_kind": "screenshot",
+      "expected_error": null,
+      "expected_provider_calls": 1,
+      "expected_remote_response_id": "response_2"
+    },
+    {
+      "id": "e2_replay_unknown_output_item",
+      "mutation": "unknown_output_item",
+      "result_kind": "text",
+      "expected_error": "OPENAI_STATELESS_REPLAY_INVALID",
+      "expected_provider_calls": 0,
+      "expected_remote_response_id": "response_1"
+    },
+    {
+      "id": "e2_replay_missing_function_result",
+      "mutation": "missing_result",
+      "result_kind": "text",
+      "expected_error": "OPENAI_STATELESS_REPLAY_INVALID",
+      "expected_provider_calls": 0,
+      "expected_remote_response_id": "response_1"
+    },
+    {
+      "id": "e2_replay_mismatched_function_call",
+      "mutation": "mismatched_call",
+      "result_kind": "text",
+      "expected_error": "OPENAI_STATELESS_REPLAY_INVALID",
+      "expected_provider_calls": 0,
+      "expected_remote_response_id": "response_1"
+    },
+    {
+      "id": "e2_replay_reordered_response_batches",
+      "mutation": "reordered_batches",
+      "result_kind": "text",
+      "expected_error": "OPENAI_STATELESS_REPLAY_INVALID",
+      "expected_provider_calls": 0,
+      "expected_remote_response_id": "response_1"
+    },
+    {
+      "id": "e2_replay_side_effect_history",
+      "mutation": "side_effect_history",
+      "result_kind": "text",
+      "expected_error": "OPENAI_STATELESS_REPLAY_INVALID",
+      "expected_provider_calls": 0,
+      "expected_remote_response_id": "response_1"
+    },
+    {
+      "id": "e2_replay_request_over_budget",
+      "mutation": "over_budget",
+      "result_kind": "text",
+      "expected_error": "OPENAI_REQUEST_TOO_LARGE",
+      "expected_provider_calls": 0,
+      "expected_remote_response_id": "response_1"
+    },
+    {
+      "id": "e2_replay_provider_failure_preserves_chain",
+      "mutation": "provider_failure",
+      "result_kind": "text",
+      "expected_error": "OPENAI_REQUEST_FAILED",
+      "expected_provider_calls": 1,
+      "expected_remote_response_id": "response_1"
+    }
+  ]
+}
