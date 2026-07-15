@@ -15,6 +15,10 @@ class FakeKernel32:
         self.events.append(("current_thread",))
         return self.thread_id
 
+    def GetLastError(self) -> int:
+        self.events.append(("last_error",))
+        return 5
+
 
 class FakeUser32:
     def __init__(
@@ -120,6 +124,7 @@ class WindowsActivationTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertEqual(result.code, DRIVER_ERROR)
+        self.assertIn("win32 error 5", result.message)
         self.assertEqual(
             [event for event in user32.events if event[0] in {"attach", "detach"}],
             [("attach", 10, 20), ("attach", 10, 30), ("detach", 10, 20)],
