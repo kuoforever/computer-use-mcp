@@ -151,7 +151,8 @@ Provider state is adapter-specific but non-authoritative:
   `function_call_output` set with that ID. The boolean preserves the fixed
   memory-as-untrusted-data instruction; the persisted initial input may contain
   the explicitly selected memory and remains confined to the sensitive private
-  artifact. It is not replayed by the current implementation. Token mismatch,
+  artifact. It is replayed only through the explicit stateless compiler after
+  complete envelope validation. Token mismatch,
   output-batch mismatch, contract drift, and v1-v4 state fail closed before
   provider dispatch. If the provider cannot continue that response, the run
   stops; it does not resend the previous request.
@@ -229,10 +230,10 @@ screenshot compilation, unknown/missing/mismatched/reordered items,
 side-effect history, request overflow, and provider failure. A recovery
 executor test additionally proves replay preflight completes before the durable
 provider intent and that historical calls cause zero MCP dispatches.
-Release preflight report v4 exposes this matrix as an independent fail-closed
-gate with canonical fixture/manifest hashes and case/test counts. The CI matrix
-runs it separately and retains JUnit evidence without enabling provider or
-desktop integration.
+Release preflight report v5 exposes both this replay matrix and the 15-case
+crash-reconstruction matrix as independent fail-closed gates with canonical
+fixture/manifest hashes and case/test counts. The CI matrix runs both separately
+and retains JUnit evidence without enabling provider or desktop integration.
 
 ## Delivery sequence
 

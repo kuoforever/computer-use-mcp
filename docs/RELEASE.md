@@ -15,13 +15,14 @@ Run the matching local preflight from a clean candidate checkout:
 
 The command reads `HEAD` and the complete working tree before and after all
 gates. It fails if either endpoint is dirty, the commit changes, public package
-versions differ, Ruff/pytest/diff checks fail, the frozen replay or workflow
-E1/E2 manifest drifts, a replay target test fails/skips, a safety escape occurs,
+versions differ, Ruff/pytest/diff checks fail, the frozen crash-reconstruction,
+replay, or workflow E1/E2 manifest drifts, an independent target test fails/skips,
+a safety escape occurs,
 or the wheel cannot be built and smoke-tested
-in a temporary no-deps environment. Report schema v4 records both candidate
+in a temporary no-deps environment. Report schema v5 records both candidate
 checks, UTC generation time, Python version/implementation, non-path
-platform identity, and an independent replay gate with canonical fixture and
-manifest hashes plus case/test counts, so evidence cannot silently retain only
+platform identity, and independent crash-reconstruction and replay gates with
+canonical fixture and manifest hashes plus case/test counts, so evidence cannot silently retain only
 the starting identity or an unspecified local runtime. Build
 isolation and dependency resolution are disabled, so all required
 development/build dependencies must already be installed. Provider credentials
@@ -44,10 +45,11 @@ read-only repository permissions. It performs:
 1. editable development installation;
 2. Ruff over `src`, `tests`, and `scripts`;
 3. the full pytest suite, with credentialed E3 tests skipped by default;
-4. the OpenAI stateless-replay E2 module with retained JUnit evidence;
-5. deterministic `agent eval` with a retained JSON report;
-6. wheel build; and
-7. clean wheel installation, CLI help, and E1/E2 smoke.
+4. the crash-reconstruction E2 classifier and exact-call runtime matrix with retained JUnit evidence;
+5. the OpenAI stateless-replay E2 module with retained JUnit evidence;
+6. deterministic `agent eval` with a retained JSON report;
+7. wheel build; and
+8. clean wheel installation, CLI help, and E1/E2 smoke.
 
 No CI job receives provider credentials, launches the real MCP executable, or
 controls a desktop. E3 and E4 must never be silently added to the default job.
@@ -78,8 +80,9 @@ Use [Agent release evidence record](RELEASE_EVIDENCE.md) as the review template.
 Set `policy.mode="read_only"` to remove provider action schemas and Host
 approval dispatch. Stop the Agent process and MCP child to disable operation.
 For failures, inspect `agent trace <run_id>`; never replay an uncertain action.
-Current checkpoints are non-resumable, so start a new run after the required
-human re-observation.
+Use explicit `agent recover` only for a strictly eligible persisted boundary;
+uncertain dispatches, pending side effects, drift, corruption, and expired
+records require a new run after the required human re-observation.
 
 The project remains experimental until isolated E4 evidence and a release
 review are complete.

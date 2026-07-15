@@ -20,7 +20,7 @@ from typing import Mapping, Sequence
 from computer_use_mcp import __version__ as runtime_version
 
 
-PREFLIGHT_REPORT_VERSION = 4
+PREFLIGHT_REPORT_VERSION = 5
 _PYTEST_SUMMARY = re.compile(
     r"(?P<passed>\d+) passed(?:, (?P<skipped>\d+) skipped)?(?:, (?P<failed>\d+) failed)?"
 )
@@ -162,15 +162,30 @@ def _pytest_gate(command: _Command) -> dict[str, object]:
     return result
 
 
-def _read_replay_evaluation_metadata(
-    fixture_path: Path, manifest_path: Path
+def _read_frozen_evaluation_metadata(
+    fixture_path: Path,
+    manifest_path: Path,
+    *,
+    require_crash_invariants: bool = False,
 ) -> dict[str, object] | None:
     try:
         fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
-    if not isinstance(fixture, dict) or set(fixture) != {"version", "cases"}:
+    if not isinstance(fixture, dict):
+        return None
+    fixture_fields = set(fixture)
+    if require_crash_invariants:
+        if fixture_fields != {"version", "level", "invariants", "cases"}:
+            return None
+        if fixture["level"] != "E2" or fixture["invariants"] != {
+            "automatic_resume": False,
+            "new_external_calls": [],
+            "safety_escapes": 0,
+        }:
+            return None
+    elif fixture_fields != {"version", "cases"}:
         return None
     if fixture["version"] != 1 or isinstance(fixture["version"], bool):
         return None
@@ -201,11 +216,19 @@ def _read_replay_evaluation_metadata(
     }
 
 
-def _replay_eval_gate(
-    command: _Command, fixture_path: Path, manifest_path: Path
+def _frozen_eval_gate(
+    command: _Command,
+    fixture_path: Path,
+    manifest_path: Path,
+    *,
+    require_crash_invariants: bool = False,
 ) -> dict[str, object]:
     pytest_result = _pytest_gate(command)
-    metadata = _read_replay_evaluation_metadata(fixture_path, manifest_path)
+    metadata = _read_frozen_evaluation_metadata(
+        fixture_path,
+        manifest_path,
+        require_crash_invariants=require_crash_invariants,
+    )
     passed_tests = pytest_result.get("passed_tests")
     skipped_tests = pytest_result.get("skipped_tests")
     failed_tests = pytest_result.get("failed_tests")
@@ -336,6 +359,22 @@ def run_release_preflight(
             "-m",
             "pytest",
             "tests/agent/test_openai_replay_evaluation.py",
+            "-q",
+        ],
+        cwd=root,
+        environment=environment,
+    )
+    reconstruction_fixture_path = root / "evals" / "e2-crash-reconstruction.json"
+    reconstruction_manifest_path = (
+        root / "evals" / "e2-crash-reconstruction-manifest.json"
+    )
+    reconstruction_evaluation = _run(
+        [
+            str(python),
+            "-m",
+            "pytest",
+            "tests/agent/test_reconstruction.py",
+            "tests/agent/test_recovery.py::test_e2_runtime_recovery_matrix_freezes_exact_new_external_calls",
             "-q",
         ],
         cwd=root,
@@ -479,8 +518,14 @@ def run_release_preflight(
         "diff_check": _gate(diff_check),
         "ruff": _gate(ruff),
         "pytest": _pytest_gate(pytest),
-        "openai_stateless_replay_e2": _replay_eval_gate(
+        "openai_stateless_replay_e2": _frozen_eval_gate(
             replay_evaluation, replay_fixture_path, replay_manifest_path
+        ),
+        "crash_reconstruction_e2": _frozen_eval_gate(
+            reconstruction_evaluation,
+            reconstruction_fixture_path,
+            reconstruction_manifest_path,
+            require_crash_invariants=True,
         ),
         "e1_e2": _eval_gate(evaluation, eval_report_path),
         "wheel_build": wheel_gate,
