@@ -554,6 +554,33 @@ class BatchCoordinator:
         except CampaignExtractionPreflightError as exc:
             raise BatchCoordinatorError("BATCH_NEXT_OBSERVED_ITEM_INVALID") from exc
 
+    def record_next_observed_item_extracted(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+        read_only_extraction_completed: bool,
+    ) -> ItemTransition:
+        """Persist EXTRACTED for the exact continued item after confirmation."""
+
+        if read_only_extraction_completed is not True:
+            raise BatchCoordinatorError("BATCH_NEXT_ITEM_EXTRACTION_REQUIRED")
+        preflight = self.inspect_next_observed_item(session, usage=usage, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_NEXT_ITEM_EXTRACTION_BLOCKED_{preflight.state.value}"
+            )
+        return record_item_extracted(
+            self.store,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            item_key=preflight.item_key,
+            now=now,
+            read_only_extraction_completed=True,
+        )
+
     def record_first_claimed_item_observed(
         self,
         session: BatchSession,
