@@ -396,6 +396,12 @@ state: `PLAN_COMPLETE` when no hard limit fired, or `LIMIT_REACHED` with the
 fixed limit reason when one did. Both outcomes require matching replacement-run
 usage, name no next item, and do not append `FINISHED` or alter durable state.
 
+The locked coordinator may now re-run either resumed terminal preflight and
+append one exact `FINISHED` batch record with the fixed `PLAN_COMPLETE` or limit
+stop code and measured replacement-run counters. Repetition, drift, or an
+active/in-flight state does not write. Finishing the batch does not create or
+rewrite `handoff.json` and starts no runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
