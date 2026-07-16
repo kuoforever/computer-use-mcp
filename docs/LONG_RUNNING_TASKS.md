@@ -177,6 +177,10 @@ item claiming belong to the future worker.
 The current coordinator may durably open a nonempty plan and close it only at a
 derived hard limit or after every planned item is accounted for. It does not
 perform those item operations, take a clock reading, or connect a provider.
+For cross-session resume, it may now persist `STARTED` only from the exact
+nonempty plan returned after a `READY` resume preflight. Blocked or empty
+resume plans leave `batches.jsonl` unchanged. Opening this control-state record
+still does not claim or execute any item.
 
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the

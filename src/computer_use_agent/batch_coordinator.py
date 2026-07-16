@@ -7,10 +7,12 @@ usage between ``open_batch`` and ``finish_batch``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 from .batching import BatchPlan, BatchPolicy, BatchUsage, batch_stop_reason, plan_batch
 from .campaign import BatchStatus, BatchTransition, CampaignStore
+from .campaign_resume_planning import CampaignResumePlan, plan_campaign_resume
 
 
 class BatchCoordinatorError(RuntimeError):
@@ -60,6 +62,43 @@ class BatchCoordinator:
                 run_id=run_id,
                 status=BatchStatus.STARTED,
                 at=_utc_now(),
+            ),
+        )
+        return BatchSession(campaign_id, batch_id, run_id, policy, plan)
+
+    def open_resumed_batch(
+        self,
+        *,
+        campaign_id: str,
+        batch_id: str,
+        run_id: str,
+        now: datetime,
+        policy: BatchPolicy,
+    ) -> BatchSession | CampaignResumePlan:
+        """Persist STARTED only for an exact nonempty READY resume plan."""
+
+        if not isinstance(policy, BatchPolicy):
+            raise BatchCoordinatorError("BATCH_POLICY_INVALID")
+        resume = plan_campaign_resume(
+            self.store,
+            campaign_id=campaign_id,
+            run_id=run_id,
+            now=now,
+            policy=policy,
+        )
+        if not resume.has_nonempty_plan:
+            return resume
+        plan = resume.batch
+        if plan is None:
+            raise BatchCoordinatorError("BATCH_PLAN_INVALID")
+        self.store.append_batch(
+            campaign_id,
+            BatchTransition(
+                sequence=1,
+                batch_id=batch_id,
+                run_id=run_id,
+                status=BatchStatus.STARTED,
+                at=now.isoformat(timespec="seconds"),
             ),
         )
         return BatchSession(campaign_id, batch_id, run_id, policy, plan)
