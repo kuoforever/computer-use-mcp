@@ -29,6 +29,7 @@ from computer_use_agent.campaign_item_progress import (
     record_item_extracted,
     record_item_observed,
 )
+from computer_use_agent.campaign_item_preflight import CampaignItemPreflightState
 from computer_use_agent.run_lock import RunLock
 
 
@@ -1136,6 +1137,87 @@ def test_first_claim_persistence_uses_the_exact_preflight_boundary(
         assert claimed.lease_expires_at == preflight.lease_expires_at
         assert claimed.status is ItemStatus.CLAIMED
         assert store.read_ledger("campaign_1").items["item_3"].status is ItemStatus.DISCOVERED
+    finally:
+        lock.release()
+
+
+def test_resumed_first_claim_is_ready_for_exact_reobservation_without_writes(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_first_claimed_item(resumed, now=NOW)
+
+        assert result.state is CampaignItemPreflightState.READY
+        assert result.ready
+        assert result.item_key == "item_2"
+        assert result.ordinal == 2
+        assert (
+            result.required_application_observation
+            == "verify_current_page_and_account_state"
+        )
+        assert result.required_item_observation == "verify_claimed_item_identity"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_resumed_first_item_requires_the_exact_durable_claim(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_first_claimed_item(resumed, now=NOW)
+
+        assert result.state is CampaignItemPreflightState.ITEM_NOT_CLAIMED
+        assert not result.ready
+        assert result.item_key == "item_2"
+        assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
 
