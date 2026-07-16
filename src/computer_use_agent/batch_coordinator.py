@@ -96,6 +96,20 @@ class BatchTransferredResumeState(str, Enum):
     NO_ELIGIBLE_ITEMS = "NO_ELIGIBLE_ITEMS"
 
 
+class BatchFirstClaimState(str, Enum):
+    READY = "READY"
+    CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
+    BATCH_NOT_ACTIVE = "BATCH_NOT_ACTIVE"
+    BATCH_OWNER_MISMATCH = "BATCH_OWNER_MISMATCH"
+    HEARTBEAT_MISSING = "HEARTBEAT_MISSING"
+    HEARTBEAT_STALE = "HEARTBEAT_STALE"
+    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
+    ITEM_CLAIM_ACTIVE = "ITEM_CLAIM_ACTIVE"
+    PLAN_DRIFT = "PLAN_DRIFT"
+    ITEM_NOT_CLAIMABLE = "ITEM_NOT_CLAIMABLE"
+    ITEM_TIME_INVALID = "ITEM_TIME_INVALID"
+
+
 @dataclass(frozen=True)
 class BatchSession:
     campaign_id: str
@@ -190,6 +204,23 @@ class BatchTransferredResumePreflight:
         return self.state is BatchTransferredResumeState.READY
 
 
+@dataclass(frozen=True)
+class BatchFirstClaimPreflight:
+    state: BatchFirstClaimState
+    campaign_id: str
+    batch_id: str
+    run_id: str
+    item_key: str | None
+    item_ordinal: int | None
+    attempt: int | None
+    lease_expires_at: str
+    required_claim: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchFirstClaimState.READY
+
+
 class BatchCoordinator:
     """Run-lock-bound opener/closer for one persisted batch lifecycle."""
 
@@ -260,6 +291,79 @@ class BatchCoordinator:
             ),
         )
         return BatchSession(campaign_id, batch_id, run_id, policy, plan)
+
+    def inspect_first_item_claim(
+        self,
+        session: BatchSession,
+        *,
+        now: datetime,
+        lease_seconds: int,
+    ) -> BatchFirstClaimPreflight:
+        """Inspect the exact first planned claim without changing the ledger."""
+
+        if not isinstance(session, BatchSession):
+            raise BatchCoordinatorError("BATCH_SESSION_INVALID")
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
+        if (
+            isinstance(lease_seconds, bool)
+            or not isinstance(lease_seconds, int)
+            or not 0 < lease_seconds <= MAX_ITEM_LEASE_SECONDS
+        ):
+            raise BatchCoordinatorError("BATCH_LEASE_INVALID")
+
+        manifest = self.store.read_manifest(session.campaign_id)
+        active = self.store.read_batches(session.campaign_id).active
+        try:
+            heartbeat = inspect_heartbeat(
+                self.store.read_heartbeat(session.campaign_id), now=now
+            )
+        except HeartbeatInspectionError as exc:
+            raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
+        projection = self.store.read_ledger(session.campaign_id)
+        current_plan = plan_batch(projection, session.policy, BatchUsage())
+        selected = None
+        if current_plan.item_keys:
+            selected = projection.items.get(current_plan.item_keys[0])
+
+        if manifest.status is not CampaignStatus.RUNNING:
+            state = BatchFirstClaimState.CAMPAIGN_NOT_RUNNING
+        elif active is None:
+            state = BatchFirstClaimState.BATCH_NOT_ACTIVE
+        elif (active.batch_id, active.run_id) != (session.batch_id, session.run_id):
+            state = BatchFirstClaimState.BATCH_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.MISSING:
+            state = BatchFirstClaimState.HEARTBEAT_MISSING
+        elif heartbeat.run_id != session.run_id:
+            state = BatchFirstClaimState.HEARTBEAT_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.STALE:
+            state = BatchFirstClaimState.HEARTBEAT_STALE
+        elif any(item.status is ItemStatus.CLAIMED for item in projection.items.values()):
+            state = BatchFirstClaimState.ITEM_CLAIM_ACTIVE
+        elif current_plan != session.plan or not current_plan.item_keys:
+            state = BatchFirstClaimState.PLAN_DRIFT
+        elif selected is None or selected.status not in {
+            ItemStatus.DISCOVERED,
+            ItemStatus.RETRYABLE,
+        }:
+            state = BatchFirstClaimState.ITEM_NOT_CLAIMABLE
+        elif datetime.fromisoformat(selected.at) > now:
+            state = BatchFirstClaimState.ITEM_TIME_INVALID
+        else:
+            state = BatchFirstClaimState.READY
+        return BatchFirstClaimPreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            item_key=None if selected is None else selected.item_key,
+            item_ordinal=None if selected is None else selected.ordinal,
+            attempt=None if selected is None else selected.attempt + 1,
+            lease_expires_at=(now + timedelta(seconds=lease_seconds)).isoformat(
+                timespec="seconds"
+            ),
+            required_claim="claim_exact_first_planned_item",
+        )
 
     def claim_first_item(
         self,
@@ -860,6 +964,8 @@ __all__ = [
     "BatchContinuationState",
     "BatchCoordinator",
     "BatchCoordinatorError",
+    "BatchFirstClaimPreflight",
+    "BatchFirstClaimState",
     "BatchHandoffPreflight",
     "BatchHandoffState",
     "BatchRunTransferPreflight",

@@ -9,6 +9,7 @@ from computer_use_agent.batch_coordinator import (
     BatchContinuationState,
     BatchCoordinator,
     BatchCoordinatorError,
+    BatchFirstClaimState,
     BatchHandoffState,
     BatchRunTransferState,
     BatchSession,
@@ -986,6 +987,107 @@ def test_transferred_resume_cannot_append_a_second_started_record(
             )
 
         assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_transferred_batch_first_claim_preflight_is_exact_and_read_only(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_first_item_claim(
+            resumed,
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        assert result.state is BatchFirstClaimState.READY
+        assert result.ready
+        assert result.item_key == "item_2"
+        assert result.item_ordinal == 2
+        assert result.attempt == 1
+        assert result.lease_expires_at == "2026-07-16T00:15:00+00:00"
+        assert result.required_claim == "claim_exact_first_planned_item"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_first_claim_preflight_before_resumed_batch_open_is_blocked(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        batches_before = store.read_batches("campaign_1")
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_first_item_claim(
+            session,
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        assert result.state is BatchFirstClaimState.BATCH_NOT_ACTIVE
+        assert not result.ready
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_first_claim_preflight_blocks_an_existing_claim_without_writes(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=2,
+        commit_first=False,
+    )
+    try:
+        coordinator.claim_first_item(session, now=NOW, lease_seconds=300)
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_first_item_claim(
+            session,
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        assert result.state is BatchFirstClaimState.ITEM_CLAIM_ACTIVE
+        assert not result.ready
+        assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
 
