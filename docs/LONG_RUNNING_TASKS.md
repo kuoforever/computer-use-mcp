@@ -6,8 +6,9 @@
 > heartbeat persistence plus pure freshness inspection are implemented without
 > execution authority. The manifest also supports locked, durable
 > `RUNNING`/`PAUSED` transitions and combined read-only stale-run inspection.
-> The current Agent Host does not yet implement a batch runner, heartbeat
-> timer, CLI command, or complete cross-session handoff model.
+> A stale heartbeat owner can be explicitly replaced only after all item claims
+> are released. The current Agent Host does not yet implement a batch runner,
+> heartbeat timer, CLI command, or complete cross-session handoff model.
 
 ## Goal
 
@@ -237,6 +238,13 @@ or fresh heartbeat, active lease, or mismatched run ownership. It reports
 `STALE` only when a running campaign has a stale heartbeat and no active or
 foreign-owned claim. `STALE` is a candidate for a separately reviewed recovery
 step; it never authorizes item execution or action replay.
+
+The store may replace a stale heartbeat owner only while holding the OS run
+lock, after re-running the combined inspection in the same critical section.
+Every stale item claim must first be released to `RETRYABLE`; owner replacement
+does not change the manifest or item ledger. The replacement heartbeat must use
+a new run identity and begin exactly at the injected recovery time. It starts
+no worker and grants no item or action authority.
 
 - `RUNNING`: valid lease and fresh heartbeat;
 - `WAITING_APPROVAL`: explicit phase;
