@@ -10,8 +10,9 @@
 > are released, and the fixed handoff projection is status-aware. The current
 > handoff reader revalidates that projection against current durable state. The
 > read-only resume preflight additionally checks heartbeat ownership, batches,
-> and claims. The Agent Host does not yet implement a batch runner, heartbeat
-> timer, CLI command, or complete cross-session handoff model.
+> and claims, and a pure resume planner can select the next bounded batch. The
+> Agent Host does not yet implement a batch runner, heartbeat timer, CLI
+> command, or complete cross-session handoff model.
 
 ## Goal
 
@@ -234,6 +235,12 @@ fresh heartbeat owned by the proposed run, no active batch, and no current item
 claim. It returns fixed readiness or blocking states and preserves the required
 re-observation directive. `READY` is control-state readiness only: no batch is
 opened, no item is claimed, and no provider or desktop operation begins.
+
+After `READY`, the pure resume planner applies the existing bounded batch
+policy to the current ledger with zero initial usage. A blocked preflight does
+not select items; an empty eligible set returns `NO_ELIGIBLE_ITEMS`. Even a
+nonempty plan remains read-only: it does not write `STARTED`, claim an item, or
+invoke a worker.
 
 ## Liveness
 
