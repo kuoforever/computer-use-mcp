@@ -199,6 +199,10 @@ re-run that continued-item preflight and persist only its fixed `EXTRACTED`
 boundary. Missing confirmation, usage drift, blocked state, or repetition does
 not write, and no application content, provider, MCP, desktop, runner, CLI, or
 side-effect path is connected.
+A read-only coordinator bridge may now derive that exact continued extraction
+from the replacement run's committed prefix and matching run-local usage, then
+feed it into the existing commit preflight. It accepts no item key, inspects no
+content, writes no `COMMITTED`, and starts no runtime work.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
