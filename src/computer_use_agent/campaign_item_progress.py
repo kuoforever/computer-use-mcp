@@ -1,15 +1,16 @@
-"""Locked persistence for one explicitly confirmed item observation boundary.
+"""Locked persistence for explicitly confirmed campaign item boundaries.
 
-The caller is responsible for performing both required observations. This
-module only revalidates durable control state and records the fixed boundary;
-it does not observe an application, invoke a provider, dispatch MCP, or perform
-desktop work.
+The caller is responsible for performing the required observation or bounded
+read-only extraction. This module only revalidates durable control state and
+records fixed boundaries; it does not observe or extract application content,
+invoke a provider, dispatch MCP, or perform desktop work.
 """
 from __future__ import annotations
 
 from datetime import datetime
 
 from .campaign import CampaignStore, ItemStatus, ItemTransition
+from .campaign_extraction_preflight import inspect_observed_item
 from .campaign_item_preflight import inspect_claimed_item
 
 
@@ -65,4 +66,55 @@ def record_item_observed(
     return updated.items[item_key]
 
 
-__all__ = ["CampaignItemProgressError", "record_item_observed"]
+def record_item_extracted(
+    store: CampaignStore,
+    *,
+    campaign_id: str,
+    batch_id: str,
+    run_id: str,
+    item_key: str,
+    now: datetime,
+    read_only_extraction_completed: bool,
+) -> ItemTransition:
+    """Append EXTRACTED only after an exact caller attestation and fresh preflight."""
+
+    if read_only_extraction_completed is not True:
+        raise CampaignItemProgressError("ITEM_EXTRACTION_REQUIRED")
+    preflight = inspect_observed_item(
+        store,
+        campaign_id=campaign_id,
+        batch_id=batch_id,
+        run_id=run_id,
+        item_key=item_key,
+        now=now,
+    )
+    if not preflight.ready:
+        raise CampaignItemProgressError(f"ITEM_EXTRACTION_BLOCKED_{preflight.state.value}")
+    projection = store.read_ledger(campaign_id)
+    observed = projection.items.get(item_key)
+    if observed is None or observed.status is not ItemStatus.OBSERVED:
+        raise CampaignItemProgressError("ITEM_EXTRACTION_STATE_DRIFT")
+    if datetime.fromisoformat(observed.at) > now:
+        raise CampaignItemProgressError("ITEM_EXTRACTION_CLOCK_INVALID")
+    updated = store.append(
+        campaign_id,
+        ItemTransition(
+            sequence=1,
+            ordinal=observed.ordinal,
+            item_key=observed.item_key,
+            status=ItemStatus.EXTRACTED,
+            attempt=observed.attempt,
+            at=now.isoformat(timespec="seconds"),
+            run_id=run_id,
+            boundary="extracted",
+            code="READ_ONLY_EXTRACTION_COMPLETED",
+        ),
+    )
+    return updated.items[item_key]
+
+
+__all__ = [
+    "CampaignItemProgressError",
+    "record_item_extracted",
+    "record_item_observed",
+]

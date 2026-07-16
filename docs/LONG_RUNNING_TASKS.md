@@ -210,6 +210,12 @@ and matching item ownership. `READY` carries only the fixed
 `perform_bounded_read_only_extraction` directive. It does not extract content,
 write `EXTRACTED`, or authorize side effects.
 
+After a caller explicitly confirms that bounded read-only extraction is
+complete, the locked item-progress helper may now re-run that preflight and
+append only the fixed `EXTRACTED`/`READ_ONLY_EXTRACTION_COMPLETED` boundary.
+It stores no extracted application content or result digest, performs no
+extraction itself, and cannot represent a side-effect operation.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
