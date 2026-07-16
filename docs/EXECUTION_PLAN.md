@@ -65,6 +65,9 @@ remains the next step. A read-only claimed-item preflight now revalidates the
 running campaign, active batch/run, fresh heartbeat, unique owned claim, and
 lease before returning fixed page/account and item-identity re-observation
 directives. It performs no observation and writes no `OBSERVED` transition.
+Resume preflight now also blocks durable `OBSERVED` or `EXTRACTED` items as
+`ITEMS_IN_FLIGHT`; it cannot mistake those incomplete boundaries for an idle
+campaign merely because no current `CLAIMED` lease remains.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

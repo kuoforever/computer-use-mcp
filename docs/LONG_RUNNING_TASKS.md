@@ -251,9 +251,12 @@ authority.
 
 The resume preflight combines a currently valid `resume_batch` handoff with a
 fresh heartbeat owned by the proposed run, no active batch, and no current item
-claim. It returns fixed readiness or blocking states and preserves the required
-re-observation directive. `READY` is control-state readiness only: no batch is
-opened, no item is claimed, and no provider or desktop operation begins.
+claim. It also fails closed when any item remains at the nonterminal
+`OBSERVED` or `EXTRACTED` boundary, rather than treating the absence of a
+current `CLAIMED` lease as completed work. It returns fixed readiness or
+blocking states and preserves the required re-observation directive. `READY`
+is control-state readiness only: no batch is opened, no item is claimed, and no
+provider or desktop operation begins.
 
 After `READY`, the pure resume planner applies the existing bounded batch
 policy to the current ledger with zero initial usage. A blocked preflight does
