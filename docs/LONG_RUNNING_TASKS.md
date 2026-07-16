@@ -356,6 +356,12 @@ re-observation preflight. Callers cannot supply an item key; `READY` returns
 only the fixed page/account and item-identity verification directives and does
 not write `OBSERVED` or perform either observation.
 
+After explicit page/account and exact item-identity attestations, the locked
+coordinator may now re-run that continued-item preflight and append only the
+fixed `OBSERVED` boundary for the exact next planned item. Missing attestations,
+usage drift, blocked state, or repetition leaves the ledger unchanged. The
+helper performs no observation and starts no extraction or runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
