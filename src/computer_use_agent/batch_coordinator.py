@@ -54,6 +54,7 @@ class BatchContinuationState(str, Enum):
     ITEMS_IN_FLIGHT = "ITEMS_IN_FLIGHT"
     PLAN_DRIFT = "PLAN_DRIFT"
     USAGE_MISMATCH = "USAGE_MISMATCH"
+    COMMITTED_PREFIX_REQUIRED = "COMMITTED_PREFIX_REQUIRED"
     LIMIT_REACHED = "LIMIT_REACHED"
     PLAN_COMPLETE = "PLAN_COMPLETE"
 
@@ -301,6 +302,8 @@ class BatchCoordinator:
             state = BatchContinuationState.PLAN_DRIFT
         elif usage.items_completed != completed_items:
             state = BatchContinuationState.USAGE_MISMATCH
+        elif completed_items == 0:
+            state = BatchContinuationState.COMMITTED_PREFIX_REQUIRED
         elif reason is not None:
             state = BatchContinuationState.LIMIT_REACHED
             stop_reason = reason
@@ -332,6 +335,61 @@ class BatchCoordinator:
             stop_reason=stop_reason,
             required_claim="claim_exact_next_planned_item",
         )
+
+    def claim_next_item(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+        lease_seconds: int,
+    ) -> ItemTransition:
+        """Claim only the exact next item from a READY continuation preflight."""
+
+        if (
+            isinstance(lease_seconds, bool)
+            or not isinstance(lease_seconds, int)
+            or not 0 < lease_seconds <= MAX_ITEM_LEASE_SECONDS
+        ):
+            raise BatchCoordinatorError("BATCH_LEASE_INVALID")
+        preflight = self.inspect_continuation(session, usage=usage, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_CONTINUATION_BLOCKED_{preflight.state.value}"
+            )
+        if preflight.next_item_key is None or preflight.next_item_ordinal is None:
+            raise BatchCoordinatorError("BATCH_CONTINUATION_STATE_DRIFT")
+
+        projection = self.store.read_ledger(session.campaign_id)
+        selected = projection.items.get(preflight.next_item_key)
+        if (
+            selected is None
+            or selected.ordinal != preflight.next_item_ordinal
+            or selected.status not in {ItemStatus.DISCOVERED, ItemStatus.RETRYABLE}
+        ):
+            raise BatchCoordinatorError("BATCH_CONTINUATION_STATE_DRIFT")
+        if datetime.fromisoformat(selected.at) > now:
+            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
+
+        claimed_at = now.isoformat(timespec="seconds")
+        lease_expires_at = (now + timedelta(seconds=lease_seconds)).isoformat(
+            timespec="seconds"
+        )
+        updated = self.store.append(
+            session.campaign_id,
+            ItemTransition(
+                sequence=1,
+                ordinal=selected.ordinal,
+                item_key=selected.item_key,
+                status=ItemStatus.CLAIMED,
+                attempt=selected.attempt + 1,
+                at=claimed_at,
+                run_id=session.run_id,
+                lease_expires_at=lease_expires_at,
+                boundary="claim",
+            ),
+        )
+        return updated.items[selected.item_key]
 
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
