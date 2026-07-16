@@ -181,6 +181,10 @@ The coordinator may now re-run that preflight and persist the bounded `CLAIMED`
 transition for only the resumed session's exact next planned item. Repetition,
 usage drift, stale state, or in-flight work does not write, and no observation,
 provider, MCP, desktop action, runner, CLI, or side-effect path is connected.
+A read-only coordinator bridge may now derive that exact continued claim from
+the replacement run's committed prefix and matching run-local usage, then feed
+it into the existing claimed-item re-observation preflight. It accepts no item
+key, writes no `OBSERVED` boundary, and performs no observation or runtime work.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

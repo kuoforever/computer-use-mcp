@@ -459,6 +459,39 @@ class BatchCoordinator:
         except CampaignItemPreflightError as exc:
             raise BatchCoordinatorError("BATCH_FIRST_CLAIMED_ITEM_INVALID") from exc
 
+    def inspect_next_claimed_item(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+    ) -> CampaignItemPreflight:
+        """Inspect re-observation readiness for the exact continued plan item."""
+
+        if not isinstance(session, BatchSession) or not isinstance(usage, BatchUsage):
+            raise BatchCoordinatorError("BATCH_NEXT_CLAIMED_ITEM_INVALID")
+        projection = self.store.read_ledger(session.campaign_id)
+        completed_items, _committed_by_run = _committed_plan_prefix(
+            projection,
+            session,
+        )
+        if (
+            usage.items_completed != completed_items
+            or completed_items >= len(session.plan.item_keys)
+        ):
+            raise BatchCoordinatorError("BATCH_NEXT_CLAIMED_ITEM_INVALID")
+        try:
+            return inspect_claimed_item(
+                self.store,
+                campaign_id=session.campaign_id,
+                batch_id=session.batch_id,
+                run_id=session.run_id,
+                item_key=session.plan.item_keys[completed_items],
+                now=now,
+            )
+        except CampaignItemPreflightError as exc:
+            raise BatchCoordinatorError("BATCH_NEXT_CLAIMED_ITEM_INVALID") from exc
+
     def record_first_claimed_item_observed(
         self,
         session: BatchSession,
