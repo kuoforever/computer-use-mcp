@@ -29,6 +29,11 @@ from .campaign import (
     ItemStatus,
     ItemTransition,
 )
+from .campaign_commit_preflight import (
+    CampaignCommitPreflight,
+    CampaignCommitPreflightError,
+    inspect_extracted_item,
+)
 from .campaign_extraction_preflight import (
     CampaignExtractionPreflight,
     CampaignExtractionPreflightError,
@@ -525,6 +530,28 @@ class BatchCoordinator:
             now=now,
             read_only_extraction_completed=True,
         )
+
+    def inspect_first_extracted_item(
+        self,
+        session: BatchSession,
+        *,
+        now: datetime,
+    ) -> CampaignCommitPreflight:
+        """Inspect commit preparation for the exact first planned item."""
+
+        if not isinstance(session, BatchSession) or not session.plan.item_keys:
+            raise BatchCoordinatorError("BATCH_FIRST_EXTRACTED_ITEM_INVALID")
+        try:
+            return inspect_extracted_item(
+                self.store,
+                campaign_id=session.campaign_id,
+                batch_id=session.batch_id,
+                run_id=session.run_id,
+                item_key=session.plan.item_keys[0],
+                now=now,
+            )
+        except CampaignCommitPreflightError as exc:
+            raise BatchCoordinatorError("BATCH_FIRST_EXTRACTED_ITEM_INVALID") from exc
 
     def inspect_continuation(
         self,

@@ -324,6 +324,12 @@ the fixed `EXTRACTED` boundary for the resumed first item. Missing confirmation,
 blocked state, or repetition leaves the ledger unchanged. No extracted content
 or digest is stored, and the helper performs no extraction or runtime work.
 
+After that boundary, a read-only coordinator bridge can now bind the resumed
+session's exact first planned item to the existing extracted-item commit
+preflight. `READY` carries only the fixed result-verification and content-digest
+plus result-code preparation directives. Callers cannot substitute another item
+key, and no result content is inspected or `COMMITTED` transition written.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
