@@ -697,6 +697,52 @@ class CampaignStore:
             raise CampaignStoreError("CAMPAIGN_MANIFEST_READ_FAILED")
         return _decode_manifest(value, campaign_id=campaign_id)
 
+    def transition_pause_state(
+        self,
+        campaign_id: str,
+        *,
+        status: CampaignStatus,
+        at: str,
+    ) -> CampaignManifest:
+        """Atomically pause or resume control state without starting work."""
+
+        self._require_lock()
+        if not isinstance(status, CampaignStatus) or status not in {
+            CampaignStatus.RUNNING,
+            CampaignStatus.PAUSED,
+        }:
+            raise CampaignStoreError("CAMPAIGN_PAUSE_INVALID")
+        try:
+            _require_timestamp(at)
+        except CampaignStoreError as exc:
+            raise CampaignStoreError("CAMPAIGN_PAUSE_INVALID") from exc
+        current = self.read_manifest(campaign_id)
+        if datetime.fromisoformat(at) < datetime.fromisoformat(current.updated_at):
+            raise CampaignStoreError("CAMPAIGN_PAUSE_INVALID")
+        if current.status is status:
+            return current
+        if (current.status, status) not in {
+            (CampaignStatus.RUNNING, CampaignStatus.PAUSED),
+            (CampaignStatus.PAUSED, CampaignStatus.RUNNING),
+        }:
+            raise CampaignStoreError("CAMPAIGN_PAUSE_INVALID")
+        updated = CampaignManifest(
+            campaign_id=current.campaign_id,
+            kind=current.kind,
+            policy_digest=current.policy_digest,
+            schema_digest=current.schema_digest,
+            created_at=current.created_at,
+            updated_at=at,
+            status=status,
+        )
+        self._atomic_write(
+            self._path(campaign_id, "manifest.json"),
+            _canonical(updated.as_json()) + b"\n",
+            create=False,
+            maximum=MAX_CAMPAIGN_MANIFEST_BYTES,
+        )
+        return updated
+
     def read_heartbeat(self, campaign_id: str) -> CampaignHeartbeat | None:
         """Read fixed liveness state without inferring that a worker is alive."""
 

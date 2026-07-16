@@ -4,9 +4,10 @@
 > orchestration remains planned.** The private campaign schema, append-only item
 > ledger, fixed handoff projection, pure bounded batch selector, and locked
 > heartbeat persistence plus pure freshness inspection are implemented without
-> execution authority. The current Agent Host does not yet implement a batch
-> runner, heartbeat timer, CLI command, or complete cross-session handoff
-> model.
+> execution authority. The manifest also supports locked, durable
+> `RUNNING`/`PAUSED` transitions. The current Agent Host does not yet implement
+> a batch runner, heartbeat timer, CLI command, or complete cross-session
+> handoff model.
 
 ## Goal
 
@@ -222,6 +223,12 @@ or `STALE` against an injected aware time. Expiry at the exact observation
 instant is stale, and a clock earlier than the recorded heartbeat fails closed.
 This classification does not inspect the OS lock or item leases and therefore
 cannot by itself declare `RUNNING` or authorize reclaim.
+
+An operator-requested pause may now atomically move the campaign manifest from
+`RUNNING` to `PAUSED` while the store holds the OS run lock. A later explicit
+resume returns only the manifest to `RUNNING`; it does not claim an item,
+restart a timer, re-observe an application, or authorize replay. Repeated pause
+or resume requests are idempotent and do not rewrite the transition timestamp.
 
 - `RUNNING`: valid lease and fresh heartbeat;
 - `WAITING_APPROVAL`: explicit phase;
