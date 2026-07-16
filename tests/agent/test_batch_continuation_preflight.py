@@ -12,6 +12,7 @@ from computer_use_agent.batch_coordinator import (
     BatchHandoffState,
     BatchRunTransferState,
     BatchSession,
+    BatchTransferredResumeState,
 )
 from computer_use_agent.batching import BatchPlan, BatchPolicy, BatchStopReason, BatchUsage
 from computer_use_agent.campaign import (
@@ -761,6 +762,112 @@ def test_finished_run_transfer_cannot_be_repeated(tmp_path: Path) -> None:
             )
 
         assert store.read_heartbeat("campaign_1") == replacement
+    finally:
+        lock.release()
+
+
+def test_transferred_run_resume_preflight_binds_exact_next_plan_without_writes(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_before = store.read_handoff("campaign_1")
+
+        result = coordinator.inspect_transferred_run_resume(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+
+        assert result.state is BatchTransferredResumeState.READY
+        assert result.ready
+        assert result.finished_run_id == "run_1"
+        assert result.replacement_run_id == "run_2"
+        assert result.next_item_ordinal == 2
+        assert result.item_keys == ("item_2", "item_3")
+        assert result.required_open == "open_exact_resumed_batch"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_handoff("campaign_1") == handoff_before
+    finally:
+        lock.release()
+
+
+def test_resume_preflight_before_run_transfer_is_not_ready(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        result = coordinator.inspect_transferred_run_resume(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+
+        assert result.state is BatchTransferredResumeState.RESUME_NOT_READY
+        assert not result.ready
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_batches("campaign_1").active is None
+    finally:
+        lock.release()
+
+
+def test_transferred_run_resume_preflight_reports_no_eligible_items(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+
+        result = coordinator.inspect_transferred_run_resume(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+
+        assert result.state is BatchTransferredResumeState.NO_ELIGIBLE_ITEMS
+        assert not result.ready
+        assert result.item_keys == ()
+        assert store.read_batches("campaign_1").active is None
     finally:
         lock.release()
 

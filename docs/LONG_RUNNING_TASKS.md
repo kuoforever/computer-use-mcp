@@ -276,6 +276,12 @@ ledger, and finished batch record remain unchanged. Blocked or repeated calls
 fail without a write, and a successful transfer still does not resume work,
 open a batch, claim an item, or start provider, MCP, or desktop activity.
 
+After that transfer, a read-only resume-plan preflight can now bind the exact
+finished batch and handoff `last_run_id` to the replacement heartbeat owner
+and the next bounded stable item selection. `READY` carries only the fixed
+`open_exact_resumed_batch` directive. It does not write `STARTED`, claim an
+item, or start provider, MCP, desktop, runner, or CLI activity.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

@@ -88,6 +88,14 @@ class BatchRunTransferState(str, Enum):
     REPLACEMENT_TIME_MISMATCH = "REPLACEMENT_TIME_MISMATCH"
 
 
+class BatchTransferredResumeState(str, Enum):
+    READY = "READY"
+    FINISH_RECORD_MISMATCH = "FINISH_RECORD_MISMATCH"
+    HANDOFF_RUN_MISMATCH = "HANDOFF_RUN_MISMATCH"
+    RESUME_NOT_READY = "RESUME_NOT_READY"
+    NO_ELIGIBLE_ITEMS = "NO_ELIGIBLE_ITEMS"
+
+
 @dataclass(frozen=True)
 class BatchSession:
     campaign_id: str
@@ -165,6 +173,21 @@ class BatchRunTransferPreflight:
     @property
     def ready(self) -> bool:
         return self.state is BatchRunTransferState.READY
+
+
+@dataclass(frozen=True)
+class BatchTransferredResumePreflight:
+    state: BatchTransferredResumeState
+    campaign_id: str
+    finished_run_id: str
+    replacement_run_id: str
+    next_item_ordinal: int
+    item_keys: tuple[str, ...]
+    required_open: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchTransferredResumeState.READY
 
 
 class BatchCoordinator:
@@ -704,6 +727,53 @@ class BatchCoordinator:
             now=now,
         )
 
+    def inspect_transferred_run_resume(
+        self,
+        session: BatchSession,
+        *,
+        replacement_run_id: str,
+        now: datetime,
+        policy: BatchPolicy,
+    ) -> BatchTransferredResumePreflight:
+        """Bind one finished handoff to a read-only replacement-run plan."""
+
+        resume = plan_campaign_resume(
+            self.store,
+            campaign_id=session.campaign_id,
+            run_id=replacement_run_id,
+            now=now,
+            policy=policy,
+        )
+        handoff = self.store.read_handoff(session.campaign_id)
+        batches = self.store.read_batches(session.campaign_id)
+        finished = batches.transitions[-1] if batches.transitions else None
+        batch = resume.batch
+
+        if (
+            finished is None
+            or finished.status is not BatchStatus.FINISHED
+            or (finished.batch_id, finished.run_id)
+            != (session.batch_id, session.run_id)
+        ):
+            state = BatchTransferredResumeState.FINISH_RECORD_MISMATCH
+        elif handoff["last_run_id"] != session.run_id:
+            state = BatchTransferredResumeState.HANDOFF_RUN_MISMATCH
+        elif not resume.preflight.ready:
+            state = BatchTransferredResumeState.RESUME_NOT_READY
+        elif batch is None or not batch.item_keys or batch.stop_reason is not None:
+            state = BatchTransferredResumeState.NO_ELIGIBLE_ITEMS
+        else:
+            state = BatchTransferredResumeState.READY
+        return BatchTransferredResumePreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            finished_run_id=session.run_id,
+            replacement_run_id=replacement_run_id,
+            next_item_ordinal=resume.preflight.next_item_ordinal,
+            item_keys=() if batch is None else batch.item_keys,
+            required_open="open_exact_resumed_batch",
+        )
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 
@@ -760,5 +830,7 @@ __all__ = [
     "BatchHandoffState",
     "BatchRunTransferPreflight",
     "BatchRunTransferState",
+    "BatchTransferredResumePreflight",
+    "BatchTransferredResumeState",
     "BatchSession",
 ]
