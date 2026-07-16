@@ -343,6 +343,12 @@ preflight counts only commits owned by the replacement run, requires matching
 run-local measured usage, and returns only the exact next planned item plus the
 fixed claim directive. It does not claim that item or start runtime work.
 
+The locked coordinator may now re-run that continuation preflight for the
+resumed session and append the bounded `CLAIMED` transition for only its exact
+next planned item. The lease is owned by the replacement run; repeated calls,
+usage drift, stale control state, or any in-flight item leaves the ledger
+unchanged. No observation or runtime work begins.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
