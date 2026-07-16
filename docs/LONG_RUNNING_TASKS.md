@@ -263,6 +263,13 @@ run as `last_run_id`. Counts and the next ordinal remain derived from the
 current durable item ledger. Blocked or stale state does not create or replace
 the file, and a successful write still does not resume work or open a batch.
 
+A clean run-transfer preflight can now combine that validated finished handoff
+with the current fresh heartbeat owner and an exact proposed replacement
+heartbeat. The replacement must use a different run ID and begin exactly at
+the injected transfer time. `READY` carries only the fixed
+`replace_finished_run_heartbeat_owner` directive. The preflight does not
+replace heartbeat state, resume work, or open a batch.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

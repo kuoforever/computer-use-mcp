@@ -22,6 +22,7 @@ from .campaign import (
     MAX_ITEM_LEASE_SECONDS,
     BatchStatus,
     BatchTransition,
+    CampaignHeartbeat,
     CampaignProjection,
     CampaignStatus,
     CampaignStore,
@@ -74,6 +75,17 @@ class BatchHandoffState(str, Enum):
     USAGE_MISMATCH = "USAGE_MISMATCH"
     FINISH_RECORD_MISMATCH = "FINISH_RECORD_MISMATCH"
     FINISH_REASON_MISMATCH = "FINISH_REASON_MISMATCH"
+
+
+class BatchRunTransferState(str, Enum):
+    READY = "READY"
+    FINISHED_HANDOFF_NOT_READY = "FINISHED_HANDOFF_NOT_READY"
+    HANDOFF_RUN_MISMATCH = "HANDOFF_RUN_MISMATCH"
+    HANDOFF_STATE_MISMATCH = "HANDOFF_STATE_MISMATCH"
+    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
+    REPLACEMENT_CAMPAIGN_MISMATCH = "REPLACEMENT_CAMPAIGN_MISMATCH"
+    REPLACEMENT_RUN_REUSED = "REPLACEMENT_RUN_REUSED"
+    REPLACEMENT_TIME_MISMATCH = "REPLACEMENT_TIME_MISMATCH"
 
 
 @dataclass(frozen=True)
@@ -139,6 +151,20 @@ class BatchHandoffPreflight:
     @property
     def ready(self) -> bool:
         return self.state is BatchHandoffState.READY
+
+
+@dataclass(frozen=True)
+class BatchRunTransferPreflight:
+    state: BatchRunTransferState
+    campaign_id: str
+    finished_run_id: str
+    replacement_run_id: str
+    next_item_ordinal: int
+    required_transfer: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchRunTransferState.READY
 
 
 class BatchCoordinator:
@@ -604,6 +630,53 @@ class BatchCoordinator:
             last_run_id=session.run_id,
         )
 
+    def inspect_finished_run_transfer(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+        replacement: CampaignHeartbeat,
+    ) -> BatchRunTransferPreflight:
+        """Inspect a clean heartbeat-owner transfer after a finished handoff."""
+
+        if not isinstance(replacement, CampaignHeartbeat):
+            raise BatchCoordinatorError("BATCH_RUN_TRANSFER_INVALID")
+        handoff_preflight = self.inspect_finished_handoff(
+            session,
+            usage=usage,
+            now=now,
+        )
+        handoff = self.store.read_handoff(session.campaign_id)
+        current = self.store.read_heartbeat(session.campaign_id)
+        replacement_started = datetime.fromisoformat(replacement.started_at)
+        replacement_heartbeat = datetime.fromisoformat(replacement.heartbeat_at)
+
+        if not handoff_preflight.ready:
+            state = BatchRunTransferState.FINISHED_HANDOFF_NOT_READY
+        elif handoff["last_run_id"] != session.run_id:
+            state = BatchRunTransferState.HANDOFF_RUN_MISMATCH
+        elif handoff["next_item_ordinal"] != handoff_preflight.next_item_ordinal:
+            state = BatchRunTransferState.HANDOFF_STATE_MISMATCH
+        elif current is None or current.run_id != session.run_id:
+            state = BatchRunTransferState.HEARTBEAT_OWNER_MISMATCH
+        elif replacement.campaign_id != session.campaign_id:
+            state = BatchRunTransferState.REPLACEMENT_CAMPAIGN_MISMATCH
+        elif replacement.run_id == session.run_id:
+            state = BatchRunTransferState.REPLACEMENT_RUN_REUSED
+        elif replacement_started != now or replacement_heartbeat != now:
+            state = BatchRunTransferState.REPLACEMENT_TIME_MISMATCH
+        else:
+            state = BatchRunTransferState.READY
+        return BatchRunTransferPreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            finished_run_id=session.run_id,
+            replacement_run_id=replacement.run_id,
+            next_item_ordinal=handoff_preflight.next_item_ordinal,
+            required_transfer="replace_finished_run_heartbeat_owner",
+        )
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 
@@ -658,5 +731,7 @@ __all__ = [
     "BatchCoordinatorError",
     "BatchHandoffPreflight",
     "BatchHandoffState",
+    "BatchRunTransferPreflight",
+    "BatchRunTransferState",
     "BatchSession",
 ]
