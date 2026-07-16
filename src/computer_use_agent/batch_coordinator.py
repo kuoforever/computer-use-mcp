@@ -585,6 +585,25 @@ class BatchCoordinator:
             required_handoff="write_current_campaign_handoff",
         )
 
+    def write_finished_handoff(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+    ) -> dict[str, object]:
+        """Write handoff only after a fresh finished-batch preflight."""
+
+        preflight = self.inspect_finished_handoff(session, usage=usage, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_HANDOFF_BLOCKED_{preflight.state.value}"
+            )
+        return self.store.write_handoff(
+            session.campaign_id,
+            last_run_id=session.run_id,
+        )
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 

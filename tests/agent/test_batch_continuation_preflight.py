@@ -521,6 +521,103 @@ def test_finished_limit_preserves_next_item_for_handoff(tmp_path: Path) -> None:
         lock.release()
 
 
+def test_ready_finished_batch_writes_only_current_fixed_handoff(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        manifest_before = store.read_manifest("campaign_1")
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        written = coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+
+        assert written["campaign_id"] == "campaign_1"
+        assert written["last_run_id"] == "run_1"
+        assert written["next_item_ordinal"] == 2
+        assert written["completed_count"] == 1
+        assert written["retryable_count"] == 0
+        assert written["uncertain_count"] == 0
+        assert written["next_action"] == "resume_batch"
+        assert written["required_observation"] == "verify_current_page_and_account_state"
+        assert store.read_handoff("campaign_1") == written
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_limit_handoff_preserves_next_durable_item(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+
+        written = coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+
+        assert written["next_item_ordinal"] == 2
+        assert written["completed_count"] == 1
+        assert store.read_handoff("campaign_1") == written
+    finally:
+        lock.release()
+
+
+def test_blocked_finished_handoff_never_creates_or_replaces_state(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        handoff_path = store.state_dir / "campaigns" / "campaign_1" / "handoff.json"
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_HANDOFF_BLOCKED_BATCH_STILL_ACTIVE",
+        ):
+            coordinator.write_finished_handoff(
+                session,
+                usage=BatchUsage(items_completed=1),
+                now=NOW,
+            )
+        assert not handoff_path.exists()
+    finally:
+        lock.release()
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path / "stale",
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        handoff_path = store.state_dir / "campaigns" / "campaign_1" / "handoff.json"
+        handoff_path.write_bytes(b"existing-handoff-sentinel")
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_HANDOFF_BLOCKED_HEARTBEAT_STALE",
+        ):
+            coordinator.write_finished_handoff(
+                session,
+                usage=usage,
+                now=datetime(2026, 7, 16, 0, 12, tzinfo=timezone.utc),
+            )
+        assert handoff_path.read_bytes() == b"existing-handoff-sentinel"
+    finally:
+        lock.release()
+
+
 def test_active_batch_or_usage_drift_blocks_handoff_without_writes(tmp_path: Path) -> None:
     store, lock, coordinator, session = _committed_prefix_store(
         tmp_path,

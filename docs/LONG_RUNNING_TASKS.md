@@ -257,6 +257,12 @@ durable item ordinal. `READY` carries only the fixed
 `write_current_campaign_handoff` directive. It does not create, replace, or
 read `handoff.json`, and grants no resume or execution authority.
 
+The locked coordinator may now re-run that handoff preflight and atomically
+write the existing fixed-schema `handoff.json` projection with the finished
+run as `last_run_id`. Counts and the next ordinal remain derived from the
+current durable item ledger. Blocked or stale state does not create or replace
+the file, and a successful write still does not resume work or open a batch.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
