@@ -237,6 +237,12 @@ limit. `READY` identifies only the exact next planned item and the fixed
 `claim_exact_next_planned_item` directive. Plan drift, in-flight work, usage
 drift, a reached limit, or a completed plan never writes or claims an item.
 
+The locked coordinator may now re-run that continuation preflight and append a
+fixed `CLAIMED` transition only for its exact next item, with a new bounded
+lease owned by the active batch run. An empty committed prefix, repeated call,
+limit boundary, plan or usage drift, stale control state, or invalid lease
+fails without a write. The helper does not observe or execute the claimed item.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

@@ -95,6 +95,11 @@ prefix, measured completed count, stable next-item order, active ownership,
 fresh heartbeat, absence of in-flight work, and every hard limit before naming
 the exact next planned item. It does not claim that item, close the batch, or
 connect a provider, MCP, desktop action, runner, CLI, or side effect.
+The coordinator may now append a bounded `CLAIMED` transition for only that
+exact next item after re-running the continuation preflight. It requires a
+nonempty committed prefix and fails closed on repeated calls, limits, drift,
+stale control state, or invalid leases; no observation, execution, provider,
+MCP, desktop, runner, CLI, or side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

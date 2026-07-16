@@ -3,9 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from computer_use_agent.batch_coordinator import (
     BatchContinuationState,
     BatchCoordinator,
+    BatchCoordinatorError,
     BatchSession,
 )
 from computer_use_agent.batching import BatchPlan, BatchPolicy, BatchStopReason, BatchUsage
@@ -34,6 +37,7 @@ def _committed_prefix_store(
     *,
     ordinals: tuple[int, ...] = (1, 2),
     max_items: int = 2,
+    commit_first: bool = True,
 ) -> tuple[CampaignStore, RunLock, BatchCoordinator, BatchSession]:
     lock = RunLock(tmp_path / "application")
     lock.acquire()
@@ -78,37 +82,38 @@ def _committed_prefix_store(
         policy=BatchPolicy(max_items=max_items),
     )
     assert isinstance(opened, BatchSession)
-    first_key = opened.plan.item_keys[0]
-    coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
-    record_item_observed(
-        store,
-        campaign_id="campaign_1",
-        batch_id="batch_1",
-        run_id="run_1",
-        item_key=first_key,
-        now=NOW,
-        application_state_verified=True,
-        item_identity_verified=True,
-    )
-    record_item_extracted(
-        store,
-        campaign_id="campaign_1",
-        batch_id="batch_1",
-        run_id="run_1",
-        item_key=first_key,
-        now=NOW,
-        read_only_extraction_completed=True,
-    )
-    record_item_committed(
-        store,
-        campaign_id="campaign_1",
-        batch_id="batch_1",
-        run_id="run_1",
-        item_key=first_key,
-        now=NOW,
-        bounded_result_verified=True,
-        content_digest=CONTENT_DIGEST,
-    )
+    if commit_first:
+        first_key = opened.plan.item_keys[0]
+        coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+        record_item_observed(
+            store,
+            campaign_id="campaign_1",
+            batch_id="batch_1",
+            run_id="run_1",
+            item_key=first_key,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        record_item_extracted(
+            store,
+            campaign_id="campaign_1",
+            batch_id="batch_1",
+            run_id="run_1",
+            item_key=first_key,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        record_item_committed(
+            store,
+            campaign_id="campaign_1",
+            batch_id="batch_1",
+            run_id="run_1",
+            item_key=first_key,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
     return store, lock, coordinator, opened
 
 
@@ -137,6 +142,116 @@ def test_committed_prefix_is_ready_only_for_exact_next_planned_claim(
         assert store.read_ledger("campaign_1") == ledger_before
         assert store.read_batches("campaign_1") == batches_before
         assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_continuation_requires_a_nonempty_committed_prefix(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        commit_first=False,
+    )
+    try:
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            session,
+            usage=BatchUsage(),
+            now=NOW,
+        )
+
+        assert result.state is BatchContinuationState.COMMITTED_PREFIX_REQUIRED
+        assert not result.ready
+        assert result.next_item_key is None
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_ready_continuation_claims_only_the_exact_next_planned_item(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(tmp_path)
+    try:
+        manifest_before = store.read_manifest("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        claimed = coordinator.claim_next_item(
+            session,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        assert claimed.item_key == "item_2"
+        assert claimed.ordinal == 2
+        assert claimed.status is ItemStatus.CLAIMED
+        assert claimed.attempt == 1
+        assert claimed.run_id == "run_1"
+        assert claimed.boundary == "claim"
+        assert claimed.lease_expires_at == "2026-07-16T00:15:00+00:00"
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_repeated_or_limit_blocked_continuation_claim_never_writes(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(tmp_path)
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.claim_next_item(session, usage=usage, now=NOW, lease_seconds=300)
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_CONTINUATION_BLOCKED_ITEMS_IN_FLIGHT",
+        ):
+            coordinator.claim_next_item(session, usage=usage, now=NOW, lease_seconds=300)
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path / "limited",
+        max_items=1,
+    )
+    try:
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_CONTINUATION_BLOCKED_LIMIT_REACHED",
+        ):
+            coordinator.claim_next_item(
+                session,
+                usage=BatchUsage(items_completed=1),
+                now=NOW,
+                lease_seconds=300,
+            )
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize("lease_seconds", [0, 3601, True, "300"])
+def test_continuation_claim_requires_a_bounded_lease_without_writes(
+    tmp_path: Path,
+    lease_seconds: object,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(tmp_path)
+    try:
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(BatchCoordinatorError, match="BATCH_LEASE_INVALID"):
+            coordinator.claim_next_item(
+                session,
+                usage=BatchUsage(items_completed=1),
+                now=NOW,
+                lease_seconds=lease_seconds,  # type: ignore[arg-type]
+            )
+        assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
 
