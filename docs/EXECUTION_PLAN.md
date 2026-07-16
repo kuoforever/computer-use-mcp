@@ -49,8 +49,10 @@ checking manifest state, heartbeat freshness, claim expiry, and run ownership;
 an explicit locked recovery may replace only the stale heartbeat owner after
 all claims have left `CLAIMED`. The fixed handoff now projects distinct
 directives for running, paused, challenged, completed, and failed manifests.
-The foundation has no batch runner, CLI command, provider, MCP, or desktop
-connection. Deterministic cross-session execution remains the next step.
+Its reader rejects schema, status, count, or cursor drift against current
+durable state. The foundation has no batch runner, CLI command, provider, MCP,
+or desktop connection. Deterministic cross-session execution remains the next
+step.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

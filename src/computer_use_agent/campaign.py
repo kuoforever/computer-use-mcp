@@ -23,6 +23,7 @@ from .run_lock import RunLock
 
 CAMPAIGN_VERSION = 2
 MAX_CAMPAIGN_MANIFEST_BYTES = 16 * 1024
+MAX_CAMPAIGN_HANDOFF_BYTES = 16 * 1024
 MAX_CAMPAIGN_HEARTBEAT_BYTES = 4 * 1024
 MAX_CAMPAIGN_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_BATCH_LEDGER_BYTES = 1024 * 1024
@@ -69,6 +70,18 @@ _HANDOFF_DIRECTIVES = {
         "human_review_failed",
         "review_failure_before_any_resume",
     ),
+}
+_HANDOFF_FIELDS = {
+    "campaign_id",
+    "campaign_version",
+    "next_item_ordinal",
+    "completed_count",
+    "retryable_count",
+    "uncertain_count",
+    "last_run_id",
+    "next_action",
+    "required_observation",
+    "updated_at",
 }
 
 
@@ -985,14 +998,70 @@ class CampaignStore:
             self._path(campaign_id, "handoff.json"),
             _canonical(payload) + b"\n",
             create=False,
-            maximum=MAX_CAMPAIGN_MANIFEST_BYTES,
+            maximum=MAX_CAMPAIGN_HANDOFF_BYTES,
         )
         return payload
+
+    def read_handoff(self, campaign_id: str) -> dict[str, object]:
+        """Read and revalidate a handoff against current durable control state."""
+
+        self._require_lock()
+        manifest = self.read_manifest(campaign_id)
+        projection = self.read_ledger(campaign_id)
+        path = self._path(campaign_id, "handoff.json")
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_READ_FAILED") from exc
+        if not raw or len(raw) > MAX_CAMPAIGN_HANDOFF_BYTES:
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_READ_FAILED")
+        try:
+            value = json.loads(raw)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID") from exc
+        if not isinstance(value, Mapping) or set(value) != _HANDOFF_FIELDS:
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID")
+        try:
+            next_ordinal = _require_nonnegative_int(value.get("next_item_ordinal"))
+            completed_count = _require_nonnegative_int(value.get("completed_count"))
+            retryable_count = _require_nonnegative_int(value.get("retryable_count"))
+            uncertain_count = _require_nonnegative_int(value.get("uncertain_count"))
+            last_run_id = _require_identifier(value.get("last_run_id"))
+            updated_at = _require_timestamp(value.get("updated_at"))
+            next_action, required_observation = _HANDOFF_DIRECTIVES[manifest.status]
+        except (CampaignStoreError, KeyError) as exc:
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID") from exc
+        if (
+            value.get("campaign_id") != campaign_id
+            or value.get("campaign_version") != CAMPAIGN_VERSION
+            or next_ordinal <= 0
+            or next_ordinal != projection.next_ordinal
+            or completed_count != projection.completed_count
+            or retryable_count != projection.retryable_count
+            or uncertain_count != projection.uncertain_count
+            or value.get("next_action") != next_action
+            or value.get("required_observation") != required_observation
+            or datetime.fromisoformat(updated_at) < datetime.fromisoformat(manifest.updated_at)
+        ):
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID")
+        return {
+            "campaign_id": campaign_id,
+            "campaign_version": CAMPAIGN_VERSION,
+            "next_item_ordinal": next_ordinal,
+            "completed_count": completed_count,
+            "retryable_count": retryable_count,
+            "uncertain_count": uncertain_count,
+            "last_run_id": last_run_id,
+            "next_action": next_action,
+            "required_observation": required_observation,
+            "updated_at": updated_at,
+        }
 
 
 __all__ = [
     "CAMPAIGN_VERSION",
     "MAX_CAMPAIGN_BATCH_LEDGER_BYTES",
+    "MAX_CAMPAIGN_HANDOFF_BYTES",
     "MAX_CAMPAIGN_HEARTBEAT_BYTES",
     "MAX_CAMPAIGN_ITEMS",
     "MAX_HEARTBEAT_FRESHNESS_SECONDS",

@@ -8,6 +8,7 @@
 > `RUNNING`/`PAUSED` transitions and combined read-only stale-run inspection.
 > A stale heartbeat owner can be explicitly replaced only after all item claims
 > are released, and the fixed handoff projection is status-aware. The current
+> handoff reader revalidates that projection against current durable state. The
 > Agent Host does not yet implement a batch runner, heartbeat timer, CLI
 > command, or complete cross-session handoff model.
 
@@ -219,6 +220,13 @@ The current projection derives fixed directives from manifest status:
 
 This is a projection only. It does not resume a campaign, resolve a challenge,
 or turn terminal state back into executable work.
+
+The current reader accepts only the exact fixed field set and campaign version,
+then compares status directives, counts, and next ordinal with the current
+manifest and item ledger under the OS run lock. Missing, malformed, oversized,
+or stale handoff data fails closed and must be regenerated from durable state.
+Reading a valid handoff still does not start a worker or grant execution
+authority.
 
 ## Liveness
 
