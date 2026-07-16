@@ -154,6 +154,10 @@ now re-run that session-bound preflight and persist only the fixed `OBSERVED`
 boundary for the resumed first item. Missing attestations, blocked state, or
 repetition does not write, and no observation, extraction, provider, MCP,
 desktop, runner, CLI, or side-effect path is connected.
+A read-only coordinator bridge may now feed that resumed session's exact first
+planned item into the existing observed-item extraction preflight. It returns
+only the bounded read-only extraction directive, does not accept a free-form
+item key, and does not extract content or write `EXTRACTED`.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

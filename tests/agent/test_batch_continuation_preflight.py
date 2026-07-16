@@ -29,6 +29,9 @@ from computer_use_agent.campaign_item_progress import (
     record_item_extracted,
     record_item_observed,
 )
+from computer_use_agent.campaign_extraction_preflight import (
+    CampaignExtractionPreflightState,
+)
 from computer_use_agent.campaign_item_preflight import CampaignItemPreflightState
 from computer_use_agent.run_lock import RunLock
 
@@ -1367,6 +1370,92 @@ def test_resumed_first_item_observation_cannot_be_repeated(tmp_path: Path) -> No
                 item_identity_verified=True,
             )
 
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_resumed_first_observed_item_is_ready_for_bounded_extraction(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_first_observed_item(resumed, now=NOW)
+
+        assert result.state is CampaignExtractionPreflightState.READY
+        assert result.ready
+        assert result.item_key == "item_2"
+        assert result.ordinal == 2
+        assert result.required_extraction == "perform_bounded_read_only_extraction"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_resumed_first_item_must_be_observed_before_extraction_preflight(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_first_observed_item(resumed, now=NOW)
+
+        assert result.state is CampaignExtractionPreflightState.ITEM_NOT_OBSERVED
+        assert not result.ready
+        assert result.item_key == "item_2"
         assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
