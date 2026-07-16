@@ -312,6 +312,12 @@ coordinator may now use that session-bound preflight to append the exact fixed
 state, or repetition leaves the ledger unchanged. The helper does not perform
 the observations or begin extraction or runtime work.
 
+After that boundary, a read-only coordinator bridge can now bind the resumed
+session's exact first planned item to the existing observed-item extraction
+preflight. `READY` carries only `perform_bounded_read_only_extraction`; callers
+cannot substitute another item key, and no extraction or `EXTRACTED` write
+occurs.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
