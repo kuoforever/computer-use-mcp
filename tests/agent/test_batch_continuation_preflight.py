@@ -9,6 +9,7 @@ from computer_use_agent.batch_coordinator import (
     BatchContinuationState,
     BatchCoordinator,
     BatchCoordinatorError,
+    BatchHandoffState,
     BatchSession,
 )
 from computer_use_agent.batching import BatchPlan, BatchPolicy, BatchStopReason, BatchUsage
@@ -470,6 +471,124 @@ def test_ready_inflight_or_repeated_finish_never_writes(tmp_path: Path) -> None:
     finally:
         lock.release()
 
+
+def test_finished_plan_is_ready_only_for_fixed_handoff_write(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_path = store.state_dir / "campaigns" / "campaign_1" / "handoff.json"
+
+        result = coordinator.inspect_finished_handoff(session, usage=usage, now=NOW)
+
+        assert result.state is BatchHandoffState.READY
+        assert result.ready
+        assert result.completed_items == 1
+        assert result.next_item_ordinal == 2
+        assert result.stop_code == "PLAN_COMPLETE"
+        assert result.required_handoff == "write_current_campaign_handoff"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert not handoff_path.exists()
+    finally:
+        lock.release()
+
+
+def test_finished_limit_preserves_next_item_for_handoff(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+
+        result = coordinator.inspect_finished_handoff(session, usage=usage, now=NOW)
+
+        assert result.state is BatchHandoffState.READY
+        assert result.next_item_ordinal == 2
+        assert result.stop_code == "ITEM_LIMIT"
+    finally:
+        lock.release()
+
+
+def test_active_batch_or_usage_drift_blocks_handoff_without_writes(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        batches_before = store.read_batches("campaign_1")
+        assert (
+            coordinator.inspect_finished_handoff(
+                session,
+                usage=BatchUsage(items_completed=1),
+                now=NOW,
+            ).state
+            is BatchHandoffState.BATCH_STILL_ACTIVE
+        )
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path / "stale",
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_finished_handoff(
+            session,
+            usage=usage,
+            now=datetime(2026, 7, 16, 0, 12, tzinfo=timezone.utc),
+        )
+
+        assert result.state is BatchHandoffState.HEARTBEAT_STALE
+        assert not result.ready
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path / "usage",
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1, tool_calls=2)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_finished_handoff(
+            session,
+            usage=BatchUsage(items_completed=1, tool_calls=3),
+            now=NOW,
+        )
+
+        assert result.state is BatchHandoffState.FINISH_RECORD_MISMATCH
+        assert not result.ready
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_repeated_finish_and_complete_continuation_states_are_stable(
+    tmp_path: Path,
+) -> None:
     store, lock, coordinator, session = _committed_prefix_store(
         tmp_path / "repeated",
         ordinals=(1,),

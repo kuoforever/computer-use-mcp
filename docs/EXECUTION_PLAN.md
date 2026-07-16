@@ -105,6 +105,11 @@ reached hard limit or a fully committed original plan, persisting the exact
 fixed stop code and bounded measured counters. It rejects ready or in-flight
 work, drift, stale ownership, and repeated closure, and does not write handoff
 state or connect a provider, MCP, desktop action, runner, CLI, or side effect.
+A read-only finished-batch handoff preflight now revalidates the terminal
+batch/run record, heartbeat, committed prefix, absence of in-flight work,
+measured counters, stop reason, and next ordinal before returning one fixed
+handoff-write directive. It does not write or read handoff state, resume work,
+or connect a provider, MCP, desktop action, runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

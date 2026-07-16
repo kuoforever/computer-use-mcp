@@ -22,6 +22,7 @@ from .campaign import (
     MAX_ITEM_LEASE_SECONDS,
     BatchStatus,
     BatchTransition,
+    CampaignProjection,
     CampaignStatus,
     CampaignStore,
     ItemStatus,
@@ -59,6 +60,22 @@ class BatchContinuationState(str, Enum):
     PLAN_COMPLETE = "PLAN_COMPLETE"
 
 
+class BatchHandoffState(str, Enum):
+    READY = "READY"
+    CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
+    BATCH_STILL_ACTIVE = "BATCH_STILL_ACTIVE"
+    FINISH_RECORD_MISSING = "FINISH_RECORD_MISSING"
+    BATCH_OWNER_MISMATCH = "BATCH_OWNER_MISMATCH"
+    HEARTBEAT_MISSING = "HEARTBEAT_MISSING"
+    HEARTBEAT_STALE = "HEARTBEAT_STALE"
+    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
+    ITEMS_IN_FLIGHT = "ITEMS_IN_FLIGHT"
+    PLAN_DRIFT = "PLAN_DRIFT"
+    USAGE_MISMATCH = "USAGE_MISMATCH"
+    FINISH_RECORD_MISMATCH = "FINISH_RECORD_MISMATCH"
+    FINISH_REASON_MISMATCH = "FINISH_REASON_MISMATCH"
+
+
 @dataclass(frozen=True)
 class BatchSession:
     campaign_id: str
@@ -66,6 +83,29 @@ class BatchSession:
     run_id: str
     policy: BatchPolicy
     plan: BatchPlan
+
+
+def _committed_plan_prefix(
+    projection: CampaignProjection,
+    session: BatchSession,
+) -> tuple[int, set[str]]:
+    completed_items = 0
+    for item_key in session.plan.item_keys:
+        item = projection.items.get(item_key)
+        if (
+            item is not None
+            and item.status is ItemStatus.COMMITTED
+            and item.run_id == session.run_id
+        ):
+            completed_items += 1
+        else:
+            break
+    committed_by_run = {
+        item.item_key
+        for item in projection.items.values()
+        if item.status is ItemStatus.COMMITTED and item.run_id == session.run_id
+    }
+    return completed_items, committed_by_run
 
 
 @dataclass(frozen=True)
@@ -83,6 +123,22 @@ class BatchContinuationPreflight:
     @property
     def ready(self) -> bool:
         return self.state is BatchContinuationState.READY
+
+
+@dataclass(frozen=True)
+class BatchHandoffPreflight:
+    state: BatchHandoffState
+    campaign_id: str
+    batch_id: str
+    run_id: str
+    completed_items: int
+    next_item_ordinal: int
+    stop_code: str | None
+    required_handoff: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchHandoffState.READY
 
 
 class BatchCoordinator:
@@ -256,22 +312,7 @@ class BatchCoordinator:
             raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
 
         planned = session.plan.item_keys
-        completed_items = 0
-        for item_key in planned:
-            item = projection.items.get(item_key)
-            if (
-                item is not None
-                and item.status is ItemStatus.COMMITTED
-                and item.run_id == session.run_id
-            ):
-                completed_items += 1
-            else:
-                break
-        committed_by_run = {
-            item.item_key
-            for item in projection.items.values()
-            if item.status is ItemStatus.COMMITTED and item.run_id == session.run_id
-        }
+        completed_items, committed_by_run = _committed_plan_prefix(projection, session)
         expected_committed = set(planned[:completed_items])
         in_flight = any(
             item.status in {ItemStatus.CLAIMED, ItemStatus.OBSERVED, ItemStatus.EXTRACTED}
@@ -440,6 +481,110 @@ class BatchCoordinator:
         )
         return code
 
+    def inspect_finished_handoff(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+    ) -> BatchHandoffPreflight:
+        """Inspect whether one exact finished batch is ready for handoff writing."""
+
+        if not isinstance(session, BatchSession) or not isinstance(usage, BatchUsage):
+            raise BatchCoordinatorError("BATCH_HANDOFF_PREFLIGHT_INVALID")
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
+
+        manifest = self.store.read_manifest(session.campaign_id)
+        batches = self.store.read_batches(session.campaign_id)
+        projection = self.store.read_ledger(session.campaign_id)
+        try:
+            heartbeat = inspect_heartbeat(
+                self.store.read_heartbeat(session.campaign_id), now=now
+            )
+        except HeartbeatInspectionError as exc:
+            raise BatchCoordinatorError("BATCH_HANDOFF_HEARTBEAT_INVALID") from exc
+
+        finished = batches.transitions[-1] if batches.transitions else None
+        completed_items, committed_by_run = _committed_plan_prefix(projection, session)
+        planned = session.plan.item_keys
+        expected_committed = set(planned[:completed_items])
+        in_flight = any(
+            item.status in {ItemStatus.CLAIMED, ItemStatus.OBSERVED, ItemStatus.EXTRACTED}
+            for item in projection.items.values()
+        )
+        persisted_usage = None
+        if finished is not None:
+            persisted_usage = (
+                finished.items_completed,
+                finished.elapsed_seconds,
+                finished.provider_turns,
+                finished.tool_calls,
+                finished.input_tokens,
+                finished.output_tokens,
+                finished.screenshots,
+                finished.ocr_regions,
+                finished.consecutive_failures,
+            )
+        measured_usage = (
+            usage.items_completed,
+            usage.elapsed_seconds,
+            usage.provider_turns,
+            usage.tool_calls,
+            usage.input_tokens,
+            usage.output_tokens,
+            usage.screenshots,
+            usage.ocr_regions,
+            usage.consecutive_failures,
+        )
+        reason = batch_stop_reason(session.policy, usage)
+        expected_code: str | None = None
+        if reason is not None:
+            expected_code = reason.value
+        elif completed_items == len(planned):
+            remaining = plan_batch(projection, session.policy, usage)
+            if remaining.stop_reason is BatchStopReason.NO_ELIGIBLE_ITEMS:
+                expected_code = BatchCompletionReason.PLAN_COMPLETE.value
+
+        if manifest.status is not CampaignStatus.RUNNING:
+            state = BatchHandoffState.CAMPAIGN_NOT_RUNNING
+        elif batches.active is not None:
+            state = BatchHandoffState.BATCH_STILL_ACTIVE
+        elif finished is None or finished.status is not BatchStatus.FINISHED:
+            state = BatchHandoffState.FINISH_RECORD_MISSING
+        elif (finished.batch_id, finished.run_id) != (session.batch_id, session.run_id):
+            state = BatchHandoffState.BATCH_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.MISSING:
+            state = BatchHandoffState.HEARTBEAT_MISSING
+        elif heartbeat.run_id != session.run_id:
+            state = BatchHandoffState.HEARTBEAT_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.STALE:
+            state = BatchHandoffState.HEARTBEAT_STALE
+        elif in_flight:
+            state = BatchHandoffState.ITEMS_IN_FLIGHT
+        elif not planned or session.plan.stop_reason is not None:
+            state = BatchHandoffState.PLAN_DRIFT
+        elif committed_by_run != expected_committed:
+            state = BatchHandoffState.PLAN_DRIFT
+        elif usage.items_completed != completed_items:
+            state = BatchHandoffState.USAGE_MISMATCH
+        elif persisted_usage != measured_usage:
+            state = BatchHandoffState.FINISH_RECORD_MISMATCH
+        elif expected_code is None or finished.stop_code != expected_code:
+            state = BatchHandoffState.FINISH_REASON_MISMATCH
+        else:
+            state = BatchHandoffState.READY
+        return BatchHandoffPreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            completed_items=completed_items,
+            next_item_ordinal=projection.next_ordinal,
+            stop_code=None if finished is None else finished.stop_code,
+            required_handoff="write_current_campaign_handoff",
+        )
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 
@@ -492,5 +637,7 @@ __all__ = [
     "BatchContinuationState",
     "BatchCoordinator",
     "BatchCoordinatorError",
+    "BatchHandoffPreflight",
+    "BatchHandoffState",
     "BatchSession",
 ]
