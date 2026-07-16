@@ -1966,6 +1966,132 @@ def test_resumed_first_item_commit_cannot_be_repeated(tmp_path: Path) -> None:
         lock.release()
 
 
+def test_resumed_first_commit_is_ready_for_exact_batch_continuation(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_first_observed_item_extracted(
+            resumed,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_first_extracted_item_committed(
+            resumed,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            resumed,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+        )
+
+        assert result.state is BatchContinuationState.READY
+        assert result.ready
+        assert result.completed_items == 1
+        assert result.next_item_key == "item_3"
+        assert result.next_item_ordinal == 3
+        assert result.required_claim == "claim_exact_next_planned_item"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_resumed_continuation_requires_exact_run_local_completed_usage(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_first_observed_item_extracted(
+            resumed,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_first_extracted_item_committed(
+            resumed,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            resumed,
+            usage=BatchUsage(items_completed=2),
+            now=NOW,
+        )
+
+        assert result.state is BatchContinuationState.USAGE_MISMATCH
+        assert not result.ready
+        assert result.completed_items == 1
+        assert result.next_item_key is None
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [

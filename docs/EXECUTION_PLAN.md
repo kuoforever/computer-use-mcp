@@ -173,6 +173,10 @@ coordinator may now re-run that session-bound preflight and persist only the
 fixed `COMMITTED` boundary for the resumed first item. Invalid input, blocked
 state, or repetition does not write; no result content, provider, MCP, desktop,
 runner, CLI, or side-effect path is connected.
+The committed resumed prefix now feeds the existing read-only continuation
+preflight directly. Replacement-run commit count and run-local measured usage
+must match before it identifies the exact next planned item; no claim, provider,
+MCP, desktop action, runner, CLI, or side effect occurs.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

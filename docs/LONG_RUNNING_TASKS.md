@@ -337,6 +337,12 @@ digest but no result content is stored, the derived cursor advances atomically,
 and missing confirmation, invalid digest, blocked state, or repetition does not
 write.
 
+That committed resumed prefix can now enter the existing read-only batch
+continuation preflight without another bridge or free-form item selector. The
+preflight counts only commits owned by the replacement run, requires matching
+run-local measured usage, and returns only the exact next planned item plus the
+fixed claim directive. It does not claim that item or start runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
