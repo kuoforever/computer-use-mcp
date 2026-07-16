@@ -204,6 +204,12 @@ stale control state, owner drift, expired lease, clock rollback, or a repeated
 call fail without a ledger write. The helper records an observation boundary;
 it does not perform or infer the application observations itself.
 
+An observed-item extraction preflight can now require the exact active
+batch/run, a fresh matching heartbeat, one uniquely in-flight `OBSERVED` item,
+and matching item ownership. `READY` carries only the fixed
+`perform_bounded_read_only_extraction` directive. It does not extract content,
+write `EXTRACTED`, or authorize side effects.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
