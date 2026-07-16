@@ -56,7 +56,12 @@ resumable handoff, fresh matching heartbeat, idle batch ledger, and no current
 claims without starting work. A pure resume planner can then apply the bounded
 batch selector without writing `STARTED`; the coordinator may persist
 `STARTED` only for that exact nonempty `READY` plan. It still performs no item
-operation. Deterministic cross-session execution remains the next step.
+operation. The opened batch may now durably claim only the first item from its
+exact recomputed plan after rechecking the running manifest, fresh matching
+heartbeat, active batch, absence of another claim, and plan equality. This is
+still control-state scaffolding: no item observation, provider, MCP, desktop
+action, runner, or CLI is connected. Deterministic item-operation progression
+remains the next step.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

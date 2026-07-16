@@ -182,6 +182,14 @@ nonempty plan returned after a `READY` resume preflight. Blocked or empty
 resume plans leave `batches.jsonl` unchanged. Opening this control-state record
 still does not claim or execute any item.
 
+An opened batch may now claim only the first item from its exact recomputed
+plan when that item remains `DISCOVERED` or `RETRYABLE`, using the active batch
+run identity and an injected lease no longer than one hour. Claiming rechecks
+that the campaign is running, the heartbeat is fresh and owned by the batch
+run, no other claim is current, and the caller's plan has not drifted. It
+appends only the fixed `CLAIMED` transition; it does not observe or execute the
+item, invoke a provider, or perform an MCP or desktop action.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
