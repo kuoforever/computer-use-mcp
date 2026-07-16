@@ -1222,6 +1222,156 @@ def test_resumed_first_item_requires_the_exact_durable_claim(tmp_path: Path) -> 
         lock.release()
 
 
+def test_resumed_first_item_records_only_the_attested_observed_boundary(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        manifest_before = store.read_manifest("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        observed = coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+
+        assert observed.item_key == "item_2"
+        assert observed.ordinal == 2
+        assert observed.status is ItemStatus.OBSERVED
+        assert observed.attempt == 1
+        assert observed.run_id == "run_2"
+        assert observed.boundary == "reobserved"
+        assert observed.code == "APPLICATION_AND_ITEM_VERIFIED"
+        assert store.read_ledger("campaign_1").items["item_3"].status is ItemStatus.DISCOVERED
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize(
+    ("application_verified", "item_verified"),
+    [(False, True), (True, False), (1, True)],
+)
+def test_resumed_first_item_requires_exact_observation_attestations(
+    tmp_path: Path,
+    application_verified: object,
+    item_verified: object,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_FIRST_ITEM_OBSERVATION_REQUIRED",
+        ):
+            coordinator.record_first_claimed_item_observed(
+                resumed,
+                now=NOW,
+                application_state_verified=application_verified,  # type: ignore[arg-type]
+                item_identity_verified=item_verified,  # type: ignore[arg-type]
+            )
+
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_resumed_first_item_observation_cannot_be_repeated(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_FIRST_ITEM_OBSERVATION_BLOCKED_ITEM_NOT_CLAIMED",
+        ):
+            coordinator.record_first_claimed_item_observed(
+                resumed,
+                now=NOW,
+                application_state_verified=True,
+                item_identity_verified=True,
+            )
+
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [
