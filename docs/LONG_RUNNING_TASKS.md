@@ -2,10 +2,10 @@
 
 > **Status: initial control-state and batch-planning foundations implemented;
 > orchestration remains planned.** The private campaign schema, append-only item
-> ledger, fixed handoff projection, and pure bounded batch selector are
-> implemented without execution authority. The current Agent Host does not yet
-> implement a batch runner, heartbeat, CLI command, or complete cross-session
-> handoff model.
+> ledger, fixed handoff projection, pure bounded batch selector, and locked
+> heartbeat persistence are implemented without execution authority. The
+> current Agent Host does not yet implement a batch runner, heartbeat timer,
+> CLI command, or complete cross-session handoff model.
 
 ## Goal
 
@@ -208,6 +208,13 @@ meaning comes from the campaign version and fixed enums.
 Checkpoint replacement alone does not prove a process is alive. A future
 campaign worker should hold an OS run lock and update a bounded heartbeat at a
 coarse interval. The operator UI may display:
+
+The private campaign store now supports a fixed `heartbeat.json` record with
+run identity, start time, observation time, and a freshness bound of at most
+five minutes. Writes require the OS run lock, advance monotonically for the
+same run, and cannot replace another run's record. This is persistence only:
+no timer updates it, and the record alone does not classify a run as live or
+stale.
 
 - `RUNNING`: valid lease and fresh heartbeat;
 - `WAITING_APPROVAL`: explicit phase;

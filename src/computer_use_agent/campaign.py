@@ -23,9 +23,11 @@ from .run_lock import RunLock
 
 CAMPAIGN_VERSION = 2
 MAX_CAMPAIGN_MANIFEST_BYTES = 16 * 1024
+MAX_CAMPAIGN_HEARTBEAT_BYTES = 4 * 1024
 MAX_CAMPAIGN_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_BATCH_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_ITEMS = 10_000
+MAX_HEARTBEAT_FRESHNESS_SECONDS = 5 * 60
 MAX_ITEM_LEASE_SECONDS = 60 * 60
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _ITEM_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\Z")
@@ -214,6 +216,44 @@ class CampaignManifest:
             "status": self.status.value,
             "policy_digest": self.policy_digest,
             "schema_digest": self.schema_digest,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignHeartbeat:
+    """Bounded liveness control state for one future campaign worker."""
+
+    campaign_id: str
+    run_id: str
+    started_at: str
+    heartbeat_at: str
+    fresh_until: str
+
+    def __post_init__(self) -> None:
+        _require_identifier(self.campaign_id)
+        _require_identifier(self.run_id)
+        _require_timestamp(self.started_at)
+        _require_timestamp(self.heartbeat_at)
+        _require_timestamp(self.fresh_until)
+        started = datetime.fromisoformat(self.started_at)
+        heartbeat = datetime.fromisoformat(self.heartbeat_at)
+        fresh_until = datetime.fromisoformat(self.fresh_until)
+        freshness = (fresh_until - heartbeat).total_seconds()
+        if (
+            heartbeat < started
+            or freshness <= 0
+            or freshness > MAX_HEARTBEAT_FRESHNESS_SECONDS
+        ):
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_INVALID")
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "campaign_version": CAMPAIGN_VERSION,
+            "campaign_id": self.campaign_id,
+            "run_id": self.run_id,
+            "started_at": self.started_at,
+            "heartbeat_at": self.heartbeat_at,
+            "fresh_until": self.fresh_until,
         }
 
 
@@ -485,6 +525,31 @@ def _decode_manifest(value: object, *, campaign_id: str) -> CampaignManifest:
         raise CampaignStoreError("CAMPAIGN_MANIFEST_INVALID") from exc
 
 
+def _decode_heartbeat(value: object, *, campaign_id: str) -> CampaignHeartbeat:
+    fields = {
+        "campaign_version",
+        "campaign_id",
+        "run_id",
+        "started_at",
+        "heartbeat_at",
+        "fresh_until",
+    }
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise CampaignStoreError("CAMPAIGN_HEARTBEAT_INVALID")
+    if value.get("campaign_version") != CAMPAIGN_VERSION or value.get("campaign_id") != campaign_id:
+        raise CampaignStoreError("CAMPAIGN_HEARTBEAT_INVALID")
+    try:
+        return CampaignHeartbeat(
+            campaign_id=campaign_id,
+            run_id=value.get("run_id"),
+            started_at=value.get("started_at"),
+            heartbeat_at=value.get("heartbeat_at"),
+            fresh_until=value.get("fresh_until"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise CampaignStoreError("CAMPAIGN_HEARTBEAT_INVALID") from exc
+
+
 def _decode_transition(value: object) -> ItemTransition:
     fields = {
         "sequence",
@@ -632,6 +697,55 @@ class CampaignStore:
             raise CampaignStoreError("CAMPAIGN_MANIFEST_READ_FAILED")
         return _decode_manifest(value, campaign_id=campaign_id)
 
+    def read_heartbeat(self, campaign_id: str) -> CampaignHeartbeat | None:
+        """Read fixed liveness state without inferring that a worker is alive."""
+
+        self._require_lock()
+        self.read_manifest(campaign_id)
+        path = self._path(campaign_id, "heartbeat.json")
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_READ_FAILED") from exc
+        if not raw or len(raw) > MAX_CAMPAIGN_HEARTBEAT_BYTES:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_READ_FAILED")
+        try:
+            value = json.loads(raw)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_INVALID") from exc
+        return _decode_heartbeat(value, campaign_id=campaign_id)
+
+    def write_heartbeat(
+        self, campaign_id: str, heartbeat: CampaignHeartbeat
+    ) -> CampaignHeartbeat:
+        """Atomically create or advance one run's bounded heartbeat record."""
+
+        self._require_lock()
+        if not isinstance(heartbeat, CampaignHeartbeat) or heartbeat.campaign_id != campaign_id:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_INVALID")
+        current = self.read_heartbeat(campaign_id)
+        if current is not None:
+            if (
+                heartbeat.run_id != current.run_id
+                or heartbeat.started_at != current.started_at
+                or datetime.fromisoformat(heartbeat.heartbeat_at)
+                < datetime.fromisoformat(current.heartbeat_at)
+                or (
+                    heartbeat.heartbeat_at == current.heartbeat_at
+                    and heartbeat != current
+                )
+            ):
+                raise CampaignStoreError("CAMPAIGN_HEARTBEAT_CONFLICT")
+        self._atomic_write(
+            self._path(campaign_id, "heartbeat.json"),
+            _canonical(heartbeat.as_json()) + b"\n",
+            create=False,
+            maximum=MAX_CAMPAIGN_HEARTBEAT_BYTES,
+        )
+        return heartbeat
+
     def read_ledger(self, campaign_id: str) -> CampaignProjection:
         self._require_lock()
         path = self._path(campaign_id, "items.jsonl")
@@ -752,12 +866,15 @@ class CampaignStore:
 __all__ = [
     "CAMPAIGN_VERSION",
     "MAX_CAMPAIGN_BATCH_LEDGER_BYTES",
+    "MAX_CAMPAIGN_HEARTBEAT_BYTES",
     "MAX_CAMPAIGN_ITEMS",
+    "MAX_HEARTBEAT_FRESHNESS_SECONDS",
     "MAX_ITEM_LEASE_SECONDS",
     "BatchProjection",
     "BatchStatus",
     "BatchTransition",
     "CampaignManifest",
+    "CampaignHeartbeat",
     "CampaignProjection",
     "CampaignStatus",
     "CampaignStore",
