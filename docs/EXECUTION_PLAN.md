@@ -120,6 +120,11 @@ handoff, current fresh heartbeat owner, distinct replacement run ID, and exact
 injected transfer time before returning one fixed heartbeat-owner replacement
 directive. It does not mutate heartbeat state, resume work, open a batch, or
 connect a provider, MCP, desktop action, runner, CLI, or side effect.
+The coordinator may now re-run that preflight and atomically replace only the
+finished heartbeat owner. All other durable campaign state remains unchanged;
+blocked or repeated calls do not write, and success does not resume work, open
+a batch, or connect a provider, MCP, desktop action, runner, CLI, or side
+effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

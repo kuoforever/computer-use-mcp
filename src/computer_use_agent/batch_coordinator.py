@@ -677,6 +677,33 @@ class BatchCoordinator:
             required_transfer="replace_finished_run_heartbeat_owner",
         )
 
+    def replace_finished_run_heartbeat_owner(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+        replacement: CampaignHeartbeat,
+    ) -> CampaignHeartbeat:
+        """Replace the finished run owner only after a fresh transfer preflight."""
+
+        preflight = self.inspect_finished_run_transfer(
+            session,
+            usage=usage,
+            now=now,
+            replacement=replacement,
+        )
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_RUN_TRANSFER_BLOCKED_{preflight.state.value}"
+            )
+        return self.store.replace_heartbeat_owner(
+            session.campaign_id,
+            current_run_id=session.run_id,
+            replacement=replacement,
+            now=now,
+        )
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 
