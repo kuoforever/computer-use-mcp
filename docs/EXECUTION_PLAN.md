@@ -168,6 +168,11 @@ planned item into the existing extracted-item commit preflight. It returns only
 fixed result-verification and digest/result-code preparation directives, does
 not accept a free-form item key, and does not inspect content or write
 `COMMITTED`.
+After exact bounded-result verification and SHA-256 digest preparation, the
+coordinator may now re-run that session-bound preflight and persist only the
+fixed `COMMITTED` boundary for the resumed first item. Invalid input, blocked
+state, or repetition does not write; no result content, provider, MCP, desktop,
+runner, CLI, or side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
