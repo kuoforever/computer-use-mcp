@@ -65,7 +65,7 @@ class BatchStatus(str, Enum):
 
 _ALLOWED_TRANSITIONS = {
     ItemStatus.DISCOVERED: frozenset({ItemStatus.CLAIMED}),
-    ItemStatus.CLAIMED: frozenset({ItemStatus.OBSERVED}),
+    ItemStatus.CLAIMED: frozenset({ItemStatus.OBSERVED, ItemStatus.RETRYABLE}),
     ItemStatus.OBSERVED: frozenset(
         {
             ItemStatus.EXTRACTED,
@@ -410,6 +410,15 @@ def reduce_item_ledger(transitions: Sequence[ItemTransition]) -> CampaignProject
                 raise CampaignStoreError("CAMPAIGN_LEDGER_INVALID")
             if transition.status not in _ALLOWED_TRANSITIONS[previous.status]:
                 raise CampaignStoreError("CAMPAIGN_LEDGER_INVALID")
+            if previous.status is ItemStatus.CLAIMED and transition.status is ItemStatus.RETRYABLE:
+                if (
+                    transition.code != "LEASE_EXPIRED"
+                    or transition.boundary != "lease_expired"
+                    or previous.lease_expires_at is None
+                    or datetime.fromisoformat(transition.at)
+                    < datetime.fromisoformat(previous.lease_expires_at)
+                ):
+                    raise CampaignStoreError("CAMPAIGN_LEDGER_INVALID")
             expected_attempt = previous.attempt + (
                 1 if transition.status is ItemStatus.CLAIMED else 0
             )
