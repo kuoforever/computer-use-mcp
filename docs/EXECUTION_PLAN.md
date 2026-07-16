@@ -80,6 +80,11 @@ The item-progress helper may now append a fixed `EXTRACTED` boundary only after
 an exact bounded-read-only-extraction confirmation and a fresh extraction
 preflight. It stores no application content and still has no provider, MCP,
 desktop, runner, CLI, or side-effect connection.
+An extracted-item commit preflight now revalidates the active batch/run, fresh
+heartbeat, unique in-flight item, and item ownership before returning fixed
+result-verification and digest/result-code preparation directives. It remains
+read-only and does not write `COMMITTED`, advance the cursor, or connect a
+provider, MCP, desktop action, runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

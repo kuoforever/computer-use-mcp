@@ -216,6 +216,13 @@ append only the fixed `EXTRACTED`/`READ_ONLY_EXTRACTION_COMPLETED` boundary.
 It stores no extracted application content or result digest, performs no
 extraction itself, and cannot represent a side-effect operation.
 
+An extracted-item commit preflight can now require the exact active batch/run,
+a fresh matching heartbeat, one uniquely in-flight `EXTRACTED` item, and
+matching item ownership. `READY` carries only fixed directives to verify the
+bounded extraction result and prepare its content digest plus fixed result
+code. It does not inspect result content, calculate a digest, write
+`COMMITTED`, advance the campaign cursor, or authorize side effects.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
