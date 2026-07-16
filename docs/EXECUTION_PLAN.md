@@ -203,6 +203,11 @@ A read-only coordinator bridge may now derive that exact continued extraction
 from the replacement run's committed prefix and matching run-local usage, then
 feed it into the existing commit preflight. It accepts no item key, inspects no
 content, writes no `COMMITTED`, and starts no runtime work.
+After exact bounded-result verification and SHA-256 digest preparation, the
+coordinator may now re-run that continued-item preflight and persist only its
+fixed `COMMITTED` boundary. Invalid input, usage drift, blocked state, or
+repetition does not write, and no result content, provider, MCP, desktop,
+runner, CLI, or side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

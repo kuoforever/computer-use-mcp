@@ -383,6 +383,13 @@ Callers cannot supply an item key; `READY` returns only the fixed result
 verification and digest/result-code preparation directives and does not inspect
 content or write `COMMITTED`.
 
+After explicit bounded-result verification and preparation of an exact SHA-256
+content digest, the locked coordinator may now re-run that continued-item
+preflight and append only the fixed `COMMITTED` boundary for the exact next
+planned item. The digest but no result content is stored, the derived cursor
+advances atomically, and invalid input, usage drift, blocked state, or repetition
+does not write.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
