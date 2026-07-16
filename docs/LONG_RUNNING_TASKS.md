@@ -330,6 +330,13 @@ preflight. `READY` carries only the fixed result-verification and content-digest
 plus result-code preparation directives. Callers cannot substitute another item
 key, and no result content is inspected or `COMMITTED` transition written.
 
+After explicit bounded-result verification and preparation of an exact SHA-256
+content digest, the locked coordinator may now use that session-bound preflight
+to append only the fixed `COMMITTED` boundary for the resumed first item. The
+digest but no result content is stored, the derived cursor advances atomically,
+and missing confirmation, invalid digest, blocked state, or repetition does not
+write.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
