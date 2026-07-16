@@ -40,10 +40,11 @@ strict campaign manifest validation, a RunLock-bound append-only
 item-transition reducer, atomic persistence, a fixed handoff projection, a
 pure batch policy/selector with deterministic limit reasons, and a bounded
 `batches.jsonl` lifecycle ledger. A fixed, RunLock-bound heartbeat record can
-also advance monotonically for one run, but no timer or stale-run classifier
-uses it. The foundation has no batch runner, CLI command, provider, MCP, or
-desktop connection. Deterministic cross-session execution remains the next
-step.
+also advance monotonically for one run, and a pure inspector reports missing,
+fresh, or stale control state without claiming liveness. No timer or combined
+OS-lock/item-lease classifier uses it. The foundation has no batch runner, CLI
+command, provider, MCP, or desktop connection. Deterministic cross-session
+execution remains the next step.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

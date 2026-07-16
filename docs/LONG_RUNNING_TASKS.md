@@ -3,9 +3,10 @@
 > **Status: initial control-state and batch-planning foundations implemented;
 > orchestration remains planned.** The private campaign schema, append-only item
 > ledger, fixed handoff projection, pure bounded batch selector, and locked
-> heartbeat persistence are implemented without execution authority. The
-> current Agent Host does not yet implement a batch runner, heartbeat timer,
-> CLI command, or complete cross-session handoff model.
+> heartbeat persistence plus pure freshness inspection are implemented without
+> execution authority. The current Agent Host does not yet implement a batch
+> runner, heartbeat timer, CLI command, or complete cross-session handoff
+> model.
 
 ## Goal
 
@@ -215,6 +216,12 @@ five minutes. Writes require the OS run lock, advance monotonically for the
 same run, and cannot replace another run's record. This is persistence only:
 no timer updates it, and the record alone does not classify a run as live or
 stale.
+
+The current pure inspector classifies an optional record as `MISSING`, `FRESH`,
+or `STALE` against an injected aware time. Expiry at the exact observation
+instant is stale, and a clock earlier than the recorded heartbeat fails closed.
+This classification does not inspect the OS lock or item leases and therefore
+cannot by itself declare `RUNNING` or authorize reclaim.
 
 - `RUNNING`: valid lease and fresh heartbeat;
 - `WAITING_APPROVAL`: explicit phase;
