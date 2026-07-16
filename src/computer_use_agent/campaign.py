@@ -792,6 +792,59 @@ class CampaignStore:
         )
         return heartbeat
 
+    def recover_stale_heartbeat(
+        self,
+        campaign_id: str,
+        *,
+        stale_run_id: str,
+        replacement: CampaignHeartbeat,
+        now: datetime,
+    ) -> CampaignHeartbeat:
+        """Replace one proven-stale owner after every claimed item is released."""
+
+        self._require_lock()
+        try:
+            _require_identifier(stale_run_id)
+        except CampaignStoreError as exc:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RECOVERY_INVALID") from exc
+        if (
+            not isinstance(replacement, CampaignHeartbeat)
+            or replacement.campaign_id != campaign_id
+            or replacement.run_id == stale_run_id
+        ):
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RECOVERY_INVALID")
+
+        from .stale_run_inspection import (
+            StaleRunInspectionError,
+            StaleRunState,
+            inspect_stale_run,
+        )
+
+        try:
+            inspection = inspect_stale_run(self, campaign_id=campaign_id, now=now)
+        except StaleRunInspectionError as exc:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RECOVERY_INVALID") from exc
+        current = self.read_heartbeat(campaign_id)
+        if (
+            inspection.state is not StaleRunState.STALE
+            or inspection.leases.stale
+            or current is None
+            or current.run_id != stale_run_id
+        ):
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RECOVERY_BLOCKED")
+
+        replacement_started = datetime.fromisoformat(replacement.started_at)
+        replacement_heartbeat = datetime.fromisoformat(replacement.heartbeat_at)
+        if replacement_started != now or replacement_heartbeat != now:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RECOVERY_INVALID")
+        self._atomic_write(
+            self._path(campaign_id, "heartbeat.json"),
+            _canonical(replacement.as_json()) + b"\n",
+            create=False,
+            maximum=MAX_CAMPAIGN_HEARTBEAT_BYTES,
+        )
+        return replacement
+
     def read_ledger(self, campaign_id: str) -> CampaignProjection:
         self._require_lock()
         path = self._path(campaign_id, "items.jsonl")

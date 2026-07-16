@@ -46,7 +46,8 @@ OS-lock/item-lease classifier uses it. The manifest can durably transition
 between `RUNNING` and `PAUSED` under the run lock, but resume does not start
 work. A combined locked inspector can identify stale control state only after
 checking manifest state, heartbeat freshness, claim expiry, and run ownership;
-it performs no recovery. The foundation has no batch runner, CLI command,
+an explicit locked recovery may replace only the stale heartbeat owner after
+all claims have left `CLAIMED`. The foundation has no batch runner, CLI command,
 provider, MCP, or desktop connection. Deterministic cross-session execution
 remains the next step.
 
