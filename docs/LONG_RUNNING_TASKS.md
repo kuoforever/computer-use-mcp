@@ -9,8 +9,9 @@
 > A stale heartbeat owner can be explicitly replaced only after all item claims
 > are released, and the fixed handoff projection is status-aware. The current
 > handoff reader revalidates that projection against current durable state. The
-> Agent Host does not yet implement a batch runner, heartbeat timer, CLI
-> command, or complete cross-session handoff model.
+> read-only resume preflight additionally checks heartbeat ownership, batches,
+> and claims. The Agent Host does not yet implement a batch runner, heartbeat
+> timer, CLI command, or complete cross-session handoff model.
 
 ## Goal
 
@@ -227,6 +228,12 @@ manifest and item ledger under the OS run lock. Missing, malformed, oversized,
 or stale handoff data fails closed and must be regenerated from durable state.
 Reading a valid handoff still does not start a worker or grant execution
 authority.
+
+The resume preflight combines a currently valid `resume_batch` handoff with a
+fresh heartbeat owned by the proposed run, no active batch, and no current item
+claim. It returns fixed readiness or blocking states and preserves the required
+re-observation directive. `READY` is control-state readiness only: no batch is
+opened, no item is claimed, and no provider or desktop operation begins.
 
 ## Liveness
 
