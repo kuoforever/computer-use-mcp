@@ -668,6 +668,103 @@ def test_finished_handoff_is_ready_for_exact_new_run_transfer(tmp_path: Path) ->
         lock.release()
 
 
+def test_ready_finished_run_transfer_atomically_replaces_only_heartbeat_owner(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        manifest_before = store.read_manifest("campaign_1")
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        handoff_before = store.read_handoff("campaign_1")
+        replacement = _replacement_heartbeat()
+
+        transferred = coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=replacement,
+        )
+
+        assert transferred == replacement
+        assert store.read_heartbeat("campaign_1") == replacement
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_handoff("campaign_1") == handoff_before
+    finally:
+        lock.release()
+
+
+def test_blocked_finished_run_transfer_never_replaces_heartbeat(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_RUN_TRANSFER_BLOCKED_REPLACEMENT_RUN_REUSED",
+        ):
+            coordinator.replace_finished_run_heartbeat_owner(
+                session,
+                usage=usage,
+                now=NOW,
+                replacement=_replacement_heartbeat(run_id="run_1"),
+            )
+
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_finished_run_transfer_cannot_be_repeated(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        replacement = _replacement_heartbeat()
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=replacement,
+        )
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_RUN_TRANSFER_BLOCKED_FINISHED_HANDOFF_NOT_READY",
+        ):
+            coordinator.replace_finished_run_heartbeat_owner(
+                session,
+                usage=usage,
+                now=NOW,
+                replacement=replacement,
+            )
+
+        assert store.read_heartbeat("campaign_1") == replacement
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [

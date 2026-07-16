@@ -270,6 +270,12 @@ the injected transfer time. `READY` carries only the fixed
 `replace_finished_run_heartbeat_owner` directive. The preflight does not
 replace heartbeat state, resume work, or open a batch.
 
+The locked coordinator may now re-run that transfer preflight and atomically
+replace only the finished run's heartbeat owner. The handoff, manifest, item
+ledger, and finished batch record remain unchanged. Blocked or repeated calls
+fail without a write, and a successful transfer still does not resume work,
+open a batch, claim an item, or start provider, MCP, or desktop activity.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

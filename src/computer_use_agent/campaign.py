@@ -882,6 +882,46 @@ class CampaignStore:
         )
         return replacement
 
+    def replace_heartbeat_owner(
+        self,
+        campaign_id: str,
+        *,
+        current_run_id: str,
+        replacement: CampaignHeartbeat,
+        now: datetime,
+    ) -> CampaignHeartbeat:
+        """Atomically replace one exact heartbeat owner at a validated boundary."""
+
+        self._require_lock()
+        try:
+            _require_identifier(current_run_id)
+        except CampaignStoreError as exc:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_TRANSFER_INVALID") from exc
+        if (
+            not isinstance(replacement, CampaignHeartbeat)
+            or replacement.campaign_id != campaign_id
+            or replacement.run_id == current_run_id
+            or not isinstance(now, datetime)
+            or now.tzinfo is None
+            or now.utcoffset() is None
+        ):
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_TRANSFER_INVALID")
+
+        current = self.read_heartbeat(campaign_id)
+        if current is None or current.run_id != current_run_id:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_TRANSFER_CONFLICT")
+        replacement_started = datetime.fromisoformat(replacement.started_at)
+        replacement_heartbeat = datetime.fromisoformat(replacement.heartbeat_at)
+        if replacement_started != now or replacement_heartbeat != now:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_TRANSFER_INVALID")
+        self._atomic_write(
+            self._path(campaign_id, "heartbeat.json"),
+            _canonical(replacement.as_json()) + b"\n",
+            create=False,
+            maximum=MAX_CAMPAIGN_HEARTBEAT_BYTES,
+        )
+        return replacement
+
     def read_ledger(self, campaign_id: str) -> CampaignProjection:
         self._require_lock()
         path = self._path(campaign_id, "items.jsonl")
