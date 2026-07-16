@@ -39,7 +39,7 @@ from .campaign_item_preflight import (
     CampaignItemPreflightError,
     inspect_claimed_item,
 )
-from .campaign_item_progress import record_item_observed
+from .campaign_item_progress import record_item_extracted, record_item_observed
 from .campaign_resume_planning import CampaignResumePlan, plan_campaign_resume
 from .heartbeat_inspection import (
     HeartbeatFreshness,
@@ -499,6 +499,32 @@ class BatchCoordinator:
             )
         except CampaignExtractionPreflightError as exc:
             raise BatchCoordinatorError("BATCH_FIRST_OBSERVED_ITEM_INVALID") from exc
+
+    def record_first_observed_item_extracted(
+        self,
+        session: BatchSession,
+        *,
+        now: datetime,
+        read_only_extraction_completed: bool,
+    ) -> ItemTransition:
+        """Persist EXTRACTED for the exact first item after explicit confirmation."""
+
+        if read_only_extraction_completed is not True:
+            raise BatchCoordinatorError("BATCH_FIRST_ITEM_EXTRACTION_REQUIRED")
+        preflight = self.inspect_first_observed_item(session, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_FIRST_ITEM_EXTRACTION_BLOCKED_{preflight.state.value}"
+            )
+        return record_item_extracted(
+            self.store,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            item_key=preflight.item_key,
+            now=now,
+            read_only_extraction_completed=True,
+        )
 
     def inspect_continuation(
         self,
