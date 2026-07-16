@@ -163,6 +163,11 @@ re-run that session-bound preflight and persist only the fixed `EXTRACTED`
 boundary for the resumed first item. Missing confirmation, blocked state, or
 repetition does not write; no application content, provider, MCP, desktop,
 runner, CLI, or side-effect path is connected.
+A read-only coordinator bridge may now feed that resumed session's exact first
+planned item into the existing extracted-item commit preflight. It returns only
+fixed result-verification and digest/result-code preparation directives, does
+not accept a free-form item key, and does not inspect content or write
+`COMMITTED`.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
