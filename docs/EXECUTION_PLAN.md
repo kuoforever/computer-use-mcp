@@ -125,6 +125,11 @@ finished heartbeat owner. All other durable campaign state remains unchanged;
 blocked or repeated calls do not write, and success does not resume work, open
 a batch, or connect a provider, MCP, desktop action, runner, CLI, or side
 effect.
+A read-only post-transfer resume preflight may now bind the exact finished
+batch and handoff provenance to the replacement owner and its next bounded
+stable item plan. It returns only a fixed exact-batch-open directive and does
+not write `STARTED`, claim an item, or connect a provider, MCP, desktop action,
+runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
