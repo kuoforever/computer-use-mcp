@@ -171,6 +171,12 @@ The current coordinator may durably open a nonempty plan and close it only at a
 derived hard limit or after every planned item is accounted for. It does not
 perform those item operations, take a clock reading, or connect a provider.
 
+An expired current claim may now be released to `RETRYABLE` only while the
+campaign store holds the OS run lock and the injected recovery time proves the
+lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
+it does not claim the item for a new run, re-observe it, or authorize action
+replay. Active and non-claimed items fail closed without a ledger write.
+
 At a batch boundary, close the current run cleanly, write `handoff.json`, and
 start a fresh provider context. A new Codex session should need only the
 campaign ID and config path.
