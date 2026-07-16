@@ -376,6 +376,13 @@ confirmation, usage drift, blocked state, or repetition leaves the ledger
 unchanged. No application content or digest is stored and no runtime work is
 performed.
 
+After that boundary, a read-only coordinator bridge can now derive the exact
+extracted item from the resumed plan's replacement-run committed prefix and
+matching run-local usage, then feed it into the existing commit preflight.
+Callers cannot supply an item key; `READY` returns only the fixed result
+verification and digest/result-code preparation directives and does not inspect
+content or write `COMMITTED`.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
