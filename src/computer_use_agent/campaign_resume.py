@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
-from .campaign import CampaignStore
+from .campaign import CampaignStore, ItemStatus
 from .heartbeat_inspection import (
     HeartbeatFreshness,
     HeartbeatInspectionError,
@@ -34,6 +34,7 @@ class CampaignResumeState(str, Enum):
     HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
     ACTIVE_BATCH = "ACTIVE_BATCH"
     CLAIMS_REMAIN = "CLAIMS_REMAIN"
+    ITEMS_IN_FLIGHT = "ITEMS_IN_FLIGHT"
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,11 @@ def inspect_campaign_resume(
         state = CampaignResumeState.ACTIVE_BATCH
     elif leases.active or leases.stale:
         state = CampaignResumeState.CLAIMS_REMAIN
+    elif any(
+        item.status in {ItemStatus.OBSERVED, ItemStatus.EXTRACTED}
+        for item in projection.items.values()
+    ):
+        state = CampaignResumeState.ITEMS_IN_FLIGHT
     else:
         state = CampaignResumeState.READY
     return CampaignResumePreflight(

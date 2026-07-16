@@ -211,6 +211,55 @@ def test_any_current_claim_blocks_resume(
         lock.release()
 
 
+@pytest.mark.parametrize("status", [ItemStatus.OBSERVED, ItemStatus.EXTRACTED])
+def test_any_nonterminal_inflight_item_blocks_resume(
+    tmp_path: Path,
+    status: ItemStatus,
+) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        _claim(store, lease_expires_at="2026-07-16T00:11:00+00:00")
+        store.append(
+            "campaign_1",
+            ItemTransition(
+                3,
+                1,
+                "item_1",
+                ItemStatus.OBSERVED,
+                1,
+                "2026-07-16T00:01:00+00:00",
+                run_id="run_new",
+                boundary="observe",
+            ),
+        )
+        if status is ItemStatus.EXTRACTED:
+            store.append(
+                "campaign_1",
+                ItemTransition(
+                    4,
+                    1,
+                    "item_1",
+                    ItemStatus.EXTRACTED,
+                    1,
+                    "2026-07-16T00:02:00+00:00",
+                    run_id="run_new",
+                    boundary="extract",
+                ),
+            )
+
+        preflight = inspect_campaign_resume(
+            store,
+            campaign_id="campaign_1",
+            run_id="run_new",
+            now=NOW,
+        )
+
+        assert preflight.state is CampaignResumeState.ITEMS_IN_FLIGHT
+        assert not preflight.ready
+    finally:
+        lock.release()
+
+
 def test_preflight_requires_valid_input_and_the_store_run_lock(tmp_path: Path) -> None:
     store, lock = _store(tmp_path)
     with pytest.raises(CampaignResumeError, match="run_id"):
