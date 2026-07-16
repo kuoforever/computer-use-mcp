@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+
+from computer_use_agent.batching import BatchPolicy
+from computer_use_agent.batch_coordinator import BatchCoordinator, BatchSession
+from computer_use_agent.campaign import (
+    CampaignHeartbeat,
+    CampaignManifest,
+    CampaignStore,
+    ItemStatus,
+    ItemTransition,
+)
+from computer_use_agent.campaign_item_progress import (
+    CampaignItemProgressError,
+    record_item_observed,
+)
+from computer_use_agent.run_lock import RunLock
+
+
+DIGEST = "a" * 64
+NOW = datetime(2026, 7, 16, 0, 10, tzinfo=timezone.utc)
+
+
+def _claimed_store(tmp_path: Path) -> tuple[CampaignStore, RunLock, BatchSession]:
+    lock = RunLock(tmp_path / "application")
+    lock.acquire()
+    store = CampaignStore((tmp_path / "state").resolve(), lock)
+    store.create(
+        CampaignManifest(
+            campaign_id="campaign_1",
+            kind="saved_job_review",
+            policy_digest=DIGEST,
+            schema_digest=DIGEST,
+            created_at="2026-07-16T00:00:00+00:00",
+            updated_at="2026-07-16T00:00:00+00:00",
+        )
+    )
+    store.append(
+        "campaign_1",
+        ItemTransition(1, 1, "item_1", ItemStatus.DISCOVERED, 0, "2026-07-16T00:01:00+00:00"),
+    )
+    store.write_heartbeat(
+        "campaign_1",
+        CampaignHeartbeat(
+            campaign_id="campaign_1",
+            run_id="run_1",
+            started_at="2026-07-16T00:00:00+00:00",
+            heartbeat_at="2026-07-16T00:08:00+00:00",
+            fresh_until="2026-07-16T00:12:00+00:00",
+        ),
+    )
+    coordinator = BatchCoordinator(store)
+    opened = coordinator.open_batch(
+        campaign_id="campaign_1",
+        batch_id="batch_1",
+        run_id="run_1",
+        policy=BatchPolicy(),
+    )
+    assert isinstance(opened, BatchSession)
+    coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+    return store, lock, opened
+
+
+def _record(store: CampaignStore, **overrides: object) -> ItemTransition:
+    arguments: dict[str, object] = {
+        "campaign_id": "campaign_1",
+        "batch_id": "batch_1",
+        "run_id": "run_1",
+        "item_key": "item_1",
+        "now": NOW,
+        "application_state_verified": True,
+        "item_identity_verified": True,
+        **overrides,
+    }
+    return record_item_observed(store, **arguments)  # type: ignore[arg-type]
+
+
+def test_confirmed_observation_appends_only_the_fixed_observed_boundary(
+    tmp_path: Path,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        manifest_before = store.read_manifest("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        observed = _record(store)
+
+        assert observed.status is ItemStatus.OBSERVED
+        assert observed.attempt == 1
+        assert observed.run_id == "run_1"
+        assert observed.boundary == "reobserved"
+        assert observed.code == "APPLICATION_AND_ITEM_VERIFIED"
+        assert observed.lease_expires_at is None
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("application_state_verified", False),
+        ("item_identity_verified", False),
+        ("application_state_verified", 1),
+    ],
+)
+def test_both_exact_observation_attestations_are_required_without_mutation(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(CampaignItemProgressError, match="ITEM_OBSERVATION_REQUIRED"):
+            _record(store, **{field: value})
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_stale_lease_or_repeated_observation_is_never_written(tmp_path: Path) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        store.write_heartbeat(
+            "campaign_1",
+            CampaignHeartbeat(
+                campaign_id="campaign_1",
+                run_id="run_1",
+                started_at="2026-07-16T00:00:00+00:00",
+                heartbeat_at="2026-07-16T00:14:00+00:00",
+                fresh_until="2026-07-16T00:18:00+00:00",
+            ),
+        )
+        stale_now = datetime(2026, 7, 16, 0, 15, tzinfo=timezone.utc)
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(
+            CampaignItemProgressError,
+            match="ITEM_OBSERVATION_BLOCKED_CLAIM_LEASE_STALE",
+        ):
+            _record(store, now=stale_now)
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+    store, lock, _opened = _claimed_store(tmp_path / "repeated")
+    try:
+        _record(store)
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(
+            CampaignItemProgressError,
+            match="ITEM_OBSERVATION_BLOCKED_ITEM_NOT_CLAIMED",
+        ):
+            _record(store)
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()

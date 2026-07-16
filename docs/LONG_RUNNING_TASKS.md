@@ -197,6 +197,13 @@ heartbeat, exactly one current claim owned by that run, and an unexpired lease.
 `verify_claimed_item_identity` directives. The preflight does not perform
 either observation or advance the item to `OBSERVED`.
 
+After a caller explicitly confirms both required observations, a locked
+persistence helper may now re-run that preflight and append the fixed
+`OBSERVED`/`APPLICATION_AND_ITEM_VERIFIED` boundary. Missing attestations,
+stale control state, owner drift, expired lease, clock rollback, or a repeated
+call fail without a ledger write. The helper records an observation boundary;
+it does not perform or infer the application observations itself.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
