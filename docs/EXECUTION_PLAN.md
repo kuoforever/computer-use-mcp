@@ -72,6 +72,10 @@ A locked persistence helper can now advance one exact claimed item to
 `OBSERVED` only after explicit page/account and item-identity attestations and
 a fresh re-run of the claimed-item preflight. It does not perform observation,
 extraction, provider work, MCP dispatch, desktop actions, runner, or CLI work.
+An observed-item extraction preflight now checks the active batch/run, fresh
+heartbeat, unique in-flight item, and item ownership before returning a fixed
+bounded read-only extraction directive. It remains read-only and does not write
+`EXTRACTED` or authorize side effects.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
