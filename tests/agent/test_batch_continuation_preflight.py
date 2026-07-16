@@ -338,6 +338,37 @@ def test_forged_session_cannot_omit_the_committed_prefix(tmp_path: Path) -> None
         lock.release()
 
 
+def test_forged_session_cannot_truncate_the_remaining_plan(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(tmp_path)
+    try:
+        forged = BatchSession(
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            policy=session.policy,
+            plan=BatchPlan(item_keys=("item_1",), stop_reason=None),
+        )
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            forged,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+        )
+
+        assert result.state is BatchContinuationState.PLAN_DRIFT
+        assert not result.ready
+        with pytest.raises(BatchCoordinatorError, match="BATCH_FINISH_BLOCKED_PLAN_DRIFT"):
+            coordinator.finish_continued_batch(
+                forged,
+                usage=BatchUsage(items_completed=1),
+                now=NOW,
+            )
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
 def test_reached_limit_and_completed_plan_return_fixed_terminal_states(
     tmp_path: Path,
 ) -> None:
@@ -355,6 +386,105 @@ def test_reached_limit_and_completed_plan_return_fixed_terminal_states(
         assert limited.state is BatchContinuationState.LIMIT_REACHED
         assert limited.stop_reason is BatchStopReason.ITEM_LIMIT
         assert limited.next_item_key is None
+    finally:
+        lock.release()
+
+
+def test_continuation_validated_limit_finishes_with_exact_measured_usage(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        ledger_before = store.read_ledger("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        usage = BatchUsage(
+            items_completed=1,
+            elapsed_seconds=30,
+            provider_turns=2,
+            tool_calls=4,
+            input_tokens=100,
+            output_tokens=20,
+        )
+
+        code = coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        finished = store.read_batches("campaign_1").transitions[-1]
+
+        assert code == "ITEM_LIMIT"
+        assert finished.status.value == "FINISHED"
+        assert finished.stop_code == "ITEM_LIMIT"
+        assert finished.at == "2026-07-16T00:10:00+00:00"
+        assert finished.items_completed == 1
+        assert finished.elapsed_seconds == 30
+        assert finished.provider_turns == 2
+        assert finished.tool_calls == 4
+        assert finished.input_tokens == 100
+        assert finished.output_tokens == 20
+        assert store.read_batches("campaign_1").active is None
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_continuation_validated_complete_plan_finishes_without_handoff_write(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        campaign_path = store.state_dir / "campaigns" / "campaign_1"
+        handoff_path = campaign_path / "handoff.json"
+
+        code = coordinator.finish_continued_batch(
+            session,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+        )
+
+        assert code == "PLAN_COMPLETE"
+        assert store.read_batches("campaign_1").transitions[-1].stop_code == "PLAN_COMPLETE"
+        assert store.read_batches("campaign_1").active is None
+        assert not handoff_path.exists()
+    finally:
+        lock.release()
+
+
+def test_ready_inflight_or_repeated_finish_never_writes(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(tmp_path)
+    try:
+        batches_before = store.read_batches("campaign_1")
+        with pytest.raises(BatchCoordinatorError, match="BATCH_FINISH_BLOCKED_READY"):
+            coordinator.finish_continued_batch(
+                session,
+                usage=BatchUsage(items_completed=1),
+                now=NOW,
+            )
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path / "repeated",
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        batches_before = store.read_batches("campaign_1")
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_FINISH_BLOCKED_BATCH_NOT_ACTIVE",
+        ):
+            coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        assert store.read_batches("campaign_1") == batches_before
     finally:
         lock.release()
 

@@ -308,7 +308,11 @@ class BatchCoordinator:
             state = BatchContinuationState.LIMIT_REACHED
             stop_reason = reason
         elif completed_items == len(planned):
-            state = BatchContinuationState.PLAN_COMPLETE
+            remaining = plan_batch(projection, session.policy, usage)
+            if remaining.stop_reason is BatchStopReason.NO_ELIGIBLE_ITEMS:
+                state = BatchContinuationState.PLAN_COMPLETE
+            else:
+                state = BatchContinuationState.PLAN_DRIFT
         else:
             expected_key = planned[completed_items]
             selected = projection.items.get(expected_key)
@@ -390,6 +394,51 @@ class BatchCoordinator:
             ),
         )
         return updated.items[selected.item_key]
+
+    def finish_continued_batch(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+    ) -> str:
+        """Finish only at a continuation-validated limit or completed plan."""
+
+        preflight = self.inspect_continuation(session, usage=usage, now=now)
+        if preflight.state is BatchContinuationState.LIMIT_REACHED:
+            if preflight.stop_reason is None:
+                raise BatchCoordinatorError("BATCH_CONTINUATION_STATE_DRIFT")
+            code = preflight.stop_reason.value
+        elif preflight.state is BatchContinuationState.PLAN_COMPLETE:
+            if preflight.stop_reason is not None:
+                raise BatchCoordinatorError("BATCH_CONTINUATION_STATE_DRIFT")
+            code = BatchCompletionReason.PLAN_COMPLETE.value
+        else:
+            raise BatchCoordinatorError(
+                f"BATCH_FINISH_BLOCKED_{preflight.state.value}"
+            )
+
+        self.store.append_batch(
+            session.campaign_id,
+            BatchTransition(
+                sequence=1,
+                batch_id=session.batch_id,
+                run_id=session.run_id,
+                status=BatchStatus.FINISHED,
+                at=now.isoformat(timespec="seconds"),
+                stop_code=code,
+                items_completed=usage.items_completed,
+                elapsed_seconds=usage.elapsed_seconds,
+                provider_turns=usage.provider_turns,
+                tool_calls=usage.tool_calls,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                screenshots=usage.screenshots,
+                ocr_regions=usage.ocr_regions,
+                consecutive_failures=usage.consecutive_failures,
+            ),
+        )
+        return code
 
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
