@@ -3170,6 +3170,109 @@ def test_resumed_next_item_commit_requires_exact_verification_and_digest(
 
 
 @pytest.mark.parametrize(
+    ("max_items", "expected_state", "expected_stop"),
+    [
+        (3, BatchContinuationState.PLAN_COMPLETE, None),
+        (2, BatchContinuationState.LIMIT_REACHED, BatchStopReason.ITEM_LIMIT),
+    ],
+)
+def test_resumed_completed_plan_reaches_only_exact_terminal_preflight(
+    tmp_path: Path,
+    max_items: int,
+    expected_state: BatchContinuationState,
+    expected_stop: BatchStopReason | None,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        prior_usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=prior_usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=prior_usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=prior_usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=max_items),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_first_observed_item_extracted(
+            resumed,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_first_extracted_item_committed(
+            resumed,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        first_usage = BatchUsage(items_completed=1)
+        coordinator.claim_next_item(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            lease_seconds=300,
+        )
+        coordinator.record_next_claimed_item_observed(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_next_observed_item_extracted(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_next_extracted_item_committed(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            resumed,
+            usage=BatchUsage(items_completed=2),
+            now=NOW,
+        )
+
+        assert result.state is expected_state
+        assert not result.ready
+        assert result.completed_items == 2
+        assert result.next_item_key is None
+        assert result.next_item_ordinal is None
+        assert result.stop_reason is expected_stop
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize(
     ("replacement", "state"),
     [
         (_replacement_heartbeat(run_id="run_1"), BatchRunTransferState.REPLACEMENT_RUN_REUSED),

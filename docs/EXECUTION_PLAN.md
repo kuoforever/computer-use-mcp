@@ -208,6 +208,10 @@ coordinator may now re-run that continued-item preflight and persist only its
 fixed `COMMITTED` boundary. Invalid input, usage drift, blocked state, or
 repetition does not write, and no result content, provider, MCP, desktop,
 runner, CLI, or side-effect path is connected.
+The fully committed resumed plan now reaches the existing continuation
+preflight's exact terminal state: `PLAN_COMPLETE` when no limit fired, otherwise
+`LIMIT_REACHED` with its fixed reason. Both paths are read-only, identify no next
+item, and do not write `FINISHED` or start runtime work.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
