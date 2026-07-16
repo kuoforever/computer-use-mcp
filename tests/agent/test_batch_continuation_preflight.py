@@ -2175,6 +2175,143 @@ def test_resumed_continuation_claims_only_exact_next_item_once(
         lock.release()
 
 
+def test_resumed_next_claimed_item_is_ready_for_exact_reobservation(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        prior_usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=prior_usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=prior_usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=prior_usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_first_observed_item_extracted(
+            resumed,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_first_extracted_item_committed(
+            resumed,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        usage = BatchUsage(items_completed=1)
+        coordinator.claim_next_item(
+            resumed,
+            usage=usage,
+            now=NOW,
+            lease_seconds=300,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        result = coordinator.inspect_next_claimed_item(
+            resumed,
+            usage=usage,
+            now=NOW,
+        )
+
+        assert result.state is CampaignItemPreflightState.READY
+        assert result.ready
+        assert result.item_key == "item_3"
+        assert result.ordinal == 3
+        assert result.required_application_observation == "verify_current_page_and_account_state"
+        assert result.required_item_observation == "verify_claimed_item_identity"
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_resumed_next_claimed_item_rejects_run_local_usage_drift(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        prior_usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=prior_usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=prior_usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=prior_usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_first_observed_item_extracted(
+            resumed,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_first_extracted_item_committed(
+            resumed,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        coordinator.claim_next_item(
+            resumed,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+            lease_seconds=300,
+        )
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_NEXT_CLAIMED_ITEM_INVALID",
+        ):
+            coordinator.inspect_next_claimed_item(
+                resumed,
+                usage=BatchUsage(items_completed=2),
+                now=NOW,
+            )
+
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [
