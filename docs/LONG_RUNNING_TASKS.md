@@ -288,6 +288,12 @@ Blocked, empty, drifted, or repeated opens fail without another batch-ledger
 write. Opening this control record still does not claim an item or start
 provider, MCP, desktop, runner, or CLI activity.
 
+Before the replacement batch's first claim, a read-only preflight can now bind
+the active batch/run, fresh heartbeat owner, unchanged plan, exact first stable
+item, next attempt, and bounded lease expiry. `READY` carries only the fixed
+`claim_exact_first_planned_item` directive. It does not append `CLAIMED`,
+observe an application, or start provider, MCP, desktop, runner, or CLI work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
