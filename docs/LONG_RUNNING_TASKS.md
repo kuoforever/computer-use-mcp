@@ -190,6 +190,13 @@ run, no other claim is current, and the caller's plan has not drifted. It
 appends only the fixed `CLAIMED` transition; it does not observe or execute the
 item, invoke a provider, or perform an MCP or desktop action.
 
+Before any future item operation, a read-only claimed-item preflight can now
+require a running campaign, the exact active batch/run, a fresh matching
+heartbeat, exactly one current claim owned by that run, and an unexpired lease.
+`READY` carries only the fixed `verify_current_page_and_account_state` and
+`verify_claimed_item_identity` directives. The preflight does not perform
+either observation or advance the item to `OBSERVED`.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

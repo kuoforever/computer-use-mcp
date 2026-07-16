@@ -61,7 +61,10 @@ exact recomputed plan after rechecking the running manifest, fresh matching
 heartbeat, active batch, absence of another claim, and plan equality. This is
 still control-state scaffolding: no item observation, provider, MCP, desktop
 action, runner, or CLI is connected. Deterministic item-operation progression
-remains the next step.
+remains the next step. A read-only claimed-item preflight now revalidates the
+running campaign, active batch/run, fresh heartbeat, unique owned claim, and
+lease before returning fixed page/account and item-identity re-observation
+directives. It performs no observation and writes no `OBSERVED` transition.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
