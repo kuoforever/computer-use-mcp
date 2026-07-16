@@ -76,6 +76,10 @@ An observed-item extraction preflight now checks the active batch/run, fresh
 heartbeat, unique in-flight item, and item ownership before returning a fixed
 bounded read-only extraction directive. It remains read-only and does not write
 `EXTRACTED` or authorize side effects.
+The item-progress helper may now append a fixed `EXTRACTED` boundary only after
+an exact bounded-read-only-extraction confirmation and a fresh extraction
+preflight. It stores no application content and still has no provider, MCP,
+desktop, runner, CLI, or side-effect connection.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

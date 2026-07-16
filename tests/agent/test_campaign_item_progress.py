@@ -16,6 +16,7 @@ from computer_use_agent.campaign import (
 )
 from computer_use_agent.campaign_item_progress import (
     CampaignItemProgressError,
+    record_item_extracted,
     record_item_observed,
 )
 from computer_use_agent.run_lock import RunLock
@@ -79,6 +80,19 @@ def _record(store: CampaignStore, **overrides: object) -> ItemTransition:
     return record_item_observed(store, **arguments)  # type: ignore[arg-type]
 
 
+def _extract(store: CampaignStore, **overrides: object) -> ItemTransition:
+    arguments: dict[str, object] = {
+        "campaign_id": "campaign_1",
+        "batch_id": "batch_1",
+        "run_id": "run_1",
+        "item_key": "item_1",
+        "now": NOW,
+        "read_only_extraction_completed": True,
+        **overrides,
+    }
+    return record_item_extracted(store, **arguments)  # type: ignore[arg-type]
+
+
 def test_confirmed_observation_appends_only_the_fixed_observed_boundary(
     tmp_path: Path,
 ) -> None:
@@ -101,7 +115,6 @@ def test_confirmed_observation_appends_only_the_fixed_observed_boundary(
         assert store.read_batches("campaign_1") == batches_before
     finally:
         lock.release()
-
 
 @pytest.mark.parametrize(
     ("field", "value"),
@@ -159,6 +172,67 @@ def test_stale_lease_or_repeated_observation_is_never_written(tmp_path: Path) ->
             match="ITEM_OBSERVATION_BLOCKED_ITEM_NOT_CLAIMED",
         ):
             _record(store)
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_confirmed_read_only_extraction_appends_only_the_fixed_boundary(
+    tmp_path: Path,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        manifest_before = store.read_manifest("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        extracted = _extract(store)
+
+        assert extracted.status is ItemStatus.EXTRACTED
+        assert extracted.attempt == 1
+        assert extracted.run_id == "run_1"
+        assert extracted.boundary == "extracted"
+        assert extracted.code == "READ_ONLY_EXTRACTION_COMPLETED"
+        assert extracted.content_digest is None
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize("confirmation", [False, 1, None])
+def test_exact_read_only_extraction_confirmation_is_required_without_mutation(
+    tmp_path: Path,
+    confirmation: object,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(CampaignItemProgressError, match="ITEM_EXTRACTION_REQUIRED"):
+            _extract(store, read_only_extraction_completed=confirmation)
+
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_repeated_extraction_is_never_written(tmp_path: Path) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        _extract(store)
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(
+            CampaignItemProgressError,
+            match="ITEM_EXTRACTION_BLOCKED_ITEM_NOT_OBSERVED",
+        ):
+            _extract(store)
+
         assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
