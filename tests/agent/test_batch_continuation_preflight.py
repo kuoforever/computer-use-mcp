@@ -16,6 +16,7 @@ from computer_use_agent.batch_coordinator import (
 )
 from computer_use_agent.batching import BatchPlan, BatchPolicy, BatchStopReason, BatchUsage
 from computer_use_agent.campaign import (
+    BatchStatus,
     CampaignHeartbeat,
     CampaignManifest,
     CampaignStore,
@@ -868,6 +869,123 @@ def test_transferred_run_resume_preflight_reports_no_eligible_items(
         assert not result.ready
         assert result.item_keys == ()
         assert store.read_batches("campaign_1").active is None
+    finally:
+        lock.release()
+
+
+def test_transferred_resume_opens_only_the_exact_replacement_batch(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_before = store.read_handoff("campaign_1")
+
+        opened = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+
+        assert opened.batch_id == "batch_2"
+        assert opened.run_id == "run_2"
+        assert opened.plan.item_keys == ("item_2", "item_3")
+        active = store.read_batches("campaign_1").active
+        assert active is not None
+        assert (active.batch_id, active.run_id) == ("batch_2", "run_2")
+        assert active.status is BatchStatus.STARTED
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_handoff("campaign_1") == handoff_before
+    finally:
+        lock.release()
+
+
+def test_blocked_transferred_resume_never_writes_started(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        batches_before = store.read_batches("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_TRANSFERRED_RESUME_BLOCKED_RESUME_NOT_READY",
+        ):
+            coordinator.open_transferred_resumed_batch(
+                session,
+                batch_id="batch_2",
+                replacement_run_id="run_2",
+                now=NOW,
+                policy=BatchPolicy(),
+            )
+
+        assert store.read_batches("campaign_1") == batches_before
+    finally:
+        lock.release()
+
+
+def test_transferred_resume_cannot_append_a_second_started_record(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        batches_before = store.read_batches("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_TRANSFERRED_RESUME_BLOCKED_FINISH_RECORD_MISMATCH",
+        ):
+            coordinator.open_transferred_resumed_batch(
+                session,
+                batch_id="batch_3",
+                replacement_run_id="run_2",
+                now=NOW,
+                policy=BatchPolicy(),
+            )
+
+        assert store.read_batches("campaign_1") == batches_before
     finally:
         lock.release()
 
