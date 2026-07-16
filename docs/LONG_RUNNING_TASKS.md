@@ -318,6 +318,12 @@ preflight. `READY` carries only `perform_bounded_read_only_extraction`; callers
 cannot substitute another item key, and no extraction or `EXTRACTED` write
 occurs.
 
+After a caller explicitly confirms that bounded read-only extraction finished,
+the locked coordinator may now use that session-bound preflight to append only
+the fixed `EXTRACTED` boundary for the resumed first item. Missing confirmation,
+blocked state, or repetition leaves the ledger unchanged. No extracted content
+or digest is stored, and the helper performs no extraction or runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

@@ -158,6 +158,11 @@ A read-only coordinator bridge may now feed that resumed session's exact first
 planned item into the existing observed-item extraction preflight. It returns
 only the bounded read-only extraction directive, does not accept a free-form
 item key, and does not extract content or write `EXTRACTED`.
+After exact bounded-read-only-extraction confirmation, the coordinator may now
+re-run that session-bound preflight and persist only the fixed `EXTRACTED`
+boundary for the resumed first item. Missing confirmation, blocked state, or
+repetition does not write; no application content, provider, MCP, desktop,
+runner, CLI, or side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
