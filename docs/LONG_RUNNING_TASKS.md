@@ -5,9 +5,9 @@
 > ledger, fixed handoff projection, pure bounded batch selector, and locked
 > heartbeat persistence plus pure freshness inspection are implemented without
 > execution authority. The manifest also supports locked, durable
-> `RUNNING`/`PAUSED` transitions. The current Agent Host does not yet implement
-> a batch runner, heartbeat timer, CLI command, or complete cross-session
-> handoff model.
+> `RUNNING`/`PAUSED` transitions and combined read-only stale-run inspection.
+> The current Agent Host does not yet implement a batch runner, heartbeat
+> timer, CLI command, or complete cross-session handoff model.
 
 ## Goal
 
@@ -229,6 +229,14 @@ An operator-requested pause may now atomically move the campaign manifest from
 resume returns only the manifest to `RUNNING`; it does not claim an item,
 restart a timer, re-observe an application, or authorize replay. Repeated pause
 or resume requests are idempotent and do not rewrite the transition timestamp.
+
+The combined stale-run inspector is available only while the campaign store's
+OS run lock is held. It reads the manifest, heartbeat, and current item claims,
+then reports a fixed blocking state for paused or terminal campaigns, missing
+or fresh heartbeat, active lease, or mismatched run ownership. It reports
+`STALE` only when a running campaign has a stale heartbeat and no active or
+foreign-owned claim. `STALE` is a candidate for a separately reviewed recovery
+step; it never authorizes item execution or action replay.
 
 - `RUNNING`: valid lease and fresh heartbeat;
 - `WAITING_APPROVAL`: explicit phase;
