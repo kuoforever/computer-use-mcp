@@ -250,6 +250,13 @@ come from that validated state and measured usage. Ready work, in-flight work,
 drift, stale ownership, or a repeated finish fails without a batch-ledger
 write. This helper does not create or rewrite `handoff.json`.
 
+After that fixed finish, a read-only handoff preflight can now revalidate the
+finished batch/run identity, fresh heartbeat ownership, committed plan prefix,
+absence of in-flight work, measured counters, fixed stop reason, and next
+durable item ordinal. `READY` carries only the fixed
+`write_current_campaign_handoff` directive. It does not create, replace, or
+read `handoff.json`, and grants no resume or execution authority.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
