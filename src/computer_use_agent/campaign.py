@@ -48,6 +48,30 @@ class CampaignStatus(str, Enum):
     FAILED = "FAILED"
 
 
+_HANDOFF_DIRECTIVES = {
+    CampaignStatus.RUNNING: (
+        "resume_batch",
+        "verify_current_page_and_account_state",
+    ),
+    CampaignStatus.PAUSED: (
+        "wait_for_resume",
+        "none_until_resumed",
+    ),
+    CampaignStatus.CHALLENGE: (
+        "wait_for_challenge_resolution",
+        "resolve_challenge_then_reobserve",
+    ),
+    CampaignStatus.COMPLETED: (
+        "none_completed",
+        "none",
+    ),
+    CampaignStatus.FAILED: (
+        "human_review_failed",
+        "review_failure_before_any_resume",
+    ),
+}
+
+
 class ItemStatus(str, Enum):
     DISCOVERED = "DISCOVERED"
     CLAIMED = "CLAIMED"
@@ -935,12 +959,16 @@ class CampaignStore:
         return updated
 
     def write_handoff(self, campaign_id: str, *, last_run_id: str) -> dict[str, object]:
-        """Atomically replace a fixed-schema handoff derived from the ledger."""
+        """Atomically replace a status-aware handoff derived from durable state."""
 
         self._require_lock()
         manifest = self.read_manifest(campaign_id)
         projection = self.read_ledger(campaign_id)
         _require_identifier(last_run_id)
+        try:
+            next_action, required_observation = _HANDOFF_DIRECTIVES[manifest.status]
+        except KeyError as exc:
+            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID") from exc
         payload: dict[str, object] = {
             "campaign_id": manifest.campaign_id,
             "campaign_version": CAMPAIGN_VERSION,
@@ -949,8 +977,8 @@ class CampaignStore:
             "retryable_count": projection.retryable_count,
             "uncertain_count": projection.uncertain_count,
             "last_run_id": last_run_id,
-            "next_action": "resume_batch",
-            "required_observation": "verify_current_page_and_account_state",
+            "next_action": next_action,
+            "required_observation": required_observation,
             "updated_at": _utc_now(),
         }
         self._atomic_write(
