@@ -390,6 +390,12 @@ planned item. The digest but no result content is stored, the derived cursor
 advances atomically, and invalid input, usage drift, blocked state, or repetition
 does not write.
 
+After the resumed plan's committed prefix covers every planned item, the
+existing read-only continuation preflight now exposes only the exact terminal
+state: `PLAN_COMPLETE` when no hard limit fired, or `LIMIT_REACHED` with the
+fixed limit reason when one did. Both outcomes require matching replacement-run
+usage, name no next item, and do not append `FINISHED` or alter durable state.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
