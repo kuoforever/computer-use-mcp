@@ -130,6 +130,11 @@ batch and handoff provenance to the replacement owner and its next bounded
 stable item plan. It returns only a fixed exact-batch-open directive and does
 not write `STARTED`, claim an item, or connect a provider, MCP, desktop action,
 runner, CLI, or side effect.
+The coordinator may now re-run that post-transfer preflight and persist one
+exact resumed `STARTED` record with the unchanged bounded plan. Blocked,
+empty, drifted, or repeated calls append nothing, and success still does not
+claim an item or connect a provider, MCP, desktop action, runner, CLI, or side
+effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

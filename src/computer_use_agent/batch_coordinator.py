@@ -774,6 +774,40 @@ class BatchCoordinator:
             required_open="open_exact_resumed_batch",
         )
 
+    def open_transferred_resumed_batch(
+        self,
+        session: BatchSession,
+        *,
+        batch_id: str,
+        replacement_run_id: str,
+        now: datetime,
+        policy: BatchPolicy,
+    ) -> BatchSession:
+        """Persist one exact resumed STARTED record after transfer validation."""
+
+        preflight = self.inspect_transferred_run_resume(
+            session,
+            replacement_run_id=replacement_run_id,
+            now=now,
+            policy=policy,
+        )
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_TRANSFERRED_RESUME_BLOCKED_{preflight.state.value}"
+            )
+        opened = self.open_resumed_batch(
+            campaign_id=session.campaign_id,
+            batch_id=batch_id,
+            run_id=replacement_run_id,
+            now=now,
+            policy=policy,
+        )
+        if not isinstance(opened, BatchSession) or (
+            opened.plan.item_keys != preflight.item_keys
+        ):
+            raise BatchCoordinatorError("BATCH_TRANSFERRED_RESUME_PLAN_DRIFT")
+        return opened
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 
