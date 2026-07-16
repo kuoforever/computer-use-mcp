@@ -68,6 +68,10 @@ directives. It performs no observation and writes no `OBSERVED` transition.
 Resume preflight now also blocks durable `OBSERVED` or `EXTRACTED` items as
 `ITEMS_IN_FLIGHT`; it cannot mistake those incomplete boundaries for an idle
 campaign merely because no current `CLAIMED` lease remains.
+A locked persistence helper can now advance one exact claimed item to
+`OBSERVED` only after explicit page/account and item-identity attestations and
+a fresh re-run of the claimed-item preflight. It does not perform observation,
+extraction, provider work, MCP dispatch, desktop actions, runner, or CLI work.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
