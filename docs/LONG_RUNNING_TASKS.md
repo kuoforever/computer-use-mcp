@@ -306,6 +306,12 @@ preflight. Callers do not supply a free-form item key. `READY` still carries
 only the fixed page/account and item-identity verification directives and does
 not write `OBSERVED` or perform either observation.
 
+After a caller explicitly attests both required observations, the locked
+coordinator may now use that session-bound preflight to append the exact fixed
+`OBSERVED` boundary for the resumed first item. Missing attestations, blocked
+state, or repetition leaves the ledger unchanged. The helper does not perform
+the observations or begin extraction or runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

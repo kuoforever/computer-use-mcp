@@ -34,6 +34,7 @@ from .campaign_item_preflight import (
     CampaignItemPreflightError,
     inspect_claimed_item,
 )
+from .campaign_item_progress import record_item_observed
 from .campaign_resume_planning import CampaignResumePlan, plan_campaign_resume
 from .heartbeat_inspection import (
     HeartbeatFreshness,
@@ -443,6 +444,34 @@ class BatchCoordinator:
             )
         except CampaignItemPreflightError as exc:
             raise BatchCoordinatorError("BATCH_FIRST_CLAIMED_ITEM_INVALID") from exc
+
+    def record_first_claimed_item_observed(
+        self,
+        session: BatchSession,
+        *,
+        now: datetime,
+        application_state_verified: bool,
+        item_identity_verified: bool,
+    ) -> ItemTransition:
+        """Persist OBSERVED for the exact first item after explicit attestations."""
+
+        if application_state_verified is not True or item_identity_verified is not True:
+            raise BatchCoordinatorError("BATCH_FIRST_ITEM_OBSERVATION_REQUIRED")
+        preflight = self.inspect_first_claimed_item(session, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_FIRST_ITEM_OBSERVATION_BLOCKED_{preflight.state.value}"
+            )
+        return record_item_observed(
+            self.store,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            item_key=preflight.item_key,
+            now=now,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
 
     def inspect_continuation(
         self,

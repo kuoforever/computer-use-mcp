@@ -149,6 +149,11 @@ planned item into the existing claimed-item re-observation preflight, removing
 free-form item selection at that boundary. It does not write `OBSERVED`,
 perform observations, or connect a provider, MCP, desktop action, runner, CLI,
 or side effect.
+After exact page/account and item-identity attestations, the coordinator may
+now re-run that session-bound preflight and persist only the fixed `OBSERVED`
+boundary for the resumed first item. Missing attestations, blocked state, or
+repetition does not write, and no observation, extraction, provider, MCP,
+desktop, runner, CLI, or side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
