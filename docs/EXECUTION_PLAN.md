@@ -115,6 +115,11 @@ fixed handoff projection for the finished run. Ledger-derived counts and next
 ordinal are preserved; blocked state never creates or replaces the file, and
 the helper does not resume work, open a batch, or connect a provider, MCP,
 desktop action, runner, CLI, or side effect.
+A read-only clean run-transfer preflight now checks the validated finished
+handoff, current fresh heartbeat owner, distinct replacement run ID, and exact
+injected transfer time before returning one fixed heartbeat-owner replacement
+directive. It does not mutate heartbeat state, resume work, open a batch, or
+connect a provider, MCP, desktop action, runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

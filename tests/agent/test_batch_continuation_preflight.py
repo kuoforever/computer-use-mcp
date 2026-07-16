@@ -10,6 +10,7 @@ from computer_use_agent.batch_coordinator import (
     BatchCoordinator,
     BatchCoordinatorError,
     BatchHandoffState,
+    BatchRunTransferState,
     BatchSession,
 )
 from computer_use_agent.batching import BatchPlan, BatchPolicy, BatchStopReason, BatchUsage
@@ -614,6 +615,130 @@ def test_blocked_finished_handoff_never_creates_or_replaces_state(tmp_path: Path
                 now=datetime(2026, 7, 16, 0, 12, tzinfo=timezone.utc),
             )
         assert handoff_path.read_bytes() == b"existing-handoff-sentinel"
+    finally:
+        lock.release()
+
+
+def _replacement_heartbeat(
+    *,
+    campaign_id: str = "campaign_1",
+    run_id: str = "run_2",
+    started_at: str = "2026-07-16T00:10:00+00:00",
+    heartbeat_at: str = "2026-07-16T00:10:00+00:00",
+    fresh_until: str = "2026-07-16T00:15:00+00:00",
+) -> CampaignHeartbeat:
+    return CampaignHeartbeat(
+        campaign_id=campaign_id,
+        run_id=run_id,
+        started_at=started_at,
+        heartbeat_at=heartbeat_at,
+        fresh_until=fresh_until,
+    )
+
+
+def test_finished_handoff_is_ready_for_exact_new_run_transfer(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_before = store.read_handoff("campaign_1")
+
+        result = coordinator.inspect_finished_run_transfer(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+
+        assert result.state is BatchRunTransferState.READY
+        assert result.ready
+        assert result.finished_run_id == "run_1"
+        assert result.replacement_run_id == "run_2"
+        assert result.next_item_ordinal == 2
+        assert result.required_transfer == "replace_finished_run_heartbeat_owner"
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_handoff("campaign_1") == handoff_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize(
+    ("replacement", "state"),
+    [
+        (_replacement_heartbeat(run_id="run_1"), BatchRunTransferState.REPLACEMENT_RUN_REUSED),
+        (
+            _replacement_heartbeat(campaign_id="campaign_other"),
+            BatchRunTransferState.REPLACEMENT_CAMPAIGN_MISMATCH,
+        ),
+        (
+            _replacement_heartbeat(
+                started_at="2026-07-16T00:09:00+00:00",
+                heartbeat_at="2026-07-16T00:09:00+00:00",
+                fresh_until="2026-07-16T00:14:00+00:00",
+            ),
+            BatchRunTransferState.REPLACEMENT_TIME_MISMATCH,
+        ),
+    ],
+)
+def test_reused_or_wrong_time_replacement_run_is_never_transferred(
+    tmp_path: Path,
+    replacement: CampaignHeartbeat,
+    state: BatchRunTransferState,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        result = coordinator.inspect_finished_run_transfer(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=replacement,
+        )
+
+        assert result.state is state
+        assert not result.ready
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+    finally:
+        lock.release()
+
+
+def test_handoff_last_run_mismatch_blocks_clean_transfer(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=2,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        store.write_handoff("campaign_1", last_run_id="run_other")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        result = coordinator.inspect_finished_run_transfer(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+
+        assert result.state is BatchRunTransferState.HANDOFF_RUN_MISMATCH
+        assert not result.ready
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
     finally:
         lock.release()
 
