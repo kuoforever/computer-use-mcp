@@ -1092,6 +1092,54 @@ def test_first_claim_preflight_blocks_an_existing_claim_without_writes(
         lock.release()
 
 
+def test_first_claim_persistence_uses_the_exact_preflight_boundary(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=2),
+        )
+        preflight = coordinator.inspect_first_item_claim(
+            resumed,
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        claimed = coordinator.claim_first_item(
+            resumed,
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        assert preflight.ready
+        assert claimed.item_key == preflight.item_key == "item_2"
+        assert claimed.ordinal == preflight.item_ordinal == 2
+        assert claimed.attempt == preflight.attempt == 1
+        assert claimed.lease_expires_at == preflight.lease_expires_at
+        assert claimed.status is ItemStatus.CLAIMED
+        assert store.read_ledger("campaign_1").items["item_3"].status is ItemStatus.DISCOVERED
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [

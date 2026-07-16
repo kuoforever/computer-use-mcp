@@ -294,6 +294,12 @@ item, next attempt, and bounded lease expiry. `READY` carries only the fixed
 `claim_exact_first_planned_item` directive. It does not append `CLAIMED`,
 observe an application, or start provider, MCP, desktop, runner, or CLI work.
 
+The locked coordinator now re-runs that first-claim preflight before appending
+the exact fixed `CLAIMED` transition. The persisted item identity, attempt, and
+lease expiry come directly from the validated boundary. Blocked or repeated
+calls preserve the prior ledger and still perform no observation or runtime
+work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

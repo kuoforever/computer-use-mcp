@@ -374,71 +374,48 @@ class BatchCoordinator:
     ) -> ItemTransition:
         """Claim the exact first planned item without performing its operation."""
 
-        if not isinstance(session, BatchSession):
-            raise BatchCoordinatorError("BATCH_SESSION_INVALID")
-        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
+        preflight = self.inspect_first_item_claim(
+            session,
+            now=now,
+            lease_seconds=lease_seconds,
+        )
+        if not preflight.ready:
+            error_codes = {
+                BatchFirstClaimState.CAMPAIGN_NOT_RUNNING: "BATCH_CAMPAIGN_NOT_RUNNING",
+                BatchFirstClaimState.BATCH_NOT_ACTIVE: "BATCH_NOT_ACTIVE",
+                BatchFirstClaimState.BATCH_OWNER_MISMATCH: "BATCH_NOT_ACTIVE",
+                BatchFirstClaimState.HEARTBEAT_MISSING: "BATCH_HEARTBEAT_OWNER_MISMATCH",
+                BatchFirstClaimState.HEARTBEAT_STALE: "BATCH_HEARTBEAT_NOT_FRESH",
+                BatchFirstClaimState.HEARTBEAT_OWNER_MISMATCH: "BATCH_HEARTBEAT_OWNER_MISMATCH",
+                BatchFirstClaimState.ITEM_CLAIM_ACTIVE: "BATCH_ITEM_CLAIM_ACTIVE",
+                BatchFirstClaimState.PLAN_DRIFT: "BATCH_PLAN_DRIFT",
+                BatchFirstClaimState.ITEM_NOT_CLAIMABLE: "BATCH_PLAN_INVALID",
+                BatchFirstClaimState.ITEM_TIME_INVALID: "BATCH_CLOCK_INVALID",
+            }
+            raise BatchCoordinatorError(error_codes[preflight.state])
         if (
-            isinstance(lease_seconds, bool)
-            or not isinstance(lease_seconds, int)
-            or not 0 < lease_seconds <= MAX_ITEM_LEASE_SECONDS
+            preflight.item_key is None
+            or preflight.item_ordinal is None
+            or preflight.attempt is None
         ):
-            raise BatchCoordinatorError("BATCH_LEASE_INVALID")
-
-        manifest = self.store.read_manifest(session.campaign_id)
-        if manifest.status is not CampaignStatus.RUNNING:
-            raise BatchCoordinatorError("BATCH_CAMPAIGN_NOT_RUNNING")
-        active = self.store.read_batches(session.campaign_id).active
-        if active is None or (active.batch_id, active.run_id) != (
-            session.batch_id,
-            session.run_id,
-        ):
-            raise BatchCoordinatorError("BATCH_NOT_ACTIVE")
-        try:
-            heartbeat = inspect_heartbeat(
-                self.store.read_heartbeat(session.campaign_id), now=now
-            )
-        except HeartbeatInspectionError as exc:
-            raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
-        if heartbeat.run_id != session.run_id:
-            raise BatchCoordinatorError("BATCH_HEARTBEAT_OWNER_MISMATCH")
-        if not heartbeat.is_fresh:
-            raise BatchCoordinatorError("BATCH_HEARTBEAT_NOT_FRESH")
-
-        projection = self.store.read_ledger(session.campaign_id)
-        if any(item.status is ItemStatus.CLAIMED for item in projection.items.values()):
-            raise BatchCoordinatorError("BATCH_ITEM_CLAIM_ACTIVE")
-        current_plan = plan_batch(projection, session.policy, BatchUsage())
-        if current_plan != session.plan or not current_plan.item_keys:
-            raise BatchCoordinatorError("BATCH_PLAN_DRIFT")
-        selected = projection.items.get(current_plan.item_keys[0])
-        if selected is None or selected.status not in {
-            ItemStatus.DISCOVERED,
-            ItemStatus.RETRYABLE,
-        }:
             raise BatchCoordinatorError("BATCH_PLAN_INVALID")
-        if datetime.fromisoformat(selected.at) > now:
-            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
 
         claimed_at = now.isoformat(timespec="seconds")
-        lease_expires_at = (now + timedelta(seconds=lease_seconds)).isoformat(
-            timespec="seconds"
-        )
         updated = self.store.append(
             session.campaign_id,
             ItemTransition(
                 sequence=1,
-                ordinal=selected.ordinal,
-                item_key=selected.item_key,
+                ordinal=preflight.item_ordinal,
+                item_key=preflight.item_key,
                 status=ItemStatus.CLAIMED,
-                attempt=selected.attempt + 1,
+                attempt=preflight.attempt,
                 at=claimed_at,
                 run_id=session.run_id,
-                lease_expires_at=lease_expires_at,
+                lease_expires_at=preflight.lease_expires_at,
                 boundary="claim",
             ),
         )
-        return updated.items[selected.item_key]
+        return updated.items[preflight.item_key]
 
     def inspect_continuation(
         self,

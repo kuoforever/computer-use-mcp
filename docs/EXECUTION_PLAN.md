@@ -140,6 +140,10 @@ to its fresh heartbeat owner, unchanged plan, exact first stable item, next
 attempt, and bounded lease expiry. It returns only a fixed claim directive and
 does not write `CLAIMED` or connect a provider, MCP, desktop action, runner,
 CLI, or side effect.
+The coordinator now re-runs that preflight before persisting the exact first
+`CLAIMED` transition, using its validated item identity, attempt, and lease
+expiry. Blocked or repeated calls do not change the ledger, and success still
+does not connect a provider, MCP, desktop action, runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
