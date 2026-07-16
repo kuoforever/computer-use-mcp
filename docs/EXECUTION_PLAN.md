@@ -144,6 +144,11 @@ The coordinator now re-runs that preflight before persisting the exact first
 `CLAIMED` transition, using its validated item identity, attempt, and lease
 expiry. Blocked or repeated calls do not change the ledger, and success still
 does not connect a provider, MCP, desktop action, runner, CLI, or side effect.
+A read-only coordinator bridge may now feed the resumed session's exact first
+planned item into the existing claimed-item re-observation preflight, removing
+free-form item selection at that boundary. It does not write `OBSERVED`,
+perform observations, or connect a provider, MCP, desktop action, runner, CLI,
+or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
