@@ -10,7 +10,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
-from .batching import BatchPlan, BatchPolicy, BatchUsage, batch_stop_reason, plan_batch
+from .batching import (
+    BatchPlan,
+    BatchPolicy,
+    BatchStopReason,
+    BatchUsage,
+    batch_stop_reason,
+    plan_batch,
+)
 from .campaign import (
     MAX_ITEM_LEASE_SECONDS,
     BatchStatus,
@@ -21,7 +28,11 @@ from .campaign import (
     ItemTransition,
 )
 from .campaign_resume_planning import CampaignResumePlan, plan_campaign_resume
-from .heartbeat_inspection import HeartbeatInspectionError, inspect_heartbeat
+from .heartbeat_inspection import (
+    HeartbeatFreshness,
+    HeartbeatInspectionError,
+    inspect_heartbeat,
+)
 
 
 class BatchCoordinatorError(RuntimeError):
@@ -32,6 +43,21 @@ class BatchCompletionReason(str, Enum):
     PLAN_COMPLETE = "PLAN_COMPLETE"
 
 
+class BatchContinuationState(str, Enum):
+    READY = "READY"
+    CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
+    BATCH_NOT_ACTIVE = "BATCH_NOT_ACTIVE"
+    BATCH_OWNER_MISMATCH = "BATCH_OWNER_MISMATCH"
+    HEARTBEAT_MISSING = "HEARTBEAT_MISSING"
+    HEARTBEAT_STALE = "HEARTBEAT_STALE"
+    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
+    ITEMS_IN_FLIGHT = "ITEMS_IN_FLIGHT"
+    PLAN_DRIFT = "PLAN_DRIFT"
+    USAGE_MISMATCH = "USAGE_MISMATCH"
+    LIMIT_REACHED = "LIMIT_REACHED"
+    PLAN_COMPLETE = "PLAN_COMPLETE"
+
+
 @dataclass(frozen=True)
 class BatchSession:
     campaign_id: str
@@ -39,6 +65,23 @@ class BatchSession:
     run_id: str
     policy: BatchPolicy
     plan: BatchPlan
+
+
+@dataclass(frozen=True)
+class BatchContinuationPreflight:
+    state: BatchContinuationState
+    campaign_id: str
+    batch_id: str
+    run_id: str
+    completed_items: int
+    next_item_key: str | None
+    next_item_ordinal: int | None
+    stop_reason: BatchStopReason | None
+    required_claim: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchContinuationState.READY
 
 
 class BatchCoordinator:
@@ -187,6 +230,109 @@ class BatchCoordinator:
         )
         return updated.items[selected.item_key]
 
+    def inspect_continuation(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+    ) -> BatchContinuationPreflight:
+        """Inspect the exact next planned item after a committed prefix."""
+
+        if not isinstance(session, BatchSession) or not isinstance(usage, BatchUsage):
+            raise BatchCoordinatorError("BATCH_CONTINUATION_INVALID")
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
+
+        manifest = self.store.read_manifest(session.campaign_id)
+        active = self.store.read_batches(session.campaign_id).active
+        projection = self.store.read_ledger(session.campaign_id)
+        try:
+            heartbeat = inspect_heartbeat(
+                self.store.read_heartbeat(session.campaign_id), now=now
+            )
+        except HeartbeatInspectionError as exc:
+            raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
+
+        planned = session.plan.item_keys
+        completed_items = 0
+        for item_key in planned:
+            item = projection.items.get(item_key)
+            if (
+                item is not None
+                and item.status is ItemStatus.COMMITTED
+                and item.run_id == session.run_id
+            ):
+                completed_items += 1
+            else:
+                break
+        committed_by_run = {
+            item.item_key
+            for item in projection.items.values()
+            if item.status is ItemStatus.COMMITTED and item.run_id == session.run_id
+        }
+        expected_committed = set(planned[:completed_items])
+        in_flight = any(
+            item.status in {ItemStatus.CLAIMED, ItemStatus.OBSERVED, ItemStatus.EXTRACTED}
+            for item in projection.items.values()
+        )
+        reason = batch_stop_reason(session.policy, usage)
+        next_item_key: str | None = None
+        next_item_ordinal: int | None = None
+        stop_reason: BatchStopReason | None = None
+
+        if manifest.status is not CampaignStatus.RUNNING:
+            state = BatchContinuationState.CAMPAIGN_NOT_RUNNING
+        elif active is None:
+            state = BatchContinuationState.BATCH_NOT_ACTIVE
+        elif (active.batch_id, active.run_id) != (session.batch_id, session.run_id):
+            state = BatchContinuationState.BATCH_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.MISSING:
+            state = BatchContinuationState.HEARTBEAT_MISSING
+        elif heartbeat.run_id != session.run_id:
+            state = BatchContinuationState.HEARTBEAT_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.STALE:
+            state = BatchContinuationState.HEARTBEAT_STALE
+        elif in_flight:
+            state = BatchContinuationState.ITEMS_IN_FLIGHT
+        elif not planned or session.plan.stop_reason is not None:
+            state = BatchContinuationState.PLAN_DRIFT
+        elif committed_by_run != expected_committed:
+            state = BatchContinuationState.PLAN_DRIFT
+        elif usage.items_completed != completed_items:
+            state = BatchContinuationState.USAGE_MISMATCH
+        elif reason is not None:
+            state = BatchContinuationState.LIMIT_REACHED
+            stop_reason = reason
+        elif completed_items == len(planned):
+            state = BatchContinuationState.PLAN_COMPLETE
+        else:
+            expected_key = planned[completed_items]
+            selected = projection.items.get(expected_key)
+            current_plan = plan_batch(projection, session.policy, usage)
+            if (
+                selected is None
+                or selected.status not in {ItemStatus.DISCOVERED, ItemStatus.RETRYABLE}
+                or not current_plan.item_keys
+                or current_plan.item_keys[0] != expected_key
+            ):
+                state = BatchContinuationState.PLAN_DRIFT
+            else:
+                state = BatchContinuationState.READY
+                next_item_key = selected.item_key
+                next_item_ordinal = selected.ordinal
+        return BatchContinuationPreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            completed_items=completed_items,
+            next_item_key=next_item_key,
+            next_item_ordinal=next_item_ordinal,
+            stop_reason=stop_reason,
+            required_claim="claim_exact_next_planned_item",
+        )
+
     def finish_batch(self, session: BatchSession, usage: BatchUsage) -> str:
         """Derive and persist a terminal boundary from measured bounded usage."""
 
@@ -235,6 +381,8 @@ def _utc_now() -> str:
 
 __all__ = [
     "BatchCompletionReason",
+    "BatchContinuationPreflight",
+    "BatchContinuationState",
     "BatchCoordinator",
     "BatchCoordinatorError",
     "BatchSession",

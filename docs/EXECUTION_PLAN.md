@@ -85,6 +85,16 @@ heartbeat, unique in-flight item, and item ownership before returning fixed
 result-verification and digest/result-code preparation directives. It remains
 read-only and does not write `COMMITTED`, advance the cursor, or connect a
 provider, MCP, desktop action, runner, CLI, or side effect.
+The item-progress helper may now append a fixed `COMMITTED` boundary only after
+an exact result-verification confirmation, a valid SHA-256 content digest, and
+a fresh commit preflight. The atomic ledger append advances the derived cursor
+without rewriting handoff state; it stores no result content and still has no
+provider, MCP, desktop, runner, CLI, or side-effect connection.
+A read-only batch-continuation preflight now validates the committed plan
+prefix, measured completed count, stable next-item order, active ownership,
+fresh heartbeat, absence of in-flight work, and every hard limit before naming
+the exact next planned item. It does not claim that item, close the batch, or
+connect a provider, MCP, desktop action, runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

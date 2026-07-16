@@ -223,6 +223,20 @@ bounded extraction result and prepare its content digest plus fixed result
 code. It does not inspect result content, calculate a digest, write
 `COMMITTED`, advance the campaign cursor, or authorize side effects.
 
+After a caller explicitly confirms the bounded result and supplies an exact
+SHA-256 content digest, the locked item-progress helper may now re-run that
+preflight and append only the fixed `COMMITTED`/`READ_ONLY_RESULT_VERIFIED`
+boundary. The append atomically advances the ledger projection's derived
+cursor. It stores the digest but no result content, does not rewrite the
+handoff, and cannot commit side-effect work.
+
+After a committed prefix, a read-only batch-continuation preflight can now
+revalidate the active batch/run, fresh matching heartbeat, measured completed
+count, original plan prefix, current stable item order, and every hard batch
+limit. `READY` identifies only the exact next planned item and the fixed
+`claim_exact_next_planned_item` directive. Plan drift, in-flight work, usage
+drift, a reached limit, or a completed plan never writes or claims an item.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

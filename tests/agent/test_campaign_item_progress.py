@@ -11,11 +11,14 @@ from computer_use_agent.campaign import (
     CampaignHeartbeat,
     CampaignManifest,
     CampaignStore,
+    CampaignStoreError,
     ItemStatus,
     ItemTransition,
+    campaign_dir,
 )
 from computer_use_agent.campaign_item_progress import (
     CampaignItemProgressError,
+    record_item_committed,
     record_item_extracted,
     record_item_observed,
 )
@@ -23,6 +26,7 @@ from computer_use_agent.run_lock import RunLock
 
 
 DIGEST = "a" * 64
+CONTENT_DIGEST = "b" * 64
 NOW = datetime(2026, 7, 16, 0, 10, tzinfo=timezone.utc)
 
 
@@ -91,6 +95,20 @@ def _extract(store: CampaignStore, **overrides: object) -> ItemTransition:
         **overrides,
     }
     return record_item_extracted(store, **arguments)  # type: ignore[arg-type]
+
+
+def _commit(store: CampaignStore, **overrides: object) -> ItemTransition:
+    arguments: dict[str, object] = {
+        "campaign_id": "campaign_1",
+        "batch_id": "batch_1",
+        "run_id": "run_1",
+        "item_key": "item_1",
+        "now": NOW,
+        "bounded_result_verified": True,
+        "content_digest": CONTENT_DIGEST,
+        **overrides,
+    }
+    return record_item_committed(store, **arguments)  # type: ignore[arg-type]
 
 
 def test_confirmed_observation_appends_only_the_fixed_observed_boundary(
@@ -233,6 +251,116 @@ def test_repeated_extraction_is_never_written(tmp_path: Path) -> None:
         ):
             _extract(store)
 
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_verified_result_appends_only_fixed_commit_and_advances_projection_cursor(
+    tmp_path: Path,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        _extract(store)
+        store.write_handoff("campaign_1", last_run_id="run_1")
+        handoff_path = campaign_dir(store.state_dir, "campaign_1") / "handoff.json"
+        handoff_before = handoff_path.read_bytes()
+        manifest_before = store.read_manifest("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+
+        committed = _commit(store)
+        projection = store.read_ledger("campaign_1")
+
+        assert committed.status is ItemStatus.COMMITTED
+        assert committed.attempt == 1
+        assert committed.run_id == "run_1"
+        assert committed.boundary == "result_verified"
+        assert committed.code == "READ_ONLY_RESULT_VERIFIED"
+        assert committed.content_digest == CONTENT_DIGEST
+        assert projection.completed_count == 1
+        assert projection.next_ordinal == 2
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert handoff_path.read_bytes() == handoff_before
+        with pytest.raises(CampaignStoreError, match="CAMPAIGN_HANDOFF_INVALID"):
+            store.read_handoff("campaign_1")
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize("confirmation", [False, 1, None])
+def test_exact_result_verification_is_required_without_mutation(
+    tmp_path: Path,
+    confirmation: object,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        _extract(store)
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(
+            CampaignItemProgressError,
+            match="ITEM_COMMIT_VERIFICATION_REQUIRED",
+        ):
+            _commit(store, bounded_result_verified=confirmation)
+
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize("digest", ["b" * 63, "B" * 64, 1, None])
+def test_commit_requires_exact_sha256_digest_without_mutation(
+    tmp_path: Path,
+    digest: object,
+) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        _extract(store)
+        ledger_before = store.read_ledger("campaign_1")
+
+        with pytest.raises(CampaignItemProgressError, match="ITEM_COMMIT_DIGEST_INVALID"):
+            _commit(store, content_digest=digest)
+
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_stale_or_repeated_commit_is_never_written(tmp_path: Path) -> None:
+    store, lock, _opened = _claimed_store(tmp_path)
+    try:
+        _record(store)
+        _extract(store)
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(
+            CampaignItemProgressError,
+            match="ITEM_COMMIT_BLOCKED_HEARTBEAT_STALE",
+        ):
+            _commit(
+                store,
+                now=datetime(2026, 7, 16, 0, 12, tzinfo=timezone.utc),
+            )
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+    store, lock, _opened = _claimed_store(tmp_path / "repeated")
+    try:
+        _record(store)
+        _extract(store)
+        _commit(store)
+        ledger_before = store.read_ledger("campaign_1")
+        with pytest.raises(
+            CampaignItemProgressError,
+            match="ITEM_COMMIT_BLOCKED_ITEM_NOT_EXTRACTED",
+        ):
+            _commit(store)
         assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
