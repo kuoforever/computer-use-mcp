@@ -211,7 +211,9 @@ coarse interval. The operator UI may display:
 - terminal campaign states.
 
 Reclaiming stale work requires validating both the OS lock and the item lease.
-Never infer permission to replay an action from an expired heartbeat.
+The current read-only lease inspector reports `CLAIMED` items as active or
+stale using an injected timestamp; it does not reclaim them. Never infer
+permission to replay an action from an expired heartbeat.
 
 ## Retry classes
 
