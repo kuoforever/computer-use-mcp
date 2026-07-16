@@ -53,8 +53,9 @@ Its reader rejects schema, status, count, or cursor drift against current
 durable state. The foundation has no batch runner, CLI command, provider, MCP,
 or desktop connection. A read-only resume preflight can now require a valid
 resumable handoff, fresh matching heartbeat, idle batch ledger, and no current
-claims without starting work. Deterministic cross-session execution remains
-the next step.
+claims without starting work. A pure resume planner can then apply the bounded
+batch selector without writing `STARTED`. Deterministic cross-session execution
+remains the next step.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
