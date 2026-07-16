@@ -614,6 +614,41 @@ class BatchCoordinator:
         except CampaignCommitPreflightError as exc:
             raise BatchCoordinatorError("BATCH_NEXT_EXTRACTED_ITEM_INVALID") from exc
 
+    def record_next_extracted_item_committed(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+        bounded_result_verified: bool,
+        content_digest: str,
+    ) -> ItemTransition:
+        """Persist COMMITTED for the exact continued item after verification."""
+
+        if bounded_result_verified is not True:
+            raise BatchCoordinatorError("BATCH_NEXT_ITEM_COMMIT_VERIFICATION_REQUIRED")
+        if (
+            not isinstance(content_digest, str)
+            or len(content_digest) != 64
+            or any(character not in "0123456789abcdef" for character in content_digest)
+        ):
+            raise BatchCoordinatorError("BATCH_NEXT_ITEM_COMMIT_DIGEST_INVALID")
+        preflight = self.inspect_next_extracted_item(session, usage=usage, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_NEXT_ITEM_COMMIT_BLOCKED_{preflight.state.value}"
+            )
+        return record_item_committed(
+            self.store,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            item_key=preflight.item_key,
+            now=now,
+            bounded_result_verified=True,
+            content_digest=content_digest,
+        )
+
     def record_first_claimed_item_observed(
         self,
         session: BatchSession,
