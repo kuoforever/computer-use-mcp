@@ -362,6 +362,13 @@ fixed `OBSERVED` boundary for the exact next planned item. Missing attestations,
 usage drift, blocked state, or repetition leaves the ledger unchanged. The
 helper performs no observation and starts no extraction or runtime work.
 
+After that boundary, a read-only coordinator bridge can now derive the exact
+observed item from the resumed plan's replacement-run committed prefix and
+matching run-local usage, then feed it into the existing bounded extraction
+preflight. Callers cannot supply an item key; `READY` returns only
+`perform_bounded_read_only_extraction` and does not extract content or write
+`EXTRACTED`.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
