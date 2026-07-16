@@ -369,6 +369,13 @@ preflight. Callers cannot supply an item key; `READY` returns only
 `perform_bounded_read_only_extraction` and does not extract content or write
 `EXTRACTED`.
 
+After explicit confirmation that bounded read-only extraction finished, the
+locked coordinator may now re-run that continued-item preflight and append only
+the fixed `EXTRACTED` boundary for the exact next planned item. Missing
+confirmation, usage drift, blocked state, or repetition leaves the ledger
+unchanged. No application content or digest is stored and no runtime work is
+performed.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

@@ -194,6 +194,11 @@ A read-only coordinator bridge may now derive that exact continued observation
 from the replacement run's committed prefix and matching run-local usage, then
 feed it into the existing bounded extraction preflight. It accepts no item key,
 extracts no content, writes no `EXTRACTED`, and starts no runtime work.
+After exact bounded-read-only-extraction confirmation, the coordinator may now
+re-run that continued-item preflight and persist only its fixed `EXTRACTED`
+boundary. Missing confirmation, usage drift, blocked state, or repetition does
+not write, and no application content, provider, MCP, desktop, runner, CLI, or
+side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
