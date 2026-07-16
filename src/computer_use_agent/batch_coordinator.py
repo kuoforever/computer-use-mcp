@@ -492,6 +492,35 @@ class BatchCoordinator:
         except CampaignItemPreflightError as exc:
             raise BatchCoordinatorError("BATCH_NEXT_CLAIMED_ITEM_INVALID") from exc
 
+    def record_next_claimed_item_observed(
+        self,
+        session: BatchSession,
+        *,
+        usage: BatchUsage,
+        now: datetime,
+        application_state_verified: bool,
+        item_identity_verified: bool,
+    ) -> ItemTransition:
+        """Persist OBSERVED for the exact continued item after attestations."""
+
+        if application_state_verified is not True or item_identity_verified is not True:
+            raise BatchCoordinatorError("BATCH_NEXT_ITEM_OBSERVATION_REQUIRED")
+        preflight = self.inspect_next_claimed_item(session, usage=usage, now=now)
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_NEXT_ITEM_OBSERVATION_BLOCKED_{preflight.state.value}"
+            )
+        return record_item_observed(
+            self.store,
+            campaign_id=session.campaign_id,
+            batch_id=session.batch_id,
+            run_id=session.run_id,
+            item_key=preflight.item_key,
+            now=now,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+
     def record_first_claimed_item_observed(
         self,
         session: BatchSession,

@@ -185,6 +185,11 @@ A read-only coordinator bridge may now derive that exact continued claim from
 the replacement run's committed prefix and matching run-local usage, then feed
 it into the existing claimed-item re-observation preflight. It accepts no item
 key, writes no `OBSERVED` boundary, and performs no observation or runtime work.
+After exact page/account and item-identity attestations, the coordinator may now
+re-run that continued-item preflight and persist only its fixed `OBSERVED`
+boundary. Missing attestations, usage drift, blocked state, or repetition does
+not write, and no observation, extraction, provider, MCP, desktop, runner, CLI,
+or side-effect path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
