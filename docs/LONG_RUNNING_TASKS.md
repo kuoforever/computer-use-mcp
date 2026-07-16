@@ -243,6 +243,13 @@ lease owned by the active batch run. An empty committed prefix, repeated call,
 limit boundary, plan or usage drift, stale control state, or invalid lease
 fails without a write. The helper does not observe or execute the claimed item.
 
+At a continuation boundary, the locked coordinator may now append `FINISHED`
+only when a fresh continuation preflight reports a reached hard limit or the
+entire original plan committed. The fixed stop code and all bounded counters
+come from that validated state and measured usage. Ready work, in-flight work,
+drift, stale ownership, or a repeated finish fails without a batch-ledger
+write. This helper does not create or rewrite `handoff.json`.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

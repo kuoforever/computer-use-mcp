@@ -100,6 +100,11 @@ exact next item after re-running the continuation preflight. It requires a
 nonempty committed prefix and fails closed on repeated calls, limits, drift,
 stale control state, or invalid leases; no observation, execution, provider,
 MCP, desktop, runner, CLI, or side-effect path is connected.
+A continuation-validated finish helper may now append `FINISHED` only for a
+reached hard limit or a fully committed original plan, persisting the exact
+fixed stop code and bounded measured counters. It rejects ready or in-flight
+work, drift, stale ownership, and repeated closure, and does not write handoff
+state or connect a provider, MCP, desktop action, runner, CLI, or side effect.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
