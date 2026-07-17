@@ -780,6 +780,37 @@ class CampaignStore:
         )
         return updated
 
+    def complete_campaign(self, campaign_id: str, *, at: str) -> CampaignManifest:
+        """Atomically mark one running campaign complete without starting work."""
+
+        self._require_lock()
+        try:
+            _require_timestamp(at)
+        except CampaignStoreError as exc:
+            raise CampaignStoreError("CAMPAIGN_COMPLETION_INVALID") from exc
+        current = self.read_manifest(campaign_id)
+        if (
+            current.status is not CampaignStatus.RUNNING
+            or datetime.fromisoformat(at) < datetime.fromisoformat(current.updated_at)
+        ):
+            raise CampaignStoreError("CAMPAIGN_COMPLETION_INVALID")
+        updated = CampaignManifest(
+            campaign_id=current.campaign_id,
+            kind=current.kind,
+            policy_digest=current.policy_digest,
+            schema_digest=current.schema_digest,
+            created_at=current.created_at,
+            updated_at=at,
+            status=CampaignStatus.COMPLETED,
+        )
+        self._atomic_write(
+            self._path(campaign_id, "manifest.json"),
+            _canonical(updated.as_json()) + b"\n",
+            create=False,
+            maximum=MAX_CAMPAIGN_MANIFEST_BYTES,
+        )
+        return updated
+
     def read_heartbeat(self, campaign_id: str) -> CampaignHeartbeat | None:
         """Read fixed liveness state without inferring that a worker is alive."""
 

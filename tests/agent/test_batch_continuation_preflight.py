@@ -4075,6 +4075,99 @@ def test_transfer_with_remaining_item_is_not_ready_for_campaign_completion(
         lock.release()
 
 
+def test_exhausted_campaign_completion_updates_only_manifest(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_path = (
+            tmp_path / "state" / "campaigns" / "campaign_1" / "handoff.json"
+        )
+        handoff_before = handoff_path.read_bytes()
+
+        completed = coordinator.complete_exhausted_campaign(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+
+        assert completed.status.value == "COMPLETED"
+        assert completed.updated_at == NOW.isoformat(timespec="seconds")
+        assert store.read_manifest("campaign_1") == completed
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert handoff_path.read_bytes() == handoff_before
+
+        manifest_bytes = (
+            tmp_path / "state" / "campaigns" / "campaign_1" / "manifest.json"
+        ).read_bytes()
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_CAMPAIGN_COMPLETION_BLOCKED_CAMPAIGN_NOT_RUNNING",
+        ):
+            coordinator.complete_exhausted_campaign(
+                session,
+                replacement_run_id="run_2",
+                now=NOW,
+                policy=BatchPolicy(),
+            )
+        assert (
+            tmp_path / "state" / "campaigns" / "campaign_1" / "manifest.json"
+        ).read_bytes() == manifest_bytes
+    finally:
+        lock.release()
+
+
+def test_campaign_completion_with_remaining_item_does_not_write(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        manifest_before = store.read_manifest("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_CAMPAIGN_COMPLETION_BLOCKED_RESUME_NOT_EXHAUSTED",
+        ):
+            coordinator.complete_exhausted_campaign(
+                session,
+                replacement_run_id="run_2",
+                now=NOW,
+                policy=BatchPolicy(),
+            )
+
+        assert store.read_manifest("campaign_1") == manifest_before
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [
