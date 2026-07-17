@@ -205,10 +205,12 @@ fixed restart/resume extension creates a new Runner run, rebuilds the finished
 session from manifest, ledgers, handoff, and heartbeat rather than accepting
 task text or an old `BatchSession`, transfers heartbeat ownership, and accepts
 only the exhausted resume decision. It makes no provider or MCP call and
-exposes no selector, side effect, campaign creation, campaign completion, or heartbeat
-retirement. Fixed CLI commands consume the pre-claimed execution and fresh-run
-resume boundaries; provider access is forbidden and only bounded control/result
-metadata is printed. Expiry
+exposes no selector, side effect, campaign completion, or heartbeat retirement.
+A fixed preparation boundary creates only the exact synthetic manifest,
+discovery record, heartbeat, single-item batch, and claim without provider/MCP
+ports or a trace. Three fixed CLI commands consume preparation, pre-claimed
+execution, and fresh-run resume; provider access is forbidden and only bounded
+control/result metadata is printed. Expiry
 can release a stale read-only claim to `RETRYABLE`; it
 cannot claim the item for another run or authorize action replay.
 
@@ -326,6 +328,62 @@ lock, current manifest and batch validation, lease inspection, and release of
 every stale read-only claim to `RETRYABLE` before owner replacement. The
 replacement grants no item or action authority and starts no worker.
 
+## Host-visible completion and mobile notification
+
+> **Status: planned host contract; no status tool or notification bridge is
+> implemented.** The current eight-tool desktop MCP surface remains unchanged.
+> Add this boundary only after the fixed synthetic three-command runtime has
+> retained its on-device evidence; it must not broaden that seam into a general
+> campaign worker.
+
+Codex and Claude mobile push notifications are host capabilities. The MCP
+server must not claim that a whole task is complete, emit a log notification as
+if it were a terminal result, or return success immediately after merely
+starting background work. A host may finish its turn, and therefore notify the
+operator, only after it has read a durable campaign terminal or attention
+state.
+
+The future worker boundary should expose one start operation and bounded,
+read-only status observation. Names are illustrative until the worker and CLI
+surface are reviewed:
+
+~~~text
+start_task(...) -> {task_id, status}
+get_task_status(task_id) -> durable status projection
+wait_task(task_id, timeout_seconds <= bounded_limit) -> same projection
+~~~
+
+`wait_task` is bounded long polling, not an indefinitely blocked MCP call. A
+timeout returns the current nonterminal projection so the host can decide
+whether to call again. The projection contains only fixed control data already
+validated under the run lock: task/campaign identity, status, bounded progress
+counts, last checkpoint time, and a fixed failure or attention code. It must
+not expose raw task text, model prose, screenshots, typed values, credentials,
+or arbitrary application content.
+
+Host behavior is fixed by the validated projection:
+
+| Durable projection | Host behavior | Notification meaning |
+| --- | --- | --- |
+| `RUNNING` | Continue bounded polling; do not end the turn | None |
+| `WAITING_APPROVAL`, `PAUSED`, `CHALLENGE` | Stop automatic progress and request operator input | Needs attention; not complete |
+| `COMPLETED` | Return the verified final result and end the turn | Completed |
+| `FAILED`, `CANCELLED` | Return the fixed terminal outcome and end the turn | Failed or cancelled |
+| `UNCERTAIN` / unknown dispatched outcome | Preserve evidence, forbid replay, and end with human-review guidance | Result uncertain; not success |
+| stale, malformed, missing, or identity-mismatched state | Fail closed without manufacturing a terminal result | Needs inspection |
+
+Mobile delivery remains outside this repository: ChatGPT Remote or Claude
+Remote Control may notify an iPhone when the host turn completes or needs
+attention. The repository owns only the durable evidence and status projection
+that make that host decision accurate. MCP `notifications/message` is logging,
+not the completion protocol.
+
+Acceptance evidence must prove that a fake host never emits a completion event
+for `RUNNING`, waiting, stale, malformed, or uncertain state; emits exactly one
+terminal event for a validated terminal transition; survives process/context
+restart without duplicate completion; and performs zero provider, desktop, or
+side-effect calls while polling.
+
 
 ## Retry classes
 
@@ -418,21 +476,26 @@ takeover are durable transitions, not informal chat instructions.
    task text or `BatchSession`, reconstruct the exact finished session from
    durable records, transfer heartbeat ownership, and reach the exhausted
    resume decision without a provider/MCP/desktop path.
-4. **Partially implemented and offline verified:** a bounded resume-only CLI
+4. **Implemented and offline verified:** a bounded resume-only CLI
    exposes the fixed durable fresh-run boundary without task text, item
    selection, provider, or desktop ports.
 5. **Implemented and offline verified:** a second fixed CLI command reconstructs
    an exact active synthetic claim and reuses Runner dispatch through handoff
    with provider access forbidden.
-6. **Next:** add fixed one-item campaign preparation without a selector, then
-   retain complete CLI state, trace, and cost evidence.
-7. Run the BOSS read-only 100-item evaluation.
-8. Run Google Docs 50-section and WeChat draft-only evaluations.
-9. Run the cross-application campaign with a fresh-session boundary.
-10. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-11. Only then consider resumable side-effect campaigns and higher-complexity
+6. **Implemented and offline verified:** a third fixed CLI command creates only
+   the exact one-item manifest, discovery record, heartbeat, batch, and claim;
+   the complete three-command sequence requires no private fixture setup.
+7. **Next:** retain one bounded on-device three-command synthetic state,
+   redacted-trace, and cost evidence run.
+8. Add the bounded host status projection and fake-host polling tests; keep
+   ChatGPT/Claude mobile delivery outside the desktop MCP surface.
+9. Run the BOSS read-only 100-item evaluation.
+10. Run Google Docs 50-section and WeChat draft-only evaluations.
+11. Run the cross-application campaign with a fresh-session boundary.
+12. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+13. Only then consider resumable side-effect campaigns and higher-complexity
    remote-desktop or modal-tool workloads.
-12. Define object-scoped enterprise authority, data classification, transaction
+14. Define object-scoped enterprise authority, data classification, transaction
    reconciliation, SLA ownership, and human takeover before Wave 4.
-13. Run the synthetic read-only IT incident campaign, then add approved ticket
+15. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

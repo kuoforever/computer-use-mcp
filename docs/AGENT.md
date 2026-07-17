@@ -95,6 +95,12 @@ the following commands:
   item selector, provider, or desktop option; reconstructs the finished
   synthetic session under a fresh Runner lock; transfers heartbeat ownership;
   and prints only fixed resume control metadata.
+- `campaign prepare-synthetic --config PATH --campaign-id ID --run-id ID`
+  creates and claims exactly one `synthetic_read_only_observation` campaign
+  containing only `synthetic:list_windows`. It binds the current Host and batch
+  policy plus reviewed tool-registry digest, opens no provider or MCP port,
+  starts no trace, and exposes no kind, item, batch, lease, task, or action
+  selector.
 - `campaign run-claimed-synthetic --config PATH --campaign-id ID --run-id ID`
   reconstructs only the exact pre-existing active synthetic claim, launches the
   configured local MCP child, and reuses the sole Runner dispatch boundary for
@@ -252,9 +258,11 @@ finished synthetic session from durable campaign records, transfers heartbeat
 ownership, and accepts only the exhausted resume decision. That extension
 makes no provider or MCP call and does not complete the campaign or retire its
 heartbeat. The module exposes no free-form selector, side effect, or second MCP path.
-The two fixed campaign boundaries are consumed by `campaign
-run-claimed-synthetic` and `campaign resume-synthetic`. Campaign creation,
-discovery, and claim preparation remain internal.
+The three fixed campaign boundaries are consumed by `campaign
+prepare-synthetic`, `campaign run-claimed-synthetic`, and `campaign
+resume-synthetic`. Preparation creates only the exact fixed manifest,
+discovery record, heartbeat, single-item batch, and claim. Campaign-kind/item
+selection and a general worker remain unavailable.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
@@ -635,6 +643,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters plus injected internal runtime port; no CLI or real-provider evidence |
 | Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime tests; reconciliation application and CLI unavailable |
 | Completed final-response reconciliation is preflight-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence, reconstructs the original request and canonical terminal state, and recognizes only the pre-terminal or fixed uncertain-checkpoint crash shapes. It writes nothing and has no provider/MCP/recovery/store port | implemented offline no-mutation and real runtime-failure artifact tests; CAS application and CLI unavailable |
+| Host completion projection is evidence-only | A future Codex/Claude host may read bounded durable campaign status and finish only on validated terminal state; waiting states request attention, uncertainty forbids replay, and MCP log notifications are never terminal evidence | planned after retained on-device evidence for the fixed synthetic CLI path; no status tool, notification bridge, or mobile adapter exists |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
 context compression, isolated desktop smokes, and release review. The current

@@ -4,6 +4,49 @@
 > implementation, and testing; they do not imply universal coverage or support
 > for every desktop application.
 
+For the cross-system mapping from each attribute to concrete feature families,
+source modules, and evidence owners, see
+[Project overview](PROJECT_OVERVIEW.md#quality-attributes-and-how-the-design-realizes-them).
+
+## Attribute map
+
+| Attribute family | Primary concern |
+| --- | --- |
+| Safety and least authority | Who may cause which effect, through which reviewed boundary |
+| Correctness and grounding | Whether observation, identity, coordinates, and action target agree |
+| Reliability | Whether quirks and failures remain explicit and bounded |
+| Durability and recoverability | Whether committed progress survives failure without replaying uncertainty |
+| Security and privacy | Whether secrets, sensitive content, credentials, and authority are minimized |
+| Human coexistence | Whether the Agent yields, exposes control, and avoids false background claims |
+| Observability and auditability | Whether failures and outcomes are diagnosable from bounded evidence |
+| Testability and evidence integrity | Whether claims are tied to the evidence level actually executed |
+| Resource and context boundedness | Whether bytes, tokens, images, calls, time, and state remain capped |
+| Performance and context efficiency | Whether useful verified results minimize observation and provider cost |
+| Portability and maintainability | Whether platform-specific code stays behind deliberate contracts |
+| Interoperability | Whether MCP clients and provider adapters share canonical semantics |
+
+## Security and privacy
+
+**Goal:** Sensitive content and executable authority are minimized at every
+process, persistence, provider, and operator boundary.
+
+- Launch MCP children with a reviewed environment rather than forwarding
+  provider, cloud, source-control, and arbitrary host secrets.
+- Keep task text, model prose, UI text, screenshots, typed values, provider
+  identifiers, and raw errors out of redacted checkpoint, trace, report, and
+  audit surfaces.
+- Treat the opt-in continuation artifact as sensitive private state with strict
+  paths, bounds, expiry, owner-only permissions where supported, and explicit
+  deletion on ordinary terminal completion.
+- Require explicit confirmation, scope, type, and expiry for local memory;
+  memory remains untrusted data and cannot modify policy or approve actions.
+- Treat digests as integrity/correlation evidence, not encryption,
+  authentication, confidentiality, or an operating-system security boundary.
+
+**Acceptance signal:** Secret-sentinel, redaction, unsafe-path, environment,
+memory-rejection, and artifact-lifecycle tests pass; human release review
+confirms that retained evidence contains only its documented safe schema.
+
 ## Safety
 
 **Goal:** Actions remain inside an explicit, reviewable local authorization

@@ -1,6 +1,6 @@
 # computer-use-mcp（中文快速开始）
 
-[English README](README.md) | [文档索引（英文）](docs/README.md)
+[English README](README.md) | [完整项目总览（英文）](docs/PROJECT_OVERVIEW.md) | [文档索引（英文）](docs/README.md)
 
 > **状态：实验性、本机 Windows 桌面控制。** 英文文档是唯一的规范来源；本页提供中文快速开始。
 
@@ -75,4 +75,4 @@ $env:CUMCP_ALLOWLIST = "notepad.exe"
   或提供 host-to-guest 传输。
 
 详细工具签名、配置和技术文档请以英文为准：
-[文档索引](docs/README.md)。
+[完整项目总览](docs/PROJECT_OVERVIEW.md)和[文档索引](docs/README.md)。

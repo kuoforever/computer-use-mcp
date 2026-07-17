@@ -50,17 +50,25 @@ not describe the already implemented code path as absent.
 > Runner run that reconstructs the finished session from durable records and
 > reaches the expected exhausted resume decision. It has no general campaign
 > worker, provider turn, side effect, campaign completion, or automatic
-> terminal heartbeat removal. Two fixed CLI commands expose an already-claimed
-> item through handoff and the durable fresh-run resume half. The execution
-> command uses the configured MCP child but has a fail-closed provider guard;
-> neither command accepts task text, item selection, or action authority.
+> terminal heartbeat removal. Three fixed CLI commands prepare the exact
+> one-item synthetic claim, execute it through handoff, and enter the durable
+> fresh-run resume half. Preparation opens no external port or trace; execution
+> uses the configured MCP child with a fail-closed provider guard. None accepts
+> task text, item selection, campaign-kind selection, or action authority.
 
-The next increment is not another control-state preflight. Add only fixed
-one-item synthetic campaign preparation so the two CLI halves can be exercised
-without private fixture setup, then retain exact state, trace, and cost
-evidence. Preserve the existing Runner dispatch site, budgets, trace, and
-fail-closed result semantics; do not add a second MCP path, accept a free-form
-item selector, replay an uncertain action, or connect side-effecting work.
+The complete three-command sequence is offline verified without private fixture
+setup. The next gate is one bounded on-device synthetic run retaining exact
+state, redacted trace, and cost evidence. Preserve the existing Runner dispatch
+site, budgets, trace, and fail-closed result semantics; do not add a second MCP
+path, accept a free-form item selector, replay an uncertain action, or connect
+side-effecting work.
+
+After that retained on-device gate, expose a bounded read-only terminal-status
+projection so a fake Codex/Claude host polls through `RUNNING`, requests
+attention for waiting states, and ends only on validated terminal state. The
+projection must add no second execution path, perform no provider/MCP/desktop
+calls while polling, and must not be presented as a ninth public desktop tool.
+Mobile push delivery remains owned by ChatGPT Remote or Claude Remote Control.
 
 After the synthetic vertical slice passes, run the first 100-item read-only BOSS
 campaign across multiple provider contexts and at least one forced restart.
@@ -124,6 +132,7 @@ release notes and cannot be inferred complete from offline CI:
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. A completed final provider response can be terminalized locally with zero external calls. Provider-requested actions are correlation-checked, terminalized as a fixed failure, and deleted without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, correlated OpenAI recovery token-state restoration, Claude-only oldest-complete-group packing, canonical OpenAI request-contract v3 digest binding, exact initial-input and ordered provider-output persistence, explicit portable encrypted-reasoning requests, and an explicit digest-bound OpenAI stateless-replay compiler for read-only recovery | Tokenizer-specific calibration, safe semantic compression, and broader replay/compaction policy beyond the explicit recovery boundary |
 | Operator experience | The console supports one-action yes/deny; the progress viewer, presence indicator, and Decision Cards are planned only | Passive progress and computer-use presence pass focus/capture/DPI/accessibility tests; Decision Cards present bounded alternatives and provenance-backed trade-offs, invalidate on drift, and connect through the existing ApprovalPort without a second dispatch path |
+| Host completion notification | Codex/Claude can provide mobile notifications, but this repository has no host status tool or notification bridge; the fixed synthetic CLI does not expose generic polling | After the on-device three-command evidence gate, a fake host polls a bounded read-only projection, never completes on running/waiting/stale/malformed/uncertain state, and emits exactly one terminal or attention event without provider, desktop, or side-effect calls |
 | Planner-Executor | Strict TaskPlan compilation/persistence, Planner adapters, fresh-call preflight/session, observation runtime/reconciliation, and bounded final-response compilation/adapters/WAL are implemented. The internal runtime orders one tool-free final call across prepared WAL, final-step `in_progress`, dispatch intent, correlated completion, host budget/ledger consumption, final-step CAS, terminal trace, and ordinary observation-WAL cleanup. Final WAL v2 plus a pure local preflight now revalidate and reconstruct exact completed-final crash evidence without writes or external ports. The runtime never enters normal provider continuation/recovery and is not connected to CLI | Apply the prepared completed-final reconciliation through separately reviewed idempotent CAS/terminal cleanup before CLI wiring; keep dispatch intent non-replayable, output untrusted, the four-step cap, and unchanged action boundaries. Side-effect plan execution remains a separate review |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its

@@ -1,6 +1,6 @@
 # Agent release evidence record
 
-> **Template only.** Copy this document outside the source tree for a specific
+> **Status: template only.** Copy this document outside the source tree for a specific
 > release review. Do not mark a gate passed without its referenced evidence.
 > Never paste credentials, task/UI text, screenshots, typed values, raw provider
 > traffic, or unredacted traces into this record.

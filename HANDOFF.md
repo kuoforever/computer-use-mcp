@@ -5,6 +5,10 @@
 > [README.md](README.md) and [docs/README.md](docs/README.md) for the current
 > public documentation.
 
+For the fastest complete orientation, read
+[Project overview](docs/PROJECT_OVERVIEW.md) before entering a layer-specific
+contract.
+
 ## Current shape
 
 The codebase has two executable surfaces. The public baseline is an
@@ -21,9 +25,11 @@ single `list_windows` observation through the existing Runner boundary, persist
 `EXTRACTED`, verify its canonical JSON digest, persist `COMMITTED`, close the
 batch with measured usage, write deterministic handoff, and transfer ownership
 to a fresh Runner run that reconstructs the finished session from durable
-campaign records and reaches the expected exhausted resume decision. No
-campaign creation CLI or complete application workflow is connected; only the
-fixed pre-claimed execution and durable resume halves are exposed. The broader universal GUI,
+campaign records and reaches the expected exhausted resume decision. A third
+fixed CLI command now creates exactly that one-item synthetic manifest,
+discovery record, heartbeat, batch, and claim without opening provider or MCP
+ports. No general campaign worker or complete application workflow is
+connected. The broader universal GUI,
 operator UI, cross-application demo, and continual-learning layers remain
 planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
 status header of every owner document before treating it as available.
@@ -104,27 +110,30 @@ docs/                  canonical English documentation
 For long-running feature work, read only the documents needed for the current
 layer:
 
-1. [Capability status](docs/CAPABILITY_STATUS.md) for the shortest current
+1. [Project overview](docs/PROJECT_OVERVIEW.md) for the complete feature,
+   implementation, quality, status, and ownership map.
+2. [Capability status](docs/CAPABILITY_STATUS.md) for the shortest current
    implemented/evidence/next-gate view.
-2. [Operator session notes](docs/OPERATOR_SESSION_NOTES.md) for sanitized live
+3. [Operator session notes](docs/OPERATOR_SESSION_NOTES.md) for sanitized live
    evidence and unresolved validation gaps.
-3. [Roadmap](docs/EXECUTION_PLAN.md) for P0/P1 ordering.
-4. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
-   batching, and cross-session handoff.
-5. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
+4. [Roadmap](docs/EXECUTION_PLAN.md) for P0/P1 ordering.
+5. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
+   batching, cross-session handoff, and the planned host-terminal polling
+   contract used before Codex/Claude mobile notification.
+6. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
    the BOSS, Google Docs, WeChat, Douyin real-time-media, enterprise workflow,
    and cross-application acceptance cases.
-6. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
+7. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
    [Observation contract](docs/OBSERVATION_CONTRACT.md) for model-context and
    perception changes.
-7. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the planned
+8. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the planned
    computer-use presence indicator and Decision Cards, then
    [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
    status projection.
-8. [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
+9. [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
    final chaptered showcase and retained evidence package; it is not a shortcut
    around the narrower application and safety gates.
-9. [Continual learning](docs/CONTINUAL_LEARNING.md) for the planned progression
+10. [Continual learning](docs/CONTINUAL_LEARNING.md) for the planned progression
    from explicit memory through verified workflow promotion and cost-aware
    strategy selection; it does not describe current runtime behavior.
 
@@ -132,11 +141,11 @@ The campaign control plane can validate `campaign_id`, manifest, ledgers, and
 `handoff.json`. Its first internal execution seam is limited to the exact
 synthetic observation-through-restart/resume described above. The replacement
 run accepts no task text or prior `BatchSession`, performs no provider or MCP
-call, and leaves campaign completion and heartbeat retirement untouched. A
-resume-only CLI exposes exactly that boundary, while a second fixed command
-reconstructs an already-claimed item and executes it through handoff. Campaign
-creation/discovery and a general worker remain unconnected. Use these documents as the
-cross-session source of truth.
+call, and leaves campaign completion and heartbeat retirement untouched. Three
+fixed CLI commands prepare the exact synthetic claim, execute it through
+handoff, and enter the durable fresh-run resume boundary. Preparation has no
+selector and cannot create another campaign kind or item; a general worker
+remains unconnected. Use these documents as the cross-session source of truth.
 
 ## Guardrail checklist for new actions
 
@@ -179,6 +188,12 @@ its UIA tree.
   boundaries synchronized across [operator experience](docs/OPERATOR_EXPERIENCE.md),
   [progress viewer](docs/PROGRESS_VIEWER.md), and
   [approved actions](docs/APPROVALS.md).
+- Keep host completion polling synchronized across
+  [long-running tasks](docs/LONG_RUNNING_TASKS.md),
+  [operator experience](docs/OPERATOR_EXPERIENCE.md), the roadmap, and the
+  capability dashboard. Mobile delivery belongs to the Codex/Claude host; do
+  not add it to the eight-tool desktop MCP surface or treat MCP logs as terminal
+  evidence.
 - Keep planned automatic extraction and strategy-learning claims synchronized
   across [context and memory](docs/CONTEXT_MEMORY.md),
   [continual learning](docs/CONTINUAL_LEARNING.md), the roadmap, and the
