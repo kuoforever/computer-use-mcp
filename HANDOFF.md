@@ -16,7 +16,8 @@ experimental Windows-only MCP server with eight tools, a typed Driver Contract
 v1.0.0, and one in-process Windows implementation. The second is an
 experimental `computer-use-agent` Host with a dual-provider read-only loop,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
-actions. Provider E3 and isolated desktop E4 evidence are not retained.
+actions. [OpenAI E3 evidence](docs/E3_EVIDENCE.md) is retained for both bounded
+fake-MCP cases; Claude E3 and isolated desktop E4 evidence are not retained.
 
 Planner/Executor and Campaign packages also contain substantial offline-tested
 control logic. Completed final-response crash evidence can now be applied
@@ -25,8 +26,8 @@ ordinary-continuation cleanup while retaining the completed final WAL. A
 bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
-response. It has offline fake-port evidence but no retained provider or desktop
-result. One
+response. It has offline fake-port evidence plus a retained OpenAI E3 result,
+but no retained Claude or desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
 `OBSERVED`, reduce the bounded result to a non-sensitive window count, persist
