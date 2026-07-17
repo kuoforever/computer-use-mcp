@@ -61,14 +61,35 @@ A separate bounded attempt on the same tested commit with explicit model ID
 `claude-sonnet-5` produced `1 passed, 1 failed in 21.10s`: the exact `plan run`
 case passed, while the ordinary Agent cycle failed closed with
 `ANTHROPIC_RESPONSE_INVALID` when the model returned an unsupported `thinking`
-content block. This is retained as a model-specific compatibility gap, not as
-a failure of the passing Claude E3 record above. Supporting that block requires
-a separately reviewed runtime change that preserves Claude continuation and
-signature semantics; it is outside this evidence-only change.
+content block. This is retained as the historical reproduction for a
+model-specific compatibility gap, not as a failure of the passing Claude E3
+record above.
+
+## 2026-07-17: Sonnet 5 reasoning-block compatibility revalidation
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Commit | `c99d65c` |
+| Provider | Anthropic Claude Messages API |
+| Explicit model ID | `claude-sonnet-5` |
+| Review time (UTC) | `2026-07-17T13:52:45Z` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest tests\agent\test_anthropic_integration.py -m anthropic_integration -q` |
+| Fixed outcome | `2 passed in 20.10s` |
+| Ordinary case | reasoning-compatible read -> tool -> result -> final-answer cycle passed |
+| Planner/Executor case | exact bounded observation-only `plan run` CLI cycle passed |
+| Execution boundary | harmless fake stdio MCP child; zero side effects; no Windows driver or real desktop |
+
+The exact implementation commit strictly preserves signed `thinking` and
+opaque `redacted_thinking` blocks inside private Claude tool-result continuation
+history while excluding them from canonical model text and redacted trace. The
+run used the explicit opt-in flag and an operator-environment credential. No
+credential, reasoning content, signature, task/final text, tool output,
+provider identifier, raw traffic, or local state artifact is retained here.
 
 ## Promotion boundary
 
 Both providers now have retained passing records for the two bounded fake-MCP
 cases, so the dual-provider E3 rows may move from `PARTIAL` to `YES`. E4 remains
 separate and requires the isolated desktop runbook. The Sonnet 5 compatibility
-gap above also remains separate from both the completed E3 gate and E4.
+repair is retained for the exact implementation commit above, but remains
+model-scoped and does not convert E3 into an all-model compatibility claim.

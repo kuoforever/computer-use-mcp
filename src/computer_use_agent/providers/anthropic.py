@@ -158,6 +158,35 @@ def _request_size(request: object) -> int:
     )
 
 
+def _reasoning_block(block: object, block_type: object) -> dict[str, object]:
+    """Validate and copy one opaque Claude reasoning block for exact replay."""
+
+    if block_type == "thinking":
+        if isinstance(block, Mapping) and set(block) != {
+            "type",
+            "thinking",
+            "signature",
+        }:
+            raise AnthropicProviderError("ANTHROPIC_RESPONSE_INVALID")
+        thinking = _read(block, "thinking")
+        signature = _read(block, "signature")
+        if not isinstance(thinking, str) or not isinstance(signature, str) or not signature:
+            raise AnthropicProviderError("ANTHROPIC_RESPONSE_INVALID")
+        return {
+            "type": "thinking",
+            "thinking": thinking,
+            "signature": signature,
+        }
+    if block_type == "redacted_thinking":
+        if isinstance(block, Mapping) and set(block) != {"type", "data"}:
+            raise AnthropicProviderError("ANTHROPIC_RESPONSE_INVALID")
+        data = _read(block, "data")
+        if not isinstance(data, str) or not data:
+            raise AnthropicProviderError("ANTHROPIC_RESPONSE_INVALID")
+        return {"type": "redacted_thinking", "data": data}
+    raise AnthropicProviderError("ANTHROPIC_RESPONSE_INVALID")
+
+
 def _pack_request_history(
     request: Mapping[str, object],
     *,
@@ -219,17 +248,30 @@ def _validate_restored_history(messages: object) -> list[dict[str, object]]:
                 raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
             pending_ids = set()
             for block in content:
-                if not isinstance(block, dict) or block.get("type") not in {
-                    "text",
-                    "tool_use",
-                }:
+                if not isinstance(block, dict):
                     raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
-                if block["type"] == "text":
+                block_type = block.get("type")
+                if block_type == "text":
                     if set(block) != {"type", "text"} or not isinstance(
                         block.get("text"), str
                     ):
                         raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
-                else:
+                elif block_type == "thinking":
+                    if (
+                        set(block) != {"type", "thinking", "signature"}
+                        or not isinstance(block.get("thinking"), str)
+                        or not isinstance(block.get("signature"), str)
+                        or not block["signature"]
+                    ):
+                        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                elif block_type == "redacted_thinking":
+                    if (
+                        set(block) != {"type", "data"}
+                        or not isinstance(block.get("data"), str)
+                        or not block["data"]
+                    ):
+                        raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
+                elif block_type == "tool_use":
                     if set(block) != {"type", "id", "name", "input"}:
                         raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
                     tool_id = block.get("id")
@@ -244,6 +286,8 @@ def _validate_restored_history(messages: object) -> list[dict[str, object]]:
                     ):
                         raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
                     pending_ids.add(tool_id)
+                else:
+                    raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
         else:
             if not pending_ids or not isinstance(content, list) or not content:
                 raise AnthropicProviderError("ANTHROPIC_CONTINUATION_INVALID")
@@ -405,6 +449,9 @@ class AnthropicMessagesProvider:
         assistant_content: list[dict[str, object]] = []
         for block in content:
             block_type = _read(block, "type")
+            if block_type in {"thinking", "redacted_thinking"}:
+                assistant_content.append(_reasoning_block(block, block_type))
+                continue
             if block_type == "text":
                 text = _read(block, "text")
                 if not isinstance(text, str):

@@ -43,8 +43,11 @@ Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
 between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request
 as canonical UTF-8 JSON before the network call. The count therefore includes
 instructions, tool schemas, task, selected memory, current tool results,
-base64 screenshots, and Claude's accumulated local message history. Oversize
-requests fail with a fixed provider error before the SDK fake/client is called.
+base64 screenshots, and Claude's accumulated local message history, including
+any signed `thinking` or opaque `redacted_thinking` blocks required for a tool
+result continuation. Those blocks remain private provider-native state and are
+not canonical model text or redacted trace content. Oversize requests fail with
+a fixed provider error before the SDK fake/client is called.
 
 The required `[provider].context_window_tokens` and
 `[provider].output_token_reserve` values bind that exact configured provider and
@@ -59,10 +62,12 @@ provider-reported input and output usage to cover remote context conservatively.
 When Claude's locally visible history exceeds this gate, the adapter may remove
 oldest completed `assistant tool_use` plus adjacent `user tool_result` pairs and
 retry the estimate. It preserves the original task and newest complete pair,
-including every image block, and adds a fixed host-authored truncation notice.
-If that mandatory set still exceeds the window, the request fails before the
-SDK call. Candidate results and packed history are committed only after a valid
-provider response, so a failed preflight cannot leave a half-appended result.
+including every image and signed/redacted reasoning block, and adds a fixed
+host-authored truncation notice. Reasoning blocks are never edited or detached
+from their assistant group. If that mandatory set still exceeds the window, the
+request fails before the SDK call. Candidate results and packed history are
+committed only after a valid provider response, so a failed preflight cannot
+leave a half-appended result.
 
 OpenAI's `previous_response_id` history is remote and cannot be selectively
 rewritten. Its adapter therefore remains fail-closed instead of silently

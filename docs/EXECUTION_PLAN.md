@@ -125,7 +125,7 @@ release notes and cannot be inferred complete from offline CI:
 
 | Item | Current boundary | Completion evidence |
 | --- | --- | --- |
-| OpenAI and Claude E3 | [Both providers passed](E3_EVIDENCE.md) the ordinary and exact bounded `plan run` fake-MCP cases with reviewed model IDs; the record is model-scoped and preserves a separate Sonnet 5 compatibility gap | Completed for the bounded E3 definition; proceed to isolated E4 without inferring all-model or desktop compatibility |
+| OpenAI and Claude E3 | [Both providers passed](E3_EVIDENCE.md) the ordinary and exact bounded `plan run` fake-MCP cases with reviewed model IDs. The record is model-scoped, preserves the historical Sonnet 5 failure, and retains an exact-repair-commit pass for strict signed/redacted reasoning-block continuation | Completed for the bounded E3 definition; proceed to isolated E4 without inferring all-model or desktop compatibility |
 | Isolated E4 | Four-cell runbook exists; no isolated desktop evidence is recorded | Both providers pass read-only and one approved low-risk action with post-action observation |
 | E5 release regression | Canonical workflow, crash-reconstruction, and OpenAI stateless-replay manifests are frozen and enforced through offline tests/CI; crash reconstruction and replay also produce independent preflight/CI evidence, while isolated evidence is pending | Reviewed isolated successful and failure traces are rerun after policy/schema/adapter changes |
 | Release approval | Offline preflight is implemented and must pass on a clean candidate; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, CI, and human approval |
