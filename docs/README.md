@@ -32,8 +32,10 @@ not a line-by-line mirror of every reference page.
 | I am reviewing explicit OpenAI stateless replay | [Stateless replay](STATELESS_REPLAY.md) |
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | I need real-application and enterprise workflow cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| I need the one-campaign complete-product showcase and evidence plan | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | I am adding OCR, document text, image, or delta observations | [Observation contract](OBSERVATION_CONTRACT.md) |
+| I am designing computer-use presence, progress, Decision Cards, or operator trade-offs | [Operator experience](OPERATOR_EXPERIENCE.md) |
 | I am implementing the non-activating multi-run UI | [Operator progress viewer](PROGRESS_VIEWER.md) |
 | I need sanitized findings from live desktop sessions | [Operator session notes](OPERATOR_SESSION_NOTES.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
@@ -63,8 +65,10 @@ not a line-by-line mirror of every reference page.
 | Task planning | Non-executable TaskPlan contract, strict candidate compiler, and ordered local transitions |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, and deterministic cross-session handoff |
 | Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |
+| Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
+| Operator experience | Planned desktop presence indicator, passive progress, Decision Cards, trade-off provenance, and operator-interaction boundaries |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |

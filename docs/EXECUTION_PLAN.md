@@ -247,6 +247,10 @@ A read-only terminal-handoff preflight may now bind that completed manifest to
 the exact finished batch, replacement owner, fully committed ledger, and next
 ordinal. It returns only the fixed completed-handoff-write directive and does
 not read or modify the stale running handoff or any runtime state.
+The coordinator may now re-run that preflight and atomically replace only the
+handoff with the fixed `COMPLETED` directives and replacement owner. Repeated
+valid calls are byte-stable; manifest, heartbeat, ledgers, and runtime state
+remain unchanged.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
@@ -266,12 +270,35 @@ the interactive UIA tree. Implement the source envelope and escalation rules in
 document text and region-scoped image capture. Measure the result using
 [Token efficiency](TOKEN_EFFICIENCY.md).
 
-### P1 - passive operator progress viewer
+### P1 - operator presence and progress foundation
 
 Implement the checkpoint-to-view-model reducer and non-activating Windows
-overlay from [Operator progress viewer](PROGRESS_VIEWER.md). Do not display
+overlay from [Operator progress viewer](PROGRESS_VIEWER.md), then add the
+click-through computer-use presence indicator from
+[Operator experience](OPERATOR_EXPERIENCE.md). Do not display
 active elapsed time, screenshot count, token coverage, or liveness as known
 until the checkpoint/campaign schemas expose those facts.
+
+Presence must follow validated Host phases, avoid focus/input interception,
+stay out of Agent observation content, support reduced motion and DPI changes,
+and disappear on E-stop or authority release. After the passive surfaces are
+stable, implement fake-only Decision Card view models before connecting a
+focus-taking card to the existing ApprovalPort. Options and trade-offs remain
+advisory until a fresh bound Host decision passes every ordinary action gate.
+
+### Showcase gate - universal GUI complete-product demo
+
+After the narrower application, campaign, observation, operator, and enterprise
+authority gates retain executable evidence, run the chaptered
+[Universal GUI demo](UNIVERSAL_GUI_DEMO.md). One campaign covers all distinct
+mechanism families across browser/native/document/data, media/design,
+nested/legacy/system, and enterprise workflows. It must include deterministic
+fault injection, provider-context rotation, restart recovery, presence/progress
+UI, one multi-option Decision Card, and a versioned token-cost baseline.
+
+This is a final integration and presentation gate, not the next runtime
+increment. A partial or edited showcase must preserve skipped, failed,
+challenged, uncertain, and human-completed states in its retained report.
 
 ### Agent Host remaining-work ledger
 
@@ -286,6 +313,7 @@ release notes and cannot be inferred complete from offline CI:
 | Release approval | Offline preflight is implemented and must pass on a clean candidate; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, CI, and human approval |
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. A completed final provider response can be terminalized locally with zero external calls. Provider-requested actions are correlation-checked, terminalized as a fixed failure, and deleted without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, correlated OpenAI recovery token-state restoration, Claude-only oldest-complete-group packing, canonical OpenAI request-contract v3 digest binding, exact initial-input and ordered provider-output persistence, explicit portable encrypted-reasoning requests, and an explicit digest-bound OpenAI stateless-replay compiler for read-only recovery | Tokenizer-specific calibration, safe semantic compression, and broader replay/compaction policy beyond the explicit recovery boundary |
+| Operator experience | The console supports one-action yes/deny; the progress viewer, presence indicator, and Decision Cards are planned only | Passive progress and computer-use presence pass focus/capture/DPI/accessibility tests; Decision Cards present bounded alternatives and provenance-backed trade-offs, invalidate on drift, and connect through the existing ApprovalPort without a second dispatch path |
 | Planner-Executor | Strict TaskPlan compilation/persistence, Planner adapters, fresh-call preflight/session, observation runtime/reconciliation, and bounded final-response compilation/adapters/WAL are implemented. The internal runtime orders one tool-free final call across prepared WAL, final-step `in_progress`, dispatch intent, correlated completion, host budget/ledger consumption, final-step CAS, terminal trace, and ordinary observation-WAL cleanup. Final WAL v2 plus a pure local preflight now revalidate and reconstruct exact completed-final crash evidence without writes or external ports. The runtime never enters normal provider continuation/recovery and is not connected to CLI | Apply the prepared completed-final reconciliation through separately reviewed idempotent CAS/terminal cleanup before CLI wiring; keep dispatch intent non-replayable, output untrusted, the four-step cap, and unchanged action boundaries. Side-effect plan execution remains a separate review |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its

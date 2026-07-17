@@ -525,3 +525,8 @@ already proven by a simpler case.
 6. Wave 4 enterprise cases only after object-scoped authorization,
    cross-system transaction records, data classification, and human handoff
    have executable contracts; begin with the read-only IT incident scenario.
+
+After the individual and cross-application promotion gates retain evidence, use
+the [Universal GUI complete-product demo](UNIVERSAL_GUI_DEMO.md) to assemble one
+chaptered campaign across all distinct mechanism families. The showcase does
+not replace this matrix or turn skipped application cases into coverage.
