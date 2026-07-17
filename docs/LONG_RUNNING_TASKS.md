@@ -1,12 +1,13 @@
 # Long-running task contract
 
 > **Status: campaign control plane implemented and offline verified; first
-> fixed observation seam connected.** Manifests, item/batch ledgers, leases,
+> fixed observation and extraction seam connected.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
 > provider, general worker, timer, side-effect, or campaign CLI authority. One
 > exact claimed synthetic item can execute `list_windows` through the existing
-> Runner authority and persist only a correlated `OBSERVED` boundary.
+> Runner authority, persist correlated `OBSERVED`, extract only a bounded
+> non-sensitive window count, and persist `EXTRACTED`.
 > See [Capability status](CAPABILITY_STATUS.md) for the next evidence gate.
 
 ## Goal
@@ -187,9 +188,12 @@ control methods still do not invoke a provider or dispatch MCP. The separate
 internal synthetic observation runtime accepts only the exact campaign kind,
 single planned item key, active claim/session owner, and fixed `list_windows`
 call; it reuses Runner discovery, policy, budget, trace, correlation, and MCP
-dispatch before calling the existing `OBSERVED` coordinator transition. It
-does not extract content, commit a result, start a general worker, or expose a
-campaign CLI. Expiry can release a stale read-only claim to `RETRYABLE`; it
+dispatch before calling the existing `OBSERVED` coordinator transition. Its
+explicit extension accepts at most 64 Ki characters, produces only a
+non-empty-line count as its extraction value, persists no result text in the
+campaign ledger or redacted trace, and calls the existing `EXTRACTED` transition. It
+does not verify or commit a result, start a general worker, or expose a campaign
+CLI. Expiry can release a stale read-only claim to `RETRYABLE`; it
 cannot claim the item for another run or authorize action replay.
 
 The incremental implementation sequence is retained in
@@ -389,10 +393,11 @@ takeover are durable transitions, not informal chat instructions.
    stale inspection, deterministic handoff, bounded resume/run transfer, item
    progression, and exhausted-campaign completion.
 2. **Implemented and offline verified:** bind one exact claimed synthetic item
-   to one fixed `list_windows` observation through the existing Runner boundary
-   and persist only correlated `OBSERVED` success.
-3. **Next:** extend that same synthetic item through extraction, verification,
-   commit, and forced-restart resume without a second provider/MCP/desktop path.
+   to one fixed `list_windows` observation through the existing Runner boundary,
+   persist correlated `OBSERVED`, reduce the bounded result to a non-sensitive
+   window count, and persist `EXTRACTED`.
+3. **Next:** verify and commit that same fixed result, then prove forced-restart
+   resume without a second provider/MCP/desktop path.
 4. Add a bounded campaign CLI only after the worker contract passes offline;
    retain exact state, trace, and cost evidence.
 5. Run the BOSS read-only 100-item evaluation.

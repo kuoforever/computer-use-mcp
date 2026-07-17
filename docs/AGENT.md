@@ -228,7 +228,10 @@ execution-bearing campaign seam. It accepts only an already-claimed first item
 from the fixed `synthetic_read_only_observation` campaign, requires the sole
 planned key `synthetic:list_windows`, constructs one `list_windows` call inside
 the Host, and persists `OBSERVED` only after a successful correlated result.
-It makes no provider call and exposes no selector, extraction, commit, resume,
+Its explicit extraction extension accepts at most 64 Ki characters, produces
+only the non-empty-line count as its extraction value, persists no result text
+in campaign state or redacted trace, and then persists `EXTRACTED`. It makes no
+provider call and exposes no selector, result verification, commit, resume,
 side-effect, CLI, or second MCP path.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and

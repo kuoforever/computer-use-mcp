@@ -1,8 +1,10 @@
 """One fixed synthetic campaign observation through the Agent authority boundary.
 
 This internal slice binds an already-claimed first campaign item to one
-``list_windows`` observation.  It has no provider, CLI, free-form selector,
-extraction, commit, resume, side-effect, or campaign-specific MCP path.
+``list_windows`` observation.  An explicit extension may reduce that correlated
+text to a bounded non-sensitive window count and persist ``EXTRACTED``.  It has
+no provider, CLI, free-form selector, commit, resume, side-effect, or
+campaign-specific MCP path.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ SYNTHETIC_ITEM_KEY = "synthetic:list_windows"
 SYNTHETIC_OBSERVATION_TOOL = "list_windows"
 SYNTHETIC_TURN_ID = "campaign_observation_1"
 SYNTHETIC_CALL_ID = "campaign_observation_call_1"
+MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS = 64 * 1024
 
 
 class CampaignObservationRuntimeError(RuntimeError):
@@ -40,13 +43,25 @@ class CampaignObservationOutcome:
     observed: ItemTransition
 
 
-async def execute_claimed_synthetic_observation(
+@dataclass(frozen=True)
+class CampaignExtractionOutcome:
+    """Bounded non-sensitive extraction plus both persisted item boundaries."""
+
+    state: RunState
+    result: ToolResult
+    observed: ItemTransition
+    extracted: ItemTransition
+    window_count: int
+
+
+async def _execute_claimed_synthetic_observation(
     runner: AgentRunner,
     prepared_run: PreparedRun,
     session: BatchSession,
     *,
     now: datetime,
-) -> CampaignObservationOutcome:
+    extract_window_count: bool,
+) -> CampaignObservationOutcome | CampaignExtractionOutcome:
     """Observe the exact claimed synthetic item once, then persist OBSERVED.
 
     The prepared run owns the same application lock used by the campaign store.
@@ -171,11 +186,59 @@ async def execute_claimed_synthetic_observation(
             raise CampaignObservationRuntimeError(
                 "CAMPAIGN_OBSERVATION_EVIDENCE_INVALID"
             )
+        if extract_window_count:
+            if len(boundary.result.sanitized_text) > MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS:
+                recorder.record(
+                    state,
+                    RunPhase.FAILED,
+                    failure_code="CAMPAIGN_EXTRACTION_RESULT_TOO_LARGE",
+                    run_duration_ms=max(
+                        0, (perf_counter_ns() - started_ns) // 1_000_000
+                    ),
+                )
+                raise CampaignObservationRuntimeError(
+                    "CAMPAIGN_EXTRACTION_RESULT_TOO_LARGE"
+                )
+            window_count = sum(
+                1
+                for line in boundary.result.sanitized_text.splitlines()
+                if line.strip()
+            )
+            try:
+                extracted = coordinator.record_first_observed_item_extracted(
+                    session,
+                    now=now,
+                    read_only_extraction_completed=True,
+                )
+            except BatchCoordinatorError as exc:
+                recorder.record(
+                    state,
+                    RunPhase.FAILED,
+                    failure_code="CAMPAIGN_EXTRACTION_PERSIST_FAILED",
+                    run_duration_ms=max(
+                        0, (perf_counter_ns() - started_ns) // 1_000_000
+                    ),
+                )
+                raise CampaignObservationRuntimeError(
+                    "CAMPAIGN_EXTRACTION_PERSIST_FAILED"
+                ) from exc
+            if extracted.status is not ItemStatus.EXTRACTED:
+                raise CampaignObservationRuntimeError(
+                    "CAMPAIGN_EXTRACTION_EVIDENCE_INVALID"
+                )
         recorder.record(
             state,
             RunPhase.SUCCESS,
             run_duration_ms=max(0, (perf_counter_ns() - started_ns) // 1_000_000),
         )
+        if extract_window_count:
+            return CampaignExtractionOutcome(
+                state=state,
+                result=boundary.result,
+                observed=observed,
+                extracted=extracted,
+                window_count=window_count,
+            )
         return CampaignObservationOutcome(
             state=state,
             result=boundary.result,
@@ -210,13 +273,58 @@ async def execute_claimed_synthetic_observation(
             prepared_run.close()
 
 
+async def execute_claimed_synthetic_observation(
+    runner: AgentRunner,
+    prepared_run: PreparedRun,
+    session: BatchSession,
+    *,
+    now: datetime,
+) -> CampaignObservationOutcome:
+    """Execute only the original correlated ``OBSERVED`` slice."""
+
+    outcome = await _execute_claimed_synthetic_observation(
+        runner,
+        prepared_run,
+        session,
+        now=now,
+        extract_window_count=False,
+    )
+    if not isinstance(outcome, CampaignObservationOutcome):
+        raise CampaignObservationRuntimeError("CAMPAIGN_OBSERVATION_EVIDENCE_INVALID")
+    return outcome
+
+
+async def execute_claimed_synthetic_observation_and_extraction(
+    runner: AgentRunner,
+    prepared_run: PreparedRun,
+    session: BatchSession,
+    *,
+    now: datetime,
+) -> CampaignExtractionOutcome:
+    """Observe once, extract only a bounded window count, and persist EXTRACTED."""
+
+    outcome = await _execute_claimed_synthetic_observation(
+        runner,
+        prepared_run,
+        session,
+        now=now,
+        extract_window_count=True,
+    )
+    if not isinstance(outcome, CampaignExtractionOutcome):
+        raise CampaignObservationRuntimeError("CAMPAIGN_EXTRACTION_EVIDENCE_INVALID")
+    return outcome
+
+
 __all__ = [
     "CampaignObservationOutcome",
+    "CampaignExtractionOutcome",
     "CampaignObservationRuntimeError",
+    "MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS",
     "SYNTHETIC_CALL_ID",
     "SYNTHETIC_CAMPAIGN_KIND",
     "SYNTHETIC_ITEM_KEY",
     "SYNTHETIC_OBSERVATION_TOOL",
     "SYNTHETIC_TURN_ID",
     "execute_claimed_synthetic_observation",
+    "execute_claimed_synthetic_observation_and_extraction",
 ]
