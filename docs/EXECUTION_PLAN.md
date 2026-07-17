@@ -247,6 +247,10 @@ A read-only terminal-handoff preflight may now bind that completed manifest to
 the exact finished batch, replacement owner, fully committed ledger, and next
 ordinal. It returns only the fixed completed-handoff-write directive and does
 not read or modify the stale running handoff or any runtime state.
+The coordinator may now re-run that preflight and atomically replace only the
+handoff with the fixed `COMPLETED` directives and replacement owner. Repeated
+valid calls are byte-stable; manifest, heartbeat, ledgers, and runtime state
+remain unchanged.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

@@ -27,6 +27,7 @@ from .campaign import (
     CampaignProjection,
     CampaignStatus,
     CampaignStore,
+    CampaignStoreError,
     ItemStatus,
     ItemTransition,
 )
@@ -1388,6 +1389,35 @@ class BatchCoordinator:
             replacement_run_id=replacement_run_id,
             next_item_ordinal=projection.next_ordinal,
             required_handoff="write_completed_campaign_handoff",
+        )
+
+    def write_completed_campaign_handoff(
+        self,
+        session: BatchSession,
+        *,
+        replacement_run_id: str,
+        now: datetime,
+    ) -> dict[str, object]:
+        """Write only the fixed terminal handoff accepted by the preflight."""
+
+        preflight = self.inspect_completed_campaign_handoff(
+            session,
+            replacement_run_id=replacement_run_id,
+            now=now,
+        )
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_COMPLETED_HANDOFF_BLOCKED_{preflight.state.value}"
+            )
+        try:
+            existing = self.store.read_handoff(session.campaign_id)
+        except CampaignStoreError:
+            existing = None
+        if existing is not None and existing["last_run_id"] == replacement_run_id:
+            return existing
+        return self.store.write_handoff(
+            session.campaign_id,
+            last_run_id=replacement_run_id,
         )
 
     def open_transferred_resumed_batch(

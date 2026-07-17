@@ -449,6 +449,12 @@ and derived next ordinal. `READY` returns only the fixed
 `write_completed_campaign_handoff` directive; it does not read or rewrite the
 stale running handoff and starts no runtime work.
 
+The locked coordinator may now re-run that preflight and atomically replace the
+stale running handoff with the fixed `COMPLETED` projection, recording the
+replacement owner as the terminal `last_run_id`. A repeated valid call returns
+the existing byte-stable handoff; manifest, heartbeat, and ledgers remain
+unchanged, and no runtime path is connected.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
