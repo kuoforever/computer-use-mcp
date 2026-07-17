@@ -1,14 +1,15 @@
 # Long-running task contract
 
 > **Status: campaign control plane implemented and offline verified; first
-> fixed observation, extraction, and commit seam connected.** Manifests, item/batch ledgers, leases,
+> fixed observation-through-handoff seam connected.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
 > provider, general worker, timer, side-effect, or campaign CLI authority. One
 > exact claimed synthetic item can execute `list_windows` through the existing
 > Runner authority, persist correlated `OBSERVED`, extract only a bounded
-> non-sensitive window count, persist `EXTRACTED`, verify canonical JSON, and
-> persist its SHA-256 digest at `COMMITTED`.
+> non-sensitive window count, persist `EXTRACTED`, verify canonical JSON,
+> persist its SHA-256 digest at `COMMITTED`, close the batch with measured
+> usage, and write deterministic handoff.
 > See [Capability status](CAPABILITY_STATUS.md) for the next evidence gate.
 
 ## Goal
@@ -195,8 +196,11 @@ non-empty-line count as its extraction value, persists no result text in the
 campaign ledger or redacted trace, and calls the existing `EXTRACTED`
 transition. Its commit extension re-counts the same bounded result, hashes only
 canonical `{"window_count":N}` JSON, and calls the existing `COMMITTED`
-transition. It does not close the batch, write handoff, start a general worker,
-or expose a campaign CLI. Expiry can release a stale read-only claim to `RETRYABLE`; it
+transition. Its handoff extension derives usage only from Runner state plus a
+monotonic elapsed clock, closes through the existing continuation validator,
+and writes the existing fixed handoff without changing heartbeat ownership. It
+does not restart or resume a process, start a general worker, or expose a
+campaign CLI. Expiry can release a stale read-only claim to `RETRYABLE`; it
 cannot claim the item for another run or authorize action replay.
 
 The incremental implementation sequence is retained in
@@ -399,9 +403,10 @@ takeover are durable transitions, not informal chat instructions.
    to one fixed `list_windows` observation through the existing Runner boundary,
    persist correlated `OBSERVED`, reduce the bounded result to a non-sensitive
    window count, persist `EXTRACTED`, verify canonical JSON, and persist its
-   digest at `COMMITTED`.
-3. **Next:** close that same synthetic batch, write deterministic handoff, and
-   prove forced-restart resume without a second provider/MCP/desktop path.
+   digest at `COMMITTED`, close with measured usage, and write deterministic
+   handoff.
+3. **Next:** force a fresh process/context and resume from that handoff without
+   prior conversation text or a second provider/MCP/desktop path.
 4. Add a bounded campaign CLI only after the worker contract passes offline;
    retain exact state, trace, and cost evidence.
 5. Run the BOSS read-only 100-item evaluation.

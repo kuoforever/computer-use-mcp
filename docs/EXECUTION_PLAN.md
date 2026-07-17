@@ -45,19 +45,17 @@ not describe the already implemented code path as absent.
 > observation through the sole Runner dispatch boundary, persists a correlated
 > `OBSERVED` transition, reduces the bounded text to a non-sensitive window
 > count, persists `EXTRACTED`, verifies canonical JSON, and persists its digest
-> at `COMMITTED`. It has no general campaign worker, CLI command, provider turn,
-> batch closing/handoff orchestration, restart/resume orchestration, side effect,
-> or automatic terminal heartbeat removal.
+> at `COMMITTED`, closes the batch with measured Runner usage, and writes the
+> existing deterministic handoff. It has no general campaign worker, CLI
+> command, provider turn, restart/resume orchestration, side effect, or automatic
+> terminal heartbeat removal.
 
 The next increment is not another control-state preflight. Continue the same
 synthetic read-only item through the existing Agent authority boundary:
 
-1. preserve the now-executable exact claim, bounded observation, extraction,
-   verification, and commit;
-2. close the batch with measured usage;
-3. write deterministic handoff;
-4. force a process/context restart; and
-5. resume from the deterministic handoff without prior conversation text.
+1. preserve the now-executable exact claim-through-handoff path;
+2. force a process/context restart; and
+3. resume from the deterministic handoff without prior conversation text.
 
 The integration must reuse the existing Runner dispatch site, budgets, trace,
 and fail-closed result semantics. It must not add a second MCP path, accept a
