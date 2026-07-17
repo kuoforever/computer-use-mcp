@@ -432,6 +432,12 @@ returns only `NO_ELIGIBLE_ITEMS`, the derived next ordinal, and an empty item
 plan. A subsequent open attempt fails closed without appending `STARTED` or
 modifying handoff, heartbeat, manifest, or ledgers.
 
+A read-only campaign-completion preflight can now require that exact transferred
+`NO_ELIGIBLE_ITEMS` boundary while the manifest is still `RUNNING`. `READY`
+binds the finished run, replacement owner, and derived next ordinal to only the
+fixed `complete_exhausted_campaign` directive. It does not update the manifest,
+rewrite handoff, remove heartbeat, or perform runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

@@ -116,6 +116,12 @@ class BatchTransferredResumeState(str, Enum):
     NO_ELIGIBLE_ITEMS = "NO_ELIGIBLE_ITEMS"
 
 
+class BatchCampaignCompletionState(str, Enum):
+    READY = "READY"
+    CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
+    RESUME_NOT_EXHAUSTED = "RESUME_NOT_EXHAUSTED"
+
+
 class BatchFirstClaimState(str, Enum):
     READY = "READY"
     CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
@@ -222,6 +228,21 @@ class BatchTransferredResumePreflight:
     @property
     def ready(self) -> bool:
         return self.state is BatchTransferredResumeState.READY
+
+
+@dataclass(frozen=True)
+class BatchCampaignCompletionPreflight:
+    state: BatchCampaignCompletionState
+    campaign_id: str
+    finished_run_id: str
+    replacement_run_id: str
+    next_item_ordinal: int
+    resume_state: BatchTransferredResumeState
+    required_completion: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchCampaignCompletionState.READY
 
 
 @dataclass(frozen=True)
@@ -1217,6 +1238,41 @@ class BatchCoordinator:
             next_item_ordinal=resume.preflight.next_item_ordinal,
             item_keys=() if batch is None else batch.item_keys,
             required_open="open_exact_resumed_batch",
+        )
+
+    def inspect_exhausted_campaign_completion(
+        self,
+        session: BatchSession,
+        *,
+        replacement_run_id: str,
+        now: datetime,
+        policy: BatchPolicy,
+    ) -> BatchCampaignCompletionPreflight:
+        """Inspect terminal readiness after a transferred run finds no work."""
+
+        if not isinstance(session, BatchSession) or not isinstance(policy, BatchPolicy):
+            raise BatchCoordinatorError("BATCH_CAMPAIGN_COMPLETION_INVALID")
+        resume = self.inspect_transferred_run_resume(
+            session,
+            replacement_run_id=replacement_run_id,
+            now=now,
+            policy=policy,
+        )
+        manifest = self.store.read_manifest(session.campaign_id)
+        if manifest.status is not CampaignStatus.RUNNING:
+            state = BatchCampaignCompletionState.CAMPAIGN_NOT_RUNNING
+        elif resume.state is not BatchTransferredResumeState.NO_ELIGIBLE_ITEMS:
+            state = BatchCampaignCompletionState.RESUME_NOT_EXHAUSTED
+        else:
+            state = BatchCampaignCompletionState.READY
+        return BatchCampaignCompletionPreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            finished_run_id=session.run_id,
+            replacement_run_id=replacement_run_id,
+            next_item_ordinal=resume.next_item_ordinal,
+            resume_state=resume.state,
+            required_completion="complete_exhausted_campaign",
         )
 
     def open_transferred_resumed_batch(
