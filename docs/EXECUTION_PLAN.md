@@ -50,15 +50,17 @@ not describe the already implemented code path as absent.
 > Runner run that reconstructs the finished session from durable records and
 > reaches the expected exhausted resume decision. It has no general campaign
 > worker, provider turn, side effect, campaign completion, or automatic
-> terminal heartbeat removal. A resume-only CLI exposes the fixed durable
-> fresh-run half without task text, item selection, provider, or desktop ports.
+> terminal heartbeat removal. Two fixed CLI commands expose an already-claimed
+> item through handoff and the durable fresh-run resume half. The execution
+> command uses the configured MCP child but has a fail-closed provider guard;
+> neither command accepts task text, item selection, or action authority.
 
-The next increment is not another control-state preflight. Connect the existing
-exact claim-through-handoff execution to the same bounded synthetic CLI, then
-retain exact state, trace, and cost evidence. Preserve the existing Runner
-dispatch site, budgets, trace, and fail-closed result semantics; do not add a
-second MCP path, accept a free-form item selector, replay an uncertain action,
-or connect side-effecting campaign work.
+The next increment is not another control-state preflight. Add only fixed
+one-item synthetic campaign preparation so the two CLI halves can be exercised
+without private fixture setup, then retain exact state, trace, and cost
+evidence. Preserve the existing Runner dispatch site, budgets, trace, and
+fail-closed result semantics; do not add a second MCP path, accept a free-form
+item selector, replay an uncertain action, or connect side-effecting work.
 
 After the synthetic vertical slice passes, run the first 100-item read-only BOSS
 campaign across multiple provider contexts and at least one forced restart.

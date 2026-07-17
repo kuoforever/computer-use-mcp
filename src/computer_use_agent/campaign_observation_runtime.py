@@ -43,6 +43,7 @@ from .types import CallIdentity, RunState, ToolCall, ToolResult
 SYNTHETIC_CAMPAIGN_KIND = "synthetic_read_only_observation"
 SYNTHETIC_ITEM_KEY = "synthetic:list_windows"
 SYNTHETIC_OBSERVATION_TOOL = "list_windows"
+SYNTHETIC_OBSERVATION_TASK = "Observe the fixed synthetic campaign item"
 SYNTHETIC_TURN_ID = "campaign_observation_1"
 SYNTHETIC_CALL_ID = "campaign_observation_call_1"
 MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS = 64 * 1024
@@ -176,6 +177,46 @@ def _finished_synthetic_session(
         consecutive_failures=finished.consecutive_failures,
     )
     return session, usage, handoff
+
+
+def _claimed_synthetic_session(
+    coordinator: BatchCoordinator,
+    *,
+    campaign_id: str,
+    run_id: str,
+) -> BatchSession:
+    """Rebuild the one exact active claimed session from durable records."""
+
+    store = coordinator.store
+    manifest = store.read_manifest(campaign_id)
+    projection = store.read_ledger(campaign_id)
+    batches = store.read_batches(campaign_id)
+    transitions = batches.transitions
+    active = batches.active
+    item = projection.items.get(SYNTHETIC_ITEM_KEY)
+    if (
+        manifest.kind != SYNTHETIC_CAMPAIGN_KIND
+        or manifest.status is not CampaignStatus.RUNNING
+        or set(projection.items) != {SYNTHETIC_ITEM_KEY}
+        or item is None
+        or item.ordinal != 1
+        or item.status is not ItemStatus.CLAIMED
+        or item.run_id != run_id
+        or active is None
+        or len(transitions) != 1
+        or transitions[0].status is not BatchStatus.STARTED
+        or (active.batch_id, active.run_id)
+        != (transitions[0].batch_id, transitions[0].run_id)
+        or active.run_id != run_id
+    ):
+        raise CampaignObservationRuntimeError("CAMPAIGN_CLAIMED_STATE_INVALID")
+    return BatchSession(
+        campaign_id=campaign_id,
+        batch_id=active.batch_id,
+        run_id=run_id,
+        policy=SYNTHETIC_BATCH_POLICY,
+        plan=BatchPlan(item_keys=(SYNTHETIC_ITEM_KEY,), stop_reason=None),
+    )
 
 
 def synthetic_window_count_digest(window_count: int) -> str:
@@ -622,6 +663,65 @@ async def execute_claimed_synthetic_item_through_handoff(
     return outcome
 
 
+async def execute_persisted_claimed_synthetic_item_through_handoff(
+    runner: AgentRunner,
+    *,
+    campaign_id: str,
+    run_id: str,
+    now: datetime,
+) -> CampaignHandoffOutcome:
+    """Execute only the exact durable active synthetic claim through handoff."""
+
+    if (
+        not isinstance(runner, AgentRunner)
+        or runner.ports is None
+        or not isinstance(campaign_id, str)
+        or not campaign_id
+        or not isinstance(run_id, str)
+        or not run_id
+        or not isinstance(now, datetime)
+        or now.tzinfo is None
+        or now.utcoffset() is None
+    ):
+        if isinstance(runner, AgentRunner) and runner.ports is not None:
+            await runner.ports.desktop.close()
+        raise CampaignObservationRuntimeError("CAMPAIGN_CLAIMED_INPUT_INVALID")
+    try:
+        RunRecorder(runner.config.state_dir, run_id)
+    except ValueError as exc:
+        await runner.ports.desktop.close()
+        raise CampaignObservationRuntimeError(
+            "CAMPAIGN_CLAIMED_INPUT_INVALID"
+        ) from exc
+
+    try:
+        prepared_run = runner.prepare(SYNTHETIC_OBSERVATION_TASK, run_id=run_id)
+    except Exception:
+        await runner.ports.desktop.close()
+        raise
+    try:
+        coordinator = BatchCoordinator(
+            prepared_run.campaign_store(runner.config.state_dir)
+        )
+        session = _claimed_synthetic_session(
+            coordinator,
+            campaign_id=campaign_id,
+            run_id=run_id,
+        )
+    except Exception:
+        try:
+            await runner.ports.desktop.close()
+        finally:
+            prepared_run.close()
+        raise
+    return await execute_claimed_synthetic_item_through_handoff(
+        runner,
+        prepared_run,
+        session,
+        now=now,
+    )
+
+
 def resume_finished_synthetic_campaign_after_restart(
     runner: AgentRunner,
     *,
@@ -767,6 +867,7 @@ __all__ = [
     "SYNTHETIC_CAMPAIGN_KIND",
     "SYNTHETIC_ITEM_KEY",
     "SYNTHETIC_OBSERVATION_TOOL",
+    "SYNTHETIC_OBSERVATION_TASK",
     "SYNTHETIC_RESUME_HEARTBEAT_SECONDS",
     "SYNTHETIC_RESUME_TASK",
     "SYNTHETIC_TURN_ID",
@@ -774,6 +875,7 @@ __all__ = [
     "execute_claimed_synthetic_observation_and_extraction",
     "execute_claimed_synthetic_item_through_commit",
     "execute_claimed_synthetic_item_through_handoff",
+    "execute_persisted_claimed_synthetic_item_through_handoff",
     "resume_finished_synthetic_campaign_after_restart",
     "synthetic_window_count_digest",
 ]

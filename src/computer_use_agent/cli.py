@@ -12,7 +12,23 @@ from typing import Sequence
 from .config import APPROVED_ACTIONS_MODE, ConfigError, load_agent_config
 from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
-from .types import AGENT_CONTRACT_VERSION
+from .types import AGENT_CONTRACT_VERSION, ProviderContinuationStrategy
+
+
+class _ForbiddenCampaignProvider:
+    """Fail closed if a provider boundary is entered by the fixed campaign CLI."""
+
+    name = "campaign-provider-forbidden"
+    continuation_strategy = ProviderContinuationStrategy.STATELESS_REPLAY
+
+    async def create_turn(self, **_kwargs: object) -> None:
+        raise RunnerError("CAMPAIGN_PROVIDER_FORBIDDEN")
+
+    def export_continuation(self, _run_id: str) -> None:
+        raise RunnerError("CAMPAIGN_PROVIDER_FORBIDDEN")
+
+    def restore_continuation(self, _run_id: str, _state: object) -> None:
+        raise RunnerError("CAMPAIGN_PROVIDER_FORBIDDEN")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -113,6 +129,13 @@ def build_parser() -> argparse.ArgumentParser:
     campaign_resume.add_argument("--config", required=True, type=Path)
     campaign_resume.add_argument("--campaign-id", required=True)
     campaign_resume.add_argument("--run-id", required=True)
+    campaign_run = campaign_commands.add_parser(
+        "run-claimed-synthetic",
+        help="Execute only the fixed durable claimed synthetic item through handoff.",
+    )
+    campaign_run.add_argument("--config", required=True, type=Path)
+    campaign_run.add_argument("--campaign-id", required=True)
+    campaign_run.add_argument("--run-id", required=True)
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -294,6 +317,63 @@ def _resume_synthetic_campaign(path: Path, campaign_id: str, run_id: str) -> int
         }
     )
     return 0
+
+
+async def _run_claimed_synthetic_campaign_async(
+    path: Path,
+    campaign_id: str,
+    run_id: str,
+) -> int:
+    from .approvals import ReadOnlyApprovalPort
+    from .campaign_observation_runtime import (
+        execute_persisted_claimed_synthetic_item_through_handoff,
+    )
+    from .desktop_mcp import StdioDesktopMCP
+
+    config = load_agent_config(path)
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=_ForbiddenCampaignProvider(),
+            desktop=StdioDesktopMCP(config.mcp),
+            approvals=ReadOnlyApprovalPort(),
+        ),
+    )
+    outcome = await execute_persisted_claimed_synthetic_item_through_handoff(
+        runner,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_id": campaign_id,
+            "content_digest": outcome.content_digest,
+            "item_key": outcome.committed.item_key,
+            "item_status": outcome.committed.status.value,
+            "next_item_ordinal": outcome.handoff["next_item_ordinal"],
+            "run_id": outcome.state.run_id,
+            "stop_code": outcome.stop_code,
+            "usage": {
+                "elapsed_seconds": outcome.usage.elapsed_seconds,
+                "input_tokens": outcome.usage.input_tokens,
+                "provider_turns": outcome.usage.provider_turns,
+                "tool_calls": outcome.usage.tool_calls,
+            },
+            "window_count": outcome.window_count,
+        }
+    )
+    return 0
+
+
+def _run_claimed_synthetic_campaign(
+    path: Path,
+    campaign_id: str,
+    run_id: str,
+) -> int:
+    return asyncio.run(
+        _run_claimed_synthetic_campaign_async(path, campaign_id, run_id)
+    )
 
 
 def _cancel(path: Path, run_id: str) -> int:
@@ -673,6 +753,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             and args.campaign_command == "resume-synthetic"
         ):
             return _resume_synthetic_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if (
+            args.command == "campaign"
+            and args.campaign_command == "run-claimed-synthetic"
+        ):
+            return _run_claimed_synthetic_campaign(
                 args.config,
                 args.campaign_id,
                 args.run_id,

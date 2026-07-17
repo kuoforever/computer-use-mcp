@@ -95,6 +95,12 @@ the following commands:
   item selector, provider, or desktop option; reconstructs the finished
   synthetic session under a fresh Runner lock; transfers heartbeat ownership;
   and prints only fixed resume control metadata.
+- `campaign run-claimed-synthetic --config PATH --campaign-id ID --run-id ID`
+  reconstructs only the exact pre-existing active synthetic claim, launches the
+  configured local MCP child, and reuses the sole Runner dispatch boundary for
+  `list_windows` through commit and handoff. A fail-closed provider guard makes
+  any model call impossible; no task, item selector, action, or approval option
+  is exposed.
 - `report --config PATH` aggregates phase/success/failure and token/call/latency
   metrics from bounded validated checkpoints only. It opens no trace JSONL,
   provider, MCP, approval, or desktop port and fails closed on corrupt records.
@@ -246,8 +252,9 @@ finished synthetic session from durable campaign records, transfers heartbeat
 ownership, and accepts only the exhausted resume decision. That extension
 makes no provider or MCP call and does not complete the campaign or retire its
 heartbeat. The module exposes no free-form selector, side effect, or second MCP path.
-The resume-only boundary is consumed by the fixed `campaign resume-synthetic`
-CLI command; claim-through-handoff execution remains internal.
+The two fixed campaign boundaries are consumed by `campaign
+run-claimed-synthetic` and `campaign resume-synthetic`. Campaign creation,
+discovery, and claim preparation remain internal.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
