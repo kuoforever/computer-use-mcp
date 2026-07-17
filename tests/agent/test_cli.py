@@ -50,6 +50,7 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["recover", "--help"],
         ["campaign", "--help"],
         ["campaign", "resume-synthetic", "--help"],
+        ["campaign", "run-claimed-synthetic", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -269,6 +270,103 @@ def test_synthetic_campaign_resume_cli_has_no_task_or_selector_and_prints_safe_s
         "next_item_ordinal": 2,
         "replacement_run_id": "run_2",
         "resume_state": "NO_ELIGIBLE_ITEMS",
+    }
+
+
+def test_claimed_synthetic_campaign_cli_uses_desktop_with_provider_forbidden(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from computer_use_agent.fakes import FakeDesktopMCP
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 17, 8, 0, tzinfo=timezone.utc)
+    desktop = FakeDesktopMCP()
+
+    async def fake_execute(
+        runner: object,
+        *,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, run_id, now))
+        return SimpleNamespace(
+            state=SimpleNamespace(run_id=run_id),
+            committed=SimpleNamespace(
+                item_key="synthetic:list_windows",
+                status=SimpleNamespace(value="COMMITTED"),
+            ),
+            content_digest="a" * 64,
+            handoff={"next_item_ordinal": 2},
+            stop_code="ITEM_LIMIT",
+            usage=SimpleNamespace(
+                elapsed_seconds=0,
+                input_tokens=0,
+                provider_turns=0,
+                tool_calls=1,
+            ),
+            window_count=2,
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.desktop_mcp.StdioDesktopMCP",
+        lambda _config: desktop,
+    )
+    monkeypatch.setattr(
+        "computer_use_agent.campaign_observation_runtime."
+        "execute_persisted_claimed_synthetic_item_through_handoff",
+        fake_execute,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "run-claimed-synthetic",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "run_1",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    assert not hasattr(parsed, "task")
+    assert not hasattr(parsed, "item_key")
+
+    assert main(arguments) == 0
+
+    assert len(captured) == 1
+    runner, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is not None
+    assert runner.ports.desktop is desktop
+    assert isinstance(runner.ports.provider, agent_cli._ForbiddenCampaignProvider)
+    assert campaign_id == "campaign_1"
+    assert run_id == "run_1"
+    assert captured_now == now
+    assert json.loads(capsys.readouterr().out) == {
+        "campaign_id": "campaign_1",
+        "content_digest": "a" * 64,
+        "item_key": "synthetic:list_windows",
+        "item_status": "COMMITTED",
+        "next_item_ordinal": 2,
+        "run_id": "run_1",
+        "stop_code": "ITEM_LIMIT",
+        "usage": {
+            "elapsed_seconds": 0,
+            "input_tokens": 0,
+            "provider_turns": 0,
+            "tool_calls": 1,
+        },
+        "window_count": 2,
     }
 
 

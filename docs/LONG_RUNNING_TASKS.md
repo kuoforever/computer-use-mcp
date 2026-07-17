@@ -4,7 +4,7 @@
 > fixed observation-through-restart/resume seam connected.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
-> provider, general worker, timer, side-effect, or claim-through-handoff CLI
+> provider, general worker, timer, side-effect, or campaign creation CLI
 > authority. One
 > exact claimed synthetic item can execute `list_windows` through the existing
 > Runner authority, persist correlated `OBSERVED`, extract only a bounded
@@ -205,9 +205,10 @@ fixed restart/resume extension creates a new Runner run, rebuilds the finished
 session from manifest, ledgers, handoff, and heartbeat rather than accepting
 task text or an old `BatchSession`, transfers heartbeat ownership, and accepts
 only the exhausted resume decision. It makes no provider or MCP call and
-exposes no selector, side effect, claim-through-handoff CLI, campaign completion, or heartbeat
-retirement. A resume-only CLI consumes exactly this fresh-run boundary and
-prints fixed control metadata; claim-through-handoff remains internal. Expiry
+exposes no selector, side effect, campaign creation, campaign completion, or heartbeat
+retirement. Fixed CLI commands consume the pre-claimed execution and fresh-run
+resume boundaries; provider access is forbidden and only bounded control/result
+metadata is printed. Expiry
 can release a stale read-only claim to `RETRYABLE`; it
 cannot claim the item for another run or authorize action replay.
 
@@ -420,15 +421,18 @@ takeover are durable transitions, not informal chat instructions.
 4. **Partially implemented and offline verified:** a bounded resume-only CLI
    exposes the fixed durable fresh-run boundary without task text, item
    selection, provider, or desktop ports.
-5. **Next:** connect exact claim-through-handoff execution to that same fixed
-   CLI and retain state, trace, and cost evidence.
-6. Run the BOSS read-only 100-item evaluation.
-7. Run Google Docs 50-section and WeChat draft-only evaluations.
-8. Run the cross-application campaign with a fresh-session boundary.
-9. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-10. Only then consider resumable side-effect campaigns and higher-complexity
+5. **Implemented and offline verified:** a second fixed CLI command reconstructs
+   an exact active synthetic claim and reuses Runner dispatch through handoff
+   with provider access forbidden.
+6. **Next:** add fixed one-item campaign preparation without a selector, then
+   retain complete CLI state, trace, and cost evidence.
+7. Run the BOSS read-only 100-item evaluation.
+8. Run Google Docs 50-section and WeChat draft-only evaluations.
+9. Run the cross-application campaign with a fresh-session boundary.
+10. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+11. Only then consider resumable side-effect campaigns and higher-complexity
    remote-desktop or modal-tool workloads.
-11. Define object-scoped enterprise authority, data classification, transaction
+12. Define object-scoped enterprise authority, data classification, transaction
    reconciliation, SLA ownership, and human takeover before Wave 4.
-12. Run the synthetic read-only IT incident campaign, then add approved ticket
+13. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

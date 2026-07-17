@@ -31,6 +31,7 @@ from computer_use_agent.campaign_observation_runtime import (
     execute_claimed_synthetic_observation_and_extraction,
     execute_claimed_synthetic_item_through_commit,
     execute_claimed_synthetic_item_through_handoff,
+    execute_persisted_claimed_synthetic_item_through_handoff,
     resume_finished_synthetic_campaign_after_restart,
     synthetic_window_count_digest,
 )
@@ -379,6 +380,112 @@ def test_committed_item_finishes_batch_and_writes_deterministic_handoff(
     encoded = json.dumps(handoff, sort_keys=True)
     assert "Notepad" not in encoded
     assert "Browser" not in encoded
+
+
+def test_persisted_claim_executes_without_prior_batch_session_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad\nwindow_2 | Browser",
+    )
+    _runner, prepared, _session, original_desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+    prepared.close()
+    desktop = FakeDesktopMCP(results=deque([result]))
+    provider = FakeModelProvider(turns=deque())
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=provider,
+            desktop=desktop,
+            approvals=FakeApprovalPort(),
+        ),
+    )
+
+    outcome = asyncio.run(
+        execute_persisted_claimed_synthetic_item_through_handoff(
+            runner,
+            campaign_id="campaign_1",
+            run_id="run_1",
+            now=NOW,
+        )
+    )
+
+    assert outcome.committed.status is ItemStatus.COMMITTED
+    assert outcome.window_count == 2
+    assert outcome.usage == BatchUsage(items_completed=1, tool_calls=1)
+    assert outcome.handoff["last_run_id"] == "run_1"
+    assert provider.calls == []
+    assert desktop.discovery_calls == 1
+    assert len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
+    assert original_desktop.discovery_calls == 0
+    assert original_desktop.tool_calls == []
+
+
+def test_persisted_claim_drift_fails_before_desktop_discovery_and_releases_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+    )
+    _runner, prepared, _session, _original_desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+    store = prepared.campaign_store(config.state_dir)
+    store.append(
+        "campaign_1",
+        ItemTransition(
+            1,
+            2,
+            "synthetic:unexpected",
+            ItemStatus.DISCOVERED,
+            0,
+            NOW.isoformat(timespec="seconds"),
+        ),
+    )
+    prepared.close()
+    desktop = FakeDesktopMCP()
+    provider = FakeModelProvider(turns=deque())
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=provider,
+            desktop=desktop,
+            approvals=FakeApprovalPort(),
+        ),
+    )
+
+    with pytest.raises(
+        CampaignObservationRuntimeError,
+        match="CAMPAIGN_CLAIMED_STATE_INVALID",
+    ):
+        asyncio.run(
+            execute_persisted_claimed_synthetic_item_through_handoff(
+                runner,
+                campaign_id="campaign_1",
+                run_id="run_1",
+                now=NOW,
+            )
+        )
+
+    assert provider.calls == []
+    assert desktop.discovery_calls == 0
+    assert desktop.tool_calls == []
+    assert desktop.close_calls == 1
+    replacement = AgentRunner(config).prepare(
+        "Prove the durable-claim lock was released",
+        run_id="run_after_drift",
+    )
+    replacement.close()
 
 
 def test_fresh_runner_resumes_only_from_durable_finished_handoff(
