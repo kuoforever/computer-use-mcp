@@ -224,3 +224,6 @@ There is no global "always allow" control in the first interactive version.
    and trade-off provenance.
 7. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
    cross-application scenario with one approval and one human takeover.
+
+The final integrated presentation and evidence requirements live in the
+[Universal GUI complete-product demo](UNIVERSAL_GUI_DEMO.md).

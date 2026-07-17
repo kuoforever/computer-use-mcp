@@ -286,6 +286,20 @@ stable, implement fake-only Decision Card view models before connecting a
 focus-taking card to the existing ApprovalPort. Options and trade-offs remain
 advisory until a fresh bound Host decision passes every ordinary action gate.
 
+### Showcase gate - universal GUI complete-product demo
+
+After the narrower application, campaign, observation, operator, and enterprise
+authority gates retain executable evidence, run the chaptered
+[Universal GUI demo](UNIVERSAL_GUI_DEMO.md). One campaign covers all distinct
+mechanism families across browser/native/document/data, media/design,
+nested/legacy/system, and enterprise workflows. It must include deterministic
+fault injection, provider-context rotation, restart recovery, presence/progress
+UI, one multi-option Decision Card, and a versioned token-cost baseline.
+
+This is a final integration and presentation gate, not the next runtime
+increment. A partial or edited showcase must preserve skipped, failed,
+challenged, uncertain, and human-completed states in its retained report.
+
 ### Agent Host remaining-work ledger
 
 The following items are intentionally unfinished. They must remain visible in

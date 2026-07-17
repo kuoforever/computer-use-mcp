@@ -98,6 +98,9 @@ layer:
    computer-use presence indicator and Decision Cards, then
    [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
    status projection.
+7. [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
+   final chaptered showcase and retained evidence package; it is not a shortcut
+   around the narrower application and safety gates.
 
 When campaign persistence is implemented, a new Codex session should resume
 from `campaign_id`, the validated manifest, and `handoff.json`; it should not
