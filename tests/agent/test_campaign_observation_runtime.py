@@ -14,14 +14,17 @@ from computer_use_agent.campaign import (
     BatchProjection,
     CampaignHeartbeat,
     CampaignManifest,
+    CampaignStoreError,
     ItemStatus,
     ItemTransition,
 )
 from computer_use_agent.campaign_observation_runtime import (
     CampaignObservationRuntimeError,
+    CampaignPreparationOutcome,
     CampaignRestartResumeOutcome,
     MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS,
     SYNTHETIC_CALL_ID,
+    SYNTHETIC_BATCH_ID,
     SYNTHETIC_CAMPAIGN_KIND,
     SYNTHETIC_ITEM_KEY,
     SYNTHETIC_OBSERVATION_TOOL,
@@ -32,8 +35,10 @@ from computer_use_agent.campaign_observation_runtime import (
     execute_claimed_synthetic_item_through_commit,
     execute_claimed_synthetic_item_through_handoff,
     execute_persisted_claimed_synthetic_item_through_handoff,
+    prepare_synthetic_campaign,
     resume_finished_synthetic_campaign_after_restart,
     synthetic_window_count_digest,
+    synthetic_campaign_policy_digest,
 )
 from computer_use_agent.config import (
     AgentConfig,
@@ -44,6 +49,7 @@ from computer_use_agent.config import (
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, PreparedRun, RunnerPorts
+from computer_use_agent.tool_registry import reviewed_registry_digest
 from computer_use_agent.trace import read_run_record
 from computer_use_agent.types import (
     CallIdentity,
@@ -215,6 +221,89 @@ def test_exact_claim_dispatches_once_and_persists_only_observed(
     assert record["state"]["phase"] == "SUCCESS"
     assert record["state"]["metrics"]["model_calls"] == 0
     assert record["state"]["metrics"]["tool_calls"] == 1
+
+
+def test_fixed_preparation_creates_only_one_exact_durable_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    runner = AgentRunner(config)
+
+    outcome = prepare_synthetic_campaign(
+        runner,
+        campaign_id="campaign_1",
+        run_id="run_1",
+        now=NOW,
+    )
+
+    assert isinstance(outcome, CampaignPreparationOutcome)
+    assert outcome.manifest.kind == SYNTHETIC_CAMPAIGN_KIND
+    assert outcome.manifest.policy_digest == synthetic_campaign_policy_digest(runner)
+    assert outcome.manifest.schema_digest == reviewed_registry_digest()
+    assert outcome.discovered.status is ItemStatus.DISCOVERED
+    assert outcome.session.batch_id == SYNTHETIC_BATCH_ID
+    assert outcome.session.plan.item_keys == (SYNTHETIC_ITEM_KEY,)
+    assert outcome.claimed.status is ItemStatus.CLAIMED
+    assert outcome.claimed.item_key == SYNTHETIC_ITEM_KEY
+    assert outcome.claimed.run_id == "run_1"
+    assert outcome.heartbeat.run_id == "run_1"
+    assert not (config.state_dir / "runs" / "run_1").exists()
+    assert not (config.state_dir / "traces" / "run_1.jsonl").exists()
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        store = CampaignStore(config.state_dir, lock)
+        assert store.read_manifest("campaign_1") == outcome.manifest
+        assert store.read_ledger("campaign_1").items == {
+            SYNTHETIC_ITEM_KEY: outcome.claimed
+        }
+        assert store.read_batches("campaign_1").active is not None
+        assert store.read_heartbeat("campaign_1") == outcome.heartbeat
+    finally:
+        lock.release()
+
+
+def test_fixed_preparation_rejects_campaign_reuse_without_overwriting_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    runner = AgentRunner(config)
+    outcome = prepare_synthetic_campaign(
+        runner,
+        campaign_id="campaign_1",
+        run_id="run_1",
+        now=NOW,
+    )
+    campaign_dir = config.state_dir / "campaigns" / "campaign_1"
+    before = {
+        path.name: path.read_bytes()
+        for path in campaign_dir.iterdir()
+        if path.is_file()
+    }
+
+    with pytest.raises(CampaignStoreError, match="CAMPAIGN_ALREADY_EXISTS"):
+        prepare_synthetic_campaign(
+            runner,
+            campaign_id="campaign_1",
+            run_id="run_2",
+            now=NOW,
+        )
+
+    after = {
+        path.name: path.read_bytes()
+        for path in campaign_dir.iterdir()
+        if path.is_file()
+    }
+    assert after == before
+    assert outcome.claimed.run_id == "run_1"
+    replacement = runner.prepare(
+        "Prove duplicate preparation released the lock",
+        run_id="run_after_duplicate",
+    )
+    replacement.close()
 
 
 def test_exact_observation_extracts_only_bounded_window_count(
@@ -625,6 +714,117 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         heartbeat = CampaignStore(config.state_dir, lock).read_heartbeat(
             "campaign_1"
         )
+        assert heartbeat is not None
+        assert heartbeat.run_id == "run_2"
+    finally:
+        lock.release()
+
+
+def test_three_fixed_cli_commands_complete_one_synthetic_campaign_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import computer_use_agent.cli as agent_cli
+
+    config = _config(tmp_path, monkeypatch)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(
+        f'''\
+[agent]
+state_dir = "{config.state_dir.as_posix()}"
+policy_version = "{config.policy_version}"
+
+[provider]
+name = "{config.provider.name}"
+model = "{config.provider.model}"
+context_window_tokens = {config.provider.context_window_tokens}
+output_token_reserve = {config.provider.output_token_reserve}
+
+[mcp]
+executable = "{config.mcp.executable.as_posix()}"
+args = []
+cwd = "{config.mcp.cwd.as_posix()}"
+environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
+''',
+        encoding="utf-8",
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    identity=_identity(),
+                    tool_name=SYNTHETIC_OBSERVATION_TOOL,
+                    status=ToolResultStatus.SUCCESS,
+                    dispatch=DispatchCertainty.DISPATCHED,
+                    sanitized_text="window_1 | Notepad",
+                )
+            ]
+        )
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: NOW)
+    monkeypatch.setattr(
+        "computer_use_agent.desktop_mcp.StdioDesktopMCP",
+        lambda _config: desktop,
+    )
+
+    shared = [
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+    ]
+    assert agent_cli.main(
+        ["campaign", "prepare-synthetic", *shared, "--run-id", "run_1"]
+    ) == 0
+    prepared_output = json.loads(capsys.readouterr().out)
+    assert prepared_output == {
+        "batch_id": SYNTHETIC_BATCH_ID,
+        "campaign_id": "campaign_1",
+        "campaign_kind": SYNTHETIC_CAMPAIGN_KIND,
+        "item_key": SYNTHETIC_ITEM_KEY,
+        "item_ordinal": 1,
+        "item_status": "CLAIMED",
+        "run_id": "run_1",
+    }
+
+    assert agent_cli.main(
+        ["campaign", "run-claimed-synthetic", *shared, "--run-id", "run_1"]
+    ) == 0
+    executed_output = json.loads(capsys.readouterr().out)
+    assert executed_output["item_status"] == "COMMITTED"
+    assert executed_output["usage"]["provider_turns"] == 0
+    assert executed_output["usage"]["tool_calls"] == 1
+    assert executed_output["window_count"] == 1
+
+    assert agent_cli.main(
+        ["campaign", "resume-synthetic", *shared, "--run-id", "run_2"]
+    ) == 0
+    resumed_output = json.loads(capsys.readouterr().out)
+    assert resumed_output == {
+        "campaign_id": "campaign_1",
+        "finished_run_id": "run_1",
+        "next_item_ordinal": 2,
+        "replacement_run_id": "run_2",
+        "resume_state": "NO_ELIGIBLE_ITEMS",
+    }
+    assert desktop.discovery_calls == 1
+    assert len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
+    record = read_run_record(config.state_dir, "run_1")
+    assert record["state"]["phase"] == "SUCCESS"
+    assert record["state"]["metrics"]["model_calls"] == 0
+    assert record["state"]["metrics"]["tool_calls"] == 1
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        store = CampaignStore(config.state_dir, lock)
+        item = store.read_ledger("campaign_1").items[SYNTHETIC_ITEM_KEY]
+        assert item.status is ItemStatus.COMMITTED
+        assert store.read_batches("campaign_1").active is None
+        heartbeat = store.read_heartbeat("campaign_1")
         assert heartbeat is not None
         assert heartbeat.run_id == "run_2"
     finally:

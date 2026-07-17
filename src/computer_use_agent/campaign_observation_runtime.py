@@ -29,13 +29,14 @@ from .batching import BatchPlan, BatchPolicy, BatchUsage
 from .campaign import (
     BatchStatus,
     CampaignHeartbeat,
+    CampaignManifest,
     CampaignStatus,
     ItemStatus,
     ItemTransition,
 )
 from .grounding import GroundingState
 from .runner import AgentRunner, PreparedRun, RunFailure
-from .tool_registry import verify_discovered_tools
+from .tool_registry import reviewed_registry_digest, verify_discovered_tools
 from .trace import RunPhase, RunRecorder
 from .types import CallIdentity, RunState, ToolCall, ToolResult
 
@@ -49,6 +50,8 @@ SYNTHETIC_CALL_ID = "campaign_observation_call_1"
 MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS = 64 * 1024
 SYNTHETIC_RESUME_TASK = "Resume the fixed synthetic campaign from durable state"
 SYNTHETIC_RESUME_HEARTBEAT_SECONDS = 5 * 60
+SYNTHETIC_CLAIM_LEASE_SECONDS = 5 * 60
+SYNTHETIC_BATCH_ID = "synthetic_batch_1"
 SYNTHETIC_BATCH_POLICY = BatchPolicy(max_items=1)
 
 
@@ -113,6 +116,141 @@ class CampaignRestartResumeOutcome:
     heartbeat: CampaignHeartbeat
     resume: BatchTransferredResumePreflight
     handoff: Mapping[str, object]
+
+
+@dataclass(frozen=True)
+class CampaignPreparationOutcome:
+    """Exact durable state prepared for the fixed synthetic execution CLI."""
+
+    manifest: CampaignManifest
+    discovered: ItemTransition
+    heartbeat: CampaignHeartbeat
+    session: BatchSession
+    claimed: ItemTransition
+
+
+def synthetic_campaign_policy_digest(runner: AgentRunner) -> str:
+    """Bind one synthetic campaign to exact Host and batch policy settings."""
+
+    if not isinstance(runner, AgentRunner):
+        raise CampaignObservationRuntimeError("CAMPAIGN_PREPARATION_INPUT_INVALID")
+    encoded = json.dumps(
+        {
+            "batch_policy": vars(SYNTHETIC_BATCH_POLICY),
+            "host_policy": vars(runner.policy.config),
+            "host_policy_version": runner.policy.version,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return sha256(encoded).hexdigest()
+
+
+def prepare_synthetic_campaign(
+    runner: AgentRunner,
+    *,
+    campaign_id: str,
+    run_id: str,
+    now: datetime,
+) -> CampaignPreparationOutcome:
+    """Create and claim only the fixed one-item synthetic campaign."""
+
+    if (
+        not isinstance(runner, AgentRunner)
+        or runner.ports is not None
+        or not isinstance(campaign_id, str)
+        or not campaign_id
+        or not isinstance(run_id, str)
+        or not run_id
+        or not isinstance(now, datetime)
+        or now.tzinfo is None
+        or now.utcoffset() is None
+        or now.microsecond != 0
+    ):
+        raise CampaignObservationRuntimeError("CAMPAIGN_PREPARATION_INPUT_INVALID")
+    try:
+        recorder = RunRecorder(runner.config.state_dir, run_id)
+    except ValueError as exc:
+        raise CampaignObservationRuntimeError(
+            "CAMPAIGN_PREPARATION_INPUT_INVALID"
+        ) from exc
+
+    prepared_run = runner.prepare(SYNTHETIC_OBSERVATION_TASK, run_id=run_id)
+    try:
+        if recorder.checkpoint_path.exists() or recorder.trace_path.exists():
+            raise CampaignObservationRuntimeError(
+                "CAMPAIGN_PREPARATION_RUN_EXISTS"
+            )
+        store = prepared_run.campaign_store(runner.config.state_dir)
+        timestamp = now.isoformat(timespec="seconds")
+        manifest = store.create(
+            CampaignManifest(
+                campaign_id=campaign_id,
+                kind=SYNTHETIC_CAMPAIGN_KIND,
+                policy_digest=synthetic_campaign_policy_digest(runner),
+                schema_digest=reviewed_registry_digest(),
+                created_at=timestamp,
+                updated_at=timestamp,
+            )
+        )
+        projection = store.append(
+            campaign_id,
+            ItemTransition(
+                sequence=1,
+                ordinal=1,
+                item_key=SYNTHETIC_ITEM_KEY,
+                status=ItemStatus.DISCOVERED,
+                attempt=0,
+                at=timestamp,
+            ),
+        )
+        discovered = projection.items[SYNTHETIC_ITEM_KEY]
+        heartbeat = store.write_heartbeat(
+            campaign_id,
+            CampaignHeartbeat(
+                campaign_id=campaign_id,
+                run_id=run_id,
+                started_at=timestamp,
+                heartbeat_at=timestamp,
+                fresh_until=(
+                    now + timedelta(seconds=SYNTHETIC_CLAIM_LEASE_SECONDS)
+                ).isoformat(timespec="seconds"),
+            ),
+        )
+        coordinator = BatchCoordinator(store)
+        opened = coordinator.open_batch(
+            campaign_id=campaign_id,
+            batch_id=SYNTHETIC_BATCH_ID,
+            run_id=run_id,
+            policy=SYNTHETIC_BATCH_POLICY,
+        )
+        if not isinstance(opened, BatchSession):
+            raise CampaignObservationRuntimeError(
+                "CAMPAIGN_PREPARATION_PLAN_INVALID"
+            )
+        claimed = coordinator.claim_first_item(
+            opened,
+            now=now,
+            lease_seconds=SYNTHETIC_CLAIM_LEASE_SECONDS,
+        )
+        if (
+            claimed.item_key != SYNTHETIC_ITEM_KEY
+            or claimed.status is not ItemStatus.CLAIMED
+            or claimed.run_id != run_id
+        ):
+            raise CampaignObservationRuntimeError(
+                "CAMPAIGN_PREPARATION_EVIDENCE_INVALID"
+            )
+        return CampaignPreparationOutcome(
+            manifest=manifest,
+            discovered=discovered,
+            heartbeat=heartbeat,
+            session=opened,
+            claimed=claimed,
+        )
+    finally:
+        prepared_run.close()
 
 
 def _finished_synthetic_session(
@@ -859,11 +997,14 @@ __all__ = [
     "CampaignExtractionOutcome",
     "CampaignCommitOutcome",
     "CampaignHandoffOutcome",
+    "CampaignPreparationOutcome",
     "CampaignRestartResumeOutcome",
     "CampaignObservationRuntimeError",
     "MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS",
     "SYNTHETIC_CALL_ID",
+    "SYNTHETIC_CLAIM_LEASE_SECONDS",
     "SYNTHETIC_BATCH_POLICY",
+    "SYNTHETIC_BATCH_ID",
     "SYNTHETIC_CAMPAIGN_KIND",
     "SYNTHETIC_ITEM_KEY",
     "SYNTHETIC_OBSERVATION_TOOL",
@@ -876,6 +1017,8 @@ __all__ = [
     "execute_claimed_synthetic_item_through_commit",
     "execute_claimed_synthetic_item_through_handoff",
     "execute_persisted_claimed_synthetic_item_through_handoff",
+    "prepare_synthetic_campaign",
     "resume_finished_synthetic_campaign_after_restart",
     "synthetic_window_count_digest",
+    "synthetic_campaign_policy_digest",
 ]

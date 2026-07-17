@@ -49,6 +49,7 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["recovery", "--help"],
         ["recover", "--help"],
         ["campaign", "--help"],
+        ["campaign", "prepare-synthetic", "--help"],
         ["campaign", "resume-synthetic", "--help"],
         ["campaign", "run-claimed-synthetic", "--help"],
         ["remember", "add", "--help"],
@@ -270,6 +271,87 @@ def test_synthetic_campaign_resume_cli_has_no_task_or_selector_and_prints_safe_s
         "next_item_ordinal": 2,
         "replacement_run_id": "run_2",
         "resume_state": "NO_ELIGIBLE_ITEMS",
+    }
+
+
+def test_synthetic_campaign_prepare_cli_has_no_selector_and_prints_safe_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 17, 8, 0, tzinfo=timezone.utc)
+
+    def fake_prepare(
+        runner: object,
+        *,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, run_id, now))
+        return SimpleNamespace(
+            manifest=SimpleNamespace(
+                campaign_id=campaign_id,
+                kind="synthetic_read_only",
+            ),
+            session=SimpleNamespace(batch_id="synthetic_batch_1", run_id=run_id),
+            claimed=SimpleNamespace(
+                item_key="synthetic:list_windows",
+                ordinal=1,
+                status=SimpleNamespace(value="CLAIMED"),
+            ),
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.campaign_observation_runtime.prepare_synthetic_campaign",
+        fake_prepare,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "prepare-synthetic",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "run_1",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in (
+        "task",
+        "item_key",
+        "campaign_kind",
+        "batch_id",
+        "lease_seconds",
+    ):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+
+    assert len(captured) == 1
+    runner, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is None
+    assert campaign_id == "campaign_1"
+    assert run_id == "run_1"
+    assert captured_now == now
+    assert json.loads(capsys.readouterr().out) == {
+        "batch_id": "synthetic_batch_1",
+        "campaign_id": "campaign_1",
+        "campaign_kind": "synthetic_read_only",
+        "item_key": "synthetic:list_windows",
+        "item_ordinal": 1,
+        "item_status": "CLAIMED",
+        "run_id": "run_1",
     }
 
 

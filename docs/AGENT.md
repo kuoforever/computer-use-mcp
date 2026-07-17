@@ -95,6 +95,12 @@ the following commands:
   item selector, provider, or desktop option; reconstructs the finished
   synthetic session under a fresh Runner lock; transfers heartbeat ownership;
   and prints only fixed resume control metadata.
+- `campaign prepare-synthetic --config PATH --campaign-id ID --run-id ID`
+  creates and claims exactly one `synthetic_read_only_observation` campaign
+  containing only `synthetic:list_windows`. It binds the current Host and batch
+  policy plus reviewed tool-registry digest, opens no provider or MCP port,
+  starts no trace, and exposes no kind, item, batch, lease, task, or action
+  selector.
 - `campaign run-claimed-synthetic --config PATH --campaign-id ID --run-id ID`
   reconstructs only the exact pre-existing active synthetic claim, launches the
   configured local MCP child, and reuses the sole Runner dispatch boundary for
@@ -252,9 +258,11 @@ finished synthetic session from durable campaign records, transfers heartbeat
 ownership, and accepts only the exhausted resume decision. That extension
 makes no provider or MCP call and does not complete the campaign or retire its
 heartbeat. The module exposes no free-form selector, side effect, or second MCP path.
-The two fixed campaign boundaries are consumed by `campaign
-run-claimed-synthetic` and `campaign resume-synthetic`. Campaign creation,
-discovery, and claim preparation remain internal.
+The three fixed campaign boundaries are consumed by `campaign
+prepare-synthetic`, `campaign run-claimed-synthetic`, and `campaign
+resume-synthetic`. Preparation creates only the exact fixed manifest,
+discovery record, heartbeat, single-item batch, and claim. Campaign-kind/item
+selection and a general worker remain unavailable.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final

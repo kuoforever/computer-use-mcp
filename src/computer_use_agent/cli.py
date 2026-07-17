@@ -136,6 +136,13 @@ def build_parser() -> argparse.ArgumentParser:
     campaign_run.add_argument("--config", required=True, type=Path)
     campaign_run.add_argument("--campaign-id", required=True)
     campaign_run.add_argument("--run-id", required=True)
+    campaign_prepare = campaign_commands.add_parser(
+        "prepare-synthetic",
+        help="Prepare only the fixed one-item synthetic campaign and claim.",
+    )
+    campaign_prepare.add_argument("--config", required=True, type=Path)
+    campaign_prepare.add_argument("--campaign-id", required=True)
+    campaign_prepare.add_argument("--run-id", required=True)
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -314,6 +321,30 @@ def _resume_synthetic_campaign(path: Path, campaign_id: str, run_id: str) -> int
             "next_item_ordinal": outcome.resume.next_item_ordinal,
             "replacement_run_id": outcome.resume.replacement_run_id,
             "resume_state": outcome.resume.state.value,
+        }
+    )
+    return 0
+
+
+def _prepare_synthetic_campaign(path: Path, campaign_id: str, run_id: str) -> int:
+    from .campaign_observation_runtime import prepare_synthetic_campaign
+
+    config = load_agent_config(path)
+    outcome = prepare_synthetic_campaign(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "batch_id": outcome.session.batch_id,
+            "campaign_id": outcome.manifest.campaign_id,
+            "campaign_kind": outcome.manifest.kind,
+            "item_key": outcome.claimed.item_key,
+            "item_ordinal": outcome.claimed.ordinal,
+            "item_status": outcome.claimed.status.value,
+            "run_id": outcome.session.run_id,
         }
     )
     return 0
@@ -762,6 +793,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             and args.campaign_command == "run-claimed-synthetic"
         ):
             return _run_claimed_synthetic_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if (
+            args.command == "campaign"
+            and args.campaign_command == "prepare-synthetic"
+        ):
+            return _prepare_synthetic_campaign(
                 args.config,
                 args.campaign_id,
                 args.run_id,
