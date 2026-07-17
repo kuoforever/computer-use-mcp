@@ -122,6 +122,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 
 | Need | Read |
 | --- | --- |
+| Understand the complete project, every feature family, implementation path, quality attribute, status, and next gate | [Project overview](docs/PROJECT_OVERVIEW.md) |
 | Find the right document | [Documentation index](docs/README.md) |
 | See what is implemented, verified, or still planned | [Capability status](docs/CAPABILITY_STATUS.md) |
 | Configure modes, safeguards, and environment variables | [Configuration and safety](docs/CONFIGURATION.md) |

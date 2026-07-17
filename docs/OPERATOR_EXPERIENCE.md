@@ -96,6 +96,26 @@ It must not show raw task text, model prose, screenshots, page or message
 content, typed values, credentials, account names, arbitrary errors, or hidden
 reasoning. Unknown values remain unavailable rather than becoming zero.
 
+## Remote and mobile notification semantics
+
+Mobile push is a host surface, not a fourth operator authority surface. After a
+future campaign worker exists, Codex or Claude may poll the bounded status
+projection defined in [Long-running tasks](LONG_RUNNING_TASKS.md). ChatGPT
+Remote or Claude Remote Control may then notify the operator when the host ends
+on a validated terminal state or pauses for a validated attention state.
+
+The notification title and category may be host-specific, but its meaning must
+remain fixed: `COMPLETED` is success; `FAILED` and `CANCELLED` are terminal but
+not success; `WAITING_APPROVAL`, `PAUSED`, and `CHALLENGE` need attention but
+are not complete; `UNCERTAIN` requires inspection and forbids replay. Running,
+stale, malformed, missing, or identity-mismatched state cannot produce a
+completion notification. MCP log notifications are never used as terminal
+evidence.
+
+No iPhone push adapter is implemented in this repository. The planned local
+operator UI may display the same validated projection, but it neither sends the
+mobile notification nor changes the task state.
+
 ## Decision Cards
 
 A Decision Card is created only from a Host-classified decision point. It
@@ -222,7 +242,10 @@ There is no global "always allow" control in the first interactive version.
    without changing the ordinary Host/MCP dispatch boundary.
 6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
    and trade-off provenance.
-7. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
+7. After the executable campaign worker exists, verify fake-host terminal and
+   attention events from the same redacted status projection without adding a
+   second execution path.
+8. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
    cross-application scenario with one approval and one human takeover.
 
 The final integrated presentation and evidence requirements live in the

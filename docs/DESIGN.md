@@ -4,6 +4,9 @@
 > This document explains boundaries and decisions. For the current user-facing
 > API, use [the tool reference](TOOLS.md), not this design document.
 
+For the end-to-end feature, implementation, quality, evidence, and ownership
+map, start with [Project overview](PROJECT_OVERVIEW.md).
+
 ## Architecture
 
 The project follows a small ports-and-adapters design. The shared core owns
