@@ -96,6 +96,10 @@ operator may execute one strictly classified read-only continuation boundary by
 default, or 1-4 with `--max-steps`, using
 `agent recover ... --execute-read-only`. The command holds one run lock and fails
 closed on task, policy, provider, registry, budget, digest, or sequence drift.
+The bounded `agent plan run` path also requires continuation persistence before
+it makes its one Planner request, because every observation and final-response
+dispatch must retain the existing crash boundary. It remains disabled when
+`enabled = false`.
 
 ## VMware helper
 

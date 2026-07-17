@@ -1,12 +1,12 @@
 # Task planning contract
 
-> **Status: non-executable contract, private persistence, bounded Executor
-> preflight, and internal observation/final runtime implemented.**
+> **Status: bounded observation-only CLI implemented and offline verified.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
 > a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
-> Claude adapters are implemented. No CLI command asks a provider for or
-> executes a plan.
+> Claude adapters are implemented. `plan run` composes one host-scoped Planner
+> request, one to four Runner-dispatched observations, and one stateless
+> tool-free final response. Side-effect plans remain unavailable.
 
 ## Boundary
 
@@ -99,9 +99,9 @@ snapshot unchanged. The store imports no provider, policy, approval, MCP, or
 desktop port.
 
 The isolated provider adapters can only produce the already bounded candidate
-format. The first Executor increment is a pure preflight compiler; runtime
-consumption remains a later, independent review and must pass every existing
-policy, grounding, budget, approval, MCP, write-ahead, and verification boundary.
+format. Runtime consumption is limited to the fixed observation-only CLI
+composition and must pass every existing policy, grounding, budget, MCP,
+write-ahead, and verification boundary.
 
 ## Pure Executor step preflight
 
@@ -155,8 +155,8 @@ mismatch, or fifth step fails closed.
 
 ## Observation-only runtime session
 
-`executor_runtime.py` is the first execution-capable plan consumer. It is an
-internal API with no CLI and accepts a host-compiled `TaskPlan` plus its exact
+`executor_runtime.py` is the first execution-capable plan consumer. It accepts
+a host-compiled `TaskPlan` plus its exact
 task. Opening a new session requires configured continuation WAL, acquires one
 application RunLock, creates the private plan snapshot and safe run record,
 verifies exact MCP discovery, and retains one recorder, continuation, grounding
@@ -330,9 +330,10 @@ trace, continuation, or final-WAL write and cannot publish text, call a provider
 dispatch MCP, enter approval/policy, or invoke the recovery executor. All
 persisted inputs remain non-authorizing evidence.
 
-The next Executor increment should apply this prepared value with separately
-reviewed, idempotent sequence/digest CAS ordering and terminal cleanup before
-any CLI wiring. Any side-effect
+`executor_final_reconciliation_apply.py` now applies this prepared value under
+the same RunLock with idempotent sequence/digest CAS ordering, one terminal
+trace/checkpoint, completed-final WAL retention, and ordinary-continuation
+cleanup. Any side-effect
 expansion must route fresh calls only through the shared Runner boundary and
 retain the same approval, grounding, budget, WAL, and verification rules. Plan transitions may record outcomes,
 but neither `pending`, `in_progress`, nor any persisted plan field may bypass or
@@ -380,6 +381,25 @@ The shared strict provider wire schema carries tool arguments as JSON text becau
 the host schemas contain optional and mutually exclusive fields. The adapter
 losslessly decodes that text into the ordinary candidate shape, then the
 existing compiler alone enforces the exact reviewed tool-argument schema.
-Historical function/tool calls never exist on these adapter paths. Neither is
-connected to CLI, Runner, PlanStore, policy, approval, MCP, or Executor. The
-bounded Executor remains a separate review.
+Historical function/tool calls never exist on these adapter paths. The fixed
+CLI composition connects the Planner result only to the bounded observation
+Executor below; neither adapter gains policy, approval, MCP, or dispatch
+authority.
+
+## Bounded observation-only CLI composition
+
+`planned_observation_runtime.py` and `plan run --config PATH --task TEXT`
+provide the only Planner/Executor CLI path. The host generates run/plan
+identities and discloses exactly `ui_snapshot`, `find`, `list_windows`, and
+`screenshot` to one configured-provider Planner call. The compiled candidate
+must contain one to four observations followed by one `final_response`, and it
+must fit the configured tool/model budgets before the desktop is opened.
+
+The composition then opens one fresh Executor session, dispatches each
+observation through the sole Runner boundary, and calls the matching isolated
+tool-free final adapter once. The ordinary provider continuation port is a
+fail-closed sentinel and is never called. There is no tool selector, action,
+approval, memory, recovery, resume, campaign, or alternate MCP option. Offline
+fakes prove exact tool scope, call order, budget/WAL preflight, zero ordinary
+provider calls, zero approval requests, and no direct dispatch site. Provider,
+desktop, and application evidence remain unretained.

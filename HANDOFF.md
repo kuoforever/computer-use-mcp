@@ -21,7 +21,12 @@ actions. Provider E3 and isolated desktop E4 evidence are not retained.
 Planner/Executor and Campaign packages also contain substantial offline-tested
 control logic. Completed final-response crash evidence can now be applied
 through a local-only idempotent plan CAS, terminal trace/checkpoint repair, and
-ordinary-continuation cleanup while retaining the completed final WAL. One
+ordinary-continuation cleanup while retaining the completed final WAL. A
+bounded `plan run` CLI now asks the configured provider for one host-scoped
+plan containing one to four observation steps, executes only those steps
+through the sole Runner boundary, and obtains one stateless tool-free final
+response. It has offline fake-port evidence but no retained provider or desktop
+result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
 `OBSERVED`, reduce the bounded result to a non-sensitive window count, persist
@@ -63,6 +68,7 @@ src/computer_use_agent/
   providers/           OpenAI and Claude adapters
   planning.py          bounded declarative planning contracts
   executor*.py         internal observation/final runtime and local reconciliation
+  planned_observation_runtime.py fixed observation-only CLI composition
   campaign*.py         offline campaign control state and preflights
   continuation*.py     private bounded crash evidence and recovery
 
