@@ -236,6 +236,10 @@ A fully committed transferred campaign now reaches the existing resume-plan
 preflight's fixed `NO_ELIGIBLE_ITEMS` boundary with an empty item plan and the
 derived next ordinal. Attempting to open an empty resumed batch fails without a
 `STARTED` write or other durable-state change.
+A read-only completion preflight may now require that exact exhausted boundary
+and bind the finished run, replacement owner, and next ordinal to only the fixed
+campaign-completion directive. It does not change the `RUNNING` manifest,
+handoff, heartbeat, ledgers, or runtime state.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
