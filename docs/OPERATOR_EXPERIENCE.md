@@ -1,0 +1,226 @@
+# Operator experience
+
+> **Status: planned complete-product operator experience.** No desktop presence
+> indicator, interactive decision card, or production progress window is
+> implemented. The current approved-action flow remains an interactive console
+> confirmation for one action at a time.
+
+## Goal
+
+Make desktop Agent activity continuously legible without making model output an
+authority source. The complete operator experience has three coordinated but
+separately trusted surfaces:
+
+1. a non-interactive desktop presence indicator showing when computer use is
+   active and which execution state owns the shared desktop;
+2. a passive progress window projecting validated run and campaign state;
+3. an explicit Decision Card presenting bounded choices and trade-offs when a
+   human decision is required.
+
+The visual surfaces observe host-owned state. They do not infer success from
+model prose, dispatch tools, replay uncertain work, or weaken Host/MCP policy.
+
+## Surface separation
+
+~~~text
+validated checkpoint / campaign / approval request
+  -> pure operator view-model projection
+      -> presence indicator       # passive, click-through, never authority
+      -> progress viewer          # passive by default, never execution
+      -> Decision Card            # explicit focus-taking human boundary
+          -> bound policy decision
+              -> ordinary Host policy / grounding / approval / MCP path
+~~~
+
+The passive surfaces must not become approval shortcuts. Opening a Decision
+Card is a deliberate transition into operator interaction; it may take focus and
+therefore triggers normal human-activity yielding until the decision is closed
+and the desktop is explicitly returned to the Agent.
+
+## Desktop presence indicator
+
+The indicator provides ambient feedback comparable to a computer-use border or
+halo. It appears only while the Agent owns or is waiting to regain the shared
+desktop. State is conveyed by label/icon/motion as well as color so color is
+never the only signal.
+
+| Host state | Suggested presentation | Meaning |
+| --- | --- | --- |
+| Observing | blue, steady, eye label | Reading the current application; no action is being dispatched. |
+| Planning | violet, slow motion, plan label | The model or planner is deciding the next bounded step. |
+| Executing | green, directional motion, action label | One authorized desktop action is in progress. |
+| Verifying | cyan, short pulse, verify label | A fresh observation is checking the preceding action. |
+| Recovering | orange, slow pulse, recovery label | The Agent is re-observing or preparing a bounded recovery path. |
+| Waiting approval | amber, attention pulse, approval label | No further side effect may execute until a bound decision is returned. |
+| Paused / human takeover | neutral white/gray, paused label | Agent desktop authority is released or yielding to local input. |
+| Unknown outcome / blocked | red, fixed warning, inspect label | Automatic replay is forbidden; evidence or human action is required. |
+
+Implementation requirements:
+
+- render as a top-level, click-through, non-activating tool window;
+- never intercept pointer, keyboard, drag, or accessibility hit testing;
+- bind the indicator to the controlled display and optionally identify the
+  currently verified target window without drawing over actionable content;
+- disappear immediately after E-stop, terminal close, or authority release;
+- remain visibly distinct from application focus, selection, validation, and
+  Windows security indicators;
+- support reduced motion, high contrast, color-blind-safe labels, and per-user
+  disablement without disabling audit or safety controls;
+- exclude Agent-owned surfaces from screenshots when supported and also make
+  the observation pipeline identify/mask them by trusted window identity;
+- treat capture exclusion as feedback-loop prevention, not a secrecy or DRM
+  guarantee;
+- define per-monitor bounds and DPI behavior before claiming multi-monitor
+  support.
+
+The indicator must not claim that an action succeeded. It displays only the
+current validated Host phase and ownership state.
+
+## Progress window
+
+The detailed projection, privacy constraints, multi-run grouping, and
+non-activating behavior live in [Operator progress viewer](PROGRESS_VIEWER.md).
+The complete window adds chapter and work-item progress for the universal GUI
+campaign while retaining the existing passive default.
+
+The compact summary may show:
+
+- campaign, chapter, batch, and committed-item counts;
+- current application class and sanitized fixed phase;
+- model/tool calls, provider tokens, observation escalation, and retry counts;
+- waiting approval, human takeover, challenge, recovery, uncertain, and
+  terminal states;
+- last validated checkpoint time and whether liveness is known or unknown.
+
+It must not show raw task text, model prose, screenshots, page or message
+content, typed values, credentials, account names, arbitrary errors, or hidden
+reasoning. Unknown values remain unavailable rather than becoming zero.
+
+## Decision Cards
+
+A Decision Card is created only from a Host-classified decision point. It
+explains the business decision before exposing the underlying GUI operation.
+Examples include choosing between a compliant recovery and human takeover,
+approving an external message, resolving object-version drift, or declining a
+high-risk transition.
+
+Each card contains:
+
+- decision ID, campaign/run identity, expiry, and state/version digest;
+- fixed blocker or decision class;
+- target application and stable object/conversation/document identity in a
+  bounded, privacy-safe form;
+- the intended business effect and recipient/tenant/scope where applicable;
+- bounded evidence references and which facts remain unknown;
+- two or three mutually exclusive options, including a safe cancel, defer, or
+  handoff path;
+- a clearly labeled Agent recommendation when one exists;
+- an explicit statement that the recommendation is advisory and grants no
+  authority.
+
+Each option uses a typed trade-off record:
+
+~~~json
+{
+  "option_id": "option_reobserve",
+  "title": "Re-observe and retry the documented path",
+  "effect": "No external message is sent during recovery",
+  "benefits": ["may complete automatically", "preserves campaign state"],
+  "costs": ["additional observation and model calls"],
+  "risks": ["application state may have changed again"],
+  "reversible": true,
+  "expected_time": {"kind": "range", "min_seconds": 15, "max_seconds": 45},
+  "expected_tokens": {"kind": "unknown"},
+  "confidence": {"kind": "uncalibrated", "label": "medium"},
+  "required_authority": "read_only_recovery",
+  "fallback": "handoff_to_operator"
+}
+~~~
+
+Time, token, and success estimates must identify whether they are measured,
+configured bounds, uncalibrated model estimates, or unknown. The UI must not
+present invented precision. A recommended option is not automatically
+selected, and no option may hide an externally visible or irreversible effect.
+
+## Decision and approval semantics
+
+Choosing an option does not directly execute it. Selection creates a fresh,
+digest-bound Host decision and, when necessary, a separate approval request for
+the exact side effect. Before dispatch the Host rechecks:
+
+- decision/card identity, expiry, and selected option;
+- current run, tool call, policy, task, and registry digests;
+- application, tenant, object, recipient, and version identity;
+- grounding freshness, budgets, required approver role, and side-effect scope;
+- whether new observations invalidate the displayed evidence or trade-offs.
+
+Any drift closes the card as stale and requires a new projection. Empty input,
+window close, timeout, malformed response, or mismatched identity defaults to
+deny/defer. The model provider cannot approve its own recommendation.
+
+The card must always make these paths available when applicable:
+
+- approve the exact recommended option;
+- choose a bounded alternative;
+- inspect sanitized evidence;
+- defer and preserve a resumable handoff;
+- deny/cancel the proposed effect;
+- take over the desktop, which first releases Agent authority.
+
+There is no global "always allow" control in the first interactive version.
+
+## Example
+
+~~~text
++ Decision required -----------------------------------------------+
+| WeChat test conversation changed after restart                   |
+| Intended effect: send one approved test summary                  |
+| Known: draft digest matches   Unknown: active conversation       |
+|                                                                  |
+| A  Re-observe and verify conversation        Recommended          |
+|    + may finish automatically   - 15-45 s; token cost unknown     |
+|    Risk: stale identity may remain; sends nothing during recovery|
+|                                                                  |
+| B  Keep draft and hand control to operator                       |
+|    + lowest automation risk      - requires manual completion     |
+|                                                                  |
+| C  Cancel send and finish partial campaign                       |
+|    + no external side effect     - task remains incomplete        |
+|                                                                  |
+| [Choose A] [Choose B] [Choose C] [Evidence] [Cancel]             |
++------------------------------------------------------------------+
+~~~
+
+## Acceptance checks
+
+1. Presence and progress surfaces never become the foreground window, intercept
+   input, or enter Agent observations as actionable application content.
+2. Indicator state follows validated Host phases and disappears on authority
+   release, crash detection, terminal close, and E-stop.
+3. A Decision Card may take focus only after the Agent has yielded; no desktop
+   action executes while the decision is open.
+4. Every option is schema bounded, mutually exclusive, and includes effect,
+   risk, reversibility, authority, cost provenance, and fallback.
+5. Selecting an option with stale evidence, identity, policy, or object version
+   cannot produce an approval or dispatch.
+6. Recommendations remain advisory; deny, defer, cancel, and human takeover are
+   tested paths.
+7. Screenshot and trace fixtures prove that operator surfaces and trade-off
+   records do not leak sensitive desktop or typed content.
+8. Reduced-motion, high-contrast, DPI, focus, multi-window, and abrupt-process-
+   termination cases have deterministic UI tests before isolated desktop smoke.
+
+## Delivery sequence
+
+1. Define pure presence, progress, option, trade-off, and Decision Card view
+   models with redaction and stale-state tests.
+2. Implement the passive non-activating progress window from synthetic records.
+3. Implement the click-through presence indicator, capture filtering, reduced
+   motion, DPI handling, and E-stop/authority-release teardown.
+4. Add a fake-only Decision Card compiler and deterministic choice tests.
+5. Connect a focus-taking local Decision Card to the existing ApprovalPort
+   without changing the ordinary Host/MCP dispatch boundary.
+6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
+   and trade-off provenance.
+7. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
+   cross-application scenario with one approval and one human takeover.

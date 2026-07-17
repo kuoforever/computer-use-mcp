@@ -133,6 +133,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |
 | Run staged real-application campaigns and coverage benchmarks | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
 | Reduce model context and observation cost | [Token efficiency](docs/TOKEN_EFFICIENCY.md) |
+| Review the planned computer-use indicator, progress UI, and decision experience | [Operator experience](docs/OPERATOR_EXPERIENCE.md) |
 
 ## License
 

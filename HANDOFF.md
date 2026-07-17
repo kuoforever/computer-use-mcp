@@ -94,8 +94,10 @@ layer:
 5. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
    [Observation contract](docs/OBSERVATION_CONTRACT.md) for model-context and
    perception changes.
-6. [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
-   status UI.
+6. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the planned
+   computer-use presence indicator and Decision Cards, then
+   [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
+   status projection.
 
 When campaign persistence is implemented, a new Codex session should resume
 from `campaign_id`, the validated manifest, and `handoff.json`; it should not
@@ -135,7 +137,11 @@ its UIA tree.
   change.
 - Keep current behavior in the README, configuration page, and tool reference.
 - Keep design directions in [docs/DESIGN.md](docs/DESIGN.md) and
-  [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md).
+   [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md).
+- Keep computer-use presence, passive progress, and interactive decision
+  boundaries synchronized across [operator experience](docs/OPERATOR_EXPERIENCE.md),
+  [progress viewer](docs/PROGRESS_VIEWER.md), and
+  [approved actions](docs/APPROVALS.md).
 - Keep contract changes synchronized with `contract.py`.
 
 Avoid restoring sentence-by-sentence bilingual copies; they obscure the current

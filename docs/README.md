@@ -34,6 +34,7 @@ not a line-by-line mirror of every reference page.
 | I need real-application and enterprise workflow cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | I am adding OCR, document text, image, or delta observations | [Observation contract](OBSERVATION_CONTRACT.md) |
+| I am designing computer-use presence, progress, Decision Cards, or operator trade-offs | [Operator experience](OPERATOR_EXPERIENCE.md) |
 | I am implementing the non-activating multi-run UI | [Operator progress viewer](PROGRESS_VIEWER.md) |
 | I need sanitized findings from live desktop sessions | [Operator session notes](OPERATOR_SESSION_NOTES.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
@@ -65,6 +66,7 @@ not a line-by-line mirror of every reference page.
 | Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
+| Operator experience | Planned desktop presence indicator, passive progress, Decision Cards, trade-off provenance, and operator-interaction boundaries |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |

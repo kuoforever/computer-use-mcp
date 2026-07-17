@@ -43,6 +43,23 @@ For each requested action, the Host performs these checks in order:
 The console defaults to deny on empty input, EOF, interruption, or any answer
 other than explicit yes. It never prints raw typed text.
 
+## Planned Decision Card extension
+
+The complete operator experience may present two or three bounded alternatives
+with benefits, costs, risks, reversibility, authority scope, fallback, and
+provenance for time/token/confidence estimates. See
+[Operator experience](OPERATOR_EXPERIENCE.md).
+
+This is decision support, not delegated authority. A model recommendation cannot
+approve itself. Choosing an option must create a fresh identity- and digest-
+bound Host decision; any resulting side effect still passes the existing
+grounding, budget, approval, MCP safety, and post-action verification path.
+Evidence or object-version drift invalidates the card before dispatch.
+
+The planned graphical card does not change the current implementation boundary:
+today the interactive console accepts only an explicit approval or denial for
+one exact request and offers no alternatives or trade-off UI.
+
 ## Grounding rules
 
 Grounding is in-memory, generation-qualified, and derived only from successful

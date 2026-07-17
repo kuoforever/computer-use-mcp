@@ -4,6 +4,11 @@
 > first version is a read-only projection of validated checkpoints and future
 > campaign state.
 
+This passive projection is one surface of the planned
+[Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
+and focus-taking Decision Card have separate behavior and authority boundaries;
+they must not be implemented as hidden controls inside this viewer.
+
 ## Goal
 
 Show several concurrent or historical runs without requiring the operator to
@@ -98,6 +103,11 @@ If a later version supports interactive selection, it must define one of:
 The spec must not promise both arbitrary keyboard interaction and zero focus
 change.
 
+Approval choices and human takeover belong to an explicit Decision Card or
+operator mode. Opening that surface first yields Agent desktop authority and
+may then take focus; closing it does not silently return authority or approve an
+action.
+
 ## Layout
 
 ~~~text
@@ -145,3 +155,6 @@ model prose, arbitrary errors, credentials, or account identifiers.
 3. Atomic live checkpoint polling.
 4. Multi-run grouping.
 5. Campaign progress after the long-running task manifest is implemented.
+6. Integrate shared presence and Decision Card state only through the pure
+   operator view-model contracts; keep execution and approval out of the
+   passive window.
