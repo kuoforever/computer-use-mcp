@@ -26,6 +26,8 @@ from computer_use_agent.campaign_observation_runtime import (
     SYNTHETIC_TURN_ID,
     execute_claimed_synthetic_observation,
     execute_claimed_synthetic_observation_and_extraction,
+    execute_claimed_synthetic_item_through_commit,
+    synthetic_window_count_digest,
 )
 from computer_use_agent.config import (
     AgentConfig,
@@ -253,6 +255,56 @@ def test_oversized_extraction_stops_after_observed_without_extracted(
     assert len(desktop.tool_calls) == 1
     assert _read_item(config).status is ItemStatus.OBSERVED
     assert read_run_record(config.state_dir, "run_1")["state"]["phase"] == "FAILED"
+
+
+def test_exact_count_is_verified_and_committed_with_canonical_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad\nwindow_2 | Browser\n",
+    )
+    runner, prepared, session, desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+
+    outcome = asyncio.run(
+        execute_claimed_synthetic_item_through_commit(
+            runner, prepared, session, now=NOW
+        )
+    )
+
+    expected_digest = (
+        "cd53d46573cc732039e324edd1a9fd3301df8629210efdecb67af9864d098882"
+    )
+    assert synthetic_window_count_digest(2) == expected_digest
+    assert outcome.window_count == 2
+    assert outcome.content_digest == expected_digest
+    assert outcome.committed.status is ItemStatus.COMMITTED
+    assert outcome.committed.boundary == "result_verified"
+    assert outcome.committed.code == "READ_ONLY_RESULT_VERIFIED"
+    assert outcome.committed.content_digest == expected_digest
+    assert len(desktop.tool_calls) == 1
+    durable = _read_item(config)
+    assert durable.status is ItemStatus.COMMITTED
+    assert durable.content_digest == expected_digest
+    record = read_run_record(config.state_dir, "run_1")
+    assert record["state"]["phase"] == "SUCCESS"
+    encoded_record = json.dumps(record, sort_keys=True)
+    assert "Notepad" not in encoded_record
+    assert "Browser" not in encoded_record
+
+
+@pytest.mark.parametrize("value", [-1, True, "2", None])
+def test_canonical_count_digest_rejects_non_counts(value: object) -> None:
+    with pytest.raises(
+        CampaignObservationRuntimeError,
+        match="CAMPAIGN_COMMIT_RESULT_INVALID",
+    ):
+        synthetic_window_count_digest(value)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
