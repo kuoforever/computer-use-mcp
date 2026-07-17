@@ -251,6 +251,10 @@ The coordinator may now re-run that preflight and atomically replace only the
 handoff with the fixed `COMPLETED` directives and replacement owner. Repeated
 valid calls are byte-stable; manifest, heartbeat, ledgers, and runtime state
 remain unchanged.
+A read-only terminal heartbeat-retirement preflight may now require that exact
+completed handoff, current replacement owner, finished batch, and fully
+committed ledger before returning only the fixed heartbeat-removal directive.
+It does not remove heartbeat state or connect any runtime path.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

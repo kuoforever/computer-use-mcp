@@ -455,6 +455,12 @@ replacement owner as the terminal `last_run_id`. A repeated valid call returns
 the existing byte-stable handoff; manifest, heartbeat, and ledgers remain
 unchanged, and no runtime path is connected.
 
+Once that terminal handoff is valid, a read-only heartbeat-retirement preflight
+can now bind its terminal `last_run_id` to the exact current heartbeat owner,
+finished batch, fully committed ledger, and derived next ordinal. `READY`
+returns only `remove_completed_campaign_heartbeat`; it does not remove the
+heartbeat or modify any other durable or runtime state.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
