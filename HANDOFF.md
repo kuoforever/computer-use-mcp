@@ -15,8 +15,10 @@ explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. Provider E3 and isolated desktop E4 evidence are not retained.
 
 Planner/Executor and Campaign packages also contain substantial offline-tested
-control logic, but their current internal runtimes are not connected to a
-campaign CLI or complete application workflow. The broader universal GUI,
+control logic. One fixed synthetic claimed campaign item can now execute a
+single `list_windows` observation through the existing Runner boundary and
+persist only `OBSERVED`; no campaign CLI or complete application workflow is
+connected. The broader universal GUI,
 operator UI, cross-application demo, and continual-learning layers remain
 planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
 status header of every owner document before treating it as available.
@@ -122,10 +124,11 @@ layer:
    strategy selection; it does not describe current runtime behavior.
 
 The campaign control plane can validate `campaign_id`, manifest, ledgers, and
-`handoff.json`, but no campaign worker or CLI is connected. When that runtime
-exists, a fresh session must resume from those durable records without prior
-conversation text. Until then, use these documents as the cross-session source
-of truth.
+`handoff.json`. Its first internal execution seam is limited to the exact
+synthetic observation described above; extraction, commit, restart/resume, a
+general worker, and CLI remain unconnected. A future fresh session must resume
+from durable records without prior conversation text. Until then, use these
+documents as the cross-session source of truth.
 
 ## Guardrail checklist for new actions
 

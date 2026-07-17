@@ -26,7 +26,7 @@ test was attempted and failed unless a linked evidence record says so.
 | MCP Server | `YES` | `YES` — eight-tool Windows stdio server | `YES` | `N/A` | `PARTIAL` — prior desktop probes exist; repaired activation path has no retained isolated rerun | `PARTIAL` — one read-only BOSS/Chrome probe, not an application acceptance pass | Run the E4 Windows activation regression, then retain a bounded BOSS observation result |
 | Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop and fake-verified approved actions | `YES` | `NO` — E3 is opt-in and no credentialed result is retained | `NO` — E4 has no retained result | `NO` | Pass both providers through harmless E3, then the four-cell isolated E4 matrix |
 | Planner / Executor | `YES` | `PARTIAL` — declarative planning, observation runtime, final runtime, and reconciliation preflights are internal only | `YES` | `NO` | `NO` | `NO` | Apply completed-final reconciliation through reviewed local CAS/cleanup, then expose one observation-only CLI path without adding a second dispatch boundary |
-| Campaign | `YES` | `PARTIAL` — manifest, ledgers, leases, heartbeat, handoff, completion/resume, and terminal heartbeat-retirement preflight exist | `YES` | `NO` | `NO` | `NO` | Connect one synthetic read-only item to the existing Agent boundary through observe, extract, verify, commit, restart, and resume |
+| Campaign | `YES` | `PARTIAL` — control state exists; one exact claimed synthetic item can execute `list_windows` through Runner and persist `OBSERVED` | `YES` | `NO` | `NO` | `NO` | Extend that same fixed synthetic item through extract, verify, commit, forced restart, and resume |
 | Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, and bounded Agent image handling exist; document text, OCR, region, and delta sources do not | `PARTIAL` | `NO` | `PARTIAL` — BOSS probe proved useful UIA controls and missing static content | `NO` | Implement one bounded OCR or document-text vertical slice with source/cost evidence and no challenge bypass |
 | Operator UI | `YES` | `PARTIAL` — console yes/deny approval exists; presence indicator, passive progress window, and Decision Cards do not | `PARTIAL` — approval path has fake-port evidence | `NO` | `NO` | `NO` | Implement the checkpoint-to-view-model reducer, then a non-activating isolated Windows viewer smoke |
 | Continual Learning | `YES` | `NO` — current explicit memory is not automatic learning | `NO` | `NO` | `NO` | `NO` | Deliver L0 normalized episode outcomes and complete cost vectors before candidate extraction or strategy routing |
@@ -36,7 +36,7 @@ test was attempted and failed unless a linked evidence record says so.
 The following read-only checks were run against this checkout on 2026-07-17:
 
 ~~~text
-python -m pytest -q              831 passed, 3 skipped
+python -m pytest -q              839 passed, 3 skipped
 ruff check src tests scripts    PASS
 relative Markdown targets       PASS
 ~~~
@@ -53,9 +53,10 @@ release, or complete-demo evidence cells.
 2. **Observation vertical slice:** the recorded BOSS probe showed that static
    browser content can be absent from the interactive UIA tree. Add one bounded
    fallback and measure its total cost per verified result.
-3. **Runtime connection:** campaign and Planner/Executor control-state work is
-   ahead of its executable integration. Connect the smallest read-only path
-   through the existing Agent authority boundary before adding more preflights.
+3. **Runtime connection:** the first fixed campaign observation now reuses the
+   Agent authority boundary and persists only correlated `OBSERVED` success.
+   Continue the same synthetic item through extraction, verification, commit,
+   and forced-restart resume before adding a general worker or more preflights.
 4. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
    and WeChat draft-only cases and retain success, token, retry, recovery, and
    takeover measurements.

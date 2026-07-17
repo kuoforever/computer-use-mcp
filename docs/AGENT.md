@@ -223,6 +223,14 @@ tool-call, result, and observation events are appended to the canonical ledger;
 model and tool budgets are consumed before another external call can occur.
 The current ledger is in-memory only and is not a resumable trace.
 
+`campaign_observation_runtime.py` reuses that same boundary for one internal
+execution-bearing campaign seam. It accepts only an already-claimed first item
+from the fixed `synthetic_read_only_observation` campaign, requires the sole
+planned key `synthetic:list_windows`, constructs one `list_windows` call inside
+the Host, and persists `OBSERVED` only after a successful correlated result.
+It makes no provider call and exposes no selector, extraction, commit, resume,
+side-effect, CLI, or second MCP path.
+
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.
