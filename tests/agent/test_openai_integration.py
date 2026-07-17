@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -90,3 +92,104 @@ def test_live_openai_read_tool_result_final_answer_cycle(
     assert result_events[0].tool_result.tool_name == "list_windows"
     assert "secrets=absent" in result_events[0].tool_result.sanitized_text
     assert desktop.closed
+
+
+def test_live_openai_planned_observation_cli_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise the bounded plan CLI against the harmless MCP child."""
+
+    model = _require_opt_in()
+    local_app_data = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    fixture = Path(__file__).parent / "fixtures" / "stdio_mcp_server.py"
+    child_cwd = tmp_path / "openai plan integration child"
+    child_cwd.mkdir()
+    state_dir = local_app_data / "computer-use-agent" / "openai-plan-integration"
+    config_path = tmp_path / "openai-plan.toml"
+    config_path.write_text(
+        f'''\
+[agent]
+state_dir = {json.dumps(state_dir.as_posix())}
+policy_version = "openai-plan-e3-v1"
+
+[provider]
+name = "openai"
+model = {json.dumps(model)}
+context_window_tokens = 128000
+output_token_reserve = 1024
+
+[mcp]
+executable = {json.dumps(Path(sys.executable).resolve().as_posix())}
+args = [{json.dumps(fixture.as_posix())}, "openai-plan-e3"]
+cwd = {json.dumps(child_cwd.as_posix())}
+environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
+
+[policy]
+mode = "read_only"
+max_model_turns = 1
+max_tool_calls = 1
+max_side_effects = 0
+
+[continuation]
+enabled = true
+ttl_seconds = 900
+''',
+        encoding="utf-8",
+    )
+
+    environment = os.environ.copy()
+    source_dir = Path(__file__).parents[2] / "src"
+    environment["PYTHONPATH"] = str(source_dir)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "computer_use_agent",
+            "plan",
+            "run",
+            "--config",
+            str(config_path),
+            "--task",
+            (
+                "Plan exactly one list_windows observation, then report whether "
+                "the observation says secrets are absent."
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env=environment,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["text"].strip()
+    assert payload["observation_steps"] == 1
+    assert set(payload["usage"]) == {
+        "planner_calls",
+        "final_model_turns",
+        "tool_calls",
+        "final_input_tokens",
+    }
+    assert payload["usage"]["planner_calls"] == 1
+    assert payload["usage"]["final_model_turns"] == 1
+    assert payload["usage"]["tool_calls"] == 1
+    assert payload["usage"]["final_input_tokens"] >= 0
+    trace_path = state_dir / "traces" / f"{payload['run_id']}.jsonl"
+    trace = [
+        json.loads(line)
+        for line in trace_path.read_text(encoding="utf-8").splitlines()
+    ]
+    tool_events = [
+        event
+        for event in trace
+        if event["kind"] in {"tool_call", "tool_result", "observation"}
+    ]
+    assert [(event["kind"], event["tool"]) for event in tool_events] == [
+        ("tool_call", "list_windows"),
+        ("tool_result", "list_windows"),
+        ("observation", "list_windows"),
+    ]

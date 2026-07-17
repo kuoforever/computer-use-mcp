@@ -16,7 +16,7 @@ and expected safety outcome.
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
-| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle per provider | OpenAI and Claude tests implemented but not default/CI gates |
+| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle and one bounded observation-plan CLI cycle per provider | OpenAI and Claude tests implemented but not default/CI gates; no credentialed result retained |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | ready for operator execution; evidence pending |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
 | E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, then cross-application campaigns | planned |
@@ -321,11 +321,11 @@ their deterministic unit-level fake-port coverage.
 
 ## Opt-in provider E3 runs
 
-The live-provider test uses the real OpenAI Responses API but launches only the
-harmless `tests/agent/fixtures/stdio_mcp_server.py` child. It never imports the
-Windows driver or controls the desktop. It is skipped unless all three explicit
-inputs are present, and the model must be chosen explicitly so cost and behavior
-are not changed by a repository default:
+The live-provider module uses the real OpenAI Responses API but launches only
+the harmless `tests/agent/fixtures/stdio_mcp_server.py` child. It never imports
+the Windows driver or controls the desktop. Both tests are skipped unless all
+three explicit inputs are present, and the model must be chosen explicitly so
+cost and behavior are not changed by a repository default:
 
 ~~~powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-openai]"
@@ -336,13 +336,18 @@ $env:OPENAI_INTEGRATION_MODEL = "your-reviewed-model-id"
   tests\agent\test_openai_integration.py -m openai_integration -q
 ~~~
 
-The case is bounded to three model turns, one observation tool call, zero side
-effects, and a 90-second outer timeout. It verifies that the child does not
-receive the provider key, the model issues `list_windows`, the matching result
-returns to the provider, and a final answer is produced. Do not enable this
-test in credential-free CI or point it at the real desktop MCP executable.
+The ordinary-run case is bounded to three model turns, one observation tool
+call, zero side effects, and a 90-second outer timeout. It verifies that the
+child does not receive the provider key, the model issues `list_windows`, the
+matching result returns to the provider, and a final answer is produced. The
+second case invokes the exact `plan run` CLI parser/composition path with
+continuation WAL enabled and hard limits of one planned `list_windows`
+observation, one final model turn, one tool call, and zero side effects. It
+asserts the bounded CLI metadata; the Planner and tool-free final request are
+the only provider calls. Do not enable either test in credential-free CI or
+point it at the real desktop MCP executable.
 
-The Claude case has the same bounds and fake-child guarantee:
+The Claude module has the same two cases, bounds, and fake-child guarantee:
 
 ~~~powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-anthropic]"
@@ -352,3 +357,9 @@ $env:ANTHROPIC_INTEGRATION_MODEL = "your-reviewed-model-id"
 .\.venv\Scripts\python.exe -m pytest `
   tests\agent\test_anthropic_integration.py -m anthropic_integration -q
 ~~~
+
+A skipped or offline-fake pass is not retained E3 evidence. Promotion requires
+a sanitized reviewed record containing the exact commit, provider, explicit
+model ID, test command, pass counts, and zero-side-effect/fake-child boundary;
+never retain credentials, task/final text, tool output, provider IDs, or local
+state paths.

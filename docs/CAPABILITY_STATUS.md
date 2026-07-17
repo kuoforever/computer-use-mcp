@@ -36,7 +36,7 @@ test was attempted and failed unless a linked evidence record says so.
 The following read-only checks were run against this checkout on 2026-07-17:
 
 ~~~text
-python -m pytest -q              875 passed, 3 skipped
+python -m pytest -q              875 passed, 5 skipped
 ruff check src tests scripts    PASS
 relative Markdown targets       PASS
 ~~~
