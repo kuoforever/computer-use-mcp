@@ -19,7 +19,10 @@ explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. Provider E3 and isolated desktop E4 evidence are not retained.
 
 Planner/Executor and Campaign packages also contain substantial offline-tested
-control logic. One fixed synthetic claimed campaign item can now execute a
+control logic. Completed final-response crash evidence can now be applied
+through a local-only idempotent plan CAS, terminal trace/checkpoint repair, and
+ordinary-continuation cleanup while retaining the completed final WAL. One
+fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
 `OBSERVED`, reduce the bounded result to a non-sensitive window count, persist
 `EXTRACTED`, verify its canonical JSON digest, persist `COMMITTED`, close the
@@ -59,7 +62,7 @@ src/computer_use_agent/
   runner.py            sole Agent tool-dispatch authority boundary
   providers/           OpenAI and Claude adapters
   planning.py          bounded declarative planning contracts
-  executor*.py         internal observation/final runtime and reconciliation
+  executor*.py         internal observation/final runtime and local reconciliation
   campaign*.py         offline campaign control state and preflights
   continuation*.py     private bounded crash evidence and recovery
 

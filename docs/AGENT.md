@@ -224,8 +224,15 @@ ledger, and the recompiled original request. Only completed provider evidence
 can yield a canonical terminal state and explicit already-recorded flags;
 prepared/intent state, drift, and malformed evidence fail closed. The module
 has no store writer or external/recovery port, cannot publish final text, and
-does not apply plan, trace, budget, or continuation changes. Applying the
-prepared CAS and cleanup remains a separate review before CLI exposure.
+does not apply plan, trace, budget, or continuation changes.
+`executor_final_reconciliation_apply.py` is the separately reviewed local
+writer. Under the same RunLock it rereads and recompiles the pinned evidence,
+CAS-completes only the final plan step, writes or reuses exactly one terminal
+model-turn trace and `SUCCESS` checkpoint, retains final WAL v2, and removes
+only the ordinary sensitive continuation. A cleanup retry accepts the already
+completed plan and terminal record without duplicating either. It has no
+provider, MCP, policy, approval, recovery-executor, or desktop port. CLI
+exposure remains unavailable.
 
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
@@ -641,8 +648,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 | Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; compilation itself grants no authority | implemented pure request contract consumed only by the internal final runtime and isolated adapters |
 | Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters plus injected internal runtime port; no CLI or real-provider evidence |
-| Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime tests; reconciliation application and CLI unavailable |
-| Completed final-response reconciliation is preflight-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence, reconstructs the original request and canonical terminal state, and recognizes only the pre-terminal or fixed uncertain-checkpoint crash shapes. It writes nothing and has no provider/MCP/recovery/store port | implemented offline no-mutation and real runtime-failure artifact tests; CAS application and CLI unavailable |
+| Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime tests; CLI unavailable |
+| Completed final-response reconciliation is local-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence and reconstructs the original request and canonical terminal state. A separate same-lock writer rereads those pins, idempotently CAS-completes the final plan step, writes or reuses one terminal event and `SUCCESS` checkpoint, retains final WAL, and deletes only the ordinary continuation. Prepared/intent state, drift, malformed evidence, and commit failure fail closed without provider/MCP/approval/recovery paths | implemented offline preflight, application, retry, no-mutation, and real runtime-failure artifact tests; CLI unavailable |
 | Host completion projection is evidence-only | A future Codex/Claude host may read bounded durable campaign status and finish only on validated terminal state; waiting states request attention, uncertainty forbids replay, and MCP log notifications are never terminal evidence | planned after retained on-device evidence for the fixed synthetic CLI path; no status tool, notification bridge, or mobile adapter exists |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
