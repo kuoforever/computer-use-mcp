@@ -19,16 +19,19 @@ from computer_use_agent.campaign import (
 )
 from computer_use_agent.campaign_observation_runtime import (
     CampaignObservationRuntimeError,
+    CampaignRestartResumeOutcome,
     MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS,
     SYNTHETIC_CALL_ID,
     SYNTHETIC_CAMPAIGN_KIND,
     SYNTHETIC_ITEM_KEY,
     SYNTHETIC_OBSERVATION_TOOL,
+    SYNTHETIC_RESUME_TASK,
     SYNTHETIC_TURN_ID,
     execute_claimed_synthetic_observation,
     execute_claimed_synthetic_observation_and_extraction,
     execute_claimed_synthetic_item_through_commit,
     execute_claimed_synthetic_item_through_handoff,
+    resume_finished_synthetic_campaign_after_restart,
     synthetic_window_count_digest,
 )
 from computer_use_agent.config import (
@@ -376,6 +379,151 @@ def test_committed_item_finishes_batch_and_writes_deterministic_handoff(
     encoded = json.dumps(handoff, sort_keys=True)
     assert "Notepad" not in encoded
     assert "Browser" not in encoded
+
+
+def test_fresh_runner_resumes_only_from_durable_finished_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad",
+    )
+    runner, prepared, session, desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+    handoff_outcome = asyncio.run(
+        execute_claimed_synthetic_item_through_handoff(
+            runner, prepared, session, now=NOW
+        )
+    )
+    fresh_runner = AgentRunner(config)
+
+    outcome = resume_finished_synthetic_campaign_after_restart(
+        fresh_runner,
+        campaign_id="campaign_1",
+        replacement_run_id="run_2",
+        now=NOW,
+    )
+
+    assert isinstance(outcome, CampaignRestartResumeOutcome)
+    assert outcome.state.run_id == "run_2"
+    assert outcome.state.task == SYNTHETIC_RESUME_TASK
+    assert outcome.state.budgets.model_turns_used == 0
+    assert outcome.state.budgets.tool_calls_used == 0
+    assert outcome.handoff == handoff_outcome.handoff
+    assert outcome.resume.state.value == "NO_ELIGIBLE_ITEMS"
+    assert outcome.resume.item_keys == ()
+    assert outcome.resume.finished_run_id == "run_1"
+    assert outcome.resume.replacement_run_id == "run_2"
+    assert outcome.heartbeat.run_id == "run_2"
+    assert outcome.heartbeat.started_at == NOW.isoformat(timespec="seconds")
+    assert desktop.tool_calls and len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        store = CampaignStore(config.state_dir, lock)
+        assert store.read_heartbeat("campaign_1") == outcome.heartbeat
+        assert store.read_handoff("campaign_1") == dict(handoff_outcome.handoff)
+        assert store.read_batches("campaign_1").active is None
+        assert store.read_manifest("campaign_1").status.value == "RUNNING"
+    finally:
+        lock.release()
+    record = read_run_record(config.state_dir, "run_2")
+    assert record["state"]["phase"] == "SUCCESS"
+    assert record["state"]["metrics"]["model_calls"] == 0
+    assert record["state"]["metrics"]["tool_calls"] == 0
+
+
+def test_restart_rejects_non_exact_durable_state_before_owner_transfer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad",
+    )
+    runner, prepared, session, _desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+    asyncio.run(
+        execute_claimed_synthetic_item_through_handoff(
+            runner, prepared, session, now=NOW
+        )
+    )
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        store = CampaignStore(config.state_dir, lock)
+        store.append(
+            "campaign_1",
+            ItemTransition(
+                1,
+                2,
+                "synthetic:unexpected",
+                ItemStatus.DISCOVERED,
+                0,
+                NOW.isoformat(timespec="seconds"),
+            ),
+        )
+        heartbeat_before = store.read_heartbeat("campaign_1")
+    finally:
+        lock.release()
+
+    with pytest.raises(
+        CampaignObservationRuntimeError,
+        match="CAMPAIGN_RESTART_STATE_INVALID",
+    ):
+        resume_finished_synthetic_campaign_after_restart(
+            AgentRunner(config),
+            campaign_id="campaign_1",
+            replacement_run_id="run_2",
+            now=NOW,
+        )
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        assert (
+            CampaignStore(config.state_dir, lock).read_heartbeat("campaign_1")
+            == heartbeat_before
+        )
+    finally:
+        lock.release()
+    assert read_run_record(config.state_dir, "run_2")["state"]["phase"] == "FAILED"
+
+
+def test_restart_rejects_invalid_new_run_identity_without_leaking_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    runner = AgentRunner(config)
+
+    with pytest.raises(
+        CampaignObservationRuntimeError,
+        match="CAMPAIGN_RESTART_INPUT_INVALID",
+    ):
+        resume_finished_synthetic_campaign_after_restart(
+            runner,
+            campaign_id="campaign_1",
+            replacement_run_id="invalid/run",
+            now=NOW,
+        )
+
+    prepared = runner.prepare("Prove the lock remains available", run_id="run_3")
+    prepared.close()
 
 
 @pytest.mark.parametrize(

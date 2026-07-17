@@ -26,7 +26,7 @@ test was attempted and failed unless a linked evidence record says so.
 | MCP Server | `YES` | `YES` — eight-tool Windows stdio server | `YES` | `N/A` | `PARTIAL` — prior desktop probes exist; repaired activation path has no retained isolated rerun | `PARTIAL` — one read-only BOSS/Chrome probe, not an application acceptance pass | Run the E4 Windows activation regression, then retain a bounded BOSS observation result |
 | Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop and fake-verified approved actions | `YES` | `NO` — E3 is opt-in and no credentialed result is retained | `NO` — E4 has no retained result | `NO` | Pass both providers through harmless E3, then the four-cell isolated E4 matrix |
 | Planner / Executor | `YES` | `PARTIAL` — declarative planning, observation runtime, final runtime, and reconciliation preflights are internal only | `YES` | `NO` | `NO` | `NO` | Apply completed-final reconciliation through reviewed local CAS/cleanup, then expose one observation-only CLI path without adding a second dispatch boundary |
-| Campaign | `YES` | `PARTIAL` — one fixed synthetic item executes through Runner, commits a verified count digest, closes with measured usage, and writes handoff | `YES` | `NO` | `NO` | `NO` | Force a fresh process/context and resume only from that deterministic handoff |
+| Campaign | `YES` | `PARTIAL` — one fixed synthetic item executes through Runner, commits a verified count digest, writes handoff, and transfers a fresh Runner run to an exhausted durable resume decision | `YES` | `NO` | `NO` | `NO` | Expose only this fixed path through a bounded campaign CLI, then retain exact state, trace, and cost evidence |
 | Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, and bounded Agent image handling exist; document text, OCR, region, and delta sources do not | `PARTIAL` | `NO` | `PARTIAL` — BOSS probe proved useful UIA controls and missing static content | `NO` | Implement one bounded OCR or document-text vertical slice with source/cost evidence and no challenge bypass |
 | Operator UI | `YES` | `PARTIAL` — console yes/deny approval exists; presence indicator, passive progress window, and Decision Cards do not | `PARTIAL` — approval path has fake-port evidence | `NO` | `NO` | `NO` | Implement the checkpoint-to-view-model reducer, then a non-activating isolated Windows viewer smoke |
 | Continual Learning | `YES` | `NO` — current explicit memory is not automatic learning | `NO` | `NO` | `NO` | `NO` | Deliver L0 normalized episode outcomes and complete cost vectors before candidate extraction or strategy routing |
@@ -36,7 +36,7 @@ test was attempted and failed unless a linked evidence record says so.
 The following read-only checks were run against this checkout on 2026-07-17:
 
 ~~~text
-python -m pytest -q              847 passed, 3 skipped
+python -m pytest -q              850 passed, 3 skipped
 ruff check src tests scripts    PASS
 relative Markdown targets       PASS
 ~~~
@@ -56,9 +56,9 @@ release, or complete-demo evidence cells.
 3. **Runtime connection:** the fixed campaign seam now reuses the Agent
    authority boundary through correlated `OBSERVED`, extracts only a bounded
    non-sensitive window count, commits its verified canonical digest, closes the
-   batch with measured usage, and writes deterministic handoff. Prove a fresh
-   process/context resumes from only those durable records before a general
-   worker or more preflights.
+   batch with measured usage, writes deterministic handoff, and transfers a
+   fresh Runner run using only those durable records. The next connection is a
+   bounded CLI for this fixed path, not a general worker or more preflights.
 4. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
    and WeChat draft-only cases and retain success, token, retry, recovery, and
    takeover measurements.
