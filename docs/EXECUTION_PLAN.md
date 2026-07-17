@@ -220,6 +220,10 @@ The finished resumed batch now feeds the existing read-only handoff preflight,
 which revalidates exact ownership, stop code, counters, committed prefix,
 heartbeat, and next ordinal before returning only the fixed handoff-write
 directive. It does not modify handoff or runtime state.
+The coordinator may now re-run that preflight and atomically replace the prior
+handoff with the exact finished replacement run and current fixed projection.
+Repeated valid writes are byte-stable; manifest, ledgers, heartbeat, and batch
+state remain unchanged, and no runtime path is connected.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
