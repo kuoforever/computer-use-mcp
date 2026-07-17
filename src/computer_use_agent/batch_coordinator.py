@@ -123,6 +123,16 @@ class BatchCampaignCompletionState(str, Enum):
     RESUME_NOT_EXHAUSTED = "RESUME_NOT_EXHAUSTED"
 
 
+class BatchCompletedHandoffState(str, Enum):
+    READY = "READY"
+    CAMPAIGN_NOT_COMPLETED = "CAMPAIGN_NOT_COMPLETED"
+    FINISH_RECORD_MISMATCH = "FINISH_RECORD_MISMATCH"
+    HEARTBEAT_MISSING = "HEARTBEAT_MISSING"
+    HEARTBEAT_STALE = "HEARTBEAT_STALE"
+    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
+    ITEMS_NOT_COMPLETE = "ITEMS_NOT_COMPLETE"
+
+
 class BatchFirstClaimState(str, Enum):
     READY = "READY"
     CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
@@ -244,6 +254,20 @@ class BatchCampaignCompletionPreflight:
     @property
     def ready(self) -> bool:
         return self.state is BatchCampaignCompletionState.READY
+
+
+@dataclass(frozen=True)
+class BatchCompletedHandoffPreflight:
+    state: BatchCompletedHandoffState
+    campaign_id: str
+    finished_run_id: str
+    replacement_run_id: str
+    next_item_ordinal: int
+    required_handoff: str
+
+    @property
+    def ready(self) -> bool:
+        return self.state is BatchCompletedHandoffState.READY
 
 
 @dataclass(frozen=True)
@@ -1311,6 +1335,61 @@ class BatchCoordinator:
             at=now.isoformat(timespec="seconds"),
         )
 
+    def inspect_completed_campaign_handoff(
+        self,
+        session: BatchSession,
+        *,
+        replacement_run_id: str,
+        now: datetime,
+    ) -> BatchCompletedHandoffPreflight:
+        """Inspect the fixed terminal handoff projection without writing it."""
+
+        if not isinstance(session, BatchSession):
+            raise BatchCoordinatorError("BATCH_COMPLETED_HANDOFF_INVALID")
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
+        manifest = self.store.read_manifest(session.campaign_id)
+        batches = self.store.read_batches(session.campaign_id)
+        projection = self.store.read_ledger(session.campaign_id)
+        try:
+            heartbeat = inspect_heartbeat(
+                self.store.read_heartbeat(session.campaign_id), now=now
+            )
+        except HeartbeatInspectionError as exc:
+            raise BatchCoordinatorError("BATCH_COMPLETED_HANDOFF_HEARTBEAT_INVALID") from exc
+        finished = batches.transitions[-1] if batches.transitions else None
+
+        if manifest.status is not CampaignStatus.COMPLETED:
+            state = BatchCompletedHandoffState.CAMPAIGN_NOT_COMPLETED
+        elif (
+            finished is None
+            or finished.status is not BatchStatus.FINISHED
+            or (finished.batch_id, finished.run_id)
+            != (session.batch_id, session.run_id)
+        ):
+            state = BatchCompletedHandoffState.FINISH_RECORD_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.MISSING:
+            state = BatchCompletedHandoffState.HEARTBEAT_MISSING
+        elif heartbeat.run_id != replacement_run_id:
+            state = BatchCompletedHandoffState.HEARTBEAT_OWNER_MISMATCH
+        elif heartbeat.freshness is HeartbeatFreshness.STALE:
+            state = BatchCompletedHandoffState.HEARTBEAT_STALE
+        elif not projection.items or any(
+            item.status is not ItemStatus.COMMITTED
+            for item in projection.items.values()
+        ):
+            state = BatchCompletedHandoffState.ITEMS_NOT_COMPLETE
+        else:
+            state = BatchCompletedHandoffState.READY
+        return BatchCompletedHandoffPreflight(
+            state=state,
+            campaign_id=session.campaign_id,
+            finished_run_id=session.run_id,
+            replacement_run_id=replacement_run_id,
+            next_item_ordinal=projection.next_ordinal,
+            required_handoff="write_completed_campaign_handoff",
+        )
+
     def open_transferred_resumed_batch(
         self,
         session: BatchSession,
@@ -1395,6 +1474,8 @@ __all__ = [
     "BatchCompletionReason",
     "BatchCampaignCompletionPreflight",
     "BatchCampaignCompletionState",
+    "BatchCompletedHandoffPreflight",
+    "BatchCompletedHandoffState",
     "BatchContinuationPreflight",
     "BatchContinuationState",
     "BatchCoordinator",

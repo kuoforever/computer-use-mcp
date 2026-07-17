@@ -243,6 +243,10 @@ handoff, heartbeat, ledgers, or runtime state.
 The coordinator may now re-run that completion preflight and atomically update
 only the manifest to `COMPLETED`. Blocked or repeated calls do not write;
 handoff, heartbeat, ledgers, and all runtime paths remain unchanged.
+A read-only terminal-handoff preflight may now bind that completed manifest to
+the exact finished batch, replacement owner, fully committed ledger, and next
+ordinal. It returns only the fixed completed-handoff-write directive and does
+not read or modify the stale running handoff or any runtime state.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
