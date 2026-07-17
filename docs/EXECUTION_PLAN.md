@@ -232,6 +232,10 @@ The coordinator may now re-run that preflight and atomically replace only the
 finished resumed run's heartbeat owner with the exact new run. Handoff and
 ledgers remain unchanged, repetition does not write, and no batch or runtime
 work starts.
+A fully committed transferred campaign now reaches the existing resume-plan
+preflight's fixed `NO_ELIGIBLE_ITEMS` boundary with an empty item plan and the
+derived next ordinal. Attempting to open an empty resumed batch fails without a
+`STARTED` write or other durable-state change.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
