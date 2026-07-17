@@ -441,6 +441,89 @@ def test_fresh_runner_resumes_only_from_durable_finished_handoff(
     assert record["state"]["metrics"]["tool_calls"] == 0
 
 
+def test_resume_only_cli_enters_the_real_durable_boundary_without_external_ports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import computer_use_agent.cli as agent_cli
+
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad",
+    )
+    runner, prepared, session, desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+    asyncio.run(
+        execute_claimed_synthetic_item_through_handoff(
+            runner, prepared, session, now=NOW
+        )
+    )
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(
+        f'''\
+[agent]
+state_dir = "{config.state_dir.as_posix()}"
+policy_version = "{config.policy_version}"
+
+[provider]
+name = "{config.provider.name}"
+model = "{config.provider.model}"
+context_window_tokens = {config.provider.context_window_tokens}
+output_token_reserve = {config.provider.output_token_reserve}
+
+[mcp]
+executable = "{config.mcp.executable.as_posix()}"
+args = []
+cwd = "{config.mcp.cwd.as_posix()}"
+environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: NOW)
+
+    assert agent_cli.main(
+        [
+            "campaign",
+            "resume-synthetic",
+            "--config",
+            str(config_path),
+            "--campaign-id",
+            "campaign_1",
+            "--run-id",
+            "run_2",
+        ]
+    ) == 0
+
+    raw = capsys.readouterr().out
+    assert json.loads(raw) == {
+        "campaign_id": "campaign_1",
+        "finished_run_id": "run_1",
+        "next_item_ordinal": 2,
+        "replacement_run_id": "run_2",
+        "resume_state": "NO_ELIGIBLE_ITEMS",
+    }
+    assert "Notepad" not in raw
+    assert len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        heartbeat = CampaignStore(config.state_dir, lock).read_heartbeat(
+            "campaign_1"
+        )
+        assert heartbeat is not None
+        assert heartbeat.run_id == "run_2"
+    finally:
+        lock.release()
+
+
 def test_restart_rejects_non_exact_durable_state_before_owner_transfer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

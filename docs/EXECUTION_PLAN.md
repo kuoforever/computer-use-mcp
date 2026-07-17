@@ -49,15 +49,16 @@ not describe the already implemented code path as absent.
 > existing deterministic handoff, and transfers heartbeat ownership to a fresh
 > Runner run that reconstructs the finished session from durable records and
 > reaches the expected exhausted resume decision. It has no general campaign
-> worker, CLI command, provider turn, side effect, campaign completion, or
-> automatic terminal heartbeat removal.
+> worker, provider turn, side effect, campaign completion, or automatic
+> terminal heartbeat removal. A resume-only CLI exposes the fixed durable
+> fresh-run half without task text, item selection, provider, or desktop ports.
 
-The next increment is not another control-state preflight. Expose only this
-fixed synthetic path through a bounded campaign CLI and retain its exact state,
-trace, and cost evidence. Preserve the existing Runner dispatch site, budgets,
-trace, and fail-closed result semantics; do not add a second MCP path, accept a
-free-form item selector, replay an uncertain action, or connect side-effecting
-campaign work.
+The next increment is not another control-state preflight. Connect the existing
+exact claim-through-handoff execution to the same bounded synthetic CLI, then
+retain exact state, trace, and cost evidence. Preserve the existing Runner
+dispatch site, budgets, trace, and fail-closed result semantics; do not add a
+second MCP path, accept a free-form item selector, replay an uncertain action,
+or connect side-effecting campaign work.
 
 After the synthetic vertical slice passes, run the first 100-item read-only BOSS
 campaign across multiple provider contexts and at least one forced restart.
