@@ -7,6 +7,7 @@ import pytest
 
 from computer_use_agent.batch_coordinator import (
     BatchCampaignCompletionState,
+    BatchCompletedHandoffState,
     BatchContinuationState,
     BatchCoordinator,
     BatchCoordinatorError,
@@ -4164,6 +4165,158 @@ def test_campaign_completion_with_remaining_item_does_not_write(tmp_path: Path) 
             )
 
         assert store.read_manifest("campaign_1") == manifest_before
+    finally:
+        lock.release()
+
+
+def test_completed_campaign_is_ready_for_terminal_handoff(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        coordinator.complete_exhausted_campaign(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        manifest_before = store.read_manifest("campaign_1")
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_path = (
+            tmp_path / "state" / "campaigns" / "campaign_1" / "handoff.json"
+        )
+        handoff_before = handoff_path.read_bytes()
+
+        result = coordinator.inspect_completed_campaign_handoff(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+        )
+
+        assert result.state is BatchCompletedHandoffState.READY
+        assert result.ready
+        assert result.finished_run_id == "run_1"
+        assert result.replacement_run_id == "run_2"
+        assert result.next_item_ordinal == 2
+        assert result.required_handoff == "write_completed_campaign_handoff"
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert handoff_path.read_bytes() == handoff_before
+    finally:
+        lock.release()
+
+
+def test_running_campaign_is_not_ready_for_terminal_handoff(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        manifest_before = store.read_manifest("campaign_1")
+
+        result = coordinator.inspect_completed_campaign_handoff(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+        )
+
+        assert result.state is BatchCompletedHandoffState.CAMPAIGN_NOT_COMPLETED
+        assert not result.ready
+        assert store.read_manifest("campaign_1") == manifest_before
+    finally:
+        lock.release()
+
+
+def test_completed_handoff_requires_replacement_heartbeat_owner(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        coordinator.complete_exhausted_campaign(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+
+        result = coordinator.inspect_completed_campaign_handoff(
+            session,
+            replacement_run_id="run_other",
+            now=NOW,
+        )
+
+        assert result.state is BatchCompletedHandoffState.HEARTBEAT_OWNER_MISMATCH
+        assert not result.ready
+    finally:
+        lock.release()
+
+
+def test_completed_handoff_requires_every_item_committed(tmp_path: Path) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        store.complete_campaign(
+            "campaign_1",
+            at=NOW.isoformat(timespec="seconds"),
+        )
+
+        result = coordinator.inspect_completed_campaign_handoff(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+        )
+
+        assert result.state is BatchCompletedHandoffState.ITEMS_NOT_COMPLETE
+        assert not result.ready
+        assert result.next_item_ordinal == 2
     finally:
         lock.release()
 

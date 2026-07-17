@@ -443,6 +443,12 @@ only the campaign manifest from `RUNNING` to `COMPLETED`. Handoff, heartbeat,
 item and batch ledgers remain unchanged; blocked or repeated completion does
 not write, and no provider, MCP, desktop, runner, or CLI path is connected.
 
+After completion, a read-only terminal-handoff preflight can now revalidate the
+exact finished batch, replacement heartbeat owner, fully committed item set,
+and derived next ordinal. `READY` returns only the fixed
+`write_completed_campaign_handoff` directive; it does not read or rewrite the
+stale running handoff and starts no runtime work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
