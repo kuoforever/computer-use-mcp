@@ -402,6 +402,12 @@ stop code and measured replacement-run counters. Repetition, drift, or an
 active/in-flight state does not write. Finishing the batch does not create or
 rewrite `handoff.json` and starts no runtime work.
 
+That finished resumed batch can now enter the existing read-only handoff
+preflight. It revalidates the exact batch/run owner, fixed stop code, persisted
+and measured replacement-run counters, committed prefix, fresh heartbeat, and
+derived next ordinal before returning only `write_current_campaign_handoff`.
+The preflight does not create or rewrite handoff state.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

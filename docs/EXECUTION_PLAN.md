@@ -216,6 +216,10 @@ The coordinator may now re-run either resumed terminal preflight and persist one
 exact `FINISHED` batch record with its fixed stop code and measured run-local
 counters. Repetition or drift does not write, no handoff is created, and no
 provider, MCP, desktop action, runner, CLI, or side-effect path is connected.
+The finished resumed batch now feeds the existing read-only handoff preflight,
+which revalidates exact ownership, stop code, counters, committed prefix,
+heartbeat, and next ordinal before returning only the fixed handoff-write
+directive. It does not modify handoff or runtime state.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
