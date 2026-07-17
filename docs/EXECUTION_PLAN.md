@@ -228,6 +228,10 @@ The new resumed handoff now feeds the existing read-only run-transfer preflight,
 which binds the exact finished run and next ordinal to one time-matched
 replacement heartbeat owner. It returns only the fixed owner-replace directive
 and does not modify durable state or start runtime work.
+The coordinator may now re-run that preflight and atomically replace only the
+finished resumed run's heartbeat owner with the exact new run. Handoff and
+ledgers remain unchanged, repetition does not write, and no batch or runtime
+work starts.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
