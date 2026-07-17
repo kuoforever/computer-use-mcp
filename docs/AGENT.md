@@ -235,8 +235,12 @@ extension re-counts that bounded result, hashes only canonical
 `{"window_count":N}` JSON, and persists the digest at `COMMITTED`. Its handoff
 extension closes through the existing continuation validator with measured
 Runner usage and writes the fixed campaign handoff without changing heartbeat
-ownership. It makes no provider call and exposes no selector, restart/resume,
-side-effect, CLI, or second MCP path.
+ownership. Its restart/resume extension creates a fresh Runner run with no
+caller-supplied task text or prior `BatchSession`, reconstructs the exact
+finished synthetic session from durable campaign records, transfers heartbeat
+ownership, and accepts only the exhausted resume decision. That extension
+makes no provider or MCP call and does not complete the campaign or retire its
+heartbeat. The module exposes no selector, side effect, CLI, or second MCP path.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final

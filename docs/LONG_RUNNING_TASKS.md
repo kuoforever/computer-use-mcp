@@ -1,7 +1,7 @@
 # Long-running task contract
 
 > **Status: campaign control plane implemented and offline verified; first
-> fixed observation-through-handoff seam connected.** Manifests, item/batch ledgers, leases,
+> fixed observation-through-restart/resume seam connected.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
 > provider, general worker, timer, side-effect, or campaign CLI authority. One
@@ -9,7 +9,8 @@
 > Runner authority, persist correlated `OBSERVED`, extract only a bounded
 > non-sensitive window count, persist `EXTRACTED`, verify canonical JSON,
 > persist its SHA-256 digest at `COMMITTED`, close the batch with measured
-> usage, and write deterministic handoff.
+> usage, write deterministic handoff, and transfer a fresh Runner run to the
+> expected exhausted resume decision using only durable campaign records.
 > See [Capability status](CAPABILITY_STATUS.md) for the next evidence gate.
 
 ## Goal
@@ -198,9 +199,13 @@ transition. Its commit extension re-counts the same bounded result, hashes only
 canonical `{"window_count":N}` JSON, and calls the existing `COMMITTED`
 transition. Its handoff extension derives usage only from Runner state plus a
 monotonic elapsed clock, closes through the existing continuation validator,
-and writes the existing fixed handoff without changing heartbeat ownership. It
-does not restart or resume a process, start a general worker, or expose a
-campaign CLI. Expiry can release a stale read-only claim to `RETRYABLE`; it
+and writes the existing fixed handoff without changing heartbeat ownership. A
+fixed restart/resume extension creates a new Runner run, rebuilds the finished
+session from manifest, ledgers, handoff, and heartbeat rather than accepting
+task text or an old `BatchSession`, transfers heartbeat ownership, and accepts
+only the exhausted resume decision. It makes no provider or MCP call and
+exposes no selector, side effect, CLI, campaign completion, or heartbeat
+retirement. Expiry can release a stale read-only claim to `RETRYABLE`; it
 cannot claim the item for another run or authorize action replay.
 
 The incremental implementation sequence is retained in
@@ -405,9 +410,11 @@ takeover are durable transitions, not informal chat instructions.
    window count, persist `EXTRACTED`, verify canonical JSON, and persist its
    digest at `COMMITTED`, close with measured usage, and write deterministic
    handoff.
-3. **Next:** force a fresh process/context and resume from that handoff without
-   prior conversation text or a second provider/MCP/desktop path.
-4. Add a bounded campaign CLI only after the worker contract passes offline;
+3. **Implemented and offline verified:** start a fresh Runner run without prior
+   task text or `BatchSession`, reconstruct the exact finished session from
+   durable records, transfer heartbeat ownership, and reach the exhausted
+   resume decision without a provider/MCP/desktop path.
+4. **Next:** add a bounded campaign CLI for only this fixed path;
    retain exact state, trace, and cost evidence.
 5. Run the BOSS read-only 100-item evaluation.
 6. Run Google Docs 50-section and WeChat draft-only evaluations.

@@ -19,8 +19,10 @@ control logic. One fixed synthetic claimed campaign item can now execute a
 single `list_windows` observation through the existing Runner boundary, persist
 `OBSERVED`, reduce the bounded result to a non-sensitive window count, persist
 `EXTRACTED`, verify its canonical JSON digest, persist `COMMITTED`, close the
-batch with measured usage, and write deterministic handoff; no campaign CLI or
-complete application workflow is connected. The broader universal GUI,
+batch with measured usage, write deterministic handoff, and transfer ownership
+to a fresh Runner run that reconstructs the finished session from durable
+campaign records and reaches the expected exhausted resume decision. No
+campaign CLI or complete application workflow is connected. The broader universal GUI,
 operator UI, cross-application demo, and continual-learning layers remain
 planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
 status header of every owner document before treating it as available.
@@ -127,10 +129,11 @@ layer:
 
 The campaign control plane can validate `campaign_id`, manifest, ledgers, and
 `handoff.json`. Its first internal execution seam is limited to the exact
-synthetic observation-through-handoff described above; forced restart/resume,
-a general worker, and CLI remain unconnected. A future fresh session must resume
-from durable records without prior conversation text. Until then, use these
-documents as the cross-session source of truth.
+synthetic observation-through-restart/resume described above. The replacement
+run accepts no task text or prior `BatchSession`, performs no provider or MCP
+call, and leaves campaign completion and heartbeat retirement untouched. A
+general worker and CLI remain unconnected. Use these documents as the
+cross-session source of truth.
 
 ## Guardrail checklist for new actions
 
