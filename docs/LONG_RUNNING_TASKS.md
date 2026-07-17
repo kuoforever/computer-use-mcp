@@ -420,6 +420,12 @@ handoff next ordinal to one new heartbeat owner whose start and heartbeat times
 equal the injected transfer time. `READY` returns only the fixed owner-replace
 directive and does not modify heartbeat, handoff, ledgers, or batch state.
 
+The locked coordinator may now re-run that transfer preflight and atomically
+replace only the finished resumed run's heartbeat owner with the exact new run.
+Manifest, item and batch ledgers, and handoff remain unchanged. A repeated call
+fails on owner mismatch without another write and still does not resume work or
+open a batch.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
