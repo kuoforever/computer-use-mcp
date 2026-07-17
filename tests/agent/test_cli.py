@@ -48,6 +48,8 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["cancel", "--help"],
         ["recovery", "--help"],
         ["recover", "--help"],
+        ["campaign", "--help"],
+        ["campaign", "resume-synthetic", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -184,6 +186,90 @@ def test_run_memory_scope_is_explicit_and_dry_run_fails_closed(
         ]
     ) == 2
     assert "DRY_RUN_MEMORY_CONTEXT_UNAVAILABLE" in capsys.readouterr().err
+
+
+def test_synthetic_campaign_resume_cli_has_no_task_or_selector_and_prints_safe_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 17, 8, 0, tzinfo=timezone.utc)
+
+    def fake_resume(
+        runner: object,
+        *,
+        campaign_id: str,
+        replacement_run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, replacement_run_id, now))
+        return SimpleNamespace(
+            resume=SimpleNamespace(
+                campaign_id=campaign_id,
+                finished_run_id="run_1",
+                next_item_ordinal=2,
+                replacement_run_id=replacement_run_id,
+                state=SimpleNamespace(value="NO_ELIGIBLE_ITEMS"),
+            )
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.campaign_observation_runtime."
+        "resume_finished_synthetic_campaign_after_restart",
+        fake_resume,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+
+    parsed = agent_cli.build_parser().parse_args(
+        [
+            "campaign",
+            "resume-synthetic",
+            "--config",
+            str(config_path),
+            "--campaign-id",
+            "campaign_1",
+            "--run-id",
+            "run_2",
+        ]
+    )
+    assert not hasattr(parsed, "task")
+    assert not hasattr(parsed, "item_key")
+
+    assert main(
+        [
+            "campaign",
+            "resume-synthetic",
+            "--config",
+            str(config_path),
+            "--campaign-id",
+            "campaign_1",
+            "--run-id",
+            "run_2",
+        ]
+    ) == 0
+
+    assert len(captured) == 1
+    runner, campaign_id, replacement_run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is None
+    assert campaign_id == "campaign_1"
+    assert replacement_run_id == "run_2"
+    assert captured_now == now
+    assert json.loads(capsys.readouterr().out) == {
+        "campaign_id": "campaign_1",
+        "finished_run_id": "run_1",
+        "next_item_ordinal": 2,
+        "replacement_run_id": "run_2",
+        "resume_state": "NO_ELIGIBLE_ITEMS",
+    }
 
 
 def test_non_dry_run_with_missing_config_fails_before_creating_a_lock(

@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
@@ -98,6 +99,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Explicitly replace the current OpenAI remote continuation once.",
     )
+
+    campaign = commands.add_parser(
+        "campaign", help="Run one bounded fixed campaign control operation."
+    )
+    campaign_commands = campaign.add_subparsers(
+        dest="campaign_command", required=True
+    )
+    campaign_resume = campaign_commands.add_parser(
+        "resume-synthetic",
+        help="Resume only the fixed finished synthetic campaign from durable state.",
+    )
+    campaign_resume.add_argument("--config", required=True, type=Path)
+    campaign_resume.add_argument("--campaign-id", required=True)
+    campaign_resume.add_argument("--run-id", required=True)
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -251,6 +266,34 @@ def _resume_live(path: Path, run_id: str, task: str) -> int:
     return asyncio.run(
         _run_live_async(path, task, run_id=run_id, resume_initial=True)
     )
+
+
+def _campaign_now() -> datetime:
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _resume_synthetic_campaign(path: Path, campaign_id: str, run_id: str) -> int:
+    from .campaign_observation_runtime import (
+        resume_finished_synthetic_campaign_after_restart,
+    )
+
+    config = load_agent_config(path)
+    outcome = resume_finished_synthetic_campaign_after_restart(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        replacement_run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_id": outcome.resume.campaign_id,
+            "finished_run_id": outcome.resume.finished_run_id,
+            "next_item_ordinal": outcome.resume.next_item_ordinal,
+            "replacement_run_id": outcome.resume.replacement_run_id,
+            "resume_state": outcome.resume.state.value,
+        }
+    )
+    return 0
 
 
 def _cancel(path: Path, run_id: str) -> int:
@@ -625,6 +668,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "resume":
             return _resume_live(args.config, args.run_id, args.task)
+        if (
+            args.command == "campaign"
+            and args.campaign_command == "resume-synthetic"
+        ):
+            return _resume_synthetic_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
         if args.command == "cancel":
             return _cancel(args.config, args.run_id)
         if args.command == "remember":

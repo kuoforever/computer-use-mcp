@@ -22,7 +22,8 @@ single `list_windows` observation through the existing Runner boundary, persist
 batch with measured usage, write deterministic handoff, and transfer ownership
 to a fresh Runner run that reconstructs the finished session from durable
 campaign records and reaches the expected exhausted resume decision. No
-campaign CLI or complete application workflow is connected. The broader universal GUI,
+claim-through-handoff campaign CLI or complete application workflow is
+connected; only fixed durable synthetic resume is exposed. The broader universal GUI,
 operator UI, cross-application demo, and continual-learning layers remain
 planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
 status header of every owner document before treating it as available.
@@ -132,7 +133,8 @@ The campaign control plane can validate `campaign_id`, manifest, ledgers, and
 synthetic observation-through-restart/resume described above. The replacement
 run accepts no task text or prior `BatchSession`, performs no provider or MCP
 call, and leaves campaign completion and heartbeat retirement untouched. A
-general worker and CLI remain unconnected. Use these documents as the
+resume-only CLI exposes exactly that boundary; a general worker and executable
+claim-through-handoff CLI remain unconnected. Use these documents as the
 cross-session source of truth.
 
 ## Guardrail checklist for new actions

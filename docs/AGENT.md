@@ -90,6 +90,11 @@ the following commands:
   `RECOVERED_ACTION_REQUESTED` code. Calls remain input records only; no policy,
   approval, MCP dispatch, or action authority is entered, and the CLI exits
   nonzero after deleting the continuation.
+- `campaign resume-synthetic --config PATH --campaign-id ID --run-id ID`
+  exposes only the fixed durable restart/resume boundary. It accepts no task,
+  item selector, provider, or desktop option; reconstructs the finished
+  synthetic session under a fresh Runner lock; transfers heartbeat ownership;
+  and prints only fixed resume control metadata.
 - `report --config PATH` aggregates phase/success/failure and token/call/latency
   metrics from bounded validated checkpoints only. It opens no trace JSONL,
   provider, MCP, approval, or desktop port and fails closed on corrupt records.
@@ -240,7 +245,9 @@ caller-supplied task text or prior `BatchSession`, reconstructs the exact
 finished synthetic session from durable campaign records, transfers heartbeat
 ownership, and accepts only the exhausted resume decision. That extension
 makes no provider or MCP call and does not complete the campaign or retire its
-heartbeat. The module exposes no selector, side effect, CLI, or second MCP path.
+heartbeat. The module exposes no free-form selector, side effect, or second MCP path.
+The resume-only boundary is consumed by the fixed `campaign resume-synthetic`
+CLI command; claim-through-handoff execution remains internal.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
