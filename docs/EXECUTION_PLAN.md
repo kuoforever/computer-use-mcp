@@ -42,16 +42,18 @@ not describe the already implemented code path as absent.
 > read-only item progression, run transfer, campaign completion, and a
 > read-only terminal heartbeat-retirement preflight. One internal fixed
 > synthetic item now binds an existing claim/session to one `list_windows`
-> observation through the sole Runner dispatch boundary and persists only a
-> correlated `OBSERVED` transition. It has no general campaign worker, CLI
-> command, provider turn, extraction, commit, restart/resume orchestration,
-> side effect, or automatic terminal heartbeat removal.
+> observation through the sole Runner dispatch boundary, persists a correlated
+> `OBSERVED` transition, reduces the bounded text to a non-sensitive window
+> count, and persists `EXTRACTED`. It has no general campaign worker, CLI
+> command, provider turn, result verification, commit, restart/resume
+> orchestration, side effect, or automatic terminal heartbeat removal.
 
 The next increment is not another control-state preflight. Continue the same
 synthetic read-only item through the existing Agent authority boundary:
 
-1. preserve the now-executable exact claim and bounded observation;
-2. extract and verify a non-sensitive result;
+1. preserve the now-executable exact claim, bounded observation, and
+   non-sensitive extraction;
+2. verify the fixed extracted result;
 3. commit its digest and close the batch;
 4. force a process/context restart; and
 5. resume from the deterministic handoff without prior conversation text.

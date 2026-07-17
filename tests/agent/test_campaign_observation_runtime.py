@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,12 +18,14 @@ from computer_use_agent.campaign import (
 )
 from computer_use_agent.campaign_observation_runtime import (
     CampaignObservationRuntimeError,
+    MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS,
     SYNTHETIC_CALL_ID,
     SYNTHETIC_CAMPAIGN_KIND,
     SYNTHETIC_ITEM_KEY,
     SYNTHETIC_OBSERVATION_TOOL,
     SYNTHETIC_TURN_ID,
     execute_claimed_synthetic_observation,
+    execute_claimed_synthetic_observation_and_extraction,
 )
 from computer_use_agent.config import (
     AgentConfig,
@@ -186,6 +189,70 @@ def test_exact_claim_dispatches_once_and_persists_only_observed(
     assert record["state"]["phase"] == "SUCCESS"
     assert record["state"]["metrics"]["model_calls"] == 0
     assert record["state"]["metrics"]["tool_calls"] == 1
+
+
+def test_exact_observation_extracts_only_bounded_window_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad\n\nwindow_2 | Browser\n",
+    )
+    runner, prepared, session, desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+
+    outcome = asyncio.run(
+        execute_claimed_synthetic_observation_and_extraction(
+            runner, prepared, session, now=NOW
+        )
+    )
+
+    assert outcome.window_count == 2
+    assert outcome.observed.status is ItemStatus.OBSERVED
+    assert outcome.extracted.status is ItemStatus.EXTRACTED
+    assert outcome.extracted.boundary == "extracted"
+    assert outcome.extracted.code == "READ_ONLY_EXTRACTION_COMPLETED"
+    assert outcome.extracted.content_digest is None
+    assert len(desktop.tool_calls) == 1
+    assert _read_item(config).status is ItemStatus.EXTRACTED
+    record = read_run_record(config.state_dir, "run_1")
+    assert record["state"]["phase"] == "SUCCESS"
+    encoded_record = json.dumps(record, sort_keys=True)
+    assert "Notepad" not in encoded_record
+    assert "Browser" not in encoded_record
+
+
+def test_oversized_extraction_stops_after_observed_without_extracted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="x" * (MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS + 1),
+    )
+    runner, prepared, session, desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+
+    with pytest.raises(
+        CampaignObservationRuntimeError,
+        match="CAMPAIGN_EXTRACTION_RESULT_TOO_LARGE",
+    ):
+        asyncio.run(
+            execute_claimed_synthetic_observation_and_extraction(
+                runner, prepared, session, now=NOW
+            )
+        )
+
+    assert len(desktop.tool_calls) == 1
+    assert _read_item(config).status is ItemStatus.OBSERVED
+    assert read_run_record(config.state_dir, "run_1")["state"]["phase"] == "FAILED"
 
 
 @pytest.mark.parametrize(
