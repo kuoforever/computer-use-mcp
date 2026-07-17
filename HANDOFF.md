@@ -18,8 +18,9 @@ Planner/Executor and Campaign packages also contain substantial offline-tested
 control logic. One fixed synthetic claimed campaign item can now execute a
 single `list_windows` observation through the existing Runner boundary, persist
 `OBSERVED`, reduce the bounded result to a non-sensitive window count, persist
-`EXTRACTED`, verify its canonical JSON digest, and persist `COMMITTED`; no
-campaign CLI or complete application workflow is connected. The broader universal GUI,
+`EXTRACTED`, verify its canonical JSON digest, persist `COMMITTED`, close the
+batch with measured usage, and write deterministic handoff; no campaign CLI or
+complete application workflow is connected. The broader universal GUI,
 operator UI, cross-application demo, and continual-learning layers remain
 planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
 status header of every owner document before treating it as available.
@@ -126,8 +127,8 @@ layer:
 
 The campaign control plane can validate `campaign_id`, manifest, ledgers, and
 `handoff.json`. Its first internal execution seam is limited to the exact
-synthetic observation, extraction, and commit described above; batch closing,
-restart/resume, a general worker, and CLI remain unconnected. A future fresh session must resume
+synthetic observation-through-handoff described above; forced restart/resume,
+a general worker, and CLI remain unconnected. A future fresh session must resume
 from durable records without prior conversation text. Until then, use these
 documents as the cross-session source of truth.
 

@@ -9,8 +9,9 @@ from pathlib import Path
 import pytest
 
 from computer_use_agent.batch_coordinator import BatchCoordinator, BatchSession
-from computer_use_agent.batching import BatchPolicy
+from computer_use_agent.batching import BatchPolicy, BatchUsage
 from computer_use_agent.campaign import (
+    BatchProjection,
     CampaignHeartbeat,
     CampaignManifest,
     ItemStatus,
@@ -27,6 +28,7 @@ from computer_use_agent.campaign_observation_runtime import (
     execute_claimed_synthetic_observation,
     execute_claimed_synthetic_observation_and_extraction,
     execute_claimed_synthetic_item_through_commit,
+    execute_claimed_synthetic_item_through_handoff,
     synthetic_window_count_digest,
 )
 from computer_use_agent.config import (
@@ -146,6 +148,24 @@ def _read_item(config: AgentConfig) -> ItemTransition:
         return CampaignStore(config.state_dir, lock).read_ledger("campaign_1").items[
             SYNTHETIC_ITEM_KEY
         ]
+    finally:
+        lock.release()
+
+
+def _read_finished_campaign(
+    config: AgentConfig,
+) -> tuple[BatchProjection, dict[str, object], CampaignHeartbeat | None]:
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        from computer_use_agent.campaign import CampaignStore
+
+        store = CampaignStore(config.state_dir, lock)
+        return (
+            store.read_batches("campaign_1"),
+            store.read_handoff("campaign_1"),
+            store.read_heartbeat("campaign_1"),
+        )
     finally:
         lock.release()
 
@@ -305,6 +325,57 @@ def test_canonical_count_digest_rejects_non_counts(value: object) -> None:
         match="CAMPAIGN_COMMIT_RESULT_INVALID",
     ):
         synthetic_window_count_digest(value)  # type: ignore[arg-type]
+
+
+def test_committed_item_finishes_batch_and_writes_deterministic_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = ToolResult(
+        identity=_identity(),
+        tool_name=SYNTHETIC_OBSERVATION_TOOL,
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad\nwindow_2 | Browser\n",
+    )
+    runner, prepared, session, desktop, config = _claimed_runtime(
+        tmp_path, monkeypatch, result
+    )
+
+    outcome = asyncio.run(
+        execute_claimed_synthetic_item_through_handoff(
+            runner, prepared, session, now=NOW
+        )
+    )
+
+    assert outcome.stop_code == "ITEM_LIMIT"
+    assert outcome.usage == BatchUsage(items_completed=1, tool_calls=1)
+    assert outcome.handoff["campaign_id"] == "campaign_1"
+    assert outcome.handoff["last_run_id"] == "run_1"
+    assert outcome.handoff["next_item_ordinal"] == 2
+    assert outcome.handoff["completed_count"] == 1
+    assert outcome.handoff["next_action"] == "resume_batch"
+    assert (
+        outcome.handoff["required_observation"]
+        == "verify_current_page_and_account_state"
+    )
+    assert len(desktop.tool_calls) == 1
+
+    batches, handoff, heartbeat = _read_finished_campaign(config)
+    assert batches.active is None
+    finished = batches.transitions[-1]
+    assert finished.status.value == "FINISHED"
+    assert finished.stop_code == "ITEM_LIMIT"
+    assert finished.items_completed == 1
+    assert finished.provider_turns == 0
+    assert finished.tool_calls == 1
+    assert finished.input_tokens == 0
+    assert handoff == dict(outcome.handoff)
+    assert heartbeat is not None
+    assert heartbeat.run_id == "run_1"
+    assert heartbeat.fresh_until == "2026-07-17T00:12:00+00:00"
+    encoded = json.dumps(handoff, sort_keys=True)
+    assert "Notepad" not in encoded
+    assert "Browser" not in encoded
 
 
 @pytest.mark.parametrize(

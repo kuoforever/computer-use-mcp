@@ -15,8 +15,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
 from time import perf_counter_ns
+from typing import Mapping
 
 from .batch_coordinator import BatchCoordinator, BatchCoordinatorError, BatchSession
+from .batching import BatchUsage
 from .campaign import ItemStatus, ItemTransition
 from .grounding import GroundingState
 from .runner import AgentRunner, PreparedRun, RunFailure
@@ -70,6 +72,22 @@ class CampaignCommitOutcome:
     content_digest: str
 
 
+@dataclass(frozen=True)
+class CampaignHandoffOutcome:
+    """Committed item plus measured finished-batch and handoff evidence."""
+
+    state: RunState
+    result: ToolResult
+    observed: ItemTransition
+    extracted: ItemTransition
+    committed: ItemTransition
+    window_count: int
+    content_digest: str
+    usage: BatchUsage
+    stop_code: str
+    handoff: Mapping[str, object]
+
+
 def synthetic_window_count_digest(window_count: int) -> str:
     """Return the canonical digest for one non-sensitive synthetic result."""
 
@@ -96,7 +114,13 @@ async def _execute_claimed_synthetic_observation(
     now: datetime,
     extract_window_count: bool,
     commit_window_count: bool,
-) -> CampaignObservationOutcome | CampaignExtractionOutcome | CampaignCommitOutcome:
+    finish_handoff: bool,
+) -> (
+    CampaignObservationOutcome
+    | CampaignExtractionOutcome
+    | CampaignCommitOutcome
+    | CampaignHandoffOutcome
+):
     """Observe the exact claimed synthetic item once, then persist OBSERVED.
 
     The prepared run owns the same application lock used by the campaign store.
@@ -221,7 +245,9 @@ async def _execute_claimed_synthetic_observation(
             raise CampaignObservationRuntimeError(
                 "CAMPAIGN_OBSERVATION_EVIDENCE_INVALID"
             )
-        if commit_window_count and not extract_window_count:
+        if (commit_window_count and not extract_window_count) or (
+            finish_handoff and not commit_window_count
+        ):
             raise CampaignObservationRuntimeError("CAMPAIGN_COMMIT_SEQUENCE_INVALID")
         if extract_window_count:
             if len(boundary.result.sanitized_text) > MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS:
@@ -300,11 +326,68 @@ async def _execute_claimed_synthetic_observation(
                     raise CampaignObservationRuntimeError(
                         "CAMPAIGN_COMMIT_EVIDENCE_INVALID"
                     )
+                if finish_handoff:
+                    usage = BatchUsage(
+                        items_completed=1,
+                        elapsed_seconds=max(
+                            0, (perf_counter_ns() - started_ns) // 1_000_000_000
+                        ),
+                        provider_turns=state.budgets.model_turns_used,
+                        tool_calls=state.budgets.tool_calls_used,
+                        input_tokens=state.budgets.input_tokens_used,
+                    )
+                    try:
+                        stop_code = coordinator.finish_continued_batch(
+                            session,
+                            usage=usage,
+                            now=now,
+                        )
+                        handoff = coordinator.write_finished_handoff(
+                            session,
+                            usage=usage,
+                            now=now,
+                        )
+                    except BatchCoordinatorError as exc:
+                        recorder.record(
+                            state,
+                            RunPhase.FAILED,
+                            failure_code="CAMPAIGN_HANDOFF_PERSIST_FAILED",
+                            run_duration_ms=max(
+                                0, (perf_counter_ns() - started_ns) // 1_000_000
+                            ),
+                        )
+                        raise CampaignObservationRuntimeError(
+                            "CAMPAIGN_HANDOFF_PERSIST_FAILED"
+                        ) from exc
+                    if (
+                        handoff.get("campaign_id") != session.campaign_id
+                        or handoff.get("last_run_id") != session.run_id
+                        or handoff.get("completed_count") != 1
+                        or handoff.get("next_action") != "resume_batch"
+                        or handoff.get("required_observation")
+                        != "verify_current_page_and_account_state"
+                    ):
+                        raise CampaignObservationRuntimeError(
+                            "CAMPAIGN_HANDOFF_EVIDENCE_INVALID"
+                        )
         recorder.record(
             state,
             RunPhase.SUCCESS,
             run_duration_ms=max(0, (perf_counter_ns() - started_ns) // 1_000_000),
         )
+        if finish_handoff:
+            return CampaignHandoffOutcome(
+                state=state,
+                result=boundary.result,
+                observed=observed,
+                extracted=extracted,
+                committed=committed,
+                window_count=window_count,
+                content_digest=content_digest,
+                usage=usage,
+                stop_code=stop_code,
+                handoff=handoff,
+            )
         if commit_window_count:
             return CampaignCommitOutcome(
                 state=state,
@@ -373,6 +456,7 @@ async def execute_claimed_synthetic_observation(
         now=now,
         extract_window_count=False,
         commit_window_count=False,
+        finish_handoff=False,
     )
     if not isinstance(outcome, CampaignObservationOutcome):
         raise CampaignObservationRuntimeError("CAMPAIGN_OBSERVATION_EVIDENCE_INVALID")
@@ -395,6 +479,7 @@ async def execute_claimed_synthetic_observation_and_extraction(
         now=now,
         extract_window_count=True,
         commit_window_count=False,
+        finish_handoff=False,
     )
     if not isinstance(outcome, CampaignExtractionOutcome):
         raise CampaignObservationRuntimeError("CAMPAIGN_EXTRACTION_EVIDENCE_INVALID")
@@ -417,9 +502,33 @@ async def execute_claimed_synthetic_item_through_commit(
         now=now,
         extract_window_count=True,
         commit_window_count=True,
+        finish_handoff=False,
     )
     if not isinstance(outcome, CampaignCommitOutcome):
         raise CampaignObservationRuntimeError("CAMPAIGN_COMMIT_EVIDENCE_INVALID")
+    return outcome
+
+
+async def execute_claimed_synthetic_item_through_handoff(
+    runner: AgentRunner,
+    prepared_run: PreparedRun,
+    session: BatchSession,
+    *,
+    now: datetime,
+) -> CampaignHandoffOutcome:
+    """Commit one fixed count, finish its batch, and write current handoff."""
+
+    outcome = await _execute_claimed_synthetic_observation(
+        runner,
+        prepared_run,
+        session,
+        now=now,
+        extract_window_count=True,
+        commit_window_count=True,
+        finish_handoff=True,
+    )
+    if not isinstance(outcome, CampaignHandoffOutcome):
+        raise CampaignObservationRuntimeError("CAMPAIGN_HANDOFF_EVIDENCE_INVALID")
     return outcome
 
 
@@ -427,6 +536,7 @@ __all__ = [
     "CampaignObservationOutcome",
     "CampaignExtractionOutcome",
     "CampaignCommitOutcome",
+    "CampaignHandoffOutcome",
     "CampaignObservationRuntimeError",
     "MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS",
     "SYNTHETIC_CALL_ID",
@@ -437,5 +547,6 @@ __all__ = [
     "execute_claimed_synthetic_observation",
     "execute_claimed_synthetic_observation_and_extraction",
     "execute_claimed_synthetic_item_through_commit",
+    "execute_claimed_synthetic_item_through_handoff",
     "synthetic_window_count_digest",
 ]

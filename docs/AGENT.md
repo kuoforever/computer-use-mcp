@@ -232,9 +232,11 @@ Its explicit extraction extension accepts at most 64 Ki characters, produces
 only the non-empty-line count as its extraction value, persists no result text
 in campaign state or redacted trace, and then persists `EXTRACTED`. Its commit
 extension re-counts that bounded result, hashes only canonical
-`{"window_count":N}` JSON, and persists the digest at `COMMITTED`. It makes no
-provider call and exposes no selector, batch close, handoff, resume, side-effect,
-CLI, or second MCP path.
+`{"window_count":N}` JSON, and persists the digest at `COMMITTED`. Its handoff
+extension closes through the existing continuation validator with measured
+Runner usage and writes the fixed campaign handoff without changing heartbeat
+ownership. It makes no provider call and exposes no selector, restart/resume,
+side-effect, CLI, or second MCP path.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
