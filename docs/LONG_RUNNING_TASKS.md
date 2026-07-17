@@ -408,6 +408,12 @@ and measured replacement-run counters, committed prefix, fresh heartbeat, and
 derived next ordinal before returning only `write_current_campaign_handoff`.
 The preflight does not create or rewrite handoff state.
 
+The locked coordinator may now re-run that preflight and atomically replace the
+prior handoff projection with the exact finished replacement run, current
+derived next ordinal, and fixed campaign counts/directives. Manifest, ledgers,
+heartbeat, and finished batch state remain unchanged. Repeating the same valid
+write is byte-stable and does not start provider, MCP, desktop, or runner work.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
