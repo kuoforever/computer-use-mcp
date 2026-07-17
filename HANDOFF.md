@@ -7,15 +7,19 @@
 
 ## Current shape
 
-The codebase is an experimental Windows-only MCP server with eight tools,
-a typed Driver Contract v1.0.0, and a single in-process Windows implementation.
-The shared core is testable with fake drivers; desktop integration is exercised
-by explicit smoke scripts.
+The codebase has two executable surfaces. The public baseline is an
+experimental Windows-only MCP server with eight tools, a typed Driver Contract
+v1.0.0, and one in-process Windows implementation. The second is an
+experimental `computer-use-agent` Host with a dual-provider read-only loop,
+explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
+actions. Provider E3 and isolated desktop E4 evidence are not retained.
 
-The product direction is now broader than the current MCP surface: a universal
-GUI agent with pixel fallback, opportunistic structured observations, and
-day-scale resumable campaigns. The implemented runtime remains narrower. Read
-the status header of every design document before treating it as available.
+Planner/Executor and Campaign packages also contain substantial offline-tested
+control logic, but their current internal runtimes are not connected to a
+campaign CLI or complete application workflow. The broader universal GUI,
+operator UI, cross-application demo, and continual-learning layers remain
+planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
+status header of every owner document before treating it as available.
 
 Before changing behavior, inspect the current worktree and run the unit suite:
 
@@ -37,6 +41,14 @@ src/computer_use_mcp/
   audit.py             JSONL records
   dpi.py               DPI-awareness bootstrap
   drivers/windows.py   UIA, Win32, capture, process ownership
+
+src/computer_use_agent/
+  runner.py            sole Agent tool-dispatch authority boundary
+  providers/           OpenAI and Claude adapters
+  planning.py          bounded declarative planning contracts
+  executor*.py         internal observation/final runtime and reconciliation
+  campaign*.py         offline campaign control state and preflights
+  continuation*.py     private bounded crash evidence and recovery
 
 scripts/               on-device smoke and VMware helper
 tests/                 side-effect-free unit tests
@@ -70,9 +82,11 @@ docs/                  canonical English documentation
 9. **Same-desktop UIA is not background-safe.** A controlled ValuePattern
    operation can alter foreground state. Use an isolated runtime for true
    background work.
-10. **Window activation has a reproduced defect.** A valid listed Chrome window
-    failed to regain foreground after Codex became active. Treat
-    `activate_window` repair and its isolated regression matrix as P0.
+10. **Window activation was reproduced, repaired, and unit tested, but still
+    needs retained isolated evidence.** The driver now attaches the required
+    input queues, restores minimized targets, releases attachments in `finally`,
+    and verifies the foreground HWND. Treat the E4 Windows regression matrix,
+    not another speculative rewrite, as P0.
 11. **Interactive UIA is not document text.** The BOSS probe exposed useful
     controls while static job-description content was absent. Use the planned
     observation ladder rather than assuming a full UIA snapshot contains page
@@ -83,29 +97,35 @@ docs/                  canonical English documentation
 For long-running feature work, read only the documents needed for the current
 layer:
 
-1. [Operator session notes](docs/OPERATOR_SESSION_NOTES.md) for sanitized live
-   evidence and the latest reproduced defect.
-2. [Roadmap](docs/EXECUTION_PLAN.md) for P0/P1 ordering.
-3. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
+1. [Capability status](docs/CAPABILITY_STATUS.md) for the shortest current
+   implemented/evidence/next-gate view.
+2. [Operator session notes](docs/OPERATOR_SESSION_NOTES.md) for sanitized live
+   evidence and unresolved validation gaps.
+3. [Roadmap](docs/EXECUTION_PLAN.md) for P0/P1 ordering.
+4. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
    batching, and cross-session handoff.
-4. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
+5. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
    the BOSS, Google Docs, WeChat, Douyin real-time-media, enterprise workflow,
    and cross-application acceptance cases.
-5. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
+6. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
    [Observation contract](docs/OBSERVATION_CONTRACT.md) for model-context and
    perception changes.
-6. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the planned
+7. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the planned
    computer-use presence indicator and Decision Cards, then
    [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
    status projection.
-7. [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
+8. [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
    final chaptered showcase and retained evidence package; it is not a shortcut
    around the narrower application and safety gates.
+9. [Continual learning](docs/CONTINUAL_LEARNING.md) for the planned progression
+   from explicit memory through verified workflow promotion and cost-aware
+   strategy selection; it does not describe current runtime behavior.
 
-When campaign persistence is implemented, a new Codex session should resume
-from `campaign_id`, the validated manifest, and `handoff.json`; it should not
-need prior conversational text. Until then, use these documents as the durable
-cross-session source of truth.
+The campaign control plane can validate `campaign_id`, manifest, ledgers, and
+`handoff.json`, but no campaign worker or CLI is connected. When that runtime
+exists, a fresh session must resume from those durable records without prior
+conversation text. Until then, use these documents as the cross-session source
+of truth.
 
 ## Guardrail checklist for new actions
 
@@ -139,13 +159,22 @@ its UIA tree.
   so update it when setup, safety defaults, or supported capability summaries
   change.
 - Keep current behavior in the README, configuration page, and tool reference.
+- Update [capability status](docs/CAPABILITY_STATUS.md) whenever implementation
+  or retained evidence moves a row between states; offline tests cannot fill a
+  provider, desktop, or application evidence cell.
 - Keep design directions in [docs/DESIGN.md](docs/DESIGN.md) and
    [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md).
 - Keep computer-use presence, passive progress, and interactive decision
   boundaries synchronized across [operator experience](docs/OPERATOR_EXPERIENCE.md),
   [progress viewer](docs/PROGRESS_VIEWER.md), and
   [approved actions](docs/APPROVALS.md).
+- Keep planned automatic extraction and strategy-learning claims synchronized
+  across [context and memory](docs/CONTEXT_MEMORY.md),
+  [continual learning](docs/CONTINUAL_LEARNING.md), the roadmap, and the
+  universal demo.
 - Keep contract changes synchronized with `contract.py`.
+- Keep superseded plans and implementation chronology under `docs/archive/`;
+  archived files are non-normative and must point to their current owner.
 
 Avoid restoring sentence-by-sentence bilingual copies; they obscure the current
 status and create needless translation drift.

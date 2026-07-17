@@ -123,6 +123,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Need | Read |
 | --- | --- |
 | Find the right document | [Documentation index](docs/README.md) |
+| See what is implemented, verified, or still planned | [Capability status](docs/CAPABILITY_STATUS.md) |
 | Configure modes, safeguards, and environment variables | [Configuration and safety](docs/CONFIGURATION.md) |
 | Use the MCP API exactly | [Tool reference](docs/TOOLS.md) |
 | Understand the implementation architecture | [Design](docs/DESIGN.md) |

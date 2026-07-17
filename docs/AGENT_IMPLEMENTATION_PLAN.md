@@ -6,13 +6,17 @@
 > broader resumable state, and release review remain; offline CI and local
 > release preflight are active.
 > This work does not weaken the MCP server's runtime safety guarantees.
+> Current cross-surface evidence and next gates are summarized in
+> [Capability status](CAPABILITY_STATUS.md).
 
-## Implementation audit (2026-07-14)
+## Implementation audit
 
 The repository currently provides a tested foundation, not a completed safety
 MVP. The status below is based on source inspection plus the current offline
 preflight and CI evidence. Exact pass/skip counts belong in each generated
 report rather than this audit because the suite changes with every milestone.
+Cross-surface evidence promotion and the next executable gate belong in
+[Capability status](CAPABILITY_STATUS.md), not in dated prose here.
 
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
@@ -169,6 +173,11 @@ deletion support. It must not store screenshots, UI references, passwords,
 OTP values, API keys, raw typed text, or unverified content derived from the
 desktop. Memory cannot authorize an action.
 
+Automatic experience extraction, workflow promotion, and cost-aware strategy
+selection are a post-MVP architecture described in
+[Continual learning](CONTINUAL_LEARNING.md). They require a separate quarantine
+and evaluation path and do not weaken this explicit-memory contract.
+
 State files belong under a user-local application directory rather than the
 repository. Run traces and long-term memory use separate stores.
 
@@ -241,52 +250,32 @@ The first release does not include a web UI, multi-agent handoffs, automatic
 provider arbitration, arbitrary remote MCP servers, shell/browser/code-execution
 tools, background desktop concurrency, automatic approval, vector retrieval,
 automatic memory extraction, multi-monitor grounding, macOS/Linux drivers,
-cloud trace storage, or user accounts.
+cloud trace storage, user accounts, cross-run learned strategy routing, or
+model-weight learning. See [Continual learning](CONTINUAL_LEARNING.md) for the
+gated post-MVP sequence rather than inferring these features from trace or
+memory support.
 
-## Estimate and sequencing
+## Remaining delivery gates
 
-The complete safety MVP is estimated at 16-24 focused engineering days. A
-practical sequence is:
+The original build order has been completed far enough that repeating it here
+would misstate the repository. Current evidence and next gates are tracked in
+[Capability status](CAPABILITY_STATUS.md). The remaining Agent Host sequence is:
 
-1. Complete phases 0-3 to establish a safe, testable provider-neutral core.
-2. Complete the OpenAI adapter and offline evaluation baseline.
-3. Add the Claude adapter against the same contract tests.
-4. Add context, explicit memory, trace, and recovery behavior.
-5. Finish adversarial tests, isolated desktop smoke, CI, and release review.
+1. apply completed-final reconciliation through separately reviewed local,
+   idempotent CAS and terminal cleanup;
+2. expose one bounded observation-only Planner/Executor CLI path while reusing
+   the sole existing Runner dispatch and policy boundary;
+3. keep side-effect plan execution in a separate review and retain the current
+   action, approval, WAL, grounding, and re-observation invariants;
+4. pass both providers through retained E3 evidence;
+5. pass read-only and one approved low-risk action through the isolated E4
+   matrix;
+6. evaluate safe semantic compression only after exact context and recovery
+   evidence remains reproducible; and
+7. complete release review without calling the slice production-ready when a
+   human gate is missing.
 
-The highest-risk schedule items are desktop side-effect testing and the desired
-approval granularity, not the basic provider SDK integrations.
-
-## Immediate implementation order
-
-To prioritize runnable capability, tests, and operator documentation without
-refactoring the existing safety architecture, use these increments:
-
-1. **Read-only vertical slice:** implement one provider adapter first, the
-   bounded model/tool continuation loop, budget accounting, observation
-   freshness, sanitized in-memory ledger events, and a real `agent run`. Keep
-   all action tools denied. Add fixture-based adapter contract tests and one
-   fake-MCP CLI integration test.
-2. **Second provider on the same contract:** add the other adapter without
-   branching runner behavior. Run the identical normalization, call-ID,
-   multiple-call serialization, timeout, and disclosure tests against both.
-3. **Deterministic workflow evaluation:** create `evals/cases` and E1/E2 tests
-   for exact canonical traces, stale refs, malformed/parallel calls, injection,
-   denied approval, gate/E-stop/human-active results, and unknown outcomes.
-4. **Run persistence and inspection:** add explicit transition validation,
-   atomic state checkpoints, conservative resume rules, redacted JSONL traces,
-   and `agent trace <run_id>`. A dispatched uncertain action must never resume
-   by replaying it.
-5. **Approved actions:** connect the local approval port and enforce one action
-   at a time plus mandatory post-action observation. Validate first with fakes,
-   then only in an isolated Notepad/VM smoke environment.
-6. **Context and explicit memory:** add budget-aware context reduction and the
-   opt-in SQLite store after the runnable workflow and traces are stable.
-7. **Release documentation and CI:** document credentials, disclosure,
-   configuration, recovery, trace inspection, limitations, and disablement;
-   gate E0-E2 in CI and keep provider/desktop tests opt-in and isolated.
-
-Planner-Executor expansion, queues/workers, multi-agent delegation,
-OpenTelemetry, Redis, FastAPI, and Docker remain later enhancements. They must
-not delay the read-only vertical slice or be described as implemented before
-executable evidence exists.
+Queues/workers, multi-agent delegation, OpenTelemetry, Redis, FastAPI, Docker,
+automatic memory extraction, learned strategy routing, and model-weight
+learning remain later enhancements. They must not delay the executable and
+evidence gates above.

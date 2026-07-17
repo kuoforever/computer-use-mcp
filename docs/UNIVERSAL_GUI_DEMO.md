@@ -258,6 +258,21 @@ boundaries, privilege elevation, and unknown side-effect outcomes are not
 research puzzles to bypass. They stop the equivalent automated path and produce
 a resumable handoff when no compliant machine-executable option remains.
 
+## Planned continual-learning segment
+
+The complete-product recording may add a learning segment only after the
+[continual-learning](CONTINUAL_LEARNING.md) promotion gates pass independently.
+It uses multiple retained synthetic episodes plus separate held-out tasks to
+show candidate extraction, one rejection or correction, isolated replay,
+reviewed promotion, context-aware reuse, and drift-triggered rollback.
+
+The segment reports verified outcome, tokens, observation cost, retries,
+latency, and takeover cost for the active baseline and promoted procedure. It
+must preserve the full reward vector and unchanged safety/approval outcomes;
+one weighted score cannot hide an authority regression or uncertain side
+effect. Replaying the candidate's source episode is not held-out evidence, and
+one edited run is not proof of continual improvement.
+
 ## Required fault injection
 
 | Injection | Required evidence |
@@ -291,7 +306,9 @@ prompt length:
 - tokens per committed item, successful classification, verified edit, and
   successful recovery;
 - retry/recovery tokens as a fraction of total tokens;
-- human takeover count and time.
+- human takeover count and time; and
+- candidate/procedure/strategy version and whether its selection was baseline,
+  shadow, reviewed active, fallback, or rollback.
 
 Use the cheapest sufficient observation source and item-local provider context
 from [Token efficiency](TOKEN_EFFICIENCY.md). Do not claim an optimization from
@@ -385,7 +402,9 @@ hide failed, skipped, challenged, uncertain, or human-completed steps.
    smokes in an isolated Windows environment.
 6. Pass the synthetic enterprise incident with object-scoped authority.
 7. Freeze fixtures, fault injections, schemas, and expected evidence classes.
-8. Execute the complete campaign twice with each supported provider or document
+8. If the learning segment is enabled, pass its multi-episode extraction,
+   held-out evaluation, promotion, and rollback gates independently.
+9. Execute the complete campaign twice with each supported provider or document
    any provider-specific waiver explicitly.
 
 The complete demo is a final integration gate, not a substitute for narrower
