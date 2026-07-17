@@ -21,8 +21,8 @@ bounded fake-MCP cases with one reviewed model per provider; isolated desktop
 E4 evidence is not retained. The record also preserves a separate Sonnet 5
 `thinking`-block compatibility failure. The ordinary Claude adapter now has an
 offline-verified strict preservation path for signed `thinking` and opaque
-`redacted_thinking` blocks, but the repair still needs retained exact-commit
-Sonnet 5 evidence and does not broaden the passing model-scoped Claude claim.
+`redacted_thinking` blocks, plus retained exact-commit Sonnet 5 fake-MCP
+evidence. This does not broaden the passing model-scoped Claude claim.
 
 Planner/Executor and Campaign packages also contain substantial offline-tested
 control logic. Completed final-response crash evidence can now be applied

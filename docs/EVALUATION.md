@@ -368,5 +368,5 @@ The maintained [provider E3 evidence](E3_EVIDENCE.md) retains matching passing
 records for OpenAI and Claude, completing this bounded dual-provider gate. The
 record is model-scoped: it also preserves a separate Sonnet 5 `thinking`-block
 compatibility failure without converting E3 into an all-model claim. The
-strict reasoning-block preservation repair remains pending retained
-exact-commit Sonnet 5 evidence. E4 remains a separate isolated-desktop gate.
+strict reasoning-block preservation repair now has retained exact-commit
+Sonnet 5 evidence. E4 remains a separate isolated-desktop gate.

@@ -266,9 +266,8 @@ would misstate the repository. Current evidence and next gates are tracked in
    matrix for both providers;
 2. keep side-effect plan execution in a separate review and retain the current
    action, approval, WAL, grounding, and re-observation invariants;
-3. retain exact-commit evidence for model-specific compatibility changes,
-   including the implemented Sonnet 5 reasoning-block preservation, without
-   broadening the model-scoped E3 claim;
+3. keep retained model-specific compatibility evidence, including Sonnet 5
+   reasoning-block preservation, scoped to the exact tested model and commit;
 4. evaluate safe semantic compression only after exact context and recovery
    evidence remains reproducible; and
 5. complete release review without calling the slice production-ready when a
