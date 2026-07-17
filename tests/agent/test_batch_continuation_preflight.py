@@ -3493,6 +3493,7 @@ def test_resumed_finished_batch_is_ready_for_exact_handoff_write(
 
 def test_resumed_finished_batch_replaces_only_current_fixed_handoff(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store, lock, coordinator, session = _committed_prefix_store(
         tmp_path,
@@ -3592,6 +3593,10 @@ def test_resumed_finished_batch_replaces_only_current_fixed_handoff(
         assert store.read_heartbeat("campaign_1") == heartbeat_before
 
         handoff_before = handoff_path.read_bytes()
+        monkeypatch.setattr(
+            "computer_use_agent.campaign._utc_now",
+            lambda: "2099-01-01T00:00:00+00:00",
+        )
         repeated = coordinator.write_finished_handoff(resumed, usage=usage, now=NOW)
         assert repeated == written
         assert handoff_path.read_bytes() == handoff_before

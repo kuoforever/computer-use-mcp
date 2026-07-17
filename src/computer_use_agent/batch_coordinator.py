@@ -1165,6 +1165,12 @@ class BatchCoordinator:
             raise BatchCoordinatorError(
                 f"BATCH_HANDOFF_BLOCKED_{preflight.state.value}"
             )
+        try:
+            existing = self.store.read_handoff(session.campaign_id)
+        except CampaignStoreError:
+            existing = None
+        if existing is not None and existing["last_run_id"] == session.run_id:
+            return existing
         return self.store.write_handoff(
             session.campaign_id,
             last_run_id=session.run_id,
