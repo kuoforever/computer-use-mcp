@@ -243,7 +243,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | `src/computer_use_agent/trace.py`, `report.py`, `memory.py` | Safe state, metrics, reporting, and explicit memory |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
 | `src/computer_use_agent/planning.py`, `planner.py`, `plan_store.py` | Declarative plan compilation, provider port, and persistence |
-| `src/computer_use_agent/executor*.py` | Internal observation/final runtimes, WALs, and reconciliation |
+| `src/computer_use_agent/executor*.py`, `planned_observation_runtime.py` | Observation/final runtimes, WALs, reconciliation, and bounded read-only CLI composition |
 | `src/computer_use_agent/campaign*.py`, `batch*.py`, lease/heartbeat modules | Internal long-running control plane |
 | `src/computer_use_agent/evaluation.py`, `release.py` | Deterministic evidence and release preflight |
 | `tests/`, `evals/`, `scripts/` | Pure/offline tests, frozen cases, on-device smokes, VMware helper |

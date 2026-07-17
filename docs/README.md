@@ -70,7 +70,7 @@ not a line-by-line mirror of every reference page.
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
 | Continual learning | Planned four-layer memory, verified workflow promotion, cost-aware strategy selection, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
-| Task planning | Non-executable TaskPlan contract, strict candidate compiler, and ordered local transitions |
+| Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `plan run` composition |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, deterministic cross-session handoff, and the planned host-terminal polling contract |
 | Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |

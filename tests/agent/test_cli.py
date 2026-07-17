@@ -40,6 +40,8 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
     [
         ["--help"],
         ["run", "--help"],
+        ["plan", "--help"],
+        ["plan", "run", "--help"],
         ["eval", "--help"],
         ["release", "preflight", "--help"],
         ["trace", "--help"],
@@ -68,6 +70,45 @@ def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> N
 def test_cli_without_a_command_prints_help_and_returns_success(capsys: pytest.CaptureFixture[str]) -> None:
     assert main([]) == 0
     assert "Safe local Agent Host foundation" in capsys.readouterr().out
+
+
+def test_plan_run_cli_routes_only_config_and_task(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "agent.toml"
+    captured: list[tuple[Path, str]] = []
+
+    def fake_run(path: Path, task: str) -> int:
+        captured.append((path, task))
+        return 0
+
+    monkeypatch.setattr(agent_cli, "_run_planned_observation", fake_run)
+
+    assert main(
+        ["plan", "run", "--config", str(config_path), "--task", "Inspect"]
+    ) == 0
+    assert captured == [(config_path, "Inspect")]
+
+
+def test_plan_run_requires_wal_before_loading_provider_or_desktop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+
+    assert main(
+        ["plan", "run", "--config", str(config_path), "--task", "Inspect"]
+    ) == 2
+
+    assert capsys.readouterr().err.strip() == (
+        "error: PLANNED_OBSERVATION_WAL_REQUIRED"
+    )
+    assert not state_dir.exists()
 
 
 def test_release_preflight_cli_returns_the_report_status(

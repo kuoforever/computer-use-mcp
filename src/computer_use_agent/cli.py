@@ -8,6 +8,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
+from uuid import uuid4
 
 from .config import APPROVED_ACTIONS_MODE, ConfigError, load_agent_config
 from .runner import AgentRunner, RunnerError, RunnerPorts
@@ -29,6 +30,22 @@ class _ForbiddenCampaignProvider:
 
     def restore_continuation(self, _run_id: str, _state: object) -> None:
         raise RunnerError("CAMPAIGN_PROVIDER_FORBIDDEN")
+
+
+class _ForbiddenPlannedProvider:
+    """Keep the plan CLI outside the ordinary provider continuation loop."""
+
+    name = "planned-provider-forbidden"
+    continuation_strategy = ProviderContinuationStrategy.STATELESS_REPLAY
+
+    async def create_turn(self, **_kwargs: object) -> None:
+        raise RunnerError("PLANNED_PROVIDER_FORBIDDEN")
+
+    def export_continuation(self, _run_id: str) -> None:
+        raise RunnerError("PLANNED_PROVIDER_FORBIDDEN")
+
+    def restore_continuation(self, _run_id: str, _state: object) -> None:
+        raise RunnerError("PLANNED_PROVIDER_FORBIDDEN")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +73,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Build and print safe initial-state metadata without calling any external port.",
     )
+
+    plan = commands.add_parser(
+        "plan", help="Run one bounded observation-only Planner/Executor workflow."
+    )
+    plan_commands = plan.add_subparsers(dest="plan_command", required=True)
+    plan_run = plan_commands.add_parser(
+        "run", help="Plan and execute one to four observations, then answer."
+    )
+    plan_run.add_argument("--config", required=True, type=Path)
+    plan_run.add_argument("--task", required=True)
 
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
@@ -290,6 +317,90 @@ async def _run_live_async(
 
 def _run_live(path: Path, task: str, memory_scope: str | None = None) -> int:
     return asyncio.run(_run_live_async(path, task, memory_scope))
+
+
+async def _run_planned_observation_async(path: Path, task: str) -> int:
+    from .approvals import ReadOnlyApprovalPort
+    from .desktop_mcp import StdioDesktopMCP
+    from .planned_observation_runtime import run_planned_observation
+
+    config = load_agent_config(path)
+    if not isinstance(task, str) or not task:
+        raise RunnerError("PLANNED_OBSERVATION_INPUT_INVALID")
+    if not config.continuation.enabled:
+        raise RunnerError("PLANNED_OBSERVATION_WAL_REQUIRED")
+    if config.policy.max_model_turns < 1:
+        raise RunnerError("PLANNED_OBSERVATION_MODEL_BUDGET_INVALID")
+    if config.provider.name == "openai":
+        from .providers.openai_final import OpenAIFinalResponseAdapter
+        from .providers.openai_planner import OpenAIPlanner
+
+        planner = OpenAIPlanner.from_environment(
+            config.provider.model,
+            max_request_bytes=config.provider.max_request_bytes,
+            context_window_tokens=config.provider.context_window_tokens,
+            output_token_reserve=config.provider.output_token_reserve,
+        )
+        final_port = OpenAIFinalResponseAdapter.from_environment(
+            config.provider.model,
+            max_request_bytes=config.provider.max_request_bytes,
+            context_window_tokens=config.provider.context_window_tokens,
+            output_token_reserve=config.provider.output_token_reserve,
+        )
+    elif config.provider.name == "anthropic":
+        from .providers.anthropic_final import AnthropicFinalResponseAdapter
+        from .providers.anthropic_planner import AnthropicPlanner
+
+        planner = AnthropicPlanner.from_environment(
+            config.provider.model,
+            max_request_bytes=config.provider.max_request_bytes,
+            context_window_tokens=config.provider.context_window_tokens,
+            output_token_reserve=config.provider.output_token_reserve,
+        )
+        final_port = AnthropicFinalResponseAdapter.from_environment(
+            config.provider.model,
+            max_request_bytes=config.provider.max_request_bytes,
+            context_window_tokens=config.provider.context_window_tokens,
+            output_token_reserve=config.provider.output_token_reserve,
+        )
+    else:
+        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=_ForbiddenPlannedProvider(),
+            desktop=StdioDesktopMCP(config.mcp),
+            approvals=ReadOnlyApprovalPort(),
+        ),
+    )
+    outcome = await run_planned_observation(
+        runner,
+        planner,
+        final_port,
+        task=task,
+        run_id=uuid4().hex,
+        plan_id=f"plan_{uuid4().hex}",
+    )
+    state = outcome.final.state
+    _print_json(
+        {
+            "run_id": state.run_id,
+            "plan_id": outcome.plan_id,
+            "observation_steps": outcome.observation_steps,
+            "text": outcome.final.text,
+            "usage": {
+                "planner_calls": 1,
+                "final_model_turns": state.budgets.model_turns_used,
+                "tool_calls": state.budgets.tool_calls_used,
+                "final_input_tokens": state.budgets.input_tokens_used,
+            },
+        }
+    )
+    return 0
+
+
+def _run_planned_observation(path: Path, task: str) -> int:
+    return asyncio.run(_run_planned_observation_async(path, task))
 
 
 def _resume_live(path: Path, run_id: str, task: str) -> int:
@@ -753,6 +864,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ValueError("DRY_RUN_MEMORY_CONTEXT_UNAVAILABLE")
                 return _run_dry(args.config, args.task)
             return _run_live(args.config, args.task, args.memory_scope)
+        if args.command == "plan" and args.plan_command == "run":
+            return _run_planned_observation(args.config, args.task)
         if args.command == "eval":
             return _run_eval(
                 args.cases, args.report, args.manifest, args.write_manifest

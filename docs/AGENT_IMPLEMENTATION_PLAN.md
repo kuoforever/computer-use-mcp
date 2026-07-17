@@ -21,7 +21,7 @@ Cross-surface evidence promotion and the next executable gate belong in
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
-| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, one-shot final runtime ordering, and completed-final local reconciliation implemented; action execution and CLI not connected | The internal runtime compiles exact completed observations, writes the dedicated WAL, CAS-marks the final step `in_progress`, writes intent, calls one injected tool-free port, persists correlated completion, consumes host model/input budgets into the canonical ledger, completes the plan, writes terminal trace state, and removes only the ordinary observation continuation. Intent or later failure closes without retry and preserves evidence. Final WAL v2 binds the source plan/checkpoint/continuation plus provider latency; a no-write compiler reconstructs exact terminal evidence and a separate same-lock writer idempotently applies final plan/trace/checkpoint state before deleting only the ordinary continuation. Side effects and CLI remain separate reviews. |
+| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, completed-final local reconciliation, and bounded observation-only CLI composition implemented; action execution not connected | `plan run` permits only the fixed four observation schemas, rejects plans outside one to four observations before opening MCP, dispatches every observation through the sole Runner boundary, and uses one stateless tool-free final port. The ordinary provider continuation port is fail-closed and no tool/action selector is exposed. Final WAL and reconciliation semantics remain unchanged. The path is offline fake-verified; dual-provider E3 and desktop evidence remain. |
 | Reviewed desktop tools | Implemented | All eight tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
@@ -262,8 +262,8 @@ The original build order has been completed far enough that repeating it here
 would misstate the repository. Current evidence and next gates are tracked in
 [Capability status](CAPABILITY_STATUS.md). The remaining Agent Host sequence is:
 
-1. expose one bounded observation-only Planner/Executor CLI path while reusing
-   the sole existing Runner dispatch and policy boundary;
+1. pass the bounded observation-only Planner/Executor CLI path through retained
+   harmless E3 evidence for both providers;
 2. keep side-effect plan execution in a separate review and retain the current
    action, approval, WAL, grounding, and re-observation invariants;
 3. pass both providers through retained E3 evidence;
