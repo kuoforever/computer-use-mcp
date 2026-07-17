@@ -8,6 +8,7 @@ from pathlib import Path
 from time import perf_counter_ns
 from uuid import uuid4
 
+from .campaign import CampaignStore
 from .config import AgentConfig
 from .continuation import RuntimeContinuationRecorder
 from .context import ContextBudgetError, reduce_ledger
@@ -108,6 +109,12 @@ class PreparedRun:
     def closed(self) -> bool:
         return self._closed
 
+    @property
+    def application_state_dir(self) -> Path:
+        """Return the exact application root protected by this run lock."""
+
+        return self._lock.lock_dir
+
     def close(self) -> None:
         if self._closed:
             return
@@ -132,6 +139,13 @@ class PreparedRun:
         if self._closed:
             raise RuntimeError("prepared run is already closed")
         return FinalResponseStore(state_dir, self._lock)
+
+    def campaign_store(self, state_dir: Path) -> CampaignStore:
+        """Create a campaign store bound to this run's still-live lock."""
+
+        if self._closed:
+            raise RuntimeError("prepared run is already closed")
+        return CampaignStore(state_dir, self._lock)
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
         self.close()
@@ -430,8 +444,13 @@ class AgentRunner:
             continuation.dispatch_tool(
                 state, checkpoint_sequence=recorder.checkpoint_sequence
             )
-        result = await self.ports.desktop.call_tool(authorized_call)
-        validate_tool_result(authorized_call, result)
+        try:
+            result = await self.ports.desktop.call_tool(authorized_call)
+            validate_tool_result(authorized_call, result)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise RunFailure("UNKNOWN_OUTCOME", state) from exc
         state = self._record_result(
             state,
             result,

@@ -1,10 +1,12 @@
 # Long-running task contract
 
-> **Status: campaign control plane implemented and offline verified; executable
-> orchestration not connected.** Manifests, item/batch ledgers, leases,
+> **Status: campaign control plane implemented and offline verified; first
+> fixed observation seam connected.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
-> provider, MCP, desktop, worker, timer, side-effect, or campaign CLI authority.
+> provider, general worker, timer, side-effect, or campaign CLI authority. One
+> exact claimed synthetic item can execute `list_windows` through the existing
+> Runner authority and persist only a correlated `OBSERVED` boundary.
 > See [Capability status](CAPABILITY_STATUS.md) for the next evidence gate.
 
 ## Goal
@@ -180,12 +182,15 @@ The implemented offline control plane provides:
 - rejection of free-form item substitution, usage drift, plan drift, repeated
   writes, and in-flight resume.
 
-Every `READY` result is a control-state directive only. No current campaign
-method performs an application observation, extracts content, invokes a
-provider, dispatches MCP, interacts with the desktop, starts a worker, or
-exposes a campaign CLI. Expiry can release a stale read-only claim to
-`RETRYABLE`; it cannot claim the item for another run or authorize action
-replay.
+Every `READY` preflight result is a control-state directive only. Campaign
+control methods still do not invoke a provider or dispatch MCP. The separate
+internal synthetic observation runtime accepts only the exact campaign kind,
+single planned item key, active claim/session owner, and fixed `list_windows`
+call; it reuses Runner discovery, policy, budget, trace, correlation, and MCP
+dispatch before calling the existing `OBSERVED` coordinator transition. It
+does not extract content, commit a result, start a general worker, or expose a
+campaign CLI. Expiry can release a stale read-only claim to `RETRYABLE`; it
+cannot claim the item for another run or authorize action replay.
 
 The incremental implementation sequence is retained in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md).
@@ -383,18 +388,20 @@ takeover are durable transitions, not informal chat instructions.
    plane, including manifest, item/batch ledgers, leases, heartbeat, pause,
    stale inspection, deterministic handoff, bounded resume/run transfer, item
    progression, and exhausted-campaign completion.
-2. **Next:** connect one synthetic read-only worker through the existing Agent
-   boundary and prove commit plus forced-restart resume without a second
-   provider/MCP/desktop path.
-3. Add a bounded campaign CLI only after the worker contract passes offline;
+2. **Implemented and offline verified:** bind one exact claimed synthetic item
+   to one fixed `list_windows` observation through the existing Runner boundary
+   and persist only correlated `OBSERVED` success.
+3. **Next:** extend that same synthetic item through extraction, verification,
+   commit, and forced-restart resume without a second provider/MCP/desktop path.
+4. Add a bounded campaign CLI only after the worker contract passes offline;
    retain exact state, trace, and cost evidence.
-4. Run the BOSS read-only 100-item evaluation.
-5. Run Google Docs 50-section and WeChat draft-only evaluations.
-6. Run the cross-application campaign with a fresh-session boundary.
-7. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-8. Only then consider resumable side-effect campaigns and higher-complexity
+5. Run the BOSS read-only 100-item evaluation.
+6. Run Google Docs 50-section and WeChat draft-only evaluations.
+7. Run the cross-application campaign with a fresh-session boundary.
+8. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+9. Only then consider resumable side-effect campaigns and higher-complexity
    remote-desktop or modal-tool workloads.
-9. Define object-scoped enterprise authority, data classification, transaction
+10. Define object-scoped enterprise authority, data classification, transaction
    reconciliation, SLA ownership, and human takeover before Wave 4.
-10. Run the synthetic read-only IT incident campaign, then add approved ticket
+11. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

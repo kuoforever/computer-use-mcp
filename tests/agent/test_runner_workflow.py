@@ -97,6 +97,52 @@ def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> N
     assert "RunPhase.VERIFYING" in boundary_source
 
 
+def test_uncorrelated_result_fails_closed_with_post_request_ledger_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    call = ToolCall(
+        identity=CallIdentity("run_1", "turn_1", "call_1"),
+        name="list_windows",
+        arguments={},
+    )
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id="run_1",
+                    turn_id="turn_1",
+                    provider_response_id="response_1",
+                    text="",
+                    tool_calls=(call,),
+                )
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    identity=CallIdentity("run_1", "turn_1", "wrong_call"),
+                    tool_name="list_windows",
+                    status=ToolResultStatus.SUCCESS,
+                    dispatch=DispatchCertainty.DISPATCHED,
+                )
+            ]
+        )
+    )
+
+    with pytest.raises(RunFailure, match="UNKNOWN_OUTCOME") as raised:
+        asyncio.run(
+            _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
+                "Inspect open windows", run_id="run_1"
+            )
+        )
+
+    assert raised.value.state.budgets.tool_calls_used == 1
+    assert raised.value.state.event_log[-1].kind is LedgerEventKind.TOOL_CALL
+    assert desktop.close_calls == 1
+
+
 def test_read_only_observe_then_answer_is_bounded_and_canonical(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

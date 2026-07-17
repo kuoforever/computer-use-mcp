@@ -40,20 +40,21 @@ not describe the already implemented code path as absent.
 > offline verified. It has strict manifests, item and batch ledgers, leases,
 > heartbeats, pause/stale inspection, deterministic handoff, bounded resume,
 > read-only item progression, run transfer, campaign completion, and a
-> read-only terminal heartbeat-retirement preflight. It has no connected
-> campaign worker, CLI command, provider, MCP operation, desktop observation,
-> extraction, side effect, or automatic terminal heartbeat removal.
+> read-only terminal heartbeat-retirement preflight. One internal fixed
+> synthetic item now binds an existing claim/session to one `list_windows`
+> observation through the sole Runner dispatch boundary and persists only a
+> correlated `OBSERVED` transition. It has no general campaign worker, CLI
+> command, provider turn, extraction, commit, restart/resume orchestration,
+> side effect, or automatic terminal heartbeat removal.
 
-The next increment is not another control-state preflight. Connect one synthetic
-read-only item through the existing Agent authority boundary:
+The next increment is not another control-state preflight. Continue the same
+synthetic read-only item through the existing Agent authority boundary:
 
-1. open one bounded batch from a validated plan;
-2. claim the exact stable item selected by campaign state;
-3. perform and attest one bounded observation;
-4. extract and verify a non-sensitive result;
-5. commit its digest and close the batch;
-6. force a process/context restart; and
-7. resume from the deterministic handoff without prior conversation text.
+1. preserve the now-executable exact claim and bounded observation;
+2. extract and verify a non-sensitive result;
+3. commit its digest and close the batch;
+4. force a process/context restart; and
+5. resume from the deterministic handoff without prior conversation text.
 
 The integration must reuse the existing Runner dispatch site, budgets, trace,
 and fail-closed result semantics. It must not add a second MCP path, accept a
