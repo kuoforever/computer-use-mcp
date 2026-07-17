@@ -426,6 +426,12 @@ Manifest, item and batch ledgers, and handoff remain unchanged. A repeated call
 fails on owner mismatch without another write and still does not resume work or
 open a batch.
 
+When that transferred run has no eligible items because the resumed plan
+committed the entire campaign, the existing read-only resume-plan preflight now
+returns only `NO_ELIGIBLE_ITEMS`, the derived next ordinal, and an empty item
+plan. A subsequent open attempt fails closed without appending `STARTED` or
+modifying handoff, heartbeat, manifest, or ledgers.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
