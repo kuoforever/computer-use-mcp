@@ -23,6 +23,7 @@ from .campaign import (
     BatchStatus,
     BatchTransition,
     CampaignHeartbeat,
+    CampaignManifest,
     CampaignProjection,
     CampaignStatus,
     CampaignStore,
@@ -1252,16 +1253,26 @@ class BatchCoordinator:
 
         if not isinstance(session, BatchSession) or not isinstance(policy, BatchPolicy):
             raise BatchCoordinatorError("BATCH_CAMPAIGN_COMPLETION_INVALID")
+        manifest = self.store.read_manifest(session.campaign_id)
+        if manifest.status is not CampaignStatus.RUNNING:
+            return BatchCampaignCompletionPreflight(
+                state=BatchCampaignCompletionState.CAMPAIGN_NOT_RUNNING,
+                campaign_id=session.campaign_id,
+                finished_run_id=session.run_id,
+                replacement_run_id=replacement_run_id,
+                next_item_ordinal=self.store.read_ledger(
+                    session.campaign_id
+                ).next_ordinal,
+                resume_state=BatchTransferredResumeState.RESUME_NOT_READY,
+                required_completion="complete_exhausted_campaign",
+            )
         resume = self.inspect_transferred_run_resume(
             session,
             replacement_run_id=replacement_run_id,
             now=now,
             policy=policy,
         )
-        manifest = self.store.read_manifest(session.campaign_id)
-        if manifest.status is not CampaignStatus.RUNNING:
-            state = BatchCampaignCompletionState.CAMPAIGN_NOT_RUNNING
-        elif resume.state is not BatchTransferredResumeState.NO_ELIGIBLE_ITEMS:
+        if resume.state is not BatchTransferredResumeState.NO_ELIGIBLE_ITEMS:
             state = BatchCampaignCompletionState.RESUME_NOT_EXHAUSTED
         else:
             state = BatchCampaignCompletionState.READY
@@ -1273,6 +1284,31 @@ class BatchCoordinator:
             next_item_ordinal=resume.next_item_ordinal,
             resume_state=resume.state,
             required_completion="complete_exhausted_campaign",
+        )
+
+    def complete_exhausted_campaign(
+        self,
+        session: BatchSession,
+        *,
+        replacement_run_id: str,
+        now: datetime,
+        policy: BatchPolicy,
+    ) -> CampaignManifest:
+        """Complete only the exact campaign accepted by the exhausted preflight."""
+
+        preflight = self.inspect_exhausted_campaign_completion(
+            session,
+            replacement_run_id=replacement_run_id,
+            now=now,
+            policy=policy,
+        )
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_CAMPAIGN_COMPLETION_BLOCKED_{preflight.state.value}"
+            )
+        return self.store.complete_campaign(
+            session.campaign_id,
+            at=now.isoformat(timespec="seconds"),
         )
 
     def open_transferred_resumed_batch(
@@ -1357,6 +1393,8 @@ def _utc_now() -> str:
 
 __all__ = [
     "BatchCompletionReason",
+    "BatchCampaignCompletionPreflight",
+    "BatchCampaignCompletionState",
     "BatchContinuationPreflight",
     "BatchContinuationState",
     "BatchCoordinator",

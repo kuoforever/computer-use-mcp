@@ -438,6 +438,11 @@ binds the finished run, replacement owner, and derived next ordinal to only the
 fixed `complete_exhausted_campaign` directive. It does not update the manifest,
 rewrite handoff, remove heartbeat, or perform runtime work.
 
+The locked coordinator may now re-run that exact preflight and atomically move
+only the campaign manifest from `RUNNING` to `COMPLETED`. Handoff, heartbeat,
+item and batch ledgers remain unchanged; blocked or repeated completion does
+not write, and no provider, MCP, desktop, runner, or CLI path is connected.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;

@@ -240,6 +240,9 @@ A read-only completion preflight may now require that exact exhausted boundary
 and bind the finished run, replacement owner, and next ordinal to only the fixed
 campaign-completion directive. It does not change the `RUNNING` manifest,
 handoff, heartbeat, ledgers, or runtime state.
+The coordinator may now re-run that completion preflight and atomically update
+only the manifest to `COMPLETED`. Blocked or repeated calls do not write;
+handoff, heartbeat, ledgers, and all runtime paths remain unchanged.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in
