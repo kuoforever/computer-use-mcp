@@ -465,7 +465,15 @@ def _reconstruct_state(
         )
     phase = checkpoint.get("phase")
     if terminal_recorded:
-        if phase != "FAILED" or checkpoint.get("failure_code") != "EXECUTOR_FINAL_UNCERTAIN":
+        if phase == "SUCCESS":
+            if (
+                checkpoint.get("final_text_length") != len(final_snapshot.result.text)
+                or "failure_code" in checkpoint
+            ):
+                raise ExecutorFinalReconciliationError(
+                    "EXECUTOR_FINAL_RECONCILIATION_CHECKPOINT_MISMATCH"
+                )
+        elif phase != "FAILED" or checkpoint.get("failure_code") != "EXECUTOR_FINAL_UNCERTAIN":
             raise ExecutorFinalReconciliationError(
                 "EXECUTOR_FINAL_RECONCILIATION_CHECKPOINT_MISMATCH"
             )

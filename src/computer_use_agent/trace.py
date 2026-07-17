@@ -426,6 +426,72 @@ class RunRecorder:
         self._checkpoint_sequence = next_sequence
         self.phase = phase
 
+    def reconcile_final_success(
+        self,
+        state: RunState,
+        *,
+        expected_checkpoint_sequence: int,
+        terminal_event_already_recorded: bool,
+        final_text_length: int,
+    ) -> None:
+        """Apply one preflight-proven Executor final result without replay.
+
+        This narrow repair accepts only the two crash shapes produced after a
+        completed final-response WAL: the pre-terminal planning checkpoint or
+        the fixed ``EXECUTOR_FINAL_UNCERTAIN`` checkpoint.  A previously
+        applied success is an idempotent no-op while the caller finishes
+        private continuation cleanup.
+        """
+
+        if (
+            state.run_id != self.run_id
+            or isinstance(expected_checkpoint_sequence, bool)
+            or not isinstance(expected_checkpoint_sequence, int)
+            or expected_checkpoint_sequence < 1
+            or not isinstance(terminal_event_already_recorded, bool)
+            or isinstance(final_text_length, bool)
+            or not isinstance(final_text_length, int)
+            or final_text_length < 0
+        ):
+            raise TraceError("EXECUTOR_FINAL_RECONCILIATION_TRACE_INVALID")
+        record = read_run_record(self.state_dir, self.run_id)
+        checkpoint = record["state"]
+        events = record["events"]
+        if checkpoint.get("checkpoint_sequence") != expected_checkpoint_sequence:
+            raise TraceError("EXECUTOR_FINAL_RECONCILIATION_CHECKPOINT_STALE")
+        try:
+            current_phase = RunPhase(checkpoint["phase"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TraceError("CHECKPOINT_READ_FAILED") from exc
+        expected_event_count = len(state.event_log) - (
+            0 if terminal_event_already_recorded else 1
+        )
+        if len(events) != expected_event_count:
+            raise TraceError("EXECUTOR_FINAL_RECONCILIATION_TRACE_MISMATCH")
+        if current_phase is RunPhase.SUCCESS:
+            if (
+                not terminal_event_already_recorded
+                or checkpoint.get("event_count") != len(state.event_log)
+                or checkpoint.get("final_text_length") != final_text_length
+                or "failure_code" in checkpoint
+            ):
+                raise TraceError("EXECUTOR_FINAL_RECONCILIATION_CHECKPOINT_MISMATCH")
+            return
+        if current_phase is RunPhase.FAILED:
+            if checkpoint.get("failure_code") != "EXECUTOR_FINAL_UNCERTAIN":
+                raise TraceError("EXECUTOR_FINAL_RECONCILIATION_CHECKPOINT_MISMATCH")
+        elif current_phase is not RunPhase.PLANNING or "failure_code" in checkpoint:
+            raise TraceError("EXECUTOR_FINAL_RECONCILIATION_CHECKPOINT_MISMATCH")
+
+        self.phase = RunPhase.SUCCESS
+        self._event_count = expected_event_count
+        self._checkpoint_sequence = expected_checkpoint_sequence
+        self.record(
+            state,
+            RunPhase.SUCCESS,
+            final_text_length=final_text_length,
+        )
+
 
 def cancel_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     """Atomically mark one non-terminal persisted run cancelled."""

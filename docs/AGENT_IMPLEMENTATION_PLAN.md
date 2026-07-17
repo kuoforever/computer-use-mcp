@@ -21,7 +21,7 @@ Cross-surface evidence promotion and the next executable gate belong in
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
-| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, one-shot final runtime ordering, and pure completed-final reconciliation preflight implemented; action execution and CLI not connected | The internal runtime compiles exact completed observations, writes the dedicated WAL, CAS-marks the final step `in_progress`, writes intent, calls one injected tool-free port, persists correlated completion, consumes host model/input budgets into the canonical ledger, completes the plan, writes terminal trace state, and removes only the ordinary observation continuation. Intent or later failure closes without retry and preserves evidence. Final WAL v2 binds the source plan/checkpoint/continuation plus provider latency, and a no-write compiler reconstructs exact terminal evidence; applying its CAS/cleanup, side effects, and CLI remain separate reviews. |
+| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, one-shot final runtime ordering, and completed-final local reconciliation implemented; action execution and CLI not connected | The internal runtime compiles exact completed observations, writes the dedicated WAL, CAS-marks the final step `in_progress`, writes intent, calls one injected tool-free port, persists correlated completion, consumes host model/input budgets into the canonical ledger, completes the plan, writes terminal trace state, and removes only the ordinary observation continuation. Intent or later failure closes without retry and preserves evidence. Final WAL v2 binds the source plan/checkpoint/continuation plus provider latency; a no-write compiler reconstructs exact terminal evidence and a separate same-lock writer idempotently applies final plan/trace/checkpoint state before deleting only the ordinary continuation. Side effects and CLI remain separate reviews. |
 | Reviewed desktop tools | Implemented | All eight tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
@@ -102,6 +102,7 @@ src/computer_use_agent/
   plan_store.py          # private atomic non-executable plan snapshots
   executor.py            # pure non-authorizing plan-step preflight compiler
   executor_final_reconciliation.py # pure completed-final evidence preflight
+  executor_final_reconciliation_apply.py # local CAS and terminal cleanup
   runner.py              # bounded observe -> act -> verify state machine
   policy.py              # action authorization, budgets, retries, and run lock
   approvals.py           # console/native approval port
@@ -261,18 +262,16 @@ The original build order has been completed far enough that repeating it here
 would misstate the repository. Current evidence and next gates are tracked in
 [Capability status](CAPABILITY_STATUS.md). The remaining Agent Host sequence is:
 
-1. apply completed-final reconciliation through separately reviewed local,
-   idempotent CAS and terminal cleanup;
-2. expose one bounded observation-only Planner/Executor CLI path while reusing
+1. expose one bounded observation-only Planner/Executor CLI path while reusing
    the sole existing Runner dispatch and policy boundary;
-3. keep side-effect plan execution in a separate review and retain the current
+2. keep side-effect plan execution in a separate review and retain the current
    action, approval, WAL, grounding, and re-observation invariants;
-4. pass both providers through retained E3 evidence;
-5. pass read-only and one approved low-risk action through the isolated E4
+3. pass both providers through retained E3 evidence;
+4. pass read-only and one approved low-risk action through the isolated E4
    matrix;
-6. evaluate safe semantic compression only after exact context and recovery
+5. evaluate safe semantic compression only after exact context and recovery
    evidence remains reproducible; and
-7. complete release review without calling the slice production-ready when a
+6. complete release review without calling the slice production-ready when a
    human gate is missing.
 
 Queues/workers, multi-agent delegation, OpenTelemetry, Redis, FastAPI, Docker,
