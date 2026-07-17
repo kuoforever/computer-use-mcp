@@ -169,3 +169,12 @@ that they cannot change policy, approve actions, establish grounding, or
 request tools. The common Runner and host policy remain the only authorities.
 Memory content is not added to the canonical ledger, checkpoint, redacted
 trace, or CLI result; only the provider receives it after explicit selection.
+
+## Planned learning boundary
+
+Automatic extraction, executable workflow generation, cross-run strategy
+selection, and model-weight learning are not extensions of this implemented
+store that may be enabled implicitly. Their candidate quarantine, evidence,
+promotion, evaluation, rollback, and consent requirements are defined in
+[Continual learning and verified experience evolution](CONTINUAL_LEARNING.md).
+The explicit memory contract above remains the only current runtime behavior.

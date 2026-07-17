@@ -16,6 +16,7 @@ not a line-by-line mirror of every reference page.
 | Audience or question | Document |
 | --- | --- |
 | I want to install and run the server | [Root README](../README.md) |
+| I need the shortest implemented/evidence/next-gate view | [Capability status](CAPABILITY_STATUS.md) |
 | I need environment variables or safety behavior | [Configuration and safety](CONFIGURATION.md) |
 | I need exact MCP tool parameters and behavior | [Tool reference](TOOLS.md) |
 | I need the architecture and design decisions | [Design](DESIGN.md) |
@@ -29,6 +30,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
+| I am designing long-term learning from outcomes, corrections, and cost | [Continual learning](CONTINUAL_LEARNING.md) |
 | I am reviewing explicit OpenAI stateless replay | [Stateless replay](STATELESS_REPLAY.md) |
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | I need real-application and enterprise workflow cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
@@ -49,6 +51,7 @@ not a line-by-line mirror of every reference page.
 | Document | Owns |
 | --- | --- |
 | Root README | Current product scope, safe quick start, and high-level limitations |
+| Capability status | Cross-surface implementation state, retained evidence level, and next executable gate |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
 | Tool reference | Public MCP tool surface and result semantics |
 | Design | Component boundaries and long-lived technical decisions |
@@ -61,6 +64,7 @@ not a line-by-line mirror of every reference page.
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Persisted continuation | Private v2 storage with correlated OpenAI recovery token state, opt-in write-ahead boundaries, conservative classification, and a locked 1-4 step read-only CLI gate including completed-side-effect mandatory observation |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
+| Continual learning | Planned four-layer memory, verified workflow promotion, cost-aware strategy selection, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
 | Task planning | Non-executable TaskPlan contract, strict candidate compiler, and ordered local transitions |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, and deterministic cross-session handoff |
@@ -76,6 +80,14 @@ not a line-by-line mirror of every reference page.
 | Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |
 | Release evidence record | Per-candidate automated evidence, E3/E4 results, waivers, classification, and human decision |
 | Development / handoff | Test practice and maintainer-only operational knowledge |
+
+## Archive policy
+
+Files under [the archive](archive/README.md) preserve superseded plans and
+implementation chronology.
+They are non-normative, are not part of the start-here path, and must link back
+to the current owner document. Do not update an archived snapshot to describe
+new behavior and do not cite it as current capability evidence.
 
 Do not use the roadmap or design documents to infer that a capability is
 available. The root README, configuration page, and tool reference describe the

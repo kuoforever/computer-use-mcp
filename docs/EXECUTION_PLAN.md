@@ -2,7 +2,8 @@
 
 > **Status: planning document.** Items below are intentionally separated into
 > delivered work, validation gaps, and future design. Do not treat a roadmap
-> item as an available runtime feature.
+> item as an available runtime feature. Use
+> [Capability status](CAPABILITY_STATUS.md) for the current evidence dashboard.
 
 ## Delivered foundations
 
@@ -19,248 +20,55 @@
 
 ## Next validation priorities
 
-### P0 - repair foreground activation
+### P0 - validate repaired foreground activation
 
-Fix the reproduced `activate_window` defect before treating approved desktop
-actions as reliable. The driver must attach the caller, foreground, and target
-input threads as required, release every attachment in `finally`, restore a
-minimized target, and verify the resulting foreground HWND. Add pure ordering
-tests plus the isolated regression matrix in [E4 smoke](E4_SMOKE.md).
+The reproduced `activate_window` defect has been repaired in the Windows
+driver. The implementation attaches the caller to the required foreground and
+target input queues, releases successful attachments in reverse order from
+`finally`, restores minimized targets, and verifies the final foreground HWND.
+Pure tests cover ordering, cleanup, idempotence, minimized windows, native-call
+failure, and failed postconditions.
 
-### P1 - long-running campaign foundation
+The remaining P0 is retained on-device evidence. Run the isolated Windows
+activation matrix in [E4 smoke](E4_SMOKE.md) on the target Windows revision.
+If a cell fails, record that evidence and repair only the reproduced gap; do
+not describe the already implemented code path as absent.
 
-Implement the read-only campaign manifest, append-only item ledger, bounded
-batches, and deterministic handoff described in
-[Long-running tasks](LONG_RUNNING_TASKS.md). The first target is a 100-item BOSS
-saved-job review across multiple provider contexts and at least one forced
-restart. Conversation history must not be required for continuation.
+### P1 - connect the long-running campaign runtime
 
-The initial private control-state and planning foundations are implemented:
-strict campaign manifest validation, a RunLock-bound append-only
-item-transition reducer, atomic persistence, a fixed handoff projection, a
-pure batch policy/selector with deterministic limit reasons, and a bounded
-`batches.jsonl` lifecycle ledger. A fixed, RunLock-bound heartbeat record can
-also advance monotonically for one run, and a pure inspector reports missing,
-fresh, or stale control state without claiming liveness. No timer or combined
-OS-lock/item-lease classifier uses it. The manifest can durably transition
-between `RUNNING` and `PAUSED` under the run lock, but resume does not start
-work. A combined locked inspector can identify stale control state only after
-checking manifest state, heartbeat freshness, claim expiry, and run ownership;
-an explicit locked recovery may replace only the stale heartbeat owner after
-all claims have left `CLAIMED`. The fixed handoff now projects distinct
-directives for running, paused, challenged, completed, and failed manifests.
-Its reader rejects schema, status, count, or cursor drift against current
-durable state. The foundation has no batch runner, CLI command, provider, MCP,
-or desktop connection. A read-only resume preflight can now require a valid
-resumable handoff, fresh matching heartbeat, idle batch ledger, and no current
-claims without starting work. A pure resume planner can then apply the bounded
-batch selector without writing `STARTED`; the coordinator may persist
-`STARTED` only for that exact nonempty `READY` plan. It still performs no item
-operation. The opened batch may now durably claim only the first item from its
-exact recomputed plan after rechecking the running manifest, fresh matching
-heartbeat, active batch, absence of another claim, and plan equality. This is
-still control-state scaffolding: no item observation, provider, MCP, desktop
-action, runner, or CLI is connected. Deterministic item-operation progression
-remains the next step. A read-only claimed-item preflight now revalidates the
-running campaign, active batch/run, fresh heartbeat, unique owned claim, and
-lease before returning fixed page/account and item-identity re-observation
-directives. It performs no observation and writes no `OBSERVED` transition.
-Resume preflight now also blocks durable `OBSERVED` or `EXTRACTED` items as
-`ITEMS_IN_FLIGHT`; it cannot mistake those incomplete boundaries for an idle
-campaign merely because no current `CLAIMED` lease remains.
-A locked persistence helper can now advance one exact claimed item to
-`OBSERVED` only after explicit page/account and item-identity attestations and
-a fresh re-run of the claimed-item preflight. It does not perform observation,
-extraction, provider work, MCP dispatch, desktop actions, runner, or CLI work.
-An observed-item extraction preflight now checks the active batch/run, fresh
-heartbeat, unique in-flight item, and item ownership before returning a fixed
-bounded read-only extraction directive. It remains read-only and does not write
-`EXTRACTED` or authorize side effects.
-The item-progress helper may now append a fixed `EXTRACTED` boundary only after
-an exact bounded-read-only-extraction confirmation and a fresh extraction
-preflight. It stores no application content and still has no provider, MCP,
-desktop, runner, CLI, or side-effect connection.
-An extracted-item commit preflight now revalidates the active batch/run, fresh
-heartbeat, unique in-flight item, and item ownership before returning fixed
-result-verification and digest/result-code preparation directives. It remains
-read-only and does not write `COMMITTED`, advance the cursor, or connect a
-provider, MCP, desktop action, runner, CLI, or side effect.
-The item-progress helper may now append a fixed `COMMITTED` boundary only after
-an exact result-verification confirmation, a valid SHA-256 content digest, and
-a fresh commit preflight. The atomic ledger append advances the derived cursor
-without rewriting handoff state; it stores no result content and still has no
-provider, MCP, desktop, runner, CLI, or side-effect connection.
-A read-only batch-continuation preflight now validates the committed plan
-prefix, measured completed count, stable next-item order, active ownership,
-fresh heartbeat, absence of in-flight work, and every hard limit before naming
-the exact next planned item. It does not claim that item, close the batch, or
-connect a provider, MCP, desktop action, runner, CLI, or side effect.
-The coordinator may now append a bounded `CLAIMED` transition for only that
-exact next item after re-running the continuation preflight. It requires a
-nonempty committed prefix and fails closed on repeated calls, limits, drift,
-stale control state, or invalid leases; no observation, execution, provider,
-MCP, desktop, runner, CLI, or side-effect path is connected.
-A continuation-validated finish helper may now append `FINISHED` only for a
-reached hard limit or a fully committed original plan, persisting the exact
-fixed stop code and bounded measured counters. It rejects ready or in-flight
-work, drift, stale ownership, and repeated closure, and does not write handoff
-state or connect a provider, MCP, desktop action, runner, CLI, or side effect.
-A read-only finished-batch handoff preflight now revalidates the terminal
-batch/run record, heartbeat, committed prefix, absence of in-flight work,
-measured counters, stop reason, and next ordinal before returning one fixed
-handoff-write directive. It does not write or read handoff state, resume work,
-or connect a provider, MCP, desktop action, runner, CLI, or side effect.
-The coordinator may now re-run that preflight and atomically write the existing
-fixed handoff projection for the finished run. Ledger-derived counts and next
-ordinal are preserved; blocked state never creates or replaces the file, and
-the helper does not resume work, open a batch, or connect a provider, MCP,
-desktop action, runner, CLI, or side effect.
-A read-only clean run-transfer preflight now checks the validated finished
-handoff, current fresh heartbeat owner, distinct replacement run ID, and exact
-injected transfer time before returning one fixed heartbeat-owner replacement
-directive. It does not mutate heartbeat state, resume work, open a batch, or
-connect a provider, MCP, desktop action, runner, CLI, or side effect.
-The coordinator may now re-run that preflight and atomically replace only the
-finished heartbeat owner. All other durable campaign state remains unchanged;
-blocked or repeated calls do not write, and success does not resume work, open
-a batch, or connect a provider, MCP, desktop action, runner, CLI, or side
-effect.
-A read-only post-transfer resume preflight may now bind the exact finished
-batch and handoff provenance to the replacement owner and its next bounded
-stable item plan. It returns only a fixed exact-batch-open directive and does
-not write `STARTED`, claim an item, or connect a provider, MCP, desktop action,
-runner, CLI, or side effect.
-The coordinator may now re-run that post-transfer preflight and persist one
-exact resumed `STARTED` record with the unchanged bounded plan. Blocked,
-empty, drifted, or repeated calls append nothing, and success still does not
-claim an item or connect a provider, MCP, desktop action, runner, CLI, or side
-effect.
-A read-only first-claim preflight may now bind that active replacement batch
-to its fresh heartbeat owner, unchanged plan, exact first stable item, next
-attempt, and bounded lease expiry. It returns only a fixed claim directive and
-does not write `CLAIMED` or connect a provider, MCP, desktop action, runner,
-CLI, or side effect.
-The coordinator now re-runs that preflight before persisting the exact first
-`CLAIMED` transition, using its validated item identity, attempt, and lease
-expiry. Blocked or repeated calls do not change the ledger, and success still
-does not connect a provider, MCP, desktop action, runner, CLI, or side effect.
-A read-only coordinator bridge may now feed the resumed session's exact first
-planned item into the existing claimed-item re-observation preflight, removing
-free-form item selection at that boundary. It does not write `OBSERVED`,
-perform observations, or connect a provider, MCP, desktop action, runner, CLI,
-or side effect.
-After exact page/account and item-identity attestations, the coordinator may
-now re-run that session-bound preflight and persist only the fixed `OBSERVED`
-boundary for the resumed first item. Missing attestations, blocked state, or
-repetition does not write, and no observation, extraction, provider, MCP,
-desktop, runner, CLI, or side-effect path is connected.
-A read-only coordinator bridge may now feed that resumed session's exact first
-planned item into the existing observed-item extraction preflight. It returns
-only the bounded read-only extraction directive, does not accept a free-form
-item key, and does not extract content or write `EXTRACTED`.
-After exact bounded-read-only-extraction confirmation, the coordinator may now
-re-run that session-bound preflight and persist only the fixed `EXTRACTED`
-boundary for the resumed first item. Missing confirmation, blocked state, or
-repetition does not write; no application content, provider, MCP, desktop,
-runner, CLI, or side-effect path is connected.
-A read-only coordinator bridge may now feed that resumed session's exact first
-planned item into the existing extracted-item commit preflight. It returns only
-fixed result-verification and digest/result-code preparation directives, does
-not accept a free-form item key, and does not inspect content or write
-`COMMITTED`.
-After exact bounded-result verification and SHA-256 digest preparation, the
-coordinator may now re-run that session-bound preflight and persist only the
-fixed `COMMITTED` boundary for the resumed first item. Invalid input, blocked
-state, or repetition does not write; no result content, provider, MCP, desktop,
-runner, CLI, or side-effect path is connected.
-The committed resumed prefix now feeds the existing read-only continuation
-preflight directly. Replacement-run commit count and run-local measured usage
-must match before it identifies the exact next planned item; no claim, provider,
-MCP, desktop action, runner, CLI, or side effect occurs.
-The coordinator may now re-run that preflight and persist the bounded `CLAIMED`
-transition for only the resumed session's exact next planned item. Repetition,
-usage drift, stale state, or in-flight work does not write, and no observation,
-provider, MCP, desktop action, runner, CLI, or side-effect path is connected.
-A read-only coordinator bridge may now derive that exact continued claim from
-the replacement run's committed prefix and matching run-local usage, then feed
-it into the existing claimed-item re-observation preflight. It accepts no item
-key, writes no `OBSERVED` boundary, and performs no observation or runtime work.
-After exact page/account and item-identity attestations, the coordinator may now
-re-run that continued-item preflight and persist only its fixed `OBSERVED`
-boundary. Missing attestations, usage drift, blocked state, or repetition does
-not write, and no observation, extraction, provider, MCP, desktop, runner, CLI,
-or side-effect path is connected.
-A read-only coordinator bridge may now derive that exact continued observation
-from the replacement run's committed prefix and matching run-local usage, then
-feed it into the existing bounded extraction preflight. It accepts no item key,
-extracts no content, writes no `EXTRACTED`, and starts no runtime work.
-After exact bounded-read-only-extraction confirmation, the coordinator may now
-re-run that continued-item preflight and persist only its fixed `EXTRACTED`
-boundary. Missing confirmation, usage drift, blocked state, or repetition does
-not write, and no application content, provider, MCP, desktop, runner, CLI, or
-side-effect path is connected.
-A read-only coordinator bridge may now derive that exact continued extraction
-from the replacement run's committed prefix and matching run-local usage, then
-feed it into the existing commit preflight. It accepts no item key, inspects no
-content, writes no `COMMITTED`, and starts no runtime work.
-After exact bounded-result verification and SHA-256 digest preparation, the
-coordinator may now re-run that continued-item preflight and persist only its
-fixed `COMMITTED` boundary. Invalid input, usage drift, blocked state, or
-repetition does not write, and no result content, provider, MCP, desktop,
-runner, CLI, or side-effect path is connected.
-The fully committed resumed plan now reaches the existing continuation
-preflight's exact terminal state: `PLAN_COMPLETE` when no limit fired, otherwise
-`LIMIT_REACHED` with its fixed reason. Both paths are read-only, identify no next
-item, and do not write `FINISHED` or start runtime work.
-The coordinator may now re-run either resumed terminal preflight and persist one
-exact `FINISHED` batch record with its fixed stop code and measured run-local
-counters. Repetition or drift does not write, no handoff is created, and no
-provider, MCP, desktop action, runner, CLI, or side-effect path is connected.
-The finished resumed batch now feeds the existing read-only handoff preflight,
-which revalidates exact ownership, stop code, counters, committed prefix,
-heartbeat, and next ordinal before returning only the fixed handoff-write
-directive. It does not modify handoff or runtime state.
-The coordinator may now re-run that preflight and atomically replace the prior
-handoff with the exact finished replacement run and current fixed projection.
-Repeated valid writes are byte-stable; manifest, ledgers, heartbeat, and batch
-state remain unchanged, and no runtime path is connected.
-The new resumed handoff now feeds the existing read-only run-transfer preflight,
-which binds the exact finished run and next ordinal to one time-matched
-replacement heartbeat owner. It returns only the fixed owner-replace directive
-and does not modify durable state or start runtime work.
-The coordinator may now re-run that preflight and atomically replace only the
-finished resumed run's heartbeat owner with the exact new run. Handoff and
-ledgers remain unchanged, repetition does not write, and no batch or runtime
-work starts.
-A fully committed transferred campaign now reaches the existing resume-plan
-preflight's fixed `NO_ELIGIBLE_ITEMS` boundary with an empty item plan and the
-derived next ordinal. Attempting to open an empty resumed batch fails without a
-`STARTED` write or other durable-state change.
-A read-only completion preflight may now require that exact exhausted boundary
-and bind the finished run, replacement owner, and next ordinal to only the fixed
-campaign-completion directive. It does not change the `RUNNING` manifest,
-handoff, heartbeat, ledgers, or runtime state.
-The coordinator may now re-run that completion preflight and atomically update
-only the manifest to `COMPLETED`. Blocked or repeated calls do not write;
-handoff, heartbeat, ledgers, and all runtime paths remain unchanged.
-A read-only terminal-handoff preflight may now bind that completed manifest to
-the exact finished batch, replacement owner, fully committed ledger, and next
-ordinal. It returns only the fixed completed-handoff-write directive and does
-not read or modify the stale running handoff or any runtime state.
-The coordinator may now re-run that preflight and atomically replace only the
-handoff with the fixed `COMPLETED` directives and replacement owner. Repeated
-valid calls are byte-stable; manifest, heartbeat, ledgers, and runtime state
-remain unchanged.
+> **Current boundary:** the private campaign control plane is implemented and
+> offline verified. It has strict manifests, item and batch ledgers, leases,
+> heartbeats, pause/stale inspection, deterministic handoff, bounded resume,
+> read-only item progression, run transfer, campaign completion, and a
+> read-only terminal heartbeat-retirement preflight. It has no connected
+> campaign worker, CLI command, provider, MCP operation, desktop observation,
+> extraction, side effect, or automatic terminal heartbeat removal.
 
-After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
-cases, then the cross-application campaign in
-[Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md).
-Expand to Excel, PDF, Figma/Canva, one Electron collaboration client, and the
-Douyin real-time-media/infinite-feed case only after the Wave 1 campaign and
-observation measurements are reproducible. The Douyin case additionally waits
-for bounded OCR or image observation and timestamped media-state evidence.
-Remote Desktop, system-dialog boundaries, legacy UI, and modal GPU applications
-remain later waves.
+The next increment is not another control-state preflight. Connect one synthetic
+read-only item through the existing Agent authority boundary:
+
+1. open one bounded batch from a validated plan;
+2. claim the exact stable item selected by campaign state;
+3. perform and attest one bounded observation;
+4. extract and verify a non-sensitive result;
+5. commit its digest and close the batch;
+6. force a process/context restart; and
+7. resume from the deterministic handoff without prior conversation text.
+
+The integration must reuse the existing Runner dispatch site, budgets, trace,
+and fail-closed result semantics. It must not add a second MCP path, accept a
+free-form item selector, replay an uncertain action, or connect side-effecting
+campaign work.
+
+After the synthetic vertical slice passes, run the first 100-item read-only BOSS
+campaign across multiple provider contexts and at least one forced restart.
+Retain committed-item, token, retry, recovery, and takeover evidence.
+
+The prior per-increment chronology is preserved in
+[archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);
+the normative state and handoff rules remain in
+[Long-running tasks](LONG_RUNNING_TASKS.md).
+
 
 ### P1 - bounded multi-source observation
 
@@ -386,6 +194,21 @@ and saga-style cross-system reconciliation. The first evaluation is the
 synthetic IT incident workflow in
 [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md); production
 records and credentials are outside the default evaluation boundary.
+
+### Continual learning and verified experience evolution
+
+After normalized campaign outcomes and complete cost vectors are reliable,
+implement the staged [continual-learning architecture](CONTINUAL_LEARNING.md).
+Begin with quarantined factual-memory suggestions, then versioned procedural
+candidates, isolated replay, held-out evaluation, explicit promotion, and
+rollback. Only after those gates pass may the Host produce shadow strategy
+recommendations or select among already approved, equivalent low-risk
+procedures using measured outcome and cost history.
+
+Do not treat trace retention, explicit memory, model replanning, provider data
+sharing, or one successful replay as reinforcement learning. Online
+model-weight updates, uncontrolled exploration, automatic authority changes,
+and learning challenge bypasses remain outside the runtime boundary.
 
 ## Milestone discipline
 

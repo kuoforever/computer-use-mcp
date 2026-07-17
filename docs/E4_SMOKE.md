@@ -71,7 +71,9 @@ text, save data, or click an unclassified coordinate. If Notepad is already
 foreground, place another non-sensitive test window in front before starting
 the action case; do not interact with the desktop after the run begins.
 
-Before running the provider matrix, complete the Windows activation regression:
+Before running the provider matrix, execute and retain the Windows activation
+regression. The implementation and pure tests exist; this matrix supplies the
+missing on-device evidence:
 
 | ID | Setup | Required result |
 | --- | --- | --- |

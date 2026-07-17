@@ -105,6 +105,11 @@ Priority follow-up:
 
 ## Planned operator progress window
 
+> **Historical proposal.** The current design owner is
+> [Operator progress viewer](PROGRESS_VIEWER.md); keep this section only as the
+> live session's original motivation and do not evolve a second UI contract
+> here.
+
 The normative design has moved to [Operator progress viewer](PROGRESS_VIEWER.md).
 This section remains as the originating session record and must not override
 that specification.
@@ -186,14 +191,15 @@ record only an opaque alias or the minimum identifier needed for correlation.
 
 ## Prioritized backlog from these sessions
 
-1. **P0:** fix `activate_window` and add unit plus manual Windows regression
-   coverage.
+1. **P0:** retain the manual isolated Windows activation regression evidence;
+   the driver repair and unit coverage are implemented.
 2. **P1:** implement the read-only, non-activating multi-run progress window on
    top of validated Agent checkpoints.
 3. **P1:** add a bounded static-content observation path, such as document text
    extraction or OCR, for content missing from the UI Automation tree.
-4. **P1:** implement the read-only campaign/item ledger and deterministic
-   cross-session handoff from [Long-running tasks](LONG_RUNNING_TASKS.md).
+4. **P1:** connect one synthetic read-only campaign worker through commit and
+   forced-restart resume; the campaign/item ledger and deterministic handoff
+   control plane are implemented and offline verified.
 5. **P1:** implement the observation ladder and measurement fields from
    [Token efficiency](TOKEN_EFFICIENCY.md).
 6. **P1:** execute the BOSS, Google Docs, and WeChat staged cases from
