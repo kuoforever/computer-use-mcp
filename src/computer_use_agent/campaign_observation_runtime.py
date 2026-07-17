@@ -1,16 +1,19 @@
 """One fixed synthetic campaign observation through the Agent authority boundary.
 
 This internal slice binds an already-claimed first campaign item to one
-``list_windows`` observation.  An explicit extension may reduce that correlated
-text to a bounded non-sensitive window count and persist ``EXTRACTED``.  It has
-no provider, CLI, free-form selector, commit, resume, side-effect, or
-campaign-specific MCP path.
+``list_windows`` observation.  Explicit extensions may reduce that correlated
+text to a bounded non-sensitive window count, persist ``EXTRACTED``, verify the
+canonical count, and persist its digest at ``COMMITTED``.  It has no provider,
+CLI, free-form selector, batch closing, resume, side-effect, or campaign-specific
+MCP path.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from time import perf_counter_ns
 
 from .batch_coordinator import BatchCoordinator, BatchCoordinatorError, BatchSession
@@ -54,6 +57,37 @@ class CampaignExtractionOutcome:
     window_count: int
 
 
+@dataclass(frozen=True)
+class CampaignCommitOutcome:
+    """Verified canonical count plus every persisted synthetic item boundary."""
+
+    state: RunState
+    result: ToolResult
+    observed: ItemTransition
+    extracted: ItemTransition
+    committed: ItemTransition
+    window_count: int
+    content_digest: str
+
+
+def synthetic_window_count_digest(window_count: int) -> str:
+    """Return the canonical digest for one non-sensitive synthetic result."""
+
+    if (
+        isinstance(window_count, bool)
+        or not isinstance(window_count, int)
+        or window_count < 0
+    ):
+        raise CampaignObservationRuntimeError("CAMPAIGN_COMMIT_RESULT_INVALID")
+    encoded = json.dumps(
+        {"window_count": window_count},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return sha256(encoded).hexdigest()
+
+
 async def _execute_claimed_synthetic_observation(
     runner: AgentRunner,
     prepared_run: PreparedRun,
@@ -61,7 +95,8 @@ async def _execute_claimed_synthetic_observation(
     *,
     now: datetime,
     extract_window_count: bool,
-) -> CampaignObservationOutcome | CampaignExtractionOutcome:
+    commit_window_count: bool,
+) -> CampaignObservationOutcome | CampaignExtractionOutcome | CampaignCommitOutcome:
     """Observe the exact claimed synthetic item once, then persist OBSERVED.
 
     The prepared run owns the same application lock used by the campaign store.
@@ -186,6 +221,8 @@ async def _execute_claimed_synthetic_observation(
             raise CampaignObservationRuntimeError(
                 "CAMPAIGN_OBSERVATION_EVIDENCE_INVALID"
             )
+        if commit_window_count and not extract_window_count:
+            raise CampaignObservationRuntimeError("CAMPAIGN_COMMIT_SEQUENCE_INVALID")
         if extract_window_count:
             if len(boundary.result.sanitized_text) > MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS:
                 recorder.record(
@@ -226,11 +263,58 @@ async def _execute_claimed_synthetic_observation(
                 raise CampaignObservationRuntimeError(
                     "CAMPAIGN_EXTRACTION_EVIDENCE_INVALID"
                 )
+            if commit_window_count:
+                verified_window_count = sum(
+                    1
+                    for line in boundary.result.sanitized_text.splitlines()
+                    if line.strip()
+                )
+                if verified_window_count != window_count:
+                    raise CampaignObservationRuntimeError(
+                        "CAMPAIGN_COMMIT_VERIFICATION_FAILED"
+                    )
+                content_digest = synthetic_window_count_digest(window_count)
+                try:
+                    committed = coordinator.record_first_extracted_item_committed(
+                        session,
+                        now=now,
+                        bounded_result_verified=True,
+                        content_digest=content_digest,
+                    )
+                except BatchCoordinatorError as exc:
+                    recorder.record(
+                        state,
+                        RunPhase.FAILED,
+                        failure_code="CAMPAIGN_COMMIT_PERSIST_FAILED",
+                        run_duration_ms=max(
+                            0, (perf_counter_ns() - started_ns) // 1_000_000
+                        ),
+                    )
+                    raise CampaignObservationRuntimeError(
+                        "CAMPAIGN_COMMIT_PERSIST_FAILED"
+                    ) from exc
+                if (
+                    committed.status is not ItemStatus.COMMITTED
+                    or committed.content_digest != content_digest
+                ):
+                    raise CampaignObservationRuntimeError(
+                        "CAMPAIGN_COMMIT_EVIDENCE_INVALID"
+                    )
         recorder.record(
             state,
             RunPhase.SUCCESS,
             run_duration_ms=max(0, (perf_counter_ns() - started_ns) // 1_000_000),
         )
+        if commit_window_count:
+            return CampaignCommitOutcome(
+                state=state,
+                result=boundary.result,
+                observed=observed,
+                extracted=extracted,
+                committed=committed,
+                window_count=window_count,
+                content_digest=content_digest,
+            )
         if extract_window_count:
             return CampaignExtractionOutcome(
                 state=state,
@@ -288,6 +372,7 @@ async def execute_claimed_synthetic_observation(
         session,
         now=now,
         extract_window_count=False,
+        commit_window_count=False,
     )
     if not isinstance(outcome, CampaignObservationOutcome):
         raise CampaignObservationRuntimeError("CAMPAIGN_OBSERVATION_EVIDENCE_INVALID")
@@ -309,15 +394,39 @@ async def execute_claimed_synthetic_observation_and_extraction(
         session,
         now=now,
         extract_window_count=True,
+        commit_window_count=False,
     )
     if not isinstance(outcome, CampaignExtractionOutcome):
         raise CampaignObservationRuntimeError("CAMPAIGN_EXTRACTION_EVIDENCE_INVALID")
     return outcome
 
 
+async def execute_claimed_synthetic_item_through_commit(
+    runner: AgentRunner,
+    prepared_run: PreparedRun,
+    session: BatchSession,
+    *,
+    now: datetime,
+) -> CampaignCommitOutcome:
+    """Observe, extract, verify, and commit one fixed synthetic count digest."""
+
+    outcome = await _execute_claimed_synthetic_observation(
+        runner,
+        prepared_run,
+        session,
+        now=now,
+        extract_window_count=True,
+        commit_window_count=True,
+    )
+    if not isinstance(outcome, CampaignCommitOutcome):
+        raise CampaignObservationRuntimeError("CAMPAIGN_COMMIT_EVIDENCE_INVALID")
+    return outcome
+
+
 __all__ = [
     "CampaignObservationOutcome",
     "CampaignExtractionOutcome",
+    "CampaignCommitOutcome",
     "CampaignObservationRuntimeError",
     "MAX_SYNTHETIC_EXTRACTION_TEXT_CHARS",
     "SYNTHETIC_CALL_ID",
@@ -327,4 +436,6 @@ __all__ = [
     "SYNTHETIC_TURN_ID",
     "execute_claimed_synthetic_observation",
     "execute_claimed_synthetic_observation_and_extraction",
+    "execute_claimed_synthetic_item_through_commit",
+    "synthetic_window_count_digest",
 ]

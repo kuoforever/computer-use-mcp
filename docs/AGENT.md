@@ -230,9 +230,11 @@ planned key `synthetic:list_windows`, constructs one `list_windows` call inside
 the Host, and persists `OBSERVED` only after a successful correlated result.
 Its explicit extraction extension accepts at most 64 Ki characters, produces
 only the non-empty-line count as its extraction value, persists no result text
-in campaign state or redacted trace, and then persists `EXTRACTED`. It makes no
-provider call and exposes no selector, result verification, commit, resume,
-side-effect, CLI, or second MCP path.
+in campaign state or redacted trace, and then persists `EXTRACTED`. Its commit
+extension re-counts that bounded result, hashes only canonical
+`{"window_count":N}` JSON, and persists the digest at `COMMITTED`. It makes no
+provider call and exposes no selector, batch close, handoff, resume, side-effect,
+CLI, or second MCP path.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
