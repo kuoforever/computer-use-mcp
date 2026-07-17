@@ -224,6 +224,10 @@ The coordinator may now re-run that preflight and atomically replace the prior
 handoff with the exact finished replacement run and current fixed projection.
 Repeated valid writes are byte-stable; manifest, ledgers, heartbeat, and batch
 state remain unchanged, and no runtime path is connected.
+The new resumed handoff now feeds the existing read-only run-transfer preflight,
+which binds the exact finished run and next ordinal to one time-matched
+replacement heartbeat owner. It returns only the fixed owner-replace directive
+and does not modify durable state or start runtime work.
 
 After the BOSS baseline, run the Google Docs long-document and WeChat draft-only
 cases, then the cross-application campaign in

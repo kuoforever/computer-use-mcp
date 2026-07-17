@@ -3596,6 +3596,108 @@ def test_resumed_finished_batch_replaces_only_current_fixed_handoff(
         lock.release()
 
 
+def test_resumed_finished_handoff_is_ready_for_next_run_transfer(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2, 3),
+        max_items=1,
+    )
+    try:
+        prior_usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=prior_usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=prior_usage, now=NOW)
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=prior_usage,
+            now=NOW,
+            replacement=_replacement_heartbeat(),
+        )
+        resumed = coordinator.open_transferred_resumed_batch(
+            session,
+            batch_id="batch_2",
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(max_items=3),
+        )
+        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            resumed,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_first_observed_item_extracted(
+            resumed,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_first_extracted_item_committed(
+            resumed,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        first_usage = BatchUsage(items_completed=1)
+        coordinator.claim_next_item(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            lease_seconds=300,
+        )
+        coordinator.record_next_claimed_item_observed(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        coordinator.record_next_observed_item_extracted(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            read_only_extraction_completed=True,
+        )
+        coordinator.record_next_extracted_item_committed(
+            resumed,
+            usage=first_usage,
+            now=NOW,
+            bounded_result_verified=True,
+            content_digest=CONTENT_DIGEST,
+        )
+        usage = BatchUsage(items_completed=2)
+        coordinator.finish_continued_batch(resumed, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(resumed, usage=usage, now=NOW)
+        replacement = _replacement_heartbeat(run_id="run_3")
+        manifest_before = store.read_manifest("campaign_1")
+        ledger_before = store.read_ledger("campaign_1")
+        batches_before = store.read_batches("campaign_1")
+        heartbeat_before = store.read_heartbeat("campaign_1")
+        handoff_before = store.read_handoff("campaign_1")
+
+        result = coordinator.inspect_finished_run_transfer(
+            resumed,
+            usage=usage,
+            now=NOW,
+            replacement=replacement,
+        )
+
+        assert result.state is BatchRunTransferState.READY
+        assert result.ready
+        assert result.finished_run_id == "run_2"
+        assert result.replacement_run_id == "run_3"
+        assert result.next_item_ordinal == 4
+        assert result.required_transfer == "replace_finished_run_heartbeat_owner"
+        assert store.read_manifest("campaign_1") == manifest_before
+        assert store.read_ledger("campaign_1") == ledger_before
+        assert store.read_batches("campaign_1") == batches_before
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
+        assert store.read_handoff("campaign_1") == handoff_before
+    finally:
+        lock.release()
+
+
 @pytest.mark.parametrize(
     ("replacement", "state"),
     [

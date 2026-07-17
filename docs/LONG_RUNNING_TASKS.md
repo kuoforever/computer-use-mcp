@@ -414,6 +414,12 @@ derived next ordinal, and fixed campaign counts/directives. Manifest, ledgers,
 heartbeat, and finished batch state remain unchanged. Repeating the same valid
 write is byte-stable and does not start provider, MCP, desktop, or runner work.
 
+That new resumed handoff can now enter the existing read-only finished-run
+transfer preflight. It binds the exact finished replacement run and current
+handoff next ordinal to one new heartbeat owner whose start and heartbeat times
+equal the injected transfer time. `READY` returns only the fixed owner-replace
+directive and does not modify heartbeat, handoff, ledgers, or batch state.
+
 An expired current claim may now be released to `RETRYABLE` only while the
 campaign store holds the OS run lock and the injected recovery time proves the
 lease stale. The append-only transition uses fixed `LEASE_EXPIRED` semantics;
