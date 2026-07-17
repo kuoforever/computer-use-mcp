@@ -337,14 +337,20 @@ required safety baselines are satisfied. A model-generated unadvertised tool
 fails closed.
 
 The Claude adapter uses Messages API client tools and preserves each assistant
-`tool_use` block in its in-memory message history. The next user message begins
-with the matching `tool_result` block keyed by the original `tool_use.id`.
+`tool_use` block in its in-memory message history. Signed `thinking` and opaque
+`redacted_thinking` blocks are strictly validated, excluded from canonical
+model text and redacted trace, and retained unmodified only inside that private
+history so the matching tool-result continuation can replay the complete
+assistant block. The next user message begins with the matching `tool_result`
+block keyed by the original `tool_use.id`.
 Screenshot results contain a status text block and one nested base64 PNG image
 block.
 Parallel tool use is disabled in the request and any returned calls are still
-serialized by the common Runner. Unknown blocks, mismatched stop reasons,
-unadvertised tools, and malformed inputs fail closed. Provider message history
-is an active-run optimization, not persisted recovery state.
+serialized by the common Runner. Malformed reasoning blocks, unknown blocks,
+mismatched stop reasons, unadvertised tools, and malformed inputs fail closed.
+Context packing drops only complete assistant/tool-result groups, including
+their reasoning blocks. Provider message history is an active-run optimization,
+not persisted recovery state.
 
 Install and run the experimental slice with:
 
@@ -631,7 +637,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Child restart is explicit | A broken generation rejects further calls until full discovery succeeds on a new incremented generation | implemented bridge test |
 | MCP results are bounded and converted | Text size, fixed action error codes, typed-text erasure, exact structured mirrors, full PNG integrity, dimensions, pixels, MIME, and content cardinality are tested | implemented bridge test |
 | OpenAI call/result correlation | Fixture proves function call normalization and matching `function_call_output` continuation with the original call ID | implemented adapter test |
-| Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, message-history order, and stop-reason validation | implemented adapter test |
+| Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, strict signed/opaque reasoning-block preservation, atomic message-history packing, and stop-reason validation | implemented adapter test |
 | Screenshot provider continuation | Both adapters advertise the reviewed screenshot tool; adapter fixtures plus full common-Runner tests prove exact bounded PNG wire blocks without retaining images in trace output | implemented workflow test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 | Offline E1/E2 gate is reproducible | Thirteen versioned cases plus a canonical manifest freeze semantic traces for success, model/token budgets, identity mismatch, unknown tools, denied/injected actions, human/gate/e-stop/driver results, mandatory re-observation, and post-dispatch unknown outcome; all require zero safety escapes | implemented evaluation suite |

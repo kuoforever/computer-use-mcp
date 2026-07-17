@@ -57,7 +57,7 @@ provider credentials, a child process, or a desktop.
 | Text/image content is oversized, mixed, malformed, corrupt, or carries an expanded structured result | Discard it and return a fixed protocol outcome; never retain typed text or image payloads in errors. |
 | Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly eight tools and complete a text call while all sentinel variables remain absent from the child. |
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
-| Claude returns a tool-use block | Normalize its name/input/ID, reject malformed or unadvertised calls and invalid stop reasons, then append the assistant block and adjacent matching user `tool_result`. |
+| Claude returns reasoning plus a tool-use block | Normalize the tool name/input/ID, preserve only strict signed `thinking` and opaque `redacted_thinking` blocks in private history, exclude them from canonical text/trace, reject malformed or unadvertised calls and invalid stop reasons, then append the complete assistant block and adjacent matching user `tool_result`. |
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
 | A planner candidate contains unknown fields/tools, invalid arguments, sensitive tool input, excessive bytes/steps, reordered final response, or spoofed status/effect/approval metadata | Reject it before constructing a TaskPlan; call zero provider, policy, approval, MCP, or desktop ports. |
 | OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
@@ -367,5 +367,6 @@ state paths.
 The maintained [provider E3 evidence](E3_EVIDENCE.md) retains matching passing
 records for OpenAI and Claude, completing this bounded dual-provider gate. The
 record is model-scoped: it also preserves a separate Sonnet 5 `thinking`-block
-compatibility gap without converting E3 into an all-model claim. E4 remains a
-separate isolated-desktop gate.
+compatibility failure without converting E3 into an all-model claim. The
+strict reasoning-block preservation repair remains pending retained
+exact-commit Sonnet 5 evidence. E4 remains a separate isolated-desktop gate.

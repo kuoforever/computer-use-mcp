@@ -24,7 +24,7 @@ test was attempted and failed unless a linked evidence record says so.
 | Capability line | Designed | Implemented | Offline verified | Provider verified | Desktop verified | Application verified | Next gate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | MCP Server | `YES` | `YES` — eight-tool Windows stdio server | `YES` | `N/A` | `PARTIAL` — prior desktop probes exist; repaired activation path has no retained isolated rerun | `PARTIAL` — one read-only BOSS/Chrome probe, not an application acceptance pass | Run the E4 Windows activation regression, then retain a bounded BOSS observation result |
-| Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop and fake-verified approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs | `NO` — E4 has no retained result | `NO` | Run the four-cell isolated E4 matrix; Sonnet 5 `thinking` compatibility remains a separate runtime review |
+| Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop, private signed/redacted Claude reasoning-block continuation, and fake-verified approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs; retained Sonnet 5 revalidation is pending | `NO` — E4 has no retained result | `NO` | Retain exact-commit Sonnet 5 E3 revalidation, then run the four-cell isolated E4 matrix |
 | Planner / Executor | `YES` | `PARTIAL` — `plan run` composes one provider plan, 1-4 observations through the sole Runner boundary, and one tool-free final response; side effects remain unavailable | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) the exact bounded CLI path with reviewed model IDs | `NO` | `NO` | Retain isolated E4 evidence; any side-effect expansion remains a separate review |
 | Campaign | `YES` | `PARTIAL` — three fixed CLI commands prepare one exact synthetic claim, execute it through Runner handoff, and enter durable fresh-run resume | `YES` | `NO` | `NO` | `NO` | Retain one on-device three-command synthetic state, trace, and cost evidence run before connecting BOSS |
 | Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, and bounded Agent image handling exist; document text, OCR, region, and delta sources do not | `PARTIAL` | `NO` | `PARTIAL` — BOSS probe proved useful UIA controls and missing static content | `NO` | Implement one bounded OCR or document-text vertical slice with source/cost evidence and no challenge bypass |
@@ -45,9 +45,10 @@ These results support offline claims only. They do not fill E3, E4, real-app,
 release, or complete-demo evidence cells.
 
 Separately, the retained [provider E3 record](E3_EVIDENCE.md) supports the two
-dual-provider `YES` cells above. It is model-scoped, records a separate Sonnet
-5 compatibility gap, and does not alter the offline snapshot or fill E4,
-application, or release gates.
+dual-provider `YES` cells above. It is model-scoped and records the historical
+Sonnet 5 compatibility failure; the implemented reasoning-block repair still
+needs an exact-commit retained rerun. Neither record alters the offline snapshot
+or fills E4, application, or release gates.
 
 ## Active priorities
 

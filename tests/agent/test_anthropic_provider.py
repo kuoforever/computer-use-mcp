@@ -185,6 +185,135 @@ def test_claude_tool_use_and_adjacent_matching_tool_result() -> None:
     ]
 
 
+def test_claude_preserves_opaque_reasoning_blocks_across_tool_result() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_1",
+                content=[
+                    SimpleNamespace(
+                        type="thinking",
+                        thinking="",
+                        signature="signed-thinking",
+                    ),
+                    SimpleNamespace(
+                        type="redacted_thinking",
+                        data="encrypted-redacted-thinking",
+                    ),
+                    SimpleNamespace(
+                        type="tool_use",
+                        id="toolu_1",
+                        name="list_windows",
+                        input={},
+                    ),
+                ],
+                stop_reason="tool_use",
+            ),
+            _response(
+                "message_2",
+                content=[SimpleNamespace(type="text", text="Notepad is open.")],
+                stop_reason="end_turn",
+            ),
+        ]
+    )
+    provider = AnthropicMessagesProvider(model="test-model", messages=scripted)
+
+    first = asyncio.run(
+        provider.create_turn(
+            run_id="run_reasoning",
+            turn_id="turn_1",
+            task="Inspect windows",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    assert first.text == ""
+    call = first.tool_calls[0]
+    result = ToolResult(
+        identity=call.identity,
+        tool_name="list_windows",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        sanitized_text="window_1 | Notepad",
+    )
+    ledger = (
+        LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+        LedgerEvent(
+            "event_2",
+            LedgerEventKind.TOOL_RESULT,
+            identity=call.identity,
+            tool_result=result,
+        ),
+    )
+
+    second = asyncio.run(
+        provider.create_turn(
+            run_id="run_reasoning",
+            turn_id="turn_2",
+            task="Inspect windows",
+            ledger=ledger,
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    assert second.text == "Notepad is open."
+    assert scripted.calls[1]["messages"][1]["content"] == [
+        {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "signed-thinking",
+        },
+        {
+            "type": "redacted_thinking",
+            "data": "encrypted-redacted-thinking",
+        },
+        {
+            "type": "tool_use",
+            "id": "toolu_1",
+            "name": "list_windows",
+            "input": {},
+        },
+    ]
+    assert "signed-thinking" not in second.text
+    assert "encrypted-redacted-thinking" not in second.text
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        {"type": "thinking", "thinking": "summary", "signature": ""},
+        {"type": "thinking", "thinking": 1, "signature": "signature"},
+        {
+            "type": "thinking",
+            "thinking": "summary",
+            "signature": "signature",
+            "extra": "field",
+        },
+        {"type": "redacted_thinking", "data": ""},
+        {"type": "redacted_thinking", "data": 1},
+        {"type": "redacted_thinking", "data": "opaque", "extra": "field"},
+    ],
+)
+def test_claude_rejects_malformed_reasoning_blocks(block: object) -> None:
+    provider = AnthropicMessagesProvider(
+        model="test-model",
+        messages=ScriptedMessages(
+            [_response("message_1", content=[block], stop_reason="end_turn")]
+        ),
+    )
+
+    with pytest.raises(AnthropicProviderError, match="ANTHROPIC_RESPONSE_INVALID"):
+        asyncio.run(
+            provider.create_turn(
+                run_id="run_reasoning",
+                turn_id="turn_1",
+                task="Inspect",
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+
 def test_claude_screenshot_result_uses_bounded_nested_image_block() -> None:
     identity = CallIdentity("run_1", "turn_1", "toolu_screenshot")
     result = ToolResult(
@@ -447,6 +576,11 @@ def test_claude_token_window_drops_only_oldest_complete_group() -> None:
                 "message_1",
                 content=[
                     SimpleNamespace(
+                        type="thinking",
+                        thinking="old reasoning",
+                        signature="old-signature",
+                    ),
+                    SimpleNamespace(
                         type="tool_use", id="toolu_1", name="list_windows", input={}
                     )
                 ],
@@ -455,6 +589,10 @@ def test_claude_token_window_drops_only_oldest_complete_group() -> None:
             _response(
                 "message_2",
                 content=[
+                    SimpleNamespace(
+                        type="redacted_thinking",
+                        data="new-redacted-reasoning",
+                    ),
                     SimpleNamespace(
                         type="tool_use", id="toolu_2", name="screenshot", input={}
                     )
@@ -560,11 +698,17 @@ def test_claude_token_window_drops_only_oldest_complete_group() -> None:
         "assistant",
         "user",
     ]
-    assert packed_messages[1]["content"][0]["id"] == "toolu_2"
+    assert packed_messages[1]["content"][0] == {
+        "type": "redacted_thinking",
+        "data": "new-redacted-reasoning",
+    }
+    assert packed_messages[1]["content"][1]["id"] == "toolu_2"
     assert packed_messages[2]["content"][0]["tool_use_id"] == "toolu_2"
     assert packed_messages[2]["content"][0]["content"][1]["type"] == "image"
     assert CONTEXT_PACKING_NOTICE in scripted.calls[2]["system"]
     assert "old observation" not in json.dumps(scripted.calls[2])
+    assert "old reasoning" not in json.dumps(scripted.calls[2])
+    assert "old-signature" not in json.dumps(scripted.calls[2])
 
 
 def test_claude_mandatory_latest_group_overflow_fails_without_history_mutation() -> None:
@@ -721,6 +865,15 @@ def test_claude_restore_appends_only_new_tool_result_to_exact_history() -> None:
             "role": "assistant",
             "content": [
                 {
+                    "type": "thinking",
+                    "thinking": "",
+                    "signature": "persisted-signature",
+                },
+                {
+                    "type": "redacted_thinking",
+                    "data": "persisted-redacted-data",
+                },
+                {
                     "type": "tool_use",
                     "id": "toolu_1",
                     "name": "list_windows",
@@ -778,3 +931,36 @@ def test_claude_restore_rejects_invalid_or_repeated_attach() -> None:
         provider.restore_continuation(
             "run_1", {"messages": [{"role": "user", "content": "task"}]}
         )
+
+
+@pytest.mark.parametrize(
+    "reasoning_block",
+    [
+        {"type": "thinking", "thinking": "summary"},
+        {"type": "thinking", "thinking": "summary", "signature": ""},
+        {"type": "redacted_thinking", "data": ""},
+        {"type": "redacted_thinking", "data": "opaque", "extra": "field"},
+    ],
+)
+def test_claude_restore_rejects_malformed_reasoning_blocks(
+    reasoning_block: dict[str, object],
+) -> None:
+    provider = AnthropicMessagesProvider(model="test-model", messages=ScriptedMessages([]))
+    history = [
+        {"role": "user", "content": "task"},
+        {
+            "role": "assistant",
+            "content": [
+                reasoning_block,
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "list_windows",
+                    "input": {},
+                },
+            ],
+        },
+    ]
+
+    with pytest.raises(AnthropicProviderError, match="ANTHROPIC_CONTINUATION_INVALID"):
+        provider.restore_continuation("run_reasoning", {"messages": history})
