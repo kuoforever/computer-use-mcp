@@ -77,11 +77,20 @@ def _tool_definitions(
             continue
         if tool.required_safety_baselines:
             continue
+        input_schema = to_json_value(tool.input_schema)
+        if tool.name == "click":
+            # Claude rejects this tool's strict oneOf/not/anyOf combination at
+            # request validation. Advertise the reviewed base properties while
+            # retaining the original ToolSpec for authoritative host-side
+            # validation before any approval or dispatch.
+            if not isinstance(input_schema, dict):
+                raise AnthropicProviderError("ANTHROPIC_TOOL_SCHEMA_INVALID")
+            input_schema.pop("oneOf", None)
         definitions.append(
             {
                 "name": tool.name,
                 "description": tool.description,
-                "input_schema": to_json_value(tool.input_schema),
+                "input_schema": input_schema,
             }
         )
     return definitions

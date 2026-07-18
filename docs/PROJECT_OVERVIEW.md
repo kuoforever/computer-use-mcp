@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-07-17.** This page explains the complete project shape without promoting
+> 2026-07-18.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -115,7 +115,7 @@ must not create a second native-action path.
 | Surface | Entry point | Current purpose | Boundary |
 | --- | --- | --- | --- |
 | Desktop MCP server | `computer-use-mcp` | Expose eight Windows GUI tools over stdio | Implemented Windows runtime |
-| Agent Host | `computer-use-agent` | Run bounded provider/MCP workflows and management commands | Experimental; E3/E4 evidence pending |
+| Agent Host | `computer-use-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
 | Agent config | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
 | Evaluation | `eval` | Run deterministic frozen E1/E2 cases | Implemented offline |
@@ -178,7 +178,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Checkpoint and redacted trace | Implemented | Atomic safe checkpoint plus bounded append-only semantic JSONL; sensitive content excluded | [Trace](TRACE.md) |
 | Reports | Implemented | Bounded checkpoint-only aggregation of phase, failure, token, call, and latency metrics | [Trace](TRACE.md) |
 | Explicit memory | Implemented/opt-in | Confirmed, scoped, expiring SQLite preferences/procedures; never auto-extracted or auto-injected | [Context and memory](CONTEXT_MEMORY.md) |
-| Live provider and desktop proof | Not retained | E3 and E4 are explicit human gates, not CI claims | [Evaluation](EVALUATION.md), [E4 runbook](E4_SMOKE.md) |
+| Live provider and desktop proof | Retained for reviewed models and VM | E3 and E4 remain explicit human gates, not CI claims; retained results do not imply application or release readiness | [E3 evidence](E3_EVIDENCE.md), [E4 evidence](E4_EVIDENCE.md) |
 
 ### Recovery, planning, and execution
 
@@ -361,7 +361,8 @@ Offline passing tests do not fill E3/E4/application cells. See
 
 In priority order:
 
-1. Retain isolated Windows evidence for the repaired activation path.
+1. Use the retained isolated Windows evidence only for the repaired activation
+   path and reviewed VM/model scope.
 2. Add one bounded document-text or OCR observation slice for browser content
    missing from interactive UIA.
 3. Apply completed-final reconciliation and expose the smallest observation-only
@@ -370,7 +371,8 @@ In priority order:
    path with state, redacted trace, and cost evidence.
 5. After that gate, add bounded host terminal polling and fake-host
    mobile-notification semantics without broadening the campaign selector.
-6. Execute provider E3, isolated E4, then BOSS, Google Docs, and WeChat evidence.
+6. With provider E3 and isolated E4 retained, execute bounded BOSS evidence,
+   then Google Docs and WeChat cases only after their preceding gates.
 7. Build operator projections and continual-learning L0 from real retained
    state, not model prose or invented completion.
 

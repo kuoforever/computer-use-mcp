@@ -17,8 +17,10 @@ v1.0.0, and one in-process Windows implementation. The second is an
 experimental `computer-use-agent` Host with a dual-provider read-only loop,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. [Dual-provider E3 evidence](docs/E3_EVIDENCE.md) is retained for both
-bounded fake-MCP cases with one reviewed model per provider; isolated desktop
-E4 evidence is not retained. The record also preserves a separate Sonnet 5
+bounded fake-MCP cases with one reviewed model per provider. [Isolated desktop
+E4 evidence](docs/E4_EVIDENCE.md) is retained for the reviewed VM and one model
+per provider, including read-only and explicitly approved action cells. The
+record also preserves a separate Sonnet 5
 `thinking`-block compatibility failure. The ordinary Claude adapter now has an
 offline-verified strict preservation path for signed `thinking` and opaque
 `redacted_thinking` blocks, plus retained exact-commit Sonnet 5 fake-MCP
@@ -32,7 +34,8 @@ bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
 response. It has offline fake-port evidence plus retained OpenAI and Claude E3
-results, but no retained desktop result. One
+results. The reviewed Agent Host path also has retained isolated desktop E4
+evidence, but the Planner / Executor path has no separate desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
 `OBSERVED`, reduce the bounded result to a non-sensitive window count, persist
@@ -110,11 +113,12 @@ docs/                  canonical English documentation
 9. **Same-desktop UIA is not background-safe.** A controlled ValuePattern
    operation can alter foreground state. Use an isolated runtime for true
    background work.
-10. **Window activation was reproduced, repaired, and unit tested, but still
-    needs retained isolated evidence.** The driver now attaches the required
+10. **Window activation was reproduced, repaired, unit tested, and retained in
+    the isolated E4 evidence.** The driver now attaches the required
     input queues, restores minimized targets, releases attachments in `finally`,
-    and verifies the foreground HWND. Treat the E4 Windows regression matrix,
-    not another speculative rewrite, as P0.
+    and verifies the foreground HWND. Treat the retained E4 result as scoped to
+    the reviewed VM and exact repair tree; the next P0 evidence gate is a
+    bounded BOSS observation result.
 11. **Interactive UIA is not document text.** The BOSS probe exposed useful
     controls while static job-description content was absent. Use the planned
     observation ladder rather than assuming a full UIA snapshot contains page

@@ -4,8 +4,8 @@
 > contract, local stdio bridge, bounded runner, OpenAI Responses adapter, and
 > Claude Messages adapter are
 > implemented. The CLI can inspect desktop text and bounded screenshots through four observation
-> tools. Opt-in locally approved actions are implemented against fake ports;
-> isolated desktop action smoke and unbounded recovery remain unavailable.
+> tools. Opt-in locally approved actions are implemented and have scoped
+> [isolated E4 evidence](E4_EVIDENCE.md); unbounded recovery remains unavailable.
 > Opt-in recovery can chain up to four reviewed read-only boundaries under one lock.
 
 This is the canonical contract companion to the planned
@@ -59,7 +59,8 @@ the following commands:
   and makes one stateless tool-free final-response request. It exposes no tool
   selector, action, approval, memory, recovery, or ordinary provider-loop
   option. Continuation WAL is required. [OpenAI and Claude provider evidence is retained](E3_EVIDENCE.md)
-  for one reviewed model per provider; desktop evidence is not retained.
+  for one reviewed model per provider. The separate [E4 record](E4_EVIDENCE.md)
+  covers the reviewed Agent Host desktop path, not a separate Planner pass.
 - `eval --cases PATH [--report PATH]` runs versioned E1/E2 JSON fixtures with
   deterministic fake ports, compares exact canonical traces and dispatched
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety
@@ -657,7 +658,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
-| Planner output remains untrusted data | The one-shot port receives only a bounded task and the four fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port, offline fake-client dual-provider adapter tests, bounded CLI composition, and [retained dual-provider E3 evidence](E3_EVIDENCE.md) for one reviewed model per provider; desktop evidence remains pending |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and the four fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port, offline fake-client dual-provider adapter tests, bounded CLI composition, and [retained dual-provider E3 evidence](E3_EVIDENCE.md) for one reviewed model per provider; the Agent Host E4 record is not a separate Planner desktop pass |
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
@@ -670,5 +671,5 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Host completion projection is evidence-only | A future Codex/Claude host may read bounded durable campaign status and finish only on validated terminal state; waiting states request attention, uncertainty forbids replay, and MCP log notifications are never terminal evidence | planned after retained on-device evidence for the fixed synthetic CLI path; no status tool, notification bridge, or mobile adapter exists |
 
 The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
-context compression, isolated desktop smokes, and release review. The current
+context compression, broader isolated regression, and release review. The current
 slice is experimental and must not be presented as the complete safety MVP.

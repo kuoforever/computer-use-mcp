@@ -1,6 +1,6 @@
 # Capability status and evidence dashboard
 
-> **Status: current review dashboard, verified 2026-07-17.** This page is the
+> **Status: current review dashboard, verified 2026-07-18.** This page is the
 > shortest path to the project's actual boundary. It separates design,
 > implementation, offline evidence, provider evidence, desktop evidence, and
 > application evidence. A design or offline test is never promoted to a live
@@ -23,8 +23,8 @@ test was attempted and failed unless a linked evidence record says so.
 
 | Capability line | Designed | Implemented | Offline verified | Provider verified | Desktop verified | Application verified | Next gate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| MCP Server | `YES` | `YES` — eight-tool Windows stdio server | `YES` | `N/A` | `PARTIAL` — prior desktop probes exist; repaired activation path has no retained isolated rerun | `PARTIAL` — one read-only BOSS/Chrome probe, not an application acceptance pass | Run the E4 Windows activation regression, then retain a bounded BOSS observation result |
-| Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop, private signed/redacted Claude reasoning-block continuation, and fake-verified approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs; Sonnet 5 compatibility is revalidated on the exact repair commit | `NO` — E4 has no retained result | `NO` | Run the four-cell isolated E4 matrix |
+| MCP Server | `YES` | `YES` — eight-tool Windows stdio server | `YES` | `N/A` | `YES` — [the five-case Windows activation regression passed](E4_EVIDENCE.md) in the isolated VM | `PARTIAL` — one read-only BOSS/Chrome probe, not an application acceptance pass | Retain a bounded BOSS observation result |
+| Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop, private signed/redacted Claude reasoning-block continuation, and locally approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs; Sonnet 5 compatibility is revalidated on the exact repair commit | `YES` — [both reviewed providers passed](E4_EVIDENCE.md) read-only and one approved action with post-action verification | `NO` | Proceed to bounded application evidence without widening action authority |
 | Planner / Executor | `YES` | `PARTIAL` — `plan run` composes one provider plan, 1-4 observations through the sole Runner boundary, and one tool-free final response; side effects remain unavailable | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) the exact bounded CLI path with reviewed model IDs | `NO` | `NO` | Retain isolated E4 evidence; any side-effect expansion remains a separate review |
 | Campaign | `YES` | `PARTIAL` — three fixed CLI commands prepare one exact synthetic claim, execute it through Runner handoff, and enter durable fresh-run resume | `YES` | `NO` | `NO` | `NO` | Retain one on-device three-command synthetic state, trace, and cost evidence run before connecting BOSS |
 | Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, and bounded Agent image handling exist; document text, OCR, region, and delta sources do not | `PARTIAL` | `NO` | `PARTIAL` — BOSS probe proved useful UIA controls and missing static content | `NO` | Implement one bounded OCR or document-text vertical slice with source/cost evidence and no challenge bypass |
@@ -33,29 +33,31 @@ test was attempted and failed unless a linked evidence record says so.
 
 ## Verification snapshot
 
-The following read-only checks were run against this checkout on 2026-07-17:
+The following read-only checks were run against this checkout on 2026-07-18:
 
 ~~~text
-python -m pytest -q              875 passed, 5 skipped
+python -m pytest -q              890 passed, 5 skipped
 ruff check src tests scripts    PASS
 relative Markdown targets       PASS
 ~~~
 
-These results support offline claims only. They do not fill E3, E4, real-app,
-release, or complete-demo evidence cells.
+These results support offline claims only. The separately retained E3 and E4
+records fill only their explicitly scoped provider and desktop cells; neither
+fills real-application, release, or complete-demo evidence cells.
 
 Separately, the retained [provider E3 record](E3_EVIDENCE.md) supports the two
 dual-provider `YES` cells above. It is model-scoped and records the historical
 Sonnet 5 compatibility failure; the implemented reasoning-block repair has an
 exact-commit retained rerun. Neither record alters the offline snapshot
-or fills E4, application, or release gates.
+or fills application or release gates. The separate
+[E4 record](E4_EVIDENCE.md) is likewise VM-, model-, and repair-tree-scoped.
 
 ## Active priorities
 
-1. **Evidence correction:** the `activate_window` implementation and unit tests
-   now cover input-thread attachment, reverse cleanup, minimized-window restore,
-   and foreground postcondition. The remaining P0 is isolated Windows
-   validation, not another speculative implementation rewrite.
+1. **Bounded application evidence:** the repaired `activate_window` path and
+   both reviewed providers passed the isolated E4 matrix. The next P0 is one
+   retained BOSS observation result, without widening action authority or
+   treating the VM result as application acceptance.
 2. **Observation vertical slice:** the recorded BOSS probe showed that static
    browser content can be absent from the interactive UIA tree. Add one bounded
    fallback and measure its total cost per verified result.
