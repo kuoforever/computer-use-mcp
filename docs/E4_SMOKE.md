@@ -1,6 +1,8 @@
 # E4 isolated desktop smoke runbook
 
-> **Status: ready for operator execution; no E4 evidence recorded yet.** These
+> **Status: executed with maintained sanitized evidence.** The reviewed Windows
+> activation regression and all four provider cells passed on 2026-07-18; see
+> [the E4 evidence record](E4_EVIDENCE.md). These
 > checks are manual, credentialed, and side-effecting. Run them only in a
 > disposable Windows VM or an otherwise isolated desktop session.
 

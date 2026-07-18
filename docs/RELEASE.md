@@ -2,7 +2,8 @@
 
 > **Status: implemented release gate documentation; release not yet approved.**
 > Automated CI covers offline E0-E2 and wheel installation. Live provider and
-> isolated desktop evidence remain explicit human gates.
+> isolated desktop evidence remain explicit human gates; scoped E3/E4 records
+> exist, but no candidate release is approved by those records alone.
 
 Run the matching local preflight from a clean candidate checkout:
 
@@ -84,5 +85,5 @@ Use explicit `agent recover` only for a strictly eligible persisted boundary;
 uncertain dispatches, pending side effects, drift, corruption, and expired
 records require a new run after the required human re-observation.
 
-The project remains experimental until isolated E4 evidence and a release
-review are complete.
+The project remains experimental until the retained E4 evidence is rerun as
+required for the release candidate and the full release review is complete.

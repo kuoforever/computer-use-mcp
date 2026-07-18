@@ -78,7 +78,12 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
             return Result.fail(STALE_ELEMENT, "window no longer exists")
 
         foreground_hwnd = int(user32.GetForegroundWindow() or 0)
-        if foreground_hwnd == hwnd:
+        was_minimized = bool(user32.IsIconic(hwnd))
+        if was_minimized:
+            user32.ShowWindow(hwnd, _SW_RESTORE)
+            if user32.IsIconic(hwnd):
+                return Result.fail(DRIVER_ERROR, "could not restore minimized window")
+        if foreground_hwnd == hwnd and not was_minimized:
             return Result.success()
 
         caller_thread = int(kernel32.GetCurrentThreadId() or 0)
@@ -92,11 +97,6 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
             return Result.fail(DRIVER_ERROR, "could not resolve activation input threads")
         if foreground_hwnd and not foreground_thread:
             return Result.fail(DRIVER_ERROR, "could not resolve foreground input thread")
-
-        if user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, _SW_RESTORE)
-            if user32.IsIconic(hwnd):
-                return Result.fail(DRIVER_ERROR, "could not restore minimized window")
 
         # Attaching the caller to both queues puts caller, foreground, and
         # target in one input group. Skip identical or duplicate pairings.
@@ -137,6 +137,13 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
                 DRIVER_ERROR,
                 "could not detach input threads: " + "; ".join(cleanup_errors),
             )
+        # Some Windows applications can become iconic again while their input
+        # queues are being detached. Re-assert the restore only for a target
+        # that was minimized on entry, then enforce the final postcondition.
+        if was_minimized and user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, _SW_RESTORE)
+            if user32.IsIconic(hwnd):
+                return Result.fail(DRIVER_ERROR, "could not restore minimized window")
         if int(user32.GetForegroundWindow() or 0) != hwnd:
             return Result.fail(DRIVER_ERROR, "could not bring window to foreground")
         return Result.success()
@@ -222,7 +229,7 @@ class WindowsDriver(Driver):
 
     @staticmethod
     def _foreground_hwnd() -> int:
-        return int(ctypes.windll.user32.GetForegroundWindow())
+        return int(ctypes.windll.user32.GetForegroundWindow() or 0)
 
     @staticmethod
     def _pid_of_hwnd(hwnd: int) -> int:

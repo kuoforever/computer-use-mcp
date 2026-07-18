@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from computer_use_mcp.contract import DRIVER_ERROR, STALE_ELEMENT
 from computer_use_mcp.drivers.windows import WindowsDriver, _activate_window_with_api
@@ -40,6 +41,9 @@ class FakeUser32:
         self.failed_detach: set[tuple[int, int]] = set()
         self.set_foreground_result = True
         self.update_foreground = True
+        self.reminimize_after_foreground = False
+        self.show_window_calls = 0
+        self.failed_restore_calls: set[int] = set()
 
     def IsWindow(self, hwnd: int) -> bool:
         self.events.append(("is_window", hwnd))
@@ -59,7 +63,9 @@ class FakeUser32:
 
     def ShowWindow(self, hwnd: int, command: int) -> int:
         self.events.append(("show_window", hwnd, command))
-        self.minimized = False
+        self.show_window_calls += 1
+        if self.show_window_calls not in self.failed_restore_calls:
+            self.minimized = False
         return 1
 
     def AttachThreadInput(self, caller: int, other: int, attach: bool) -> bool:
@@ -80,6 +86,8 @@ class FakeUser32:
         self.events.append(("set_foreground", hwnd))
         if self.set_foreground_result and self.update_foreground:
             self.foreground = hwnd
+        if self.set_foreground_result and self.reminimize_after_foreground:
+            self.minimized = True
         return self.set_foreground_result
 
 
@@ -92,6 +100,18 @@ def activate(user32: FakeUser32):
 
 
 class WindowsActivationTests(unittest.TestCase):
+    def test_missing_foreground_window_is_reported_as_zero(self) -> None:
+        class NoForegroundUser32:
+            @staticmethod
+            def GetForegroundWindow() -> None:
+                return None
+
+        with patch(
+            "computer_use_mcp.drivers.windows.ctypes.windll.user32",
+            NoForegroundUser32(),
+        ):
+            self.assertEqual(WindowsDriver._foreground_hwnd(), 0)
+
     def test_attaches_caller_to_foreground_and_target_then_detaches_in_reverse(self) -> None:
         user32 = FakeUser32()
 
@@ -148,7 +168,22 @@ class WindowsActivationTests(unittest.TestCase):
         result = activate(user32)
 
         self.assertTrue(result.ok)
-        self.assertEqual(user32.events, [("is_window", 200), ("foreground",)])
+        self.assertEqual(
+            user32.events,
+            [("is_window", 200), ("foreground",), ("is_iconic", 200)],
+        )
+
+    def test_minimized_foreground_target_runs_full_activation_after_restore(self) -> None:
+        user32 = FakeUser32(foreground=200, minimized=True)
+
+        result = activate(user32)
+
+        self.assertTrue(result.ok)
+        self.assertFalse(user32.minimized)
+        self.assertIn(("show_window", 200, 9), user32.events)
+        self.assertIn(("attach", 10, 30), user32.events)
+        self.assertIn(("bring_to_top", 200), user32.events)
+        self.assertIn(("set_foreground", 200), user32.events)
 
     def test_minimized_target_is_restored_before_attachment(self) -> None:
         user32 = FakeUser32(minimized=True)
@@ -161,6 +196,30 @@ class WindowsActivationTests(unittest.TestCase):
             user32.events.index(("show_window", 200, 9)),
             user32.events.index(("attach", 10, 20)),
         )
+
+    def test_minimized_target_is_restored_again_if_activation_reminimizes_it(self) -> None:
+        user32 = FakeUser32(minimized=True)
+        user32.reminimize_after_foreground = True
+
+        result = activate(user32)
+
+        self.assertTrue(result.ok)
+        self.assertFalse(user32.minimized)
+        self.assertEqual(
+            [event for event in user32.events if event[0] == "show_window"],
+            [("show_window", 200, 9), ("show_window", 200, 9)],
+        )
+
+    def test_final_restore_postcondition_failure_is_reported(self) -> None:
+        user32 = FakeUser32(minimized=True)
+        user32.reminimize_after_foreground = True
+        user32.failed_restore_calls.add(2)
+
+        result = activate(user32)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.code, DRIVER_ERROR)
+        self.assertEqual(result.message, "could not restore minimized window")
 
     def test_stale_numeric_window_id_fails_before_thread_or_activation_calls(self) -> None:
         user32 = FakeUser32()

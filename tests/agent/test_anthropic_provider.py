@@ -846,6 +846,17 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "click",
         "key",
     ]
+    click_definition = next(
+        tool for tool in scripted.calls[0]["tools"] if tool["name"] == "click"
+    )
+    assert "oneOf" not in click_definition["input_schema"]
+    assert click_definition["input_schema"]["properties"] == {
+        "ref": {"minLength": 1, "type": "string"},
+        "x": {"type": "integer"},
+        "y": {"type": "integer"},
+    }
+    strict_click = next(tool for tool in REVIEWED_TOOLS if tool.name == "click")
+    assert "oneOf" in strict_click.input_schema
 
 
 def test_claude_restore_appends_only_new_tool_result_to_exact_history() -> None:
