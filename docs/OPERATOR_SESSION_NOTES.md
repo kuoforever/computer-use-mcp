@@ -29,6 +29,8 @@ needed to reproduce a finding.
 | Date | Session alias | Surface | Scope | Result |
 | --- | --- | --- | --- | --- |
 | 2026-07-15 | `boss-chrome-01` | Codex desktop, local MCP, Chrome | Read-only BOSS interested-jobs probe and observation-cost check | Integration works; window reactivation defect reproduced |
+| 2026-07-18 | `boss-mcp-post-repair-01` | Agent bounded stdio bridge, project MCP, Chrome | Read-only post-repair BOSS home observation | Activation and bounded UIA observation passed; human-active gate stopped further navigation |
+| 2026-07-18 | `synthetic-campaign-device-01` | Fixed campaign CLI, Runner, project MCP | Three-command synthetic `list_windows` campaign | Commit, handoff, and fresh-run exhausted resume passed with zero provider calls |
 
 ## 2026-07-15: Chrome and BOSS live probe
 
@@ -102,6 +104,34 @@ Priority follow-up:
    minimized-window restoration, failed Win32 calls, and cleanup after errors.
 4. Add a manual Windows regression that switches from Chrome to Codex and then
    activates the previously observed Chrome handle.
+
+## 2026-07-18: post-repair BOSS home observation
+
+The project-local executable completed a real stdio handshake through the
+Agent Host bridge and exposed exactly the reviewed eight tools. In `safe_local`
+mode, with Chrome allowlisted and the 2.5-second human-idle threshold retained,
+`activate_window` succeeded for the sole returned Chrome window. The server
+then used its own UIA address-bar ref to navigate to the signed-in BOSS home
+page and retained a bounded observation.
+
+The BOSS snapshot contained 126 lines and 10,760 serialized characters.
+`find("BOSS")` reduced it to three interactive matches, while
+`find("感兴趣")` and `find("岗位职责")` returned no match on the home page.
+The attempted user-menu expansion was rejected as `HUMAN_ACTIVE`; the idle gate
+was not bypassed and the interested-jobs view was not opened in this session.
+No message, application, saved-job mutation, upload, or screenshot occurred.
+
+The sanitized retained record is [BOSS observation evidence](BOSS_EVIDENCE.md).
+
+## 2026-07-18: on-device synthetic campaign
+
+The fixed three-command CLI prepared the sole reviewed synthetic claim,
+dispatched one `list_windows` observation through Runner, persisted the item as
+`COMMITTED`, wrote deterministic handoff, and transferred ownership to a fresh
+run that returned `NO_ELIGIBLE_ITEMS`. The result retained two successful run
+checkpoints and redacted traces with one total tool call, zero failures, zero
+retries, zero provider calls, and zero tokens. See
+[Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).
 
 ## Planned operator progress window
 
@@ -191,15 +221,14 @@ record only an opaque alias or the minimum identifier needed for correlation.
 
 ## Prioritized backlog from these sessions
 
-1. **P0:** retain the manual isolated Windows activation regression evidence;
-   the driver repair and unit coverage are implemented.
-2. **P1:** implement the read-only, non-activating multi-run progress window on
+1. **P1:** implement the read-only, non-activating multi-run progress window on
    top of validated Agent checkpoints.
-3. **P1:** add a bounded static-content observation path, such as document text
+2. **P1:** add a bounded static-content observation path, such as document text
    extraction or OCR, for content missing from the UI Automation tree.
-4. **P1:** connect one synthetic read-only campaign worker through commit and
-   forced-restart resume; the campaign/item ledger and deterministic handoff
-   control plane are implemented and offline verified.
+3. **P1:** implement the bounded read-only terminal-status projection and
+   fake-host polling tests without adding a second execution path.
+4. **P1:** after bounded static-content observation is available, retain a
+   separate BOSS interested-jobs result without bypassing `HUMAN_ACTIVE`.
 5. **P1:** implement the observation ladder and measurement fields from
    [Token efficiency](TOKEN_EFFICIENCY.md).
 6. **P1:** execute the BOSS, Google Docs, and WeChat staged cases from

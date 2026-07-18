@@ -42,8 +42,9 @@ single `list_windows` observation through the existing Runner boundary, persist
 `EXTRACTED`, verify its canonical JSON digest, persist `COMMITTED`, close the
 batch with measured usage, write deterministic handoff, and transfer ownership
 to a fresh Runner run that reconstructs the finished session from durable
-campaign records and reaches the expected exhausted resume decision. A third
-fixed CLI command now creates exactly that one-item synthetic manifest,
+campaign records and reaches the expected exhausted resume decision. The exact
+three-command seam now has [retained on-device evidence](docs/SYNTHETIC_CAMPAIGN_EVIDENCE.md).
+A third fixed CLI command now creates exactly that one-item synthetic manifest,
 discovery record, heartbeat, batch, and claim without opening provider or MCP
 ports. No general campaign worker or complete application workflow is
 connected. The broader universal GUI,
@@ -117,8 +118,9 @@ docs/                  canonical English documentation
     the isolated E4 evidence.** The driver now attaches the required
     input queues, restores minimized targets, releases attachments in `finally`,
     and verifies the foreground HWND. Treat the retained E4 result as scoped to
-    the reviewed VM and exact repair tree; the next P0 evidence gate is a
-    bounded BOSS observation result.
+    the reviewed VM and exact repair tree. A later bounded on-device BOSS home
+    observation passed through the project stdio path; the next perception gate
+    is a bounded static-content source before a separate interested-jobs result.
 11. **Interactive UIA is not document text.** The BOSS probe exposed useful
     controls while static job-description content was absent. Use the planned
     observation ladder rather than assuming a full UIA snapshot contains page

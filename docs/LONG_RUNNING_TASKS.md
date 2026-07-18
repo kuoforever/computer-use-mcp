@@ -332,9 +332,9 @@ replacement grants no item or action authority and starts no worker.
 
 > **Status: planned host contract; no status tool or notification bridge is
 > implemented.** The current eight-tool desktop MCP surface remains unchanged.
-> Add this boundary only after the fixed synthetic three-command runtime has
-> retained its on-device evidence; it must not broaden that seam into a general
-> campaign worker.
+> The fixed synthetic three-command runtime has now retained its
+> [on-device evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md). The status projection is
+> the next gate; it must not broaden that seam into a general campaign worker.
 
 Codex and Claude mobile push notifications are host capabilities. The MCP
 server must not claim that a whole task is complete, emit a log notification as
@@ -485,9 +485,10 @@ takeover are durable transitions, not informal chat instructions.
 6. **Implemented and offline verified:** a third fixed CLI command creates only
    the exact one-item manifest, discovery record, heartbeat, batch, and claim;
    the complete three-command sequence requires no private fixture setup.
-7. **Next:** retain one bounded on-device three-command synthetic state,
-   redacted-trace, and cost evidence run.
-8. Add the bounded host status projection and fake-host polling tests; keep
+7. **Retained on device:** the exact three-command synthetic state,
+   redacted-trace, and cost evidence run passed; see
+   [Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).
+8. **Next:** add the bounded host status projection and fake-host polling tests; keep
    ChatGPT/Claude mobile delivery outside the desktop MCP surface.
 9. Run the BOSS read-only 100-item evaluation.
 10. Run Google Docs 50-section and WeChat draft-only evaluations.

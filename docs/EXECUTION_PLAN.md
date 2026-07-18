@@ -30,10 +30,13 @@ Pure tests cover ordering, cleanup, idempotence, minimized windows, native-call
 failure, and failed postconditions.
 
 The isolated Windows activation matrix and all four reviewed provider cells
-have passed with [retained E4 evidence](E4_EVIDENCE.md). The next P0 is one
-bounded retained BOSS observation result. Keep it read-only and do not infer
-application acceptance, broader model compatibility, or release readiness from
-the VM result.
+have passed with [retained E4 evidence](E4_EVIDENCE.md). A subsequent
+[bounded on-device BOSS home observation](BOSS_EVIDENCE.md) activated the real
+Chrome target through the project stdio path and retained a bounded UIA result.
+This closes the narrow post-repair P0. It does not imply application
+acceptance, broader model compatibility, or release readiness. Continue with
+the bounded multi-source observation gate before retaining a separate
+interested-jobs result.
 
 ### P1 - connect the long-running campaign runtime
 
@@ -58,13 +61,12 @@ the VM result.
 > task text, item selection, campaign-kind selection, or action authority.
 
 The complete three-command sequence is offline verified without private fixture
-setup. The next gate is one bounded on-device synthetic run retaining exact
-state, redacted trace, and cost evidence. Preserve the existing Runner dispatch
-site, budgets, trace, and fail-closed result semantics; do not add a second MCP
-path, accept a free-form item selector, replay an uncertain action, or connect
-side-effecting work.
+setup and has [retained on-device state, redacted trace, and cost evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).
+Preserve the existing Runner dispatch site, budgets, trace, and fail-closed
+result semantics; do not add a second MCP path, accept a free-form item
+selector, replay an uncertain action, or connect side-effecting work.
 
-After that retained on-device gate, expose a bounded read-only terminal-status
+The next gate is a bounded read-only terminal-status
 projection so a fake Codex/Claude host polls through `RUNNING`, requests
 attention for waiting states, and ends only on validated terminal state. The
 projection must add no second execution path, perform no provider/MCP/desktop
@@ -133,7 +135,7 @@ release notes and cannot be inferred complete from offline CI:
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. A completed final provider response can be terminalized locally with zero external calls. Provider-requested actions are correlation-checked, terminalized as a fixed failure, and deleted without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, correlated OpenAI recovery token-state restoration, Claude-only oldest-complete-group packing, canonical OpenAI request-contract v3 digest binding, exact initial-input and ordered provider-output persistence, explicit portable encrypted-reasoning requests, and an explicit digest-bound OpenAI stateless-replay compiler for read-only recovery | Tokenizer-specific calibration, safe semantic compression, and broader replay/compaction policy beyond the explicit recovery boundary |
 | Operator experience | The console supports one-action yes/deny; the progress viewer, presence indicator, and Decision Cards are planned only | Passive progress and computer-use presence pass focus/capture/DPI/accessibility tests; Decision Cards present bounded alternatives and provenance-backed trade-offs, invalidate on drift, and connect through the existing ApprovalPort without a second dispatch path |
-| Host completion notification | Codex/Claude can provide mobile notifications, but this repository has no host status tool or notification bridge; the fixed synthetic CLI does not expose generic polling | After the on-device three-command evidence gate, a fake host polls a bounded read-only projection, never completes on running/waiting/stale/malformed/uncertain state, and emits exactly one terminal or attention event without provider, desktop, or side-effect calls |
+| Host completion notification | Codex/Claude can provide mobile notifications, but this repository has no host status tool or notification bridge; the fixed synthetic CLI does not expose generic polling and its [on-device gate has passed](SYNTHETIC_CAMPAIGN_EVIDENCE.md) | A fake host polls a bounded read-only projection, never completes on running/waiting/stale/malformed/uncertain state, and emits exactly one terminal or attention event without provider, desktop, or side-effect calls |
 | Planner-Executor | Strict TaskPlan compilation/persistence, dual-provider Planner and final adapters, fresh-call preflight/session, observation runtime/reconciliation, final WAL, and completed-final local reconciliation are implemented. `plan run` now composes exactly one host-scoped plan request, one to four observations through the sole Runner boundary, and one stateless tool-free final response. It exposes no tool selector, side effect, ordinary provider continuation, approval option, or alternate MCP path. The complete path is offline fake-verified, and [dual-provider E3 is retained](E3_EVIDENCE.md); the Agent Host E4 record does not constitute a separate Planner / Executor desktop pass | Retain a separately scoped desktop result only when warranted; keep dispatch intent non-replayable, output untrusted, the four-step cap, and unchanged action boundaries. Side-effect plan execution remains a separate review |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its
