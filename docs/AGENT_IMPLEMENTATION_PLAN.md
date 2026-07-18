@@ -263,7 +263,8 @@ would misstate the repository. Current evidence and next gates are tracked in
 [Capability status](CAPABILITY_STATUS.md). The remaining Agent Host sequence is:
 
 1. use the retained E4 result only for the reviewed VM, models, and exact repair
-   tree; next retain one bounded BOSS observation result;
+   tree; the later bounded BOSS home result closes only the narrow post-repair
+   P0, so add static-content observation before a separate interested-jobs run;
 2. keep side-effect plan execution in a separate review and retain the current
    action, approval, WAL, grounding, and re-observation invariants;
 3. keep retained model-specific compatibility evidence, including Sonnet 5

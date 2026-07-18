@@ -367,9 +367,9 @@ In priority order:
    missing from interactive UIA.
 3. Apply completed-final reconciliation and expose the smallest observation-only
    Planner/Executor CLI path.
-4. Retain one on-device run of the existing three-command synthetic campaign
-   path with state, redacted trace, and cost evidence.
-5. After that gate, add bounded host terminal polling and fake-host
+4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
+   only for its exact fixed seam.
+5. Add bounded host terminal polling and fake-host
    mobile-notification semantics without broadening the campaign selector.
 6. With provider E3 and isolated E4 retained, execute bounded BOSS evidence,
    then Google Docs and WeChat cases only after their preceding gates.
