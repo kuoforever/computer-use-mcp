@@ -76,9 +76,15 @@ is byte-for-byte read-only and adds no provider/MCP/desktop path or public
 desktop tool. Mobile push delivery remains owned by ChatGPT Remote or Claude
 Remote Control. The next gate is the bounded multi-item BOSS restart run.
 
-After the synthetic vertical slice passes, run the first 100-item read-only BOSS
-campaign across multiple provider contexts and at least one forced restart.
-Retain committed-item, token, retry, recovery, and takeover evidence.
+The first application increment now has an internal, offline-verified identity
+discovery boundary. It accepts only bounded complete UIA link values on the
+reviewed BOSS interested-jobs source, strips URL query data, persists stable
+public job keys idempotently, and refuses discovery after batch execution
+begins. It does not call MCP, navigate, expose a CLI, or constitute application
+evidence. Next connect that fixed boundary to the project MCP path, then run the
+first 100-item read-only BOSS campaign across multiple provider contexts and at
+least one forced restart. Retain committed-item, token, retry, recovery, and
+takeover evidence.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);
