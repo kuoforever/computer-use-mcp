@@ -27,7 +27,7 @@ context_window_tokens = 128000
 output_token_reserve = 1024
 
 [mcp]
-executable = "{(tmp_path / 'computer-use-mcp.exe').as_posix()}"
+executable = "{(tmp_path / "computer-use-mcp.exe").as_posix()}"
 args = []
 cwd = "{tmp_path.as_posix()}"
 environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
@@ -54,6 +54,8 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["campaign", "prepare-synthetic", "--help"],
         ["campaign", "resume-synthetic", "--help"],
         ["campaign", "run-claimed-synthetic", "--help"],
+        ["campaign", "prepare-boss-discovery", "--help"],
+        ["campaign", "observe-boss-page", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -67,7 +69,9 @@ def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> N
     assert raised.value.code == 0
 
 
-def test_cli_without_a_command_prints_help_and_returns_success(capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_without_a_command_prints_help_and_returns_success(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     assert main([]) == 0
     assert "Safe local Agent Host foundation" in capsys.readouterr().out
 
@@ -85,9 +89,7 @@ def test_plan_run_cli_routes_only_config_and_task(
 
     monkeypatch.setattr(agent_cli, "_run_planned_observation", fake_run)
 
-    assert main(
-        ["plan", "run", "--config", str(config_path), "--task", "Inspect"]
-    ) == 0
+    assert main(["plan", "run", "--config", str(config_path), "--task", "Inspect"]) == 0
     assert captured == [(config_path, "Inspect")]
 
 
@@ -101,13 +103,9 @@ def test_plan_run_requires_wal_before_loading_provider_or_desktop(
     config_path = tmp_path / "agent.toml"
     config_path.write_text(text, encoding="utf-8")
 
-    assert main(
-        ["plan", "run", "--config", str(config_path), "--task", "Inspect"]
-    ) == 2
+    assert main(["plan", "run", "--config", str(config_path), "--task", "Inspect"]) == 2
 
-    assert capsys.readouterr().err.strip() == (
-        "error: PLANNED_OBSERVATION_WAL_REQUIRED"
-    )
+    assert capsys.readouterr().err.strip() == ("error: PLANNED_OBSERVATION_WAL_REQUIRED")
     assert not state_dir.exists()
 
 
@@ -123,25 +121,26 @@ def test_release_preflight_cli_returns_the_report_status(
         captured.append((root, artifacts, report))
         return expected
 
-    monkeypatch.setattr(
-        "computer_use_agent.release.run_release_preflight", fake_preflight
-    )
+    monkeypatch.setattr("computer_use_agent.release.run_release_preflight", fake_preflight)
     root = tmp_path / "root"
     artifacts = tmp_path / "artifacts"
     report = tmp_path / "report.json"
 
-    assert main(
-        [
-            "release",
-            "preflight",
-            "--root",
-            str(root),
-            "--artifacts",
-            str(artifacts),
-            "--report",
-            str(report),
-        ]
-    ) == 1
+    assert (
+        main(
+            [
+                "release",
+                "preflight",
+                "--root",
+                str(root),
+                "--artifacts",
+                str(artifacts),
+                "--report",
+                str(report),
+            ]
+        )
+        == 1
+    )
 
     assert captured == [(root, artifacts, report)]
     assert json.loads(capsys.readouterr().out) == expected
@@ -176,9 +175,7 @@ def test_dry_run_outputs_only_safe_metadata_and_releases_the_lock(
     path.write_text(text, encoding="utf-8")
     task = "task-secret-value"
 
-    assert main(
-        ["run", "--config", str(path), "--task", task, "--dry-run"]
-    ) == 0
+    assert main(["run", "--config", str(path), "--task", task, "--dry-run"]) == 0
 
     raw = capsys.readouterr().out
     output = json.loads(raw)
@@ -203,31 +200,37 @@ def test_run_memory_scope_is_explicit_and_dry_run_fails_closed(
 
     monkeypatch.setattr(agent_cli, "_run_live", fake_run)
 
-    assert main(
-        [
-            "run",
-            "--config",
-            str(config_path),
-            "--task",
-            "Inspect",
-            "--memory-scope",
-            "app:notepad",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "run",
+                "--config",
+                str(config_path),
+                "--task",
+                "Inspect",
+                "--memory-scope",
+                "app:notepad",
+            ]
+        )
+        == 0
+    )
     assert captured == [(config_path, "Inspect", "app:notepad")]
 
-    assert main(
-        [
-            "run",
-            "--config",
-            str(config_path),
-            "--task",
-            "Inspect",
-            "--dry-run",
-            "--memory-scope",
-            "global",
-        ]
-    ) == 2
+    assert (
+        main(
+            [
+                "run",
+                "--config",
+                str(config_path),
+                "--task",
+                "Inspect",
+                "--dry-run",
+                "--memory-scope",
+                "global",
+            ]
+        )
+        == 2
+    )
     assert "DRY_RUN_MEMORY_CONTEXT_UNAVAILABLE" in capsys.readouterr().err
 
 
@@ -286,18 +289,21 @@ def test_synthetic_campaign_resume_cli_has_no_task_or_selector_and_prints_safe_s
     assert not hasattr(parsed, "task")
     assert not hasattr(parsed, "item_key")
 
-    assert main(
-        [
-            "campaign",
-            "resume-synthetic",
-            "--config",
-            str(config_path),
-            "--campaign-id",
-            "campaign_1",
-            "--run-id",
-            "run_2",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "campaign",
+                "resume-synthetic",
+                "--config",
+                str(config_path),
+                "--campaign-id",
+                "campaign_1",
+                "--run-id",
+                "run_2",
+            ]
+        )
+        == 0
+    )
 
     assert len(captured) == 1
     runner, campaign_id, replacement_run_id, captured_now = captured[0]
@@ -493,6 +499,145 @@ def test_claimed_synthetic_campaign_cli_uses_desktop_with_provider_forbidden(
     }
 
 
+def test_boss_discovery_prepare_cli_has_no_selector_or_external_ports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 19, 4, 0, tzinfo=timezone.utc)
+
+    def fake_prepare(
+        runner: object,
+        *,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, run_id, now))
+        return SimpleNamespace(
+            campaign_id=campaign_id,
+            campaign_kind="boss_saved_job_read_only",
+            run_id=run_id,
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.boss_campaign_observation_runtime.prepare_boss_discovery_campaign",
+        fake_prepare,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "prepare-boss-discovery",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "prepare_1",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in ("task", "item_key", "url", "page", "scope", "campaign_kind"):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+    runner, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is None
+    assert (campaign_id, run_id, captured_now) == ("campaign_1", "prepare_1", now)
+    assert json.loads(capsys.readouterr().out) == {
+        "campaign_id": "campaign_1",
+        "campaign_kind": "boss_saved_job_read_only",
+        "discovered_count": 0,
+        "run_id": "prepare_1",
+    }
+
+
+def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from computer_use_agent.fakes import FakeDesktopMCP
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 19, 4, 0, tzinfo=timezone.utc)
+    desktop = FakeDesktopMCP()
+
+    async def fake_execute(
+        runner: object,
+        *,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, run_id, now))
+        return SimpleNamespace(
+            state=SimpleNamespace(
+                run_id=run_id,
+                budgets=SimpleNamespace(tool_calls_used=1),
+            ),
+            discovery=SimpleNamespace(
+                discovered_count=2,
+                duplicate_count=1,
+                new_item_keys=("boss:job:publicjob002",),
+            ),
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.desktop_mcp.StdioDesktopMCP",
+        lambda _config: desktop,
+    )
+    monkeypatch.setattr(
+        "computer_use_agent.boss_campaign_observation_runtime.execute_boss_discovery_page",
+        fake_execute,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "observe-boss-page",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "run_1",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in ("task", "item_key", "url", "page", "scope"):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+    runner, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is not None
+    assert runner.ports.desktop is desktop
+    assert isinstance(runner.ports.provider, agent_cli._ForbiddenCampaignProvider)
+    assert (campaign_id, run_id, captured_now) == ("campaign_1", "run_1", now)
+    assert json.loads(capsys.readouterr().out) == {
+        "campaign_id": "campaign_1",
+        "discovered_count": 2,
+        "duplicate_count": 1,
+        "new_item_count": 1,
+        "run_id": "run_1",
+        "tool_calls": 1,
+    }
+
+
 def test_non_dry_run_with_missing_config_fails_before_creating_a_lock(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -614,16 +759,19 @@ def test_recover_cli_requires_explicit_read_only_execution_confirmation(
 ) -> None:
     config_path = tmp_path / "agent.toml"
 
-    assert main(
-        [
-            "recover",
-            "run_1",
-            "--config",
-            str(config_path),
-            "--task",
-            "Inspect",
-        ]
-    ) == 2
+    assert (
+        main(
+            [
+                "recover",
+                "run_1",
+                "--config",
+                str(config_path),
+                "--task",
+                "Inspect",
+            ]
+        )
+        == 2
+    )
 
     assert "RECOVERY_EXECUTION_CONFIRMATION_REQUIRED" in capsys.readouterr().err
     assert not config_path.exists()
@@ -635,19 +783,22 @@ def test_recover_cli_rejects_unreviewed_step_bounds_before_loading_config(
 ) -> None:
     config_path = tmp_path / "agent.toml"
 
-    assert main(
-        [
-            "recover",
-            "run_1",
-            "--config",
-            str(config_path),
-            "--task",
-            "Inspect",
-            "--execute-read-only",
-            "--max-steps",
-            str(maximum),
-        ]
-    ) == 2
+    assert (
+        main(
+            [
+                "recover",
+                "run_1",
+                "--config",
+                str(config_path),
+                "--task",
+                "Inspect",
+                "--execute-read-only",
+                "--max-steps",
+                str(maximum),
+            ]
+        )
+        == 2
+    )
 
     assert "RECOVERY_MAX_STEPS_INVALID" in capsys.readouterr().err
     assert not config_path.exists()
@@ -672,18 +823,21 @@ def test_recover_cli_forwards_explicit_stateless_replay(
     monkeypatch.setattr(agent_cli, "_recover_live", recover)
     config_path = tmp_path / "agent.toml"
 
-    assert main(
-        [
-            "recover",
-            "run_1",
-            "--config",
-            str(config_path),
-            "--task",
-            "Inspect",
-            "--execute-read-only",
-            "--stateless-replay",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "recover",
+                "run_1",
+                "--config",
+                str(config_path),
+                "--task",
+                "Inspect",
+                "--execute-read-only",
+                "--stateless-replay",
+            ]
+        )
+        == 0
+    )
     assert captured == [(config_path, "run_1", "Inspect", 1, True)]
 
 
@@ -731,9 +885,7 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
             model_turns_used=1,
         ),
     )
-    call = ToolCall(
-        CallIdentity(state.run_id, "turn_1", "call_1"), "list_windows", {}
-    )
+    call = ToolCall(CallIdentity(state.run_id, "turn_1", "call_1"), "list_windows", {})
     continuation = RuntimeContinuationRecorder(
         state_dir=config.state_dir,
         state=state,
@@ -748,7 +900,14 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
     continuation.complete_provider(
         state,
         ModelTurn(state.run_id, "turn_1", "response_1", "", (call,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False, "initial_input": task, "output_batches": [{"response_id": "response_1", "items": []}]},
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
         checkpoint_sequence=3,
     )
     safe = RunRecorder(config.state_dir, state.run_id)
@@ -765,17 +924,20 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
     desktop = FakeDesktopMCP(results=deque([result]))
     monkeypatch.setattr(desktop_module, "StdioDesktopMCP", lambda _config: desktop)
 
-    assert main(
-        [
-            "recover",
-            state.run_id,
-            "--config",
-            str(config_path),
-            "--task",
-            task,
-            "--execute-read-only",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "recover",
+                state.run_id,
+                "--config",
+                str(config_path),
+                "--task",
+                task,
+                "--execute-read-only",
+            ]
+        )
+        == 0
+    )
 
     raw = capsys.readouterr().out
     output = json.loads(raw)
@@ -859,7 +1021,14 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     continuation.complete_provider(
         state,
         ModelTurn(state.run_id, "turn_1", "response_1", "", (action,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False, "initial_input": task, "output_batches": [{"response_id": "response_1", "items": []}]},
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
         checkpoint_sequence=3,
     )
     action_state = replace(
@@ -890,9 +1059,7 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     safe.record(action_state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
     for _ in range(3):
         safe.record(action_state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
-    mandatory_identity = CallIdentity(
-        state.run_id, "recovery_7", "mandatory_ui_snapshot"
-    )
+    mandatory_identity = CallIdentity(state.run_id, "recovery_7", "mandatory_ui_snapshot")
     desktop = FakeDesktopMCP(
         results=deque(
             [
@@ -908,17 +1075,20 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     )
     monkeypatch.setattr(desktop_module, "StdioDesktopMCP", lambda _config: desktop)
 
-    assert main(
-        [
-            "recover",
-            state.run_id,
-            "--config",
-            str(config_path),
-            "--task",
-            task,
-            "--execute-read-only",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "recover",
+                state.run_id,
+                "--config",
+                str(config_path),
+                "--task",
+                task,
+                "--execute-read-only",
+            ]
+        )
+        == 0
+    )
 
     raw = capsys.readouterr().out
     output = json.loads(raw)
@@ -986,9 +1156,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
             model_turns_used=1,
         ),
     )
-    observation = ToolCall(
-        CallIdentity(state.run_id, "turn_1", "call_1"), "list_windows", {}
-    )
+    observation = ToolCall(CallIdentity(state.run_id, "turn_1", "call_1"), "list_windows", {})
     continuation = RuntimeContinuationRecorder(
         state_dir=config.state_dir,
         state=state,
@@ -1003,7 +1171,14 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
     continuation.complete_provider(
         state,
         ModelTurn(state.run_id, "turn_1", "response_1", "", (observation,)),
-        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False, "initial_input": task, "output_batches": [{"response_id": "response_1", "items": []}]},
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
         checkpoint_sequence=3,
     )
     safe = RunRecorder(config.state_dir, state.run_id)
@@ -1087,9 +1262,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
     assert desktop.close_calls == 1
     checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
     assert checkpoint["phase"] == (
-        RunPhase.FAILED.value
-        if provider_requests_action
-        else RunPhase.SUCCESS.value
+        RunPhase.FAILED.value if provider_requests_action else RunPhase.SUCCESS.value
     )
     assert continuation_path(config.state_dir, state.run_id).exists() is False
 
@@ -1146,9 +1319,7 @@ def test_remember_cli_requires_confirmation_and_supports_list_delete(
     listed = json.loads(capsys.readouterr().out)
     assert [item["id"] for item in listed["memories"]] == [added["id"]]
 
-    assert main(
-        ["remember", "delete", added["id"], "--config", str(config_path)]
-    ) == 0
+    assert main(["remember", "delete", added["id"], "--config", str(config_path)]) == 0
     assert json.loads(capsys.readouterr().out) == {"deleted": True, "id": added["id"]}
 
 
@@ -1165,17 +1336,17 @@ def test_live_cli_loads_only_the_selected_optional_provider(
     provider_module: str,
 ) -> None:
     config_path = tmp_path / "agent.toml"
-    script = f'''\
+    script = f"""\
 import sys
 from pathlib import Path
 from computer_use_agent.config import AgentConfig, MCPLaunchConfig, PolicyConfig, ProviderConfig
 from computer_use_agent.cli import _run_live_async
 config = AgentConfig(
-    state_dir=Path({str(tmp_path / 'computer-use-agent' / 'state')!r}),
+    state_dir=Path({str(tmp_path / "computer-use-agent" / "state")!r}),
     policy_version="test",
     provider=ProviderConfig(name={provider_name!r}, model="test-model"),
     mcp=MCPLaunchConfig(
-        executable=Path({str(tmp_path / 'mcp.exe')!r}),
+        executable=Path({str(tmp_path / "mcp.exe")!r}),
         args=(), cwd=Path({str(tmp_path)!r}), environment={{"CUMCP_ALLOWLIST": "notepad.exe"}},
     ),
     policy=PolicyConfig(),
@@ -1190,7 +1361,7 @@ except RuntimeError:
 selected={provider_module!r}
 other="computer_use_agent.providers.anthropic" if selected.endswith("openai") else "computer_use_agent.providers.openai"
 raise SystemExit(1 if other in sys.modules else 0)
-'''
+"""
     environment = dict(os.environ)
     environment["LOCALAPPDATA"] = str(tmp_path)
 

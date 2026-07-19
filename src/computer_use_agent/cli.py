@@ -1,4 +1,5 @@
 """CLI foundation for the planned local Agent Host."""
+
 from __future__ import annotations
 
 import argparse
@@ -58,7 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     config = commands.add_parser("config", help="Inspect Agent Host configuration.")
     config_commands = config.add_subparsers(dest="config_command", required=True)
-    validate = config_commands.add_parser("validate", help="Validate TOML without starting anything.")
+    validate = config_commands.add_parser(
+        "validate", help="Validate TOML without starting anything."
+    )
     validate.add_argument("--config", required=True, type=Path)
 
     run = commands.add_parser("run", help="Run the bounded Agent workflow.")
@@ -146,9 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     campaign = commands.add_parser(
         "campaign", help="Run one bounded fixed campaign control operation."
     )
-    campaign_commands = campaign.add_subparsers(
-        dest="campaign_command", required=True
-    )
+    campaign_commands = campaign.add_subparsers(dest="campaign_command", required=True)
     campaign_resume = campaign_commands.add_parser(
         "resume-synthetic",
         help="Resume only the fixed finished synthetic campaign from durable state.",
@@ -170,6 +171,20 @@ def build_parser() -> argparse.ArgumentParser:
     campaign_prepare.add_argument("--config", required=True, type=Path)
     campaign_prepare.add_argument("--campaign-id", required=True)
     campaign_prepare.add_argument("--run-id", required=True)
+    campaign_prepare_boss = campaign_commands.add_parser(
+        "prepare-boss-discovery",
+        help="Prepare only the fixed read-only BOSS discovery campaign.",
+    )
+    campaign_prepare_boss.add_argument("--config", required=True, type=Path)
+    campaign_prepare_boss.add_argument("--campaign-id", required=True)
+    campaign_prepare_boss.add_argument("--run-id", required=True)
+    campaign_observe_boss = campaign_commands.add_parser(
+        "observe-boss-page",
+        help="Observe one foreground BOSS discovery page through the reviewed MCP path.",
+    )
+    campaign_observe_boss.add_argument("--config", required=True, type=Path)
+    campaign_observe_boss.add_argument("--campaign-id", required=True)
+    campaign_observe_boss.add_argument("--run-id", required=True)
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -404,9 +419,7 @@ def _run_planned_observation(path: Path, task: str) -> int:
 
 
 def _resume_live(path: Path, run_id: str, task: str) -> int:
-    return asyncio.run(
-        _run_live_async(path, task, run_id=run_id, resume_initial=True)
-    )
+    return asyncio.run(_run_live_async(path, task, run_id=run_id, resume_initial=True))
 
 
 def _campaign_now() -> datetime:
@@ -513,9 +526,65 @@ def _run_claimed_synthetic_campaign(
     campaign_id: str,
     run_id: str,
 ) -> int:
-    return asyncio.run(
-        _run_claimed_synthetic_campaign_async(path, campaign_id, run_id)
+    return asyncio.run(_run_claimed_synthetic_campaign_async(path, campaign_id, run_id))
+
+
+def _prepare_boss_discovery_campaign(path: Path, campaign_id: str, run_id: str) -> int:
+    from .boss_campaign_observation_runtime import prepare_boss_discovery_campaign
+
+    config = load_agent_config(path)
+    outcome = prepare_boss_discovery_campaign(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
     )
+    _print_json(
+        {
+            "campaign_id": outcome.campaign_id,
+            "campaign_kind": outcome.campaign_kind,
+            "discovered_count": 0,
+            "run_id": outcome.run_id,
+        }
+    )
+    return 0
+
+
+async def _observe_boss_discovery_page_async(path: Path, campaign_id: str, run_id: str) -> int:
+    from .approvals import ReadOnlyApprovalPort
+    from .boss_campaign_observation_runtime import execute_boss_discovery_page
+    from .desktop_mcp import StdioDesktopMCP
+
+    config = load_agent_config(path)
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=_ForbiddenCampaignProvider(),
+            desktop=StdioDesktopMCP(config.mcp),
+            approvals=ReadOnlyApprovalPort(),
+        ),
+    )
+    outcome = await execute_boss_discovery_page(
+        runner,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_id": campaign_id,
+            "discovered_count": outcome.discovery.discovered_count,
+            "duplicate_count": outcome.discovery.duplicate_count,
+            "new_item_count": len(outcome.discovery.new_item_keys),
+            "run_id": outcome.state.run_id,
+            "tool_calls": outcome.state.budgets.tool_calls_used,
+        }
+    )
+    return 0
+
+
+def _observe_boss_discovery_page(path: Path, campaign_id: str, run_id: str) -> int:
+    return asyncio.run(_observe_boss_discovery_page_async(path, campaign_id, run_id))
 
 
 def _cancel(path: Path, run_id: str) -> int:
@@ -642,7 +711,11 @@ async def _recover_live_async(
             envelope = read_continuation(config.state_dir, run_id)
             plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
             blocked_call_count: int | None = None
-            if stateless_replay and not step_outputs and plan.decision.action is not ReconstructionAction.CONTINUE_PROVIDER:
+            if (
+                stateless_replay
+                and not step_outputs
+                and plan.decision.action is not ReconstructionAction.CONTINUE_PROVIDER
+            ):
                 raise RunnerError("STATELESS_REPLAY_NOT_APPLICABLE")
             if plan.decision.action in {
                 ReconstructionAction.DISPATCH_OBSERVATION,
@@ -700,9 +773,7 @@ async def _recover_live_async(
                     {
                         "action": plan.decision.action.value,
                         "reason": plan.decision.reason,
-                        "checkpoint_sequence": completed_checkpoint[
-                            "checkpoint_sequence"
-                        ],
+                        "checkpoint_sequence": completed_checkpoint["checkpoint_sequence"],
                         "next_step": "stop",
                         "text": text,
                         "tool_call_count": 0,
@@ -712,17 +783,13 @@ async def _recover_live_async(
             if plan.decision.action is ReconstructionAction.FINALIZE_BLOCKED:
                 sequence = envelope.payload["checkpoint_sequence"]
                 assert isinstance(sequence, int) and not isinstance(sequence, bool)
-                blocked_count, completed_checkpoint = (
-                    persistence.finalize_blocked_action(sequence)
-                )
+                blocked_count, completed_checkpoint = persistence.finalize_blocked_action(sequence)
                 terminal_failure = True
                 step_outputs.append(
                     {
                         "action": plan.decision.action.value,
                         "reason": plan.decision.reason,
-                        "checkpoint_sequence": completed_checkpoint[
-                            "checkpoint_sequence"
-                        ],
+                        "checkpoint_sequence": completed_checkpoint["checkpoint_sequence"],
                         "next_step": "stop",
                         "failure_code": "RECOVERED_ACTION_REQUESTED",
                         "tool_call_count": blocked_count,
@@ -744,21 +811,17 @@ async def _recover_live_async(
             boundary = completed.payload["boundary"]
             assert isinstance(boundary, dict)
             completed_sequence = completed.payload["checkpoint_sequence"]
-            assert isinstance(completed_sequence, int) and not isinstance(
-                completed_sequence, bool
-            )
+            assert isinstance(completed_sequence, int) and not isinstance(completed_sequence, bool)
             if step.model_turn is not None and not step.model_turn.tool_calls:
-                text, completed_checkpoint = persistence.finalize_success(
-                    completed_sequence
-                )
+                text, completed_checkpoint = persistence.finalize_success(completed_sequence)
                 checkpoint_sequence = completed_checkpoint["checkpoint_sequence"]
             elif (
                 step.model_turn is not None
                 and step.model_turn.tool_calls
                 and boundary.get("effect") == "side_effect"
             ):
-                blocked_call_count, completed_checkpoint = (
-                    persistence.finalize_blocked_action(completed_sequence)
+                blocked_call_count, completed_checkpoint = persistence.finalize_blocked_action(
+                    completed_sequence
                 )
                 terminal_failure = True
                 text = None
@@ -867,9 +930,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "plan" and args.plan_command == "run":
             return _run_planned_observation(args.config, args.task)
         if args.command == "eval":
-            return _run_eval(
-                args.cases, args.report, args.manifest, args.write_manifest
-            )
+            return _run_eval(args.cases, args.report, args.manifest, args.write_manifest)
         if args.command == "release" and args.release_command == "preflight":
             return _run_release_preflight(args.root, args.artifacts, args.report)
         if args.command == "trace":
@@ -892,29 +953,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "resume":
             return _resume_live(args.config, args.run_id, args.task)
-        if (
-            args.command == "campaign"
-            and args.campaign_command == "resume-synthetic"
-        ):
+        if args.command == "campaign" and args.campaign_command == "resume-synthetic":
             return _resume_synthetic_campaign(
                 args.config,
                 args.campaign_id,
                 args.run_id,
             )
-        if (
-            args.command == "campaign"
-            and args.campaign_command == "run-claimed-synthetic"
-        ):
+        if args.command == "campaign" and args.campaign_command == "run-claimed-synthetic":
             return _run_claimed_synthetic_campaign(
                 args.config,
                 args.campaign_id,
                 args.run_id,
             )
-        if (
-            args.command == "campaign"
-            and args.campaign_command == "prepare-synthetic"
-        ):
+        if args.command == "campaign" and args.campaign_command == "prepare-synthetic":
             return _prepare_synthetic_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "prepare-boss-discovery":
+            return _prepare_boss_discovery_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "observe-boss-page":
+            return _observe_boss_discovery_page(
                 args.config,
                 args.campaign_id,
                 args.run_id,

@@ -54,6 +54,12 @@ class BossDiscoveryOutcome:
     discovered_count: int
 
 
+@dataclass(frozen=True)
+class BossDiscoveryPreflight:
+    campaign_id: str
+    discovered_count: int
+
+
 def _contract_digest(label: str, material: dict[str, object]) -> str:
     encoded = json.dumps(
         {"label": label, **material},
@@ -176,19 +182,14 @@ def create_boss_discovery_campaign(
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_CREATE_FAILED") from exc
 
 
-def record_boss_snapshot_discoveries(
-    store: CampaignStore,
-    *,
-    campaign_id: str,
-    snapshot_text: str,
-    observed_at: str,
-) -> BossDiscoveryOutcome:
-    """Idempotently append new identities while the campaign is discovery-only."""
+def inspect_boss_discovery_campaign(
+    store: CampaignStore, *, campaign_id: str, observed_at: str
+) -> BossDiscoveryPreflight:
+    """Validate discovery-only durable state without dispatching or writing."""
 
     if not isinstance(store, CampaignStore) or not store.lock.acquired:
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_LOCK_REQUIRED")
     timestamp = _require_timestamp(observed_at)
-    identities = parse_boss_job_identities(snapshot_text)
     try:
         manifest = store.read_manifest(campaign_id)
         projection = store.read_ledger(campaign_id)
@@ -209,11 +210,31 @@ def record_boss_snapshot_discoveries(
         )
     ):
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_STATE_INVALID")
+    return BossDiscoveryPreflight(campaign_id, projection.discovered_count)
+
+
+def record_boss_snapshot_discoveries(
+    store: CampaignStore,
+    *,
+    campaign_id: str,
+    snapshot_text: str,
+    observed_at: str,
+) -> BossDiscoveryOutcome:
+    """Idempotently append new identities while the campaign is discovery-only."""
+
+    if not isinstance(store, CampaignStore) or not store.lock.acquired:
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_LOCK_REQUIRED")
+    timestamp = _require_timestamp(observed_at)
+    identities = parse_boss_job_identities(snapshot_text)
+    preflight = inspect_boss_discovery_campaign(
+        store, campaign_id=campaign_id, observed_at=timestamp
+    )
+    projection = store.read_ledger(campaign_id)
 
     new_identities = tuple(
         identity for identity in identities if identity.item_key not in projection.items
     )
-    if projection.discovered_count + len(new_identities) > MAX_BOSS_CAMPAIGN_ITEMS:
+    if preflight.discovered_count + len(new_identities) > MAX_BOSS_CAMPAIGN_ITEMS:
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_CAMPAIGN_LIMIT")
     next_ordinal = 1 + max(
         (item.ordinal for item in projection.items.values()),
@@ -251,10 +272,12 @@ __all__ = [
     "MAX_BOSS_SNAPSHOT_LINES",
     "BossCampaignDiscoveryError",
     "BossDiscoveryOutcome",
+    "BossDiscoveryPreflight",
     "BossJobIdentity",
     "boss_discovery_policy_digest",
     "boss_discovery_schema_digest",
     "create_boss_discovery_campaign",
+    "inspect_boss_discovery_campaign",
     "parse_boss_job_identities",
     "record_boss_snapshot_discoveries",
 ]
