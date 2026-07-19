@@ -286,15 +286,18 @@ selection and a general worker remain unavailable.
 `boss_campaign_discovery.py` adds a separate non-executable application
 preparation boundary. Under the existing run lock it can create only the fixed
 `boss_saved_job_read_only` manifest and append stable public job keys parsed
-from bounded, complete BOSS UIA link values carrying the reviewed source marker.
+from bounded, complete BOSS UIA link values on a same-snapshot page carrying
+the reviewed source marker.
 It drops URL query data and all page content, makes repeated page ingestion
 idempotent, and refuses writes after any batch transition. It has no desktop,
 provider, navigation, item-processing, or side-effect port. A separate fixed
 runtime now sends one foreground `ui_snapshot` through the same Runner/project
 MCP boundary used elsewhere and passes only a correlated successful result to
 the parser. The `prepare-boss-discovery` and `observe-boss-page` campaign
-commands accept no task, URL, page, scope, or item selector. This is offline
-fake-MCP verified; the live page and 100-item application gates remain unfilled.
+commands accept no task, URL, page, scope, or item selector. The path has
+[one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) with
+seven identities; page progression and the 100-item application gate remain
+unfilled.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final

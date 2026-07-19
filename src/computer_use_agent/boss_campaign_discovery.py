@@ -1,9 +1,10 @@
 """Bounded BOSS saved-job identity discovery for a future read-only campaign.
 
 The module accepts only bounded UIA text already returned by the reviewed
-desktop MCP path.  It extracts public BOSS job-detail identifiers, discards URL
-query data, and persists only stable item keys in the existing campaign ledger.
-It does not navigate, call MCP, start a worker, or grant action authority.
+desktop MCP path. It requires a same-page BOSS interested-jobs source marker,
+extracts public BOSS job-detail identifiers, discards URL query data, and
+persists only stable item keys in the existing campaign ledger. It does not
+navigate, call MCP, start a worker, or grant action authority.
 """
 
 from __future__ import annotations
@@ -34,6 +35,8 @@ MAX_BOSS_CAMPAIGN_ITEMS = 200
 _BOSS_HOST = "www.zhipin.com"
 _VALUE_URL = re.compile(r'\| value="(https://[^"<>]+)"\Z')
 _JOB_PATH = re.compile(r"/job_detail/([A-Za-z0-9_-]{8,128})\.html\Z")
+_SOURCE_MARKER = re.compile(rf"{BOSS_SOURCE_MARKER}(?:_[A-Fa-f0-9]{{6,32}})?\Z")
+_LINK_ROLES = ("link", "hyperlink")
 
 
 class BossCampaignDiscoveryError(RuntimeError):
@@ -72,11 +75,13 @@ def _contract_digest(label: str, material: dict[str, object]) -> str:
 
 def boss_discovery_policy_digest() -> str:
     return _contract_digest(
-        "boss-discovery-policy-v1",
+        "boss-discovery-policy-v2",
         {
             "effect": "observation_only",
             "host": _BOSS_HOST,
             "source_marker": BOSS_SOURCE_MARKER,
+            "source_marker_scope": "same_snapshot_boss_link",
+            "link_roles": list(_LINK_ROLES),
             "max_snapshot_chars": MAX_BOSS_SNAPSHOT_CHARS,
             "max_snapshot_lines": MAX_BOSS_SNAPSHOT_LINES,
             "max_identities_per_snapshot": MAX_BOSS_IDENTITIES_PER_SNAPSHOT,
@@ -118,10 +123,9 @@ def parse_boss_job_identities(snapshot_text: str) -> tuple[BossJobIdentity, ...]
     if any(line.startswith("# …") or line.startswith("# incomplete:") for line in lines):
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_SNAPSHOT_INCOMPLETE")
 
-    identities: list[BossJobIdentity] = []
-    seen: set[str] = set()
+    boss_links = []
     for line in lines:
-        if not line.startswith("ref_") or ' | link "' not in line:
+        if not line.startswith("ref_") or not any(f' | {role} "' in line for role in _LINK_ROLES):
             continue
         value_match = _VALUE_URL.search(line)
         if value_match is None:
@@ -136,16 +140,26 @@ def parse_boss_job_identities(snapshot_text: str) -> tuple[BossJobIdentity, ...]
             password = parsed.password
         except ValueError:
             continue
-        match = _JOB_PATH.fullmatch(parsed.path)
         if (
             parsed.scheme != "https"
             or hostname != _BOSS_HOST
             or port not in {None, 443}
             or username is not None
             or password is not None
-            or match is None
-            or BOSS_SOURCE_MARKER not in marker
         ):
+            continue
+        boss_links.append((parsed, marker))
+
+    if not any(
+        _SOURCE_MARKER.fullmatch(value) for _parsed, markers in boss_links for value in markers
+    ):
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_NO_IDENTITIES")
+
+    identities: list[BossJobIdentity] = []
+    seen: set[str] = set()
+    for parsed, _marker in boss_links:
+        match = _JOB_PATH.fullmatch(parsed.path)
+        if match is None:
             continue
         public_id = match.group(1)
         if public_id in seen:

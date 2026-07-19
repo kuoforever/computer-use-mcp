@@ -83,8 +83,9 @@ result must contain bounded complete link values on the reviewed BOSS
 interested-jobs source; URL query data is stripped, stable public job keys are
 persisted idempotently, and discovery is refused after batch execution begins.
 The commands accept no task, URL, page, scope, item selector, provider, or
-navigation authority. This is offline fake-MCP verified and does not constitute
-application evidence. Next retain one on-device page result, then add reviewed
+navigation authority. The fixed path now has
+[one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) with
+seven stable public job keys and no provider or side effect. Next add reviewed
 page progression and run the first 100-item read-only BOSS campaign across
 multiple provider contexts and at least one forced restart. Retain
 committed-item, token, retry, recovery, and takeover evidence.

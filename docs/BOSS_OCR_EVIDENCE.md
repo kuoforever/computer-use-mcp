@@ -88,7 +88,9 @@ campaign acceptance.
 An internal fixed runtime now validates and records durable public BOSS job keys
 from one bounded complete foreground `ui_snapshot` through Runner/project MCP
 while dropping URL query data. It is offline fake-MCP verified and adds no live
-application evidence. The next gate is one retained on-device page result,
-followed by reviewed page progression and the bounded multi-item read-only BOSS
-campaign with restart evidence. Google Docs and WeChat remain later Wave 1
+application evidence. A separate
+[one-page campaign discovery result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) now
+closes the next fixed-runtime gate. Reviewed page progression and the bounded
+multi-item read-only BOSS campaign with restart evidence remain. Google Docs
+and WeChat remain later Wave 1
 cases; action authority is unchanged.
