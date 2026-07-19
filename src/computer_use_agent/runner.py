@@ -16,6 +16,7 @@ from .grounding import GroundingError, GroundingState
 from .executor_final_store import FinalResponseStore
 from .plan_store import TaskPlanStore
 from .policy import HostPolicy, PolicyDisposition
+from .privacy import PrivacyError, PrivacyImageRedactionPort, PrivacySession
 from .run_lock import RunLock
 from .tool_registry import (
     REVIEWED_TOOLS,
@@ -95,6 +96,7 @@ class RunnerPorts:
     provider: ModelProviderPort
     desktop: DesktopMCPPort
     approvals: ApprovalPort
+    image_redactor: PrivacyImageRedactionPort | None = None
 
 
 @dataclass
@@ -325,6 +327,7 @@ class AgentRunner:
         grounding: GroundingState,
         recorder: RunRecorder,
         continuation: RuntimeContinuationRecorder | None,
+        privacy: PrivacySession | None = None,
     ) -> _CallBoundaryOutcome:
         """Run one fresh requested call through every ordinary host boundary.
 
@@ -337,7 +340,17 @@ class AgentRunner:
         if self.ports is None:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
         try:
+            if privacy is not None:
+                privacy.validate_tool_call(call)
+                if (
+                    privacy.config.enabled
+                    and call.name == "screenshot"
+                    and self.ports.image_redactor is None
+                ):
+                    raise PrivacyError("PRIVACY_IMAGE_REDACTOR_UNAVAILABLE")
             state = self._record_call(state, call)
+        except PrivacyError as exc:
+            raise RunFailure(str(exc), state) from exc
         except RunnerBudgetError as exc:
             raise RunFailure(str(exc), state) from exc
         except ToolValidationError as exc:
@@ -445,10 +458,24 @@ class AgentRunner:
                 state, checkpoint_sequence=recorder.checkpoint_sequence
             )
         try:
-            result = await self.ports.desktop.call_tool(authorized_call)
+            dispatch_call = (
+                authorized_call
+                if privacy is None
+                else privacy.resolve_local_call(authorized_call)
+            )
+            result = await self.ports.desktop.call_tool(dispatch_call)
+            validate_tool_result(dispatch_call, result)
+            if privacy is not None:
+                result = privacy.protect_result(result)
+                if privacy.config.enabled and result.images:
+                    if self.ports.image_redactor is None:
+                        raise PrivacyError("PRIVACY_IMAGE_REDACTOR_UNAVAILABLE")
+                    result = await self.ports.image_redactor.redact(result, privacy)
             validate_tool_result(authorized_call, result)
         except asyncio.CancelledError:
             raise
+        except PrivacyError as exc:
+            raise RunFailure(str(exc), state) from exc
         except Exception as exc:
             raise RunFailure("UNKNOWN_OUTCOME", state) from exc
         state = self._record_result(
@@ -505,10 +532,36 @@ class AgentRunner:
                 raise RunnerError("MEMORY_CONTEXT_LIMIT_EXCEEDED")
         if resume_initial and run_id is None:
             raise ValueError("resume_initial requires run_id")
+        resolved_run_id = run_id or uuid4().hex
+        privacy = (
+            PrivacySession(self.config.privacy, resolved_run_id)
+            if self.config.privacy.enabled
+            else None
+        )
+        protected_task = task
+        if privacy is not None:
+            try:
+                protected_task = privacy.protect_task(task)
+                memories = privacy.protect_memories(memories)
+            except PrivacyError as exc:
+                raise RunnerError(str(exc)) from exc
         prepared = self.prepare(
-            task, run_id=run_id, recover_stale_lock=resume_initial
+            protected_task,
+            run_id=resolved_run_id,
+            recover_stale_lock=resume_initial,
         )
         state = prepared.state
+        provider_tools = tuple(
+            tool
+            for tool in REVIEWED_TOOLS
+            if not self.config.privacy.enabled
+            or tool.name != "screenshot"
+            or (
+                self.config.privacy.image_redaction
+                and self.ports is not None
+                and self.ports.image_redactor is not None
+            )
+        )
         grounding = GroundingState()
         recorder = RunRecorder(self.config.state_dir, state.run_id)
         run_started_ns = perf_counter_ns()
@@ -570,11 +623,18 @@ class AgentRunner:
                     turn_id=turn_id,
                     task=state.task,
                     ledger=provider_ledger,
-                    tools=REVIEWED_TOOLS,
+                    tools=provider_tools,
                     memories=memories,
                 )
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
+                if privacy is not None:
+                    try:
+                        privacy.validate_model_text(turn.text)
+                        for call in turn.tool_calls:
+                            privacy.validate_tool_call(call)
+                    except PrivacyError as exc:
+                        raise RunFailure(str(exc), state) from exc
                 state = self._consume_model_turn(
                     state,
                     turn,
@@ -596,17 +656,23 @@ class AgentRunner:
                 if not turn.tool_calls:
                     if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
                         raise RunFailure("VERIFICATION_REQUIRED", state)
+                    final_text = turn.text
+                    if privacy is not None:
+                        try:
+                            final_text = privacy.restore_text(turn.text)
+                        except PrivacyError as exc:
+                            raise RunFailure(str(exc), state) from exc
                     await self.ports.desktop.close()
                     desktop_closed = True
                     recorder.record(
                         state,
                         RunPhase.SUCCESS,
-                        final_text_length=len(turn.text),
+                        final_text_length=len(final_text),
                         run_duration_ms=max(
                             0, (perf_counter_ns() - run_started_ns) // 1_000_000
                         ),
                     )
-                    return RunOutcome(text=turn.text, state=state)
+                    return RunOutcome(text=final_text, state=state)
 
                 for call in turn.tool_calls:
                     outcome = await self._execute_requested_call_boundary(
@@ -615,6 +681,7 @@ class AgentRunner:
                         grounding=grounding,
                         recorder=recorder,
                         continuation=continuation,
+                        privacy=privacy,
                     )
                     state = outcome.state
                     grounding = outcome.grounding

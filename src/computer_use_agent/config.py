@@ -31,6 +31,9 @@ class ConfigError(ValueError):
 READ_ONLY_MODE = "read_only"
 APPROVED_ACTIONS_MODE = "approved_actions"
 SUPPORTED_PROVIDERS = frozenset({"openai", "anthropic"})
+SUPPORTED_PRIVACY_DETECTORS = frozenset(
+    {"email", "phone", "ipv4", "cn_id", "bank_card", "secret"}
+)
 MINIMUM_HUMAN_IDLE_SECONDS = 2.5
 
 # These are the only server configuration inputs the host is willing to pass
@@ -150,6 +153,15 @@ def _read_positive_int(table: Mapping[str, object], key: str, section: str) -> i
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigError(f"[{section}].{key} must be a positive integer")
     return value
+
+
+def _read_string_array(
+    table: Mapping[str, object], key: str, section: str, default: tuple[str, ...]
+) -> tuple[str, ...]:
+    value = table.get(key, list(default))
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ConfigError(f"[{section}].{key} must be an array of strings")
+    return tuple(value)
 
 
 @dataclass(frozen=True)
@@ -293,6 +305,51 @@ class ContinuationConfig:
 
 
 @dataclass(frozen=True)
+class PrivacyConfig:
+    """Disabled-by-default local privacy package configuration."""
+
+    enabled: bool = False
+    detectors: tuple[str, ...] = (
+        "email",
+        "phone",
+        "ipv4",
+        "cn_id",
+        "bank_card",
+        "secret",
+    )
+    terms: tuple[str, ...] = ()
+    image_redaction: bool = True
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise ConfigError("privacy enabled must be boolean")
+        if not isinstance(self.image_redaction, bool):
+            raise ConfigError("privacy image_redaction must be boolean")
+        if not isinstance(self.detectors, tuple) or not all(
+            isinstance(item, str) for item in self.detectors
+        ):
+            raise ConfigError("privacy detectors must be a tuple of strings")
+        unknown = sorted(set(self.detectors) - SUPPORTED_PRIVACY_DETECTORS)
+        if unknown:
+            raise ConfigError(f"unknown privacy detector(s): {', '.join(unknown)}")
+        if len(set(self.detectors)) != len(self.detectors):
+            raise ConfigError("privacy detectors must not contain duplicates")
+        if not isinstance(self.terms, tuple) or not all(
+            isinstance(item, str) for item in self.terms
+        ):
+            raise ConfigError("privacy terms must be a tuple of strings")
+        if len(self.terms) > 64 or len(set(self.terms)) != len(self.terms):
+            raise ConfigError("privacy terms must be unique and contain at most 64 values")
+        if any(
+            not 2 <= len(item) <= 256
+            or any(ord(char) < 32 for char in item)
+            or "[[PRIVATE:" in item
+            for item in self.terms
+        ):
+            raise ConfigError("privacy terms must be bounded printable text outside token syntax")
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Complete Phase-0 configuration model; parsing performs no desktop I/O."""
 
@@ -302,6 +359,7 @@ class AgentConfig:
     mcp: MCPLaunchConfig
     policy: PolicyConfig
     continuation: ContinuationConfig = field(default_factory=ContinuationConfig)
+    privacy: PrivacyConfig = field(default_factory=PrivacyConfig)
     _application_state_dir: Path = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -316,6 +374,12 @@ class AgentConfig:
             raise ConfigError("policy_version must be a non-empty string")
         if not isinstance(self.continuation, ContinuationConfig):
             raise ConfigError("continuation must be a ContinuationConfig")
+        if not isinstance(self.privacy, PrivacyConfig):
+            raise ConfigError("privacy must be a PrivacyConfig")
+        if self.privacy.enabled and self.continuation.enabled:
+            raise ConfigError(
+                "ephemeral privacy vault cannot be combined with continuation"
+            )
 
     @property
     def application_state_dir(self) -> Path:
@@ -338,13 +402,18 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     config_path = Path(path)
     with config_path.open("rb") as file:
         document = tomllib.load(file)
-    _reject_unknown(document, {"agent", "provider", "mcp", "policy", "continuation"}, "root")
+    _reject_unknown(
+        document,
+        {"agent", "provider", "mcp", "policy", "continuation", "privacy"},
+        "root",
+    )
 
     agent = _read_table(document, "agent", required=False)
     provider = _read_table(document, "provider", required=True)
     mcp = _read_table(document, "mcp", required=True)
     policy = _read_table(document, "policy", required=False)
     continuation = _read_table(document, "continuation", required=False)
+    privacy = _read_table(document, "privacy", required=False)
 
     _reject_unknown(agent, {"state_dir", "policy_version"}, "agent")
     _reject_unknown(
@@ -373,6 +442,11 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         "policy",
     )
     _reject_unknown(continuation, {"enabled", "ttl_seconds"}, "continuation")
+    _reject_unknown(
+        privacy,
+        {"enabled", "detectors", "terms", "image_redaction"},
+        "privacy",
+    )
 
     state_dir_value = agent.get("state_dir")
     state_dir = default_state_dir() if state_dir_value is None else _require_absolute_path(
@@ -444,6 +518,23 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             continuation, "ttl_seconds", "continuation", 900
         ),
     )
+    privacy_enabled = privacy.get("enabled", False)
+    if not isinstance(privacy_enabled, bool):
+        raise ConfigError("[privacy].enabled must be boolean")
+    image_redaction = privacy.get("image_redaction", True)
+    if not isinstance(image_redaction, bool):
+        raise ConfigError("[privacy].image_redaction must be boolean")
+    privacy_config = PrivacyConfig(
+        enabled=privacy_enabled,
+        detectors=_read_string_array(
+            privacy,
+            "detectors",
+            "privacy",
+            ("email", "phone", "ipv4", "cn_id", "bank_card", "secret"),
+        ),
+        terms=_read_string_array(privacy, "terms", "privacy", ()),
+        image_redaction=image_redaction,
+    )
     return AgentConfig(
         state_dir=state_dir,
         policy_version=policy_version,
@@ -451,4 +542,5 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         mcp=launch_config,
         policy=policy_config,
         continuation=continuation_config,
+        privacy=privacy_config,
     )

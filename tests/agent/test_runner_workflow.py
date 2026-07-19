@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import inspect
 import json
 from collections import deque
 from pathlib import Path
 
 import pytest
+from PIL import Image as PILImage
 
 from computer_use_agent import continuation as continuation_module
 from computer_use_agent.config import (
@@ -14,6 +16,7 @@ from computer_use_agent.config import (
     ContinuationConfig,
     MCPLaunchConfig,
     PolicyConfig,
+    PrivacyConfig,
     ProviderConfig,
 )
 from computer_use_agent.continuation import (
@@ -23,12 +26,18 @@ from computer_use_agent.continuation import (
 )
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.runner import AgentRunner, RunFailure, RunnerError, RunnerPorts
+from computer_use_agent.privacy import (
+    LocalPrivacyImageRedactor,
+    RecognizedImageText,
+    TOKEN_PATTERN,
+)
 from computer_use_agent.trace import read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
     LedgerEventKind,
     MemoryContextItem,
+    ImageContent,
     ModelUsage,
     ModelTurn,
     ToolCall,
@@ -47,6 +56,7 @@ def _config(
     max_context_events: int = 128,
     max_input_tokens: int = 1_000_000,
     continuation_enabled: bool = False,
+    privacy_enabled: bool = False,
 ) -> AgentConfig:
     local_app_data = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
@@ -67,6 +77,7 @@ def _config(
             max_input_tokens=max_input_tokens,
         ),
         continuation=ContinuationConfig(enabled=continuation_enabled),
+        privacy=PrivacyConfig(enabled=privacy_enabled),
     )
 
 
@@ -85,7 +96,7 @@ def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> N
     runner_source = inspect.getsource(AgentRunner)
     boundary_source = inspect.getsource(AgentRunner._execute_requested_call_boundary)
 
-    dispatch = "await self.ports.desktop.call_tool(authorized_call)"
+    dispatch = "await self.ports.desktop.call_tool(dispatch_call)"
     assert runner_source.count(dispatch) == 1
     assert boundary_source.count(dispatch) == 1
     assert "self.policy.disposition(spec)" in boundary_source
@@ -93,6 +104,7 @@ def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> N
     assert "self._consume_side_effect(state)" in boundary_source
     assert "request_approval(request)" in boundary_source
     assert "continuation.dispatch_tool(" in boundary_source
+    assert "privacy.resolve_local_call(authorized_call)" in boundary_source
     assert "validate_tool_result(authorized_call, result)" in boundary_source
     assert "RunPhase.VERIFYING" in boundary_source
 
@@ -220,6 +232,174 @@ def test_read_only_observe_then_answer_is_bounded_and_canonical(
     assert len(record["events"]) == len(outcome.state.event_log)
     lock_path = _config(tmp_path, monkeypatch).application_state_dir / "active-run.lock"
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
+
+
+def test_runner_pseudonymizes_provider_and_ledger_text_then_restores_local_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_privacy"
+    identity = CallIdentity(run_id, "turn_1", "call_1")
+
+    class PrivacyAwareProvider:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        async def create_turn(self, **kwargs: object) -> ModelTurn:
+            self.calls.append(dict(kwargs))
+            if len(self.calls) == 1:
+                task = kwargs["task"]
+                assert isinstance(task, str)
+                match = TOKEN_PATTERN.search(task)
+                assert match is not None
+                return ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    tool_calls=(
+                        ToolCall(identity, "find", {"query": match.group(0)}),
+                    ),
+                )
+            ledger = kwargs["ledger"]
+            result_event = next(
+                event
+                for event in reversed(ledger)  # type: ignore[arg-type]
+                if event.kind is LedgerEventKind.TOOL_RESULT
+            )
+            protected = result_event.tool_result.sanitized_text
+            assert "alice@example.com" not in protected
+            token = TOKEN_PATTERN.search(protected)
+            assert token is not None
+            return ModelTurn(
+                run_id,
+                "turn_2",
+                "response_2",
+                f"Found {token.group(0)}",
+            )
+
+    provider = PrivacyAwareProvider()
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    identity=identity,
+                    tool_name="find",
+                    status=ToolResultStatus.SUCCESS,
+                    dispatch=DispatchCertainty.DISPATCHED,
+                    sanitized_text="Owner alice@example.com",
+                )
+            ]
+        )
+    )
+    config = _config(tmp_path, monkeypatch, privacy_enabled=True)
+
+    outcome = asyncio.run(
+        AgentRunner(
+            config,
+            RunnerPorts(
+                provider=provider,  # type: ignore[arg-type]
+                desktop=desktop,
+                approvals=FakeApprovalPort(),
+            ),
+        ).run("Find alice@example.com", run_id=run_id)
+    )
+
+    assert outcome.text == "Found alice@example.com"
+    assert "alice@example.com" not in outcome.state.task
+    assert all("alice@example.com" not in str(call["task"]) for call in provider.calls)
+    assert all(
+        tool.name != "screenshot"
+        for tool in provider.calls[0]["tools"]  # type: ignore[union-attr]
+    )
+    assert desktop.tool_calls[0].arguments["query"] == "alice@example.com"
+    stored_result = next(
+        event.tool_result
+        for event in outcome.state.event_log
+        if event.kind is LedgerEventKind.TOOL_RESULT
+    )
+    assert "alice@example.com" not in stored_result.sanitized_text
+
+
+def test_runner_redacts_screenshot_before_ledger_and_provider_visibility(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_image_privacy"
+    identity = CallIdentity(run_id, "turn_1", "call_image")
+    png = io.BytesIO()
+    PILImage.new("RGB", (220, 60), "white").save(png, format="PNG")
+    raw_image = ImageContent("image/png", png.getvalue(), 220, 60)
+
+    class ImageProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def create_turn(self, **kwargs: object) -> ModelTurn:
+            self.calls += 1
+            tools = kwargs["tools"]
+            assert any(tool.name == "screenshot" for tool in tools)  # type: ignore[union-attr]
+            if self.calls == 1:
+                return ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    tool_calls=(ToolCall(identity, "screenshot", {}),),
+                )
+            ledger = kwargs["ledger"]
+            result = next(
+                event.tool_result
+                for event in reversed(ledger)  # type: ignore[arg-type]
+                if event.kind is LedgerEventKind.TOOL_RESULT
+            )
+            assert result.images[0].data != raw_image.data
+            return ModelTurn(
+                run_id,
+                "turn_2",
+                "response_2",
+                "Found [EMAIL#1]",
+            )
+
+    class ImageRecognizer:
+        async def recognize(
+            self, image: ImageContent
+        ) -> tuple[RecognizedImageText, ...]:
+            assert image.data == raw_image.data
+            return (RecognizedImageText("alice@example.com", 20, 15, 140, 22),)
+
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    identity=identity,
+                    tool_name="screenshot",
+                    status=ToolResultStatus.SUCCESS,
+                    dispatch=DispatchCertainty.DISPATCHED,
+                    images=(raw_image,),
+                )
+            ]
+        )
+    )
+    config = _config(tmp_path, monkeypatch, privacy_enabled=True)
+
+    outcome = asyncio.run(
+        AgentRunner(
+            config,
+            RunnerPorts(
+                provider=ImageProvider(),  # type: ignore[arg-type]
+                desktop=desktop,
+                approvals=FakeApprovalPort(),
+                image_redactor=LocalPrivacyImageRedactor(ImageRecognizer()),
+            ),
+        ).run("Inspect the screen", run_id=run_id)
+    )
+
+    assert outcome.text == "Found alice@example.com"
+    stored = next(
+        event.tool_result
+        for event in outcome.state.event_log
+        if event.kind is LedgerEventKind.TOOL_RESULT
+    )
+    assert stored.images[0].data != raw_image.data
 
 
 def test_opt_in_runtime_writes_intent_before_provider_and_tool_dispatch(
