@@ -23,21 +23,21 @@ test was attempted and failed unless a linked evidence record says so.
 
 | Capability line | Designed | Implemented | Offline verified | Provider verified | Desktop verified | Application verified | Next gate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| MCP Server | `YES` | `YES` — eight-tool Windows stdio server | `YES` | `N/A` | `YES` — [the five-case Windows activation regression passed](E4_EVIDENCE.md) in the isolated VM | `PARTIAL` — [a bounded read-only BOSS home observation passed](BOSS_EVIDENCE.md), not an application acceptance pass | Add one bounded static-content source, then retain a separate interested-jobs result |
+| MCP Server | `YES` | `YES` — nine-tool Windows stdio server, including bounded OCR | `YES` | `N/A` | `YES` — [the five-case Windows activation regression passed](E4_EVIDENCE.md) in the isolated VM | `PARTIAL` — bounded BOSS [home](BOSS_EVIDENCE.md) and [interested-jobs OCR](BOSS_OCR_EVIDENCE.md) observations passed, not application acceptance | Add a bounded multi-item read-only BOSS campaign with restart evidence |
 | Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop, private signed/redacted Claude reasoning-block continuation, and locally approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs; Sonnet 5 compatibility is revalidated on the exact repair commit | `YES` — [both reviewed providers passed](E4_EVIDENCE.md) read-only and one approved action with post-action verification | `NO` | Proceed to bounded application evidence without widening action authority |
 | Planner / Executor | `YES` | `PARTIAL` — `plan run` composes one provider plan, 1-4 observations through the sole Runner boundary, and one tool-free final response; side effects remain unavailable | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) the exact bounded CLI path with reviewed model IDs | `NO` | `NO` | Retain isolated E4 evidence; any side-effect expansion remains a separate review |
 | Campaign | `YES` | `PARTIAL` — three fixed CLI commands prepare one exact synthetic claim, execute it through Runner handoff, and enter durable fresh-run resume | `YES` | `NO` | `YES` — [the exact on-device three-command synthetic path passed](SYNTHETIC_CAMPAIGN_EVIDENCE.md) | `NO` | Add the bounded read-only terminal-status projection and fake-host polling contract; no general worker |
-| Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, and bounded Agent image handling exist; document text, OCR, region, and delta sources do not | `PARTIAL` | `NO` | `PARTIAL` — BOSS probe proved useful UIA controls and missing static content | `NO` | Implement one bounded OCR or document-text vertical slice with source/cost evidence and no challenge bypass |
+| Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, bounded region OCR, and bounded Agent image handling exist; document text, standalone crop, and delta sources do not | `YES` — OCR limits, schema, redaction, timeout, and result projection are tested | `NO` | `YES` — [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) recovered a missing static tab and matched one job card to UIA | `PARTIAL` — one real page and card, not application acceptance | Exercise the same source ladder across bounded multi-item and restart cases |
 | Operator UI | `YES` | `PARTIAL` — console yes/deny approval exists; presence indicator, passive progress window, Decision Cards, and host completion notification bridge do not | `PARTIAL` — approval path has fake-port evidence; notification semantics are documentation only | `NO` | `NO` | `NO` | Implement the checkpoint-to-view-model reducer and isolated viewer smoke; the retained synthetic gate now permits fake-host terminal polling work |
 | Continual Learning | `YES` | `NO` — current explicit memory is not automatic learning | `NO` | `NO` | `NO` | `NO` | Deliver L0 normalized episode outcomes and complete cost vectors before candidate extraction or strategy routing |
 
 ## Verification snapshot
 
-The following read-only checks were run against this checkout on 2026-07-18:
+The following read-only checks were run against this checkout on 2026-07-19:
 
 ~~~text
-python -m pytest -q              890 passed, 5 skipped
-ruff check src tests scripts    PASS
+python -m pytest -q              903 passed, 5 skipped
+ruff check .                     PASS
 relative Markdown targets       PASS
 ~~~
 
@@ -55,12 +55,14 @@ or fills application or release gates. The separate
 ## Active priorities
 
 1. **Bounded application evidence:** the repaired `activate_window` path, both
-   reviewed providers, and [one bounded on-device BOSS home observation](BOSS_EVIDENCE.md)
-   have retained evidence. This closes the narrow post-repair P0 without
-   implying BOSS workflow acceptance or widening action authority.
-2. **Observation vertical slice:** the retained BOSS probes showed that static
-   browser content can be absent from the interactive UIA tree. Add one bounded
-   fallback and measure its total cost per verified result.
+   reviewed providers, the [BOSS home observation](BOSS_EVIDENCE.md), and the
+   separate [interested-jobs OCR result](BOSS_OCR_EVIDENCE.md) have retained
+   evidence. This remains narrower than BOSS campaign acceptance and does not
+   widen action authority.
+2. **Observation vertical slice:** [the retained OCR result](BOSS_OCR_EVIDENCE.md)
+   recovered a static BOSS tab omitted by UIA, used a fresh OCR target check,
+   entered the interested-jobs page, and measured one UIA/OCR card comparison.
+   Next reuse that ladder across bounded multi-item and restart cases.
 3. **Runtime connection:** the fixed campaign seam now reuses the Agent
    authority boundary through correlated `OBSERVED`, extracts only a bounded
    non-sensitive window count, commits its verified canonical digest, closes the

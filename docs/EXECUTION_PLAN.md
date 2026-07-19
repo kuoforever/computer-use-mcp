@@ -33,10 +33,12 @@ The isolated Windows activation matrix and all four reviewed provider cells
 have passed with [retained E4 evidence](E4_EVIDENCE.md). A subsequent
 [bounded on-device BOSS home observation](BOSS_EVIDENCE.md) activated the real
 Chrome target through the project stdio path and retained a bounded UIA result.
-This closes the narrow post-repair P0. It does not imply application
-acceptance, broader model compatibility, or release readiness. Continue with
-the bounded multi-source observation gate before retaining a separate
-interested-jobs result.
+The later [BOSS OCR result](BOSS_OCR_EVIDENCE.md) recovered a static tab missing
+from UIA and retained a separate interested-jobs observation. Together they
+close the narrow post-repair and observation vertical-slice gates. They do not
+imply application acceptance, broader model compatibility, or release
+readiness. Continue with a bounded multi-item read-only BOSS campaign and
+restart evidence.
 
 ### P1 - connect the long-running campaign runtime
 
