@@ -31,6 +31,7 @@ needed to reproduce a finding.
 | 2026-07-15 | `boss-chrome-01` | Codex desktop, local MCP, Chrome | Read-only BOSS interested-jobs probe and observation-cost check | Integration works; window reactivation defect reproduced |
 | 2026-07-18 | `boss-mcp-post-repair-01` | Agent bounded stdio bridge, project MCP, Chrome | Read-only post-repair BOSS home observation | Activation and bounded UIA observation passed; human-active gate stopped further navigation |
 | 2026-07-18 | `synthetic-campaign-device-01` | Fixed campaign CLI, Runner, project MCP | Three-command synthetic `list_windows` campaign | Commit, handoff, and fresh-run exhausted resume passed with zero provider calls |
+| 2026-07-19 | `boss-campaign-page-01` | Fixed campaign CLI, Runner, project MCP, Chrome | One-page read-only BOSS identity discovery | Seven stable identities retained; zero provider and side-effect calls |
 
 ## 2026-07-15: Chrome and BOSS live probe
 
@@ -132,6 +133,21 @@ run that returned `NO_ELIGIBLE_ITEMS`. The result retained two successful run
 checkpoints and redacted traces with one total tool call, zero failures, zero
 retries, zero provider calls, and zero tokens. See
 [Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).
+
+## 2026-07-19: one-page BOSS campaign discovery
+
+The first foreground attempt safely observed the wrong surface and retained no
+identity. A second attempt reached the intended signed-in BOSS page and exposed
+a real UIA contract mismatch: Chrome used `hyperlink`, and the bounded source
+marker was present on same-page company links rather than each job link. No
+campaign item was written by either failed run.
+
+After narrowing the parser to the observed role and same-snapshot BOSS source
+proof, a fresh fixed campaign dispatched one `ui_snapshot`, retained seven
+stable public job keys, and reached `SUCCESS` with zero provider calls, zero
+side effects, and zero retries. The repository retains no raw snapshot, title,
+role/company content, full URL, query value, screenshot, or credential. See
+[BOSS campaign discovery evidence](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md).
 
 ## Planned operator progress window
 

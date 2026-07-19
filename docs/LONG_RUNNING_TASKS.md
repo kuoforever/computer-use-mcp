@@ -239,10 +239,11 @@ read-only campaign.
 
 The first BOSS-specific internal boundary is now implemented in
 `boss_campaign_discovery.py`. It creates only the fixed
-`boss_saved_job_read_only` manifest and ingests bounded, complete UIA `link`
-values whose public job-detail URLs carry the reviewed
-`personal_interest_brand` source marker. Query fields, page text, company and
-role content, and full URLs are never persisted; only stable `boss:job:<id>`
+`boss_saved_job_read_only` manifest and ingests bounded, complete UIA `link` or
+`hyperlink` values. It requires a reviewed same-snapshot BOSS source marker and
+then accepts only public job-detail URLs from that same bounded snapshot. Query
+fields, page text, company and role content, and full URLs are never persisted;
+only stable `boss:job:<id>`
 keys enter the ledger. Repeated pages are idempotent, discovery stops before any
 batch transition, and wrong-host, injected, truncated, oversized, or drifted
 state fails closed. A fixed runtime now dispatches exactly one foreground
@@ -250,8 +251,9 @@ state fails closed. A fixed runtime now dispatches exactly one foreground
 correlated successful text into this identity boundary. `campaign
 prepare-boss-discovery` and `campaign observe-boss-page` expose that narrow
 seam without task, URL, page, scope, item, provider, or navigation inputs. The
-path is offline fake-MCP verified only; it still has no automatic activation,
-page progression, provider, extraction, commit, or restart execution path.
+path has [one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md)
+with seven identities; it still has no automatic activation, page progression,
+provider, extraction, commit, or restart execution path.
 
 
 A future worker must close the current run cleanly at a batch boundary, write
@@ -517,11 +519,12 @@ takeover are durable transitions, not informal chat instructions.
 9. **Implemented and offline verified:** fixed bounded BOSS public-job identity
    discovery into the existing ledger, with query-token removal and idempotent
    multi-page ingestion before batch execution.
-10. **Implemented and offline verified:** two fixed CLI commands create the BOSS
-    discovery manifest and run one foreground page observation through the sole
-    Runner/project-MCP path with the provider forbidden.
-11. **Next:** retain one on-device page result, then add reviewed page progression
-    and run the BOSS read-only 100-item evaluation.
+10. **Implemented and on-device verified for one page:** two fixed CLI commands
+    create the BOSS discovery manifest and run one foreground page observation
+    through the sole Runner/project-MCP path with the provider forbidden; seven
+    stable identities were retained without URL query data.
+11. **Next:** add reviewed page progression and run the BOSS read-only 100-item
+    evaluation with a forced restart.
 12. Run Google Docs 50-section and WeChat draft-only evaluations.
 13. Run the cross-application campaign with a fresh-session boundary.
 14. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.

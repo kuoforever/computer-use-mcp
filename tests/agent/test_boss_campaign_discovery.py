@@ -32,6 +32,19 @@ def _line(public_id: str, *, marker: str = "personal_interest_brand") -> str:
     )
 
 
+def _live_shape_snapshot(public_id: str) -> str:
+    return "\n".join(
+        [
+            'ref_1 | hyperlink "Company" | (1,2,3,4) | enabled '
+            '| value="https://www.zhipin.com/gongsi/example~~.html'
+            '?ka=personal_interest_brand_45171c7ac"',
+            f'ref_2 | hyperlink "Role" | (1,2,3,4) | enabled '
+            f'| value="https://www.zhipin.com/job_detail/{public_id}.html'
+            '?securityId=discard-me"',
+        ]
+    )
+
+
 def _store(tmp_path: Path) -> tuple[CampaignStore, RunLock]:
     lock = RunLock(tmp_path / "application")
     lock.acquire()
@@ -60,6 +73,29 @@ def test_parser_extracts_unique_public_ids_and_drops_query_data() -> None:
         "boss:job:publicjob002",
     ]
     assert all("securityId" not in identity.item_key for identity in identities)
+
+
+def test_parser_accepts_live_uia_role_and_page_level_source_marker() -> None:
+    identities = parse_boss_job_identities(_live_shape_snapshot("publicjob001"))
+
+    assert [identity.item_key for identity in identities] == ["boss:job:publicjob001"]
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "personal_interest_brand_not-hex",
+        "personal_interest_brand_12345",
+        "personal_interest_brand_0123456789abcdef0123456789abcdef0",
+    ],
+)
+def test_parser_rejects_unreviewed_page_marker_suffixes(marker: str) -> None:
+    snapshot = _live_shape_snapshot("publicjob001").replace(
+        "personal_interest_brand_45171c7ac", marker
+    )
+
+    with pytest.raises(BossCampaignDiscoveryError, match="^BOSS_DISCOVERY_NO_IDENTITIES$"):
+        parse_boss_job_identities(snapshot)
 
 
 def test_multi_page_discovery_is_idempotent_and_persists_only_item_keys(tmp_path: Path) -> None:
