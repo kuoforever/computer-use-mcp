@@ -237,6 +237,17 @@ observe, extract, verify, commit, finish, handoff, forced restart, and resume.
 Only after that slice retains evidence should the project connect the BOSS
 read-only campaign.
 
+The first BOSS-specific internal boundary is now implemented in
+`boss_campaign_discovery.py`. It creates only the fixed
+`boss_saved_job_read_only` manifest and ingests bounded, complete UIA `link`
+values whose public job-detail URLs carry the reviewed
+`personal_interest_brand` source marker. Query fields, page text, company and
+role content, and full URLs are never persisted; only stable `boss:job:<id>`
+keys enter the ledger. Repeated pages are idempotent, discovery stops before any
+batch transition, and wrong-host, injected, truncated, oversized, or drifted
+state fails closed. This remains offline identity preparation: it has no MCP,
+navigation, provider, CLI, extraction, commit, or restart path.
+
 
 A future worker must close the current run cleanly at a batch boundary, write
 `handoff.json`, and start a fresh provider context. A replacement session must
@@ -498,13 +509,17 @@ takeover are durable transitions, not informal chat instructions.
 8. **Implemented and offline verified:** bounded host status projection and
    fake-host polling decisions; ChatGPT/Claude mobile delivery remains outside
    the desktop MCP surface.
-9. **Next:** run the BOSS read-only 100-item evaluation.
-10. Run Google Docs 50-section and WeChat draft-only evaluations.
-11. Run the cross-application campaign with a fresh-session boundary.
-12. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-13. Only then consider resumable side-effect campaigns and higher-complexity
+9. **Implemented and offline verified:** fixed bounded BOSS public-job identity
+   discovery into the existing ledger, with query-token removal and idempotent
+   multi-page ingestion before batch execution.
+10. **Next:** connect that identity boundary to the project MCP observation path
+    and run the BOSS read-only 100-item evaluation.
+11. Run Google Docs 50-section and WeChat draft-only evaluations.
+12. Run the cross-application campaign with a fresh-session boundary.
+13. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+14. Only then consider resumable side-effect campaigns and higher-complexity
    remote-desktop or modal-tool workloads.
-14. Define object-scoped enterprise authority, data classification, transaction
-   reconciliation, SLA ownership, and human takeover before Wave 4.
-15. Run the synthetic read-only IT incident campaign, then add approved ticket
+15. Define object-scoped enterprise authority, data classification, transaction
+    reconciliation, SLA ownership, and human takeover before Wave 4.
+16. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

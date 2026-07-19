@@ -283,6 +283,15 @@ resume-synthetic`. Preparation creates only the exact fixed manifest,
 discovery record, heartbeat, single-item batch, and claim. Campaign-kind/item
 selection and a general worker remain unavailable.
 
+`boss_campaign_discovery.py` adds a separate non-executable application
+preparation boundary. Under the existing run lock it can create only the fixed
+`boss_saved_job_read_only` manifest and append stable public job keys parsed
+from bounded, complete BOSS UIA link values carrying the reviewed source marker.
+It drops URL query data and all page content, makes repeated page ingestion
+idempotent, and refuses writes after any batch transition. It has no desktop,
+MCP, provider, navigation, CLI, item-processing, or side-effect port; the live
+100-item application gate remains unfilled.
+
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.
