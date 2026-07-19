@@ -76,15 +76,18 @@ is byte-for-byte read-only and adds no provider/MCP/desktop path or public
 desktop tool. Mobile push delivery remains owned by ChatGPT Remote or Claude
 Remote Control. The next gate is the bounded multi-item BOSS restart run.
 
-The first application increment now has an internal, offline-verified identity
-discovery boundary. It accepts only bounded complete UIA link values on the
-reviewed BOSS interested-jobs source, strips URL query data, persists stable
-public job keys idempotently, and refuses discovery after batch execution
-begins. It does not call MCP, navigate, expose a CLI, or constitute application
-evidence. Next connect that fixed boundary to the project MCP path, then run the
-first 100-item read-only BOSS campaign across multiple provider contexts and at
-least one forced restart. Retain committed-item, token, retry, recovery, and
-takeover evidence.
+The first application increment now connects the identity boundary to the sole
+Runner dispatch path. Two fixed CLI commands create only the reviewed discovery
+manifest and execute one foreground `ui_snapshot` through the project MCP. The
+result must contain bounded complete link values on the reviewed BOSS
+interested-jobs source; URL query data is stripped, stable public job keys are
+persisted idempotently, and discovery is refused after batch execution begins.
+The commands accept no task, URL, page, scope, item selector, provider, or
+navigation authority. This is offline fake-MCP verified and does not constitute
+application evidence. Next retain one on-device page result, then add reviewed
+page progression and run the first 100-item read-only BOSS campaign across
+multiple provider contexts and at least one forced restart. Retain
+committed-item, token, retry, recovery, and takeover evidence.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);

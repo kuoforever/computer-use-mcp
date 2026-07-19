@@ -85,9 +85,10 @@ partial real-application observation cell. It does not demonstrate five
 batches, two provider contexts, restart recovery, 100 committed identities, or
 campaign acceptance.
 
-An internal offline boundary now validates and records durable public BOSS job
-keys from bounded complete UIA link values while dropping URL query data. It is
-not connected to MCP and adds no application evidence. The next application
-gate remains the bounded multi-item read-only BOSS campaign through the project
-MCP path with restart evidence. Google Docs and WeChat remain later Wave 1
+An internal fixed runtime now validates and records durable public BOSS job keys
+from one bounded complete foreground `ui_snapshot` through Runner/project MCP
+while dropping URL query data. It is offline fake-MCP verified and adds no live
+application evidence. The next gate is one retained on-device page result,
+followed by reviewed page progression and the bounded multi-item read-only BOSS
+campaign with restart evidence. Google Docs and WeChat remain later Wave 1
 cases; action authority is unchanged.

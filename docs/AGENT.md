@@ -289,8 +289,12 @@ preparation boundary. Under the existing run lock it can create only the fixed
 from bounded, complete BOSS UIA link values carrying the reviewed source marker.
 It drops URL query data and all page content, makes repeated page ingestion
 idempotent, and refuses writes after any batch transition. It has no desktop,
-MCP, provider, navigation, CLI, item-processing, or side-effect port; the live
-100-item application gate remains unfilled.
+provider, navigation, item-processing, or side-effect port. A separate fixed
+runtime now sends one foreground `ui_snapshot` through the same Runner/project
+MCP boundary used elsewhere and passes only a correlated successful result to
+the parser. The `prepare-boss-discovery` and `observe-boss-page` campaign
+commands accept no task, URL, page, scope, or item selector. This is offline
+fake-MCP verified; the live page and 100-item application gates remain unfilled.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
