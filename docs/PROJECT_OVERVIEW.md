@@ -210,7 +210,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Deterministic handoff/completion | Implemented/internal | Fixed-schema handoff and terminal campaign projection derived from durable state | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Fixed synthetic execution seam | Implemented/internal product boundary | Three CLI commands prepare one fixed claim, execute one `list_windows` observation through Runner handoff, and reconstruct fresh-run resume | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | General campaign worker | Not implemented | No free-form item/campaign selector, provider turn, side effect, or complete application orchestration | [Roadmap](EXECUTION_PLAN.md) |
-| Host completion polling | Planned after retained synthetic evidence | Bounded read-only terminal projection; ChatGPT/Claude host owns mobile delivery | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) |
+| Host completion polling | Implemented/internal contract | Bounded read-only projection and deduplicated fake-host terminal/attention decisions; no public status tool or mobile bridge | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) |
 
 ### Observation, operator, application, and learning layers
 
@@ -220,7 +220,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Token-efficient observation | Contract/planned experiments | Escalate from structured/cheap sources to pixels; retain item-local context and measured cost | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | Presence and progress UI | Planned | Pure redacted checkpoint/campaign projection into non-activating Windows surfaces | [Operator experience](OPERATOR_EXPERIENCE.md), [Progress viewer](PROGRESS_VIEWER.md) |
 | Decision Cards | Planned | Bounded choices with evidence/trade-offs; selection re-enters ordinary approval and dispatch gates | [Operator experience](OPERATOR_EXPERIENCE.md) |
-| Mobile notifications | Host capability; repository contract planned | Host polls validated terminal/attention state; no MCP-log completion inference | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
+| Mobile notifications | Host capability; internal repository projection implemented | Future host surface may poll validated terminal/attention state; no MCP-log completion inference or repository delivery bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
 | Wave 1 applications | Planned acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, then cross-application handoff | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance waves | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Complete-product demonstration | Planned/final integration gate | One chaptered campaign with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
@@ -371,8 +371,8 @@ In priority order:
    Planner/Executor CLI path.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
-5. Add bounded host terminal polling and fake-host
-   mobile-notification semantics without broadening the campaign selector.
+5. Preserve the bounded internal host terminal projection and fake-host
+   notification semantics without broadening the campaign selector.
 6. With provider E3 and isolated E4 retained, execute bounded BOSS evidence,
    then Google Docs and WeChat cases only after their preceding gates.
 7. Build operator projections and continual-learning L0 from real retained

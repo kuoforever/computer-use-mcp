@@ -330,11 +330,10 @@ replacement grants no item or action authority and starts no worker.
 
 ## Host-visible completion and mobile notification
 
-> **Status: planned host contract; no status tool or notification bridge is
-> implemented.** The current nine-tool desktop MCP surface remains unchanged.
-> The fixed synthetic three-command runtime has now retained its
-> [on-device evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md). The status projection is
-> the next gate; it must not broaden that seam into a general campaign worker.
+> **Status: internal projection implemented and offline verified; no public
+> status tool or notification bridge is implemented.** The current nine-tool
+> desktop MCP surface remains unchanged. The projection is a read-only campaign
+> module and does not broaden the fixed synthetic seam into a general worker.
 
 Codex and Claude mobile push notifications are host capabilities. The MCP
 server must not claim that a whole task is complete, emit a log notification as
@@ -383,6 +382,14 @@ for `RUNNING`, waiting, stale, malformed, or uncertain state; emits exactly one
 terminal event for a validated terminal transition; survives process/context
 restart without duplicate completion; and performs zero provider, desktop, or
 side-effect calls while polling.
+
+The internal `campaign_host_status` module now covers this contract. It reads
+the existing control records under the run lock, fails malformed or unvalidated
+terminal state to `NEEDS_INSPECTION`, derives deterministic event IDs from fixed
+control fields, and lets a fake host carry emitted IDs across context restart.
+Offline tests cover non-completion for running, waiting, stale, malformed, and
+uncertain states; exactly-once completion after restart; and byte-for-byte
+read-only polling. It still exposes no CLI/MCP status method or mobile delivery.
 
 
 ## Retry classes
@@ -488,9 +495,10 @@ takeover are durable transitions, not informal chat instructions.
 7. **Retained on device:** the exact three-command synthetic state,
    redacted-trace, and cost evidence run passed; see
    [Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).
-8. **Next:** add the bounded host status projection and fake-host polling tests; keep
-   ChatGPT/Claude mobile delivery outside the desktop MCP surface.
-9. Run the BOSS read-only 100-item evaluation.
+8. **Implemented and offline verified:** bounded host status projection and
+   fake-host polling decisions; ChatGPT/Claude mobile delivery remains outside
+   the desktop MCP surface.
+9. **Next:** run the BOSS read-only 100-item evaluation.
 10. Run Google Docs 50-section and WeChat draft-only evaluations.
 11. Run the cross-application campaign with a fresh-session boundary.
 12. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
