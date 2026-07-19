@@ -2,7 +2,7 @@
 
 Tools:
   ui_snapshot / find / list_windows      perception (ungated; passwords redacted)
-  screenshot                             perception; sensitive windows blacked out
+  screenshot / ocr                       perception; sensitive windows blacked out
   activate_window / click / type / key   action
 
 In ``safe_local`` mode, actions pass e-stop -> human activity -> foreground
@@ -22,16 +22,26 @@ Config (env):
 """
 from __future__ import annotations
 
+import asyncio
 import os
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
 from .audit import AuditLog
+from .contract import DriverError
 from .core import Session
 from .dpi import enable_dpi_awareness
 from .gate import Gate
 from .human_activity import DEFAULT_IDLE_SECONDS, HumanActivity
+from .ocr import (
+    OCR_TIMEOUT_SECONDS,
+    OcrError,
+    OcrReader,
+    WindowsOcrReader,
+    serialize_recognition,
+    validate_region,
+)
 from .safety import DANGEROUS_WORDS, EStop, is_dangerous, message_box_confirm, redact
 
 DEFAULT_ALLOWLIST = ("notepad.exe",)
@@ -83,6 +93,7 @@ def build_server(
     human_activity=None,
     control_mode=None,
     dangerous_confirmation=None,
+    ocr_reader: OcrReader | None = None,
 ) -> FastMCP:
     enable_dpi_awareness()
     if driver is None:
@@ -102,6 +113,7 @@ def build_server(
     )
     audit = AuditLog(audit_path or os.environ.get("CUMCP_AUDIT", "audit/actions.jsonl"))
     confirm = confirmer or message_box_confirm
+    reader = ocr_reader
     rtitles = redact_titles if redact_titles is not None else _env_list("CUMCP_REDACT_TITLES", DEFAULT_REDACT_TITLES)
     if estop is None:
         estop = EStop(os.environ.get("CUMCP_ESTOP", "ctrl+alt+q"))
@@ -181,6 +193,53 @@ def build_server(
                 png = redact(png, regions)
                 audit.record("screenshot", {}, "redacted", f"{len(regions)} window(s)")
         return MCPImage(data=png, format="png")
+
+    @mcp.tool(
+        description=(
+            "OCR one explicit primary-display region. Returns bounded text runs and "
+            "screen-relative boxes; OCR runs are evidence, not clickable refs."
+        )
+    )
+    async def ocr(x: int, y: int, w: int, h: int) -> str:
+        nonlocal reader
+        args = {"x": x, "y": y, "w": w, "h": h}
+        try:
+            region = validate_region(x, y, w, h)
+            if reader is None:
+                reader = WindowsOcrReader()
+
+            async def _run() -> str:
+                image = await asyncio.to_thread(session.screenshot, region)
+                if (image.width, image.height) != (region.w, region.h):
+                    raise OcrError("OCR_CAPTURE_MISMATCH: driver did not return requested region")
+                png = image.png
+                if rtitles:
+                    redactions: list[tuple[int, int, int, int]] = []
+                    windows = await asyncio.to_thread(session.driver.list_windows)
+                    for window in windows:
+                        if not window.title or not any(
+                            title.lower() in window.title.lower() for title in rtitles
+                        ):
+                            continue
+                        ix = max(region.x, window.bounds.x)
+                        iy = max(region.y, window.bounds.y)
+                        right = min(region.right, window.bounds.right)
+                        bottom = min(region.bottom, window.bounds.bottom)
+                        if ix < right and iy < bottom:
+                            redactions.append(
+                                (ix - region.x, iy - region.y, right - ix, bottom - iy)
+                            )
+                    if redactions:
+                        png = redact(png, redactions)
+                        audit.record("ocr", args, "redacted", f"{len(redactions)} window(s)")
+                recognition = await reader.recognize(png)
+                return serialize_recognition(recognition, region, png)
+
+            return await asyncio.wait_for(_run(), timeout=OCR_TIMEOUT_SECONDS)
+        except TimeoutError:
+            return f"ERROR OCR_TIMEOUT: exceeded {OCR_TIMEOUT_SECONDS:g} seconds"
+        except (DriverError, OcrError) as exc:
+            return f"ERROR {exc}"
 
     # --- action -------------------------------------------------------------
 

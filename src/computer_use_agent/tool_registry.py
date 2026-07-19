@@ -133,6 +133,7 @@ _SCOPE = {"type": "string", "minLength": 1}
 _NONEMPTY_STRING = {"type": "string", "minLength": 1}
 _OPTIONAL_REF = {"type": "string", "minLength": 1}
 _INTEGER = {"type": "integer"}
+_MCP_INTEGER = {"type": "integer"}
 _MCP_SCOPE = {"default": "foreground", "title": "Scope", "type": "string"}
 _MCP_STRING = {"type": "string"}
 _MCP_OPTIONAL_REF = {
@@ -208,6 +209,34 @@ REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
         grounding=GroundingRequirement.NONE,
         requires_host_approval=False,
         invalidates_observation=False,
+    ),
+    ToolSpec(
+        name="ocr",
+        description=(
+            "Recognize bounded text runs inside one explicit primary-display region."
+        ),
+        input_schema=_host_schema(
+            {"x": _INTEGER, "y": _INTEGER, "w": _INTEGER, "h": _INTEGER},
+            ("x", "y", "w", "h"),
+        ),
+        mcp_input_schema=_mcp_schema(
+            "ocrArguments",
+            {
+                "x": {**_MCP_INTEGER, "title": "X"},
+                "y": {**_MCP_INTEGER, "title": "Y"},
+                "w": {**_MCP_INTEGER, "title": "W"},
+                "h": {**_MCP_INTEGER, "title": "H"},
+            },
+            ("x", "y", "w", "h"),
+        ),
+        effect=ToolEffect.OBSERVATION,
+        result_content=ResultContentKind.TEXT,
+        result_sensitivity=ResultSensitivity.SENSITIVE,
+        redaction_policy=RedactionPolicy.NONE,
+        grounding=GroundingRequirement.NONE,
+        requires_host_approval=False,
+        invalidates_observation=False,
+        required_safety_baselines=("title_matched_image_redaction",),
     ),
     ToolSpec(
         name="activate_window",
@@ -464,4 +493,10 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[
             raise ToolValidationError("click requires exactly one of ref or the x,y coordinate pair")
         if has_coordinates and not {"x", "y"}.issubset(validated):
             raise ToolValidationError("click coordinates require both x and y")
+    if name == "ocr":
+        x, y, w, h = (validated[field] for field in ("x", "y", "w", "h"))
+        if x < 0 or y < 0 or w <= 0 or h <= 0:
+            raise ToolValidationError("ocr region must be positive and within the primary display")
+        if w * h > 4_000_000:
+            raise ToolValidationError("ocr region exceeds the 4000000 pixel limit")
     return validated

@@ -24,6 +24,7 @@ from ..contract import (
     CONTRACT_VERSION,
     DRIVER_ERROR,
     NOT_INVOKABLE,
+    OUT_OF_BOUNDS,
     STALE_ELEMENT,
     Display,
     Driver,
@@ -188,6 +189,15 @@ class WindowsDriver(Driver):
     def capture_screen(self, region: Rect | None = None) -> Image:
         with mss.mss() as sct:
             primary = self._primary_monitor(sct)
+            if region is not None and (
+                region.x < primary["left"]
+                or region.y < primary["top"]
+                or region.w <= 0
+                or region.h <= 0
+                or region.right > primary["left"] + primary["width"]
+                or region.bottom > primary["top"] + primary["height"]
+            ):
+                raise DriverError(OUT_OF_BOUNDS, "capture region is outside the primary display")
             area = (
                 {"left": region.x, "top": region.y, "width": region.w, "height": region.h}
                 if region is not None

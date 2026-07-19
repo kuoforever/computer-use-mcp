@@ -99,8 +99,8 @@ codes are planned for the next backward-compatible contract revision; the
 current implementation may still collapse them into `DRIVER_ERROR`.
 
 The current Windows driver implements these primitives. The public MCP layer
-currently exposes only a full primary-display `screenshot()`; it does not pass
-a region through to `capture_screen(region)`.
+uses full-primary-display capture for `screenshot()` and passes an explicit,
+validated primary-display rectangle to `capture_screen(region)` for `ocr()`.
 
 ## Coordinate semantics and current limits
 
@@ -108,9 +108,10 @@ A driver should keep an image's pixels, control bounding boxes, and coordinate
 clicks in one DPI-aware coordinate space for the same capture. The Windows
 implementation currently establishes that behavior on the primary display.
 
-The `Image` type includes display metadata for future work, but the current
-MCP server does not expose it. Multi-monitor, virtual-desktop, and region-offset
-semantics are not validated product behavior yet.
+The `Image` type includes display metadata for future work. OCR results expose
+their requested crop origin and map recognized boxes back into primary-display
+coordinates. Multi-monitor and virtual-desktop semantics are not validated
+product behavior yet.
 
 ## Error codes
 

@@ -21,6 +21,7 @@ from .contract import (
     Image,
     Node,
     PruneOpts,
+    Rect,
     Result,
     TreeResult,
 )
@@ -58,8 +59,8 @@ class Session:
         tree = self.driver.find(PruneOpts(scope=scope, max_nodes=max_nodes), query)
         return self._ingest(tree, scope, header=f"find {query!r}")
 
-    def screenshot(self) -> Image:
-        return self.driver.capture_screen()
+    def screenshot(self, region: Rect | None = None) -> Image:
+        return self.driver.capture_screen(region)
 
     # --- action --------------------------------------------------------------
 
