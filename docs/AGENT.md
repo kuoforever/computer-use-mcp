@@ -10,7 +10,7 @@
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
-eight-tool local stdio MCP server as its sole desktop execution authority.
+nine-tool local stdio MCP server as its sole desktop execution authority.
 
 ## Scope
 
@@ -396,7 +396,7 @@ recovery rather than relying on a garbage-collection finalizer.
 fixed local stdio child. It starts the configured absolute executable and argv
 without a shell, initializes an MCP client session, follows bounded discovery
 pagination, and requires the discovered names and input schemas to equal the
-reviewed eight-tool registry before any call can be dispatched.
+reviewed nine-tool registry before any call can be dispatched.
 
 One asyncio task owns each live child generation and all calls are serialized.
 A call must be host-authorized and structurally valid. Unknown tools, bad

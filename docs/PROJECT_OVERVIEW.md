@@ -174,7 +174,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Reviewed tool registry | Implemented | Host derives effect/schema/approval facts; provider output cannot grant authority | [Agent Host](AGENT.md) |
 | Policy modes | Implemented | Read-only default; approved actions are opt-in, budgeted, grounded, and confirmed | [Approvals](APPROVALS.md) |
 | Grounding and verification | Implemented/fake verified | Actions require fresh observation binding and mandatory post-action observation | [Approvals](APPROVALS.md) |
-| Bounded stdio bridge | Implemented | Absolute child command, reviewed environment, exact eight-schema discovery, bounded frames/results, generation invalidation | [Agent Host](AGENT.md) |
+| Bounded stdio bridge | Implemented | Absolute child command, reviewed environment, exact nine-schema discovery, bounded frames/results, generation invalidation | [Agent Host](AGENT.md) |
 | Run budgets | Implemented | Model turns, tool calls, side effects, cumulative input, request bytes, context window, and image/result bounds | [Context and memory](CONTEXT_MEMORY.md) |
 | Checkpoint and redacted trace | Implemented | Atomic safe checkpoint plus bounded append-only semantic JSONL; sensitive content excluded | [Trace](TRACE.md) |
 | Reports | Implemented | Bounded checkpoint-only aggregation of phase, failure, token, call, and latency metrics | [Trace](TRACE.md) |
@@ -216,7 +216,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 
 | Feature family | State | Intended implementation | Primary owner |
 | --- | --- | --- | --- |
-| Multi-source observation | Partial/planned | UIA and full-screen PNG exist; add document text, bounded OCR, cropped image, source envelopes, and deltas | [Observation contract](OBSERVATION_CONTRACT.md) |
+| Multi-source observation | Partial | UIA, full-screen PNG, and bounded region OCR exist; add document text, standalone cropped image, complete source envelopes, and deltas | [Observation contract](OBSERVATION_CONTRACT.md), [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
 | Token-efficient observation | Contract/planned experiments | Escalate from structured/cheap sources to pixels; retain item-local context and measured cost | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | Presence and progress UI | Planned | Pure redacted checkpoint/campaign projection into non-activating Windows surfaces | [Operator experience](OPERATOR_EXPERIENCE.md), [Progress viewer](PROGRESS_VIEWER.md) |
 | Decision Cards | Planned | Bounded choices with evidence/trade-offs; selection re-enters ordinary approval and dispatch gates | [Operator experience](OPERATOR_EXPERIENCE.md) |
@@ -364,8 +364,9 @@ In priority order:
 
 1. Use the retained isolated Windows evidence only for the repaired activation
    path and reviewed VM/model scope.
-2. Add one bounded document-text or OCR observation slice for browser content
-   missing from interactive UIA.
+2. Reuse the retained bounded OCR slice across a multi-item BOSS run with
+   durable identities and restart evidence; add another source only on a
+   demonstrated gap.
 3. Apply completed-final reconciliation and expose the smallest observation-only
    Planner/Executor CLI path.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)

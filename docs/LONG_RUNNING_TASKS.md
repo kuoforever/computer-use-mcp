@@ -331,7 +331,7 @@ replacement grants no item or action authority and starts no worker.
 ## Host-visible completion and mobile notification
 
 > **Status: planned host contract; no status tool or notification bridge is
-> implemented.** The current eight-tool desktop MCP surface remains unchanged.
+> implemented.** The current nine-tool desktop MCP surface remains unchanged.
 > The fixed synthetic three-command runtime has now retained its
 > [on-device evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md). The status projection is
 > the next gate; it must not broaden that seam into a general campaign worker.

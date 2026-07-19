@@ -65,6 +65,15 @@ DIGEST = "a" * 64
 NOW = datetime(2026, 7, 17, 0, 10, tzinfo=timezone.utc)
 
 
+def _assert_single_item_usage(usage: BatchUsage) -> None:
+    assert 0 <= usage.elapsed_seconds < BatchPolicy().max_elapsed_seconds
+    assert usage == BatchUsage(
+        items_completed=1,
+        elapsed_seconds=usage.elapsed_seconds,
+        tool_calls=1,
+    )
+
+
 def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
     local_app_data = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
@@ -441,7 +450,7 @@ def test_committed_item_finishes_batch_and_writes_deterministic_handoff(
     )
 
     assert outcome.stop_code == "ITEM_LIMIT"
-    assert outcome.usage == BatchUsage(items_completed=1, tool_calls=1)
+    _assert_single_item_usage(outcome.usage)
     assert outcome.handoff["campaign_id"] == "campaign_1"
     assert outcome.handoff["last_run_id"] == "run_1"
     assert outcome.handoff["next_item_ordinal"] == 2
@@ -507,7 +516,7 @@ def test_persisted_claim_executes_without_prior_batch_session_object(
 
     assert outcome.committed.status is ItemStatus.COMMITTED
     assert outcome.window_count == 2
-    assert outcome.usage == BatchUsage(items_completed=1, tool_calls=1)
+    _assert_single_item_usage(outcome.usage)
     assert outcome.handoff["last_run_id"] == "run_1"
     assert provider.calls == []
     assert desktop.discovery_calls == 1
