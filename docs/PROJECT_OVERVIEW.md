@@ -179,6 +179,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Checkpoint and redacted trace | Implemented | Atomic safe checkpoint plus bounded append-only semantic JSONL; sensitive content excluded | [Trace](TRACE.md) |
 | Reports | Implemented | Bounded checkpoint-only aggregation of phase, failure, token, call, and latency metrics | [Trace](TRACE.md) |
 | Explicit memory | Implemented/opt-in | Confirmed, scoped, expiring SQLite preferences/procedures; never auto-extracted or auto-injected | [Context and memory](CONTEXT_MEMORY.md) |
+| Local privacy boundary | Implemented/disabled by default | One opt-in privacy package owns run-scoped deterministic PII tokens, non-restorable secret tokens, fail-closed model token validation, local-only display/query restoration, and local OCR solid overlays; its non-text visual-detector port has no enabled backend, and continuation remains denied | [Local privacy boundary](LOCAL_PRIVACY.md) |
 | Live provider and desktop proof | Retained for reviewed models and VM | E3 and E4 remain explicit human gates, not CI claims; retained results do not imply application or release readiness | [E3 evidence](E3_EVIDENCE.md), [E4 evidence](E4_EVIDENCE.md) |
 
 ### Recovery, planning, and execution
@@ -314,7 +315,7 @@ validated campaign plan
 | Correctness and grounding | Shared DPI-aware coordinate model, native patterns, fresh refs/observations, mandatory post-action verification | [Driver Contract](DRIVER_CONTRACT.md), [Approvals](APPROVALS.md) |
 | Reliability | Explicit incomplete/stale/driver results, bounded retries, generation invalidation, application probes before claims | [Quality attributes](QUALITY_ATTRIBUTES.md) |
 | Durability and recoverability | Atomic replace, append-only ledgers, RunLock, WAL before dispatch, exact CAS/digests, no replay after uncertainty | [Continuation](CONTINUATION.md), [Long-running tasks](LONG_RUNNING_TASKS.md) |
-| Security and privacy | Secret-minimized child environment, redacted checkpoint/trace/audit, private sensitive artifacts, explicit memory consent | [Agent Host](AGENT.md), [Trace](TRACE.md), [Context and memory](CONTEXT_MEMORY.md) |
+| Security and privacy | Secret-minimized child environment, redacted checkpoint/trace/audit, private sensitive artifacts, explicit memory consent, opt-in local text pseudonymization | [Agent Host](AGENT.md), [Trace](TRACE.md), [Context and memory](CONTEXT_MEMORY.md), [Local text privacy](LOCAL_PRIVACY.md) |
 | Human coexistence | Recent-input yield, visible foreground assumptions, explicit takeover, planned passive non-activating UI | [Operator experience](OPERATOR_EXPERIENCE.md) |
 | Observability and auditability | Fixed codes, bounded JSONL, safe metrics, deterministic reports, evidence-level dashboard | [Trace](TRACE.md), [Capability status](CAPABILITY_STATUS.md) |
 | Testability and evidence integrity | Pure logic separated from named desktop smokes; frozen E1/E2 manifests; E3/E4 and release gates stay explicit | [Evaluation](EVALUATION.md), [Release](RELEASE.md) |

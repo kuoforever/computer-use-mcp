@@ -267,6 +267,7 @@ async def _run_live_async(
 ) -> int:
     from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
+    from .privacy import LocalPrivacyImageRedactor, WindowsPrivacyImageRecognizer
 
     config = load_agent_config(path)
     memories = ()
@@ -310,6 +311,11 @@ async def _run_live_async(
             provider=provider,
             desktop=desktop,
             approvals=approvals,
+            image_redactor=(
+                LocalPrivacyImageRedactor(WindowsPrivacyImageRecognizer())
+                if config.privacy.enabled and config.privacy.image_redaction
+                else None
+            ),
         ),
     )
     outcome = await runner.run(

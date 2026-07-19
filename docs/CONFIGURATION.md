@@ -101,6 +101,32 @@ it makes its one Planner request, because every observation and final-response
 dispatch must retain the existing crash boundary. It remains disabled when
 `enabled = false`.
 
+## Agent text privacy
+
+The Agent Host can pseudonymize reviewed text before provider dispatch:
+
+~~~toml
+[privacy]
+enabled = true
+detectors = ["email", "phone", "ipv4", "cn_id", "bank_card", "secret"]
+terms = ["Project Phoenix", "Example Customer"]
+image_redaction = true
+~~~
+
+The run-scoped plaintext mapping remains in Host memory. Non-secret tokens are
+restored only for local final display or the local read-only `find.query` sink;
+secret tokens are never restored into final text. When image redaction is
+enabled, the privacy package's image-redaction path uses local Windows OCR to detect
+sensitive text within a word or across up to eight adjacent words on the same
+visual line, then replaces the corresponding pixels with solid,
+coordinate-preserving token labels before the screenshot enters the ledger.
+Missing or failed image redaction stops the screenshot; disabling it removes
+`screenshot` from the provider surface. A non-text visual-detector extension
+port exists, but no face, QR, document, signature, or DeepSeek backend is
+installed or enabled. Because this MVP does not persist the vault, privacy and
+continuation cannot both be enabled. See
+[Local text privacy](LOCAL_PRIVACY.md) for the exact boundary and limitations.
+
 ## VMware helper
 
 `scripts/vmware_worker.py` is an **experimental host-side helper**. It can

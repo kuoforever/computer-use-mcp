@@ -56,3 +56,20 @@ max_context_events = 128
 # and PNG screenshots. It is private, short-lived, and never auto-resumed.
 enabled = false
 ttl_seconds = 900
+
+[privacy]
+# Optional run-scoped text pseudonymization before provider dispatch. The
+# plaintext mapping remains in Host memory only. Ordinary PII is restored only
+# for local final display; assigned secrets stay opaque. The privacy package's
+# image path uses local Windows OCR and solid coordinate-preserving word-box
+# overlays before provider dispatch. Its non-text visual-detector extension is
+# intentionally dormant: no face, QR, document, signature, or DeepSeek backend
+# is installed or enabled. Privacy remains incompatible with continuation until
+# an OS-encrypted resumable vault is implemented.
+enabled = false
+detectors = ["email", "phone", "ipv4", "cn_id", "bank_card", "secret"]
+# Literal case-sensitive project, customer, or person names to pseudonymize.
+terms = []
+# When false, or when the complete local image-redaction port is unavailable,
+# screenshot is removed from the provider tool surface and calls fail closed.
+image_redaction = true

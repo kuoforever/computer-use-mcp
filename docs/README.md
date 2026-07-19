@@ -32,6 +32,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
+| I need local text or screenshot pseudonymization before provider dispatch | [Local privacy boundary](LOCAL_PRIVACY.md) |
 | I am designing long-term learning from outcomes, corrections, and cost | [Continual learning](CONTINUAL_LEARNING.md) |
 | I am reviewing explicit OpenAI stateless replay | [Stateless replay](STATELESS_REPLAY.md) |
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
@@ -74,6 +75,7 @@ not a line-by-line mirror of every reference page.
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Persisted continuation | Private v2 storage with correlated OpenAI recovery token state, opt-in write-ahead boundaries, conservative classification, and a locked 1-4 step read-only CLI gate including completed-side-effect mandatory observation |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
+| Local privacy boundary | One disabled-by-default package for run-scoped PII tokens, local screenshot redaction, non-restorable secrets, local resolution sinks, and deferred non-text visual backends |
 | Continual learning | Planned four-layer memory, verified workflow promotion, cost-aware strategy selection, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
 | Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `plan run` composition |

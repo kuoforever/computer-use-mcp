@@ -11,6 +11,7 @@ from computer_use_agent.config import (
     ConfigError,
     MCPLaunchConfig,
     PolicyConfig,
+    PrivacyConfig,
     ProviderConfig,
     default_state_dir,
     load_agent_config,
@@ -137,6 +138,47 @@ def test_continuation_persistence_is_explicit_opt_in_and_bounded(
     assert config.continuation == ContinuationConfig(enabled=True, ttl_seconds=600)
     with pytest.raises(ConfigError, match="ttl_seconds"):
         ContinuationConfig(enabled=True, ttl_seconds=59)
+
+
+def test_privacy_is_explicit_opt_in_and_rejects_ephemeral_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert PrivacyConfig().enabled is False
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path)
+        + '\n[privacy]\nenabled = true\ndetectors = ["email", "phone"]\n'
+        + 'terms = ["Project Phoenix"]\nimage_redaction = false\n',
+        encoding="utf-8",
+    )
+
+    config = load_agent_config(path)
+
+    assert config.privacy == PrivacyConfig(
+        enabled=True,
+        detectors=("email", "phone"),
+        terms=("Project Phoenix",),
+        image_redaction=False,
+    )
+    with pytest.raises(ConfigError, match="cannot be combined"):
+        type(config)(
+            state_dir=config.state_dir,
+            policy_version=config.policy_version,
+            provider=config.provider,
+            mcp=config.mcp,
+            policy=config.policy,
+            continuation=ContinuationConfig(enabled=True),
+            privacy=config.privacy,
+        )
+
+
+def test_privacy_config_rejects_unknown_detectors_and_reserved_terms() -> None:
+    with pytest.raises(ConfigError, match="unknown privacy detector"):
+        PrivacyConfig(enabled=True, detectors=("ner",))
+    with pytest.raises(ConfigError, match="token syntax"):
+        PrivacyConfig(enabled=True, terms=("[[PRIVATE:EMAIL:value]]",))
 
 
 @pytest.mark.parametrize(
