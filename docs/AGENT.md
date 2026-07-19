@@ -621,7 +621,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Acceptance case | Evidence required | Status |
 | --- | --- | --- |
 | Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
-| Exactly eight reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
+| Exactly nine reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
 | Invalid tool arguments fail before dispatch | Unknown fields, missing fields, bad scalar types, and all invalid `click` combinations are rejected | implemented contract test |
 | Host is stricter than server | All action specs require approval and invalidate grounding; `click` XOR is tested | implemented contract test |
 | Configuration cannot weaken or leak into MCP | Parser allowlists child variable names, pins a safe baseline, rejects unsafe server controls, and confines state to the user-local app root | implemented contract test |

@@ -16,6 +16,12 @@ dependencies = [
     "uiautomation>=2.0.18",  # UIA accessibility tree + patterns
     "psutil>=5.9",           # process-tree for the foreground gate
     "pillow>=10.0",          # bbox annotation in smoke tests
+    "winrt-runtime~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Graphics.Imaging~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Media.Ocr~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams~=3.2.1; sys_platform == 'win32'",
 ]
 # Mouse/keyboard input is done via ctypes (keybd_event/mouse_event) and
 # uiautomation.SendKeys — no pyautogui dependency needed.

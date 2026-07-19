@@ -1,8 +1,9 @@
 # Observation contract
 
-> **Status: planned multi-source contract.** UIA snapshots and primary-display
-> screenshots are implemented. Document text, OCR, deltas, and scoped image
-> capture are design targets.
+> **Status: partially implemented multi-source contract.** UIA snapshots,
+> primary-display screenshots, and bounded region OCR are implemented.
+> Document text, deltas, and standalone scoped image capture remain design
+> targets.
 
 ## Purpose
 
@@ -77,6 +78,11 @@ Do not label DOM body dumps or hidden application state as document text.
 Bounded text runs with box, confidence, reading order, language hint, and image
 digest. OCR results are evidence, not invokable refs. Acting on OCR requires a
 fresh target-location check.
+
+The current Windows backend accepts one explicit primary-display rectangle,
+uses the installed user-profile OCR languages, and reports confidence as
+`null` because `Windows.Media.Ocr` does not expose word confidence. It returns
+both crop-local `bbox` and primary-display `screen_bbox` values.
 
 ### Image
 

@@ -1,6 +1,6 @@
 # MCP tool reference
 
-> **Status: implemented on Windows.** These are the eight tools currently
+> **Status: implemented on Windows.** These are the nine tools currently
 > exposed by the stdio MCP server.
 
 ## Read tools
@@ -11,6 +11,13 @@
 | `find` | `query, scope="foreground"` | Returns a matching subset using the same snapshot/ref model. Use this to reduce context for large windows. |
 | `list_windows` | none | Lists visible top-level windows, including owned dialogs. Each row includes a window id, owner executable, title, and foreground marker. |
 | `screenshot` | none | Returns a PNG of the primary display. It does not accept a region parameter and does not provide a virtual-desktop capture. |
+| `ocr` | `x, y, w, h` | Captures exactly one primary-display region and returns bounded Windows OCR text runs with crop-local and screen-relative boxes. The region is limited to 4,000,000 pixels. |
+
+`ocr` is a static-content fallback after UIA. It returns at most 100 runs and
+8,000 recognized characters, with a five-second whole-call timeout and explicit
+truncation metadata. Its boxes are evidence, not invokable refs. Configured
+sensitive-window title matches are blacked out before recognition. Unsupported
+or out-of-bounds regions fail instead of widening to a full-display capture.
 
 Snapshots are capped at 200 qualifying controls. If controls were omitted, the
 text result explicitly reports a truncation count. Chromium-family windows get

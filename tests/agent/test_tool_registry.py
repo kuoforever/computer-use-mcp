@@ -53,23 +53,24 @@ def _png(width: int = 1, height: int = 1) -> bytes:
     )
 
 
-def test_registry_contains_the_exact_eight_reviewed_mcp_tools() -> None:
+def test_registry_contains_the_exact_nine_reviewed_mcp_tools() -> None:
     assert EXPECTED_TOOL_NAMES == {
         "ui_snapshot",
         "find",
         "list_windows",
         "screenshot",
+        "ocr",
         "activate_window",
         "click",
         "type",
         "key",
     }
-    assert len(REVIEWED_TOOLS) == 8
+    assert len(REVIEWED_TOOLS) == 9
     assert all(tool.input_schema["additionalProperties"] is False for tool in REVIEWED_TOOLS)
     assert get_tool_spec("screenshot").result_sensitivity is ResultSensitivity.SENSITIVE
     assert (
         reviewed_registry_digest()
-        == "d8155c8e04bb4f21553b54134ad9b2ee63bcb5c9a83e921dc3aed2fdf80d728b"
+        == "ff9e4f2ce47331715ac96bb1096ba004d884991ba1ddf76b065ebd84574dd963"
     )
 
 
@@ -167,6 +168,26 @@ def test_click_provider_schema_excludes_the_other_target_form_in_each_oneof_bran
 def test_click_accepts_exactly_one_valid_target_form() -> None:
     assert validate_tool_arguments("click", {"ref": "ref_1"}) == {"ref": "ref_1"}
     assert validate_tool_arguments("click", {"x": 10, "y": 20}) == {"x": 10, "y": 20}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"x": 0, "y": 0, "w": 0, "h": 1},
+        {"x": -1, "y": 0, "w": 1, "h": 1},
+        {"x": 0, "y": 0, "w": 2001, "h": 2000},
+        {"x": 0, "y": 0, "w": 1},
+    ],
+)
+def test_ocr_host_validation_rejects_unbounded_regions(arguments: dict[str, object]) -> None:
+    with pytest.raises(ToolValidationError):
+        validate_tool_arguments("ocr", arguments)
+
+
+def test_ocr_host_validation_accepts_one_bounded_region() -> None:
+    arguments = {"x": 10, "y": 20, "w": 300, "h": 400}
+
+    assert validate_tool_arguments("ocr", arguments) == arguments
 
 
 def test_unknown_tool_and_argument_fail_before_dispatch() -> None:

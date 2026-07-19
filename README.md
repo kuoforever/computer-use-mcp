@@ -78,7 +78,8 @@ environment values above are the portable part.
 ## Typical workflow
 
 1. Call `ui_snapshot()` to obtain a flat list of interactive controls and
-   their `ref_N` handles, or call `screenshot()` for visual inspection.
+   their `ref_N` handles, call `ocr(x, y, w, h)` for bounded static text, or
+   call `screenshot()` for visual inspection.
 2. Prefer `click(ref="ref_N")` and `type(text, ref="ref_N")` when UIA
    exposes the target. These use accessibility patterns rather than synthetic
    coordinate clicks.
@@ -96,6 +97,7 @@ environment values above are the portable part.
 | `find(query, scope="foreground")` | Returns a smaller matching subset of a UIA snapshot. |
 | `list_windows()` | Lists visible top-level windows, including owned dialogs. |
 | `screenshot()` | Returns a PNG of the primary display; it has no MCP region parameter. |
+| `ocr(x, y, w, h)` | Recognizes bounded text runs in one explicit primary-display region. |
 | `activate_window(window_id)` | Attempts to restore and activate a listed window; success requires the driver to verify that it became foreground. |
 | `click(ref=...)` / `click(x=..., y=...)` | Invokes an accessible control or performs a coordinate click. |
 | `type(text, ref=None)` | Sets an accessible value when a ref is supplied, otherwise types into focus. |

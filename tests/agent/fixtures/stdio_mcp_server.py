@@ -70,6 +70,11 @@ def screenshot() -> MCPImage:
 
 
 @mcp.tool()
+def ocr(x: int, y: int, w: int, h: int) -> str:
+    return f'{{"source":"ocr","scope":{{"region":[{x},{y},{w},{h}]}},"runs":[]}}'
+
+
+@mcp.tool()
 def activate_window(window_id: str) -> str:
     return "ok"
 

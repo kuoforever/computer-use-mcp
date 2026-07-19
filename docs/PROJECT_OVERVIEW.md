@@ -140,6 +140,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Scoped find | Implemented | Filters the same snapshot/ref model to reduce returned context | [Tools](TOOLS.md) |
 | Window enumeration | Implemented | Win32 top-level enumeration includes owned dialogs and foreground identity | [Design](DESIGN.md) |
 | Screenshot observation | Implemented / limited | `mss` returns a PNG for the primary display; configured title matches can be blacked out | [Tools](TOOLS.md), [Configuration](CONFIGURATION.md) |
+| Bounded OCR observation | Implemented / Windows primary display | `Windows.Media.Ocr` recognizes one explicit region with run/character/pixel/time limits, pre-OCR title-based blackouts, image digest, and local/screen boxes | [Tools](TOOLS.md), [Observation contract](OBSERVATION_CONTRACT.md) |
 | Window activation | Implemented; isolated rerun pending | Win32 input-thread attachment, restore, foreground request, reverse cleanup, and postcondition verification | [Capability status](CAPABILITY_STATUS.md) |
 | Ref action | Implemented | Prefer UIA Invoke/Select/Value patterns; never silently convert a ref to a center-point click | [Design](DESIGN.md) |
 | Coordinate action | Implemented / primary display only | Win32 pointer input uses the same supported DPI-aware pixel space as capture | [Driver Contract](DRIVER_CONTRACT.md) |
