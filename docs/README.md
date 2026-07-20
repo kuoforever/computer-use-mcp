@@ -35,6 +35,7 @@ not a line-by-line mirror of every reference page.
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am adding telemetry, or need the observation-vs-authority boundary | [Telemetry contract](TELEMETRY.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
+| I am evaluating an external workflow engine for scheduling | [Temporal proof of concept](TEMPORAL_POC.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
 | I need local text or screenshot pseudonymization before provider dispatch | [Local privacy boundary](LOCAL_PRIVACY.md) |
 | I am designing long-term learning from outcomes, corrections, and cost | [Continual learning](CONTINUAL_LEARNING.md) |
