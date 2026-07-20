@@ -20,7 +20,7 @@ MCP server, not a background worker or a complete browser automation framework.
 - Windows only; Python 3.11 through 3.13.
 - Stdio MCP transport.
 - Primary-display screenshots and UIA-based control discovery.
-- Eight MCP tools: `ui_snapshot`, `find`, `list_windows`, `screenshot`,
+- Nine MCP tools: `ui_snapshot`, `find`, `list_windows`, `screenshot`, `ocr`,
   `activate_window`, `click`, `type`, and `key`.
 - A safe default mode with an allowlist, human-activity yielding, dangerous
   ref-click confirmation, audit logging, and an emergency-stop hotkey.

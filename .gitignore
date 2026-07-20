@@ -13,6 +13,11 @@ env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.codex/
+.claude/
+
+# Local MCP client wiring; it holds machine paths and must stay out of Git.
+.mcp.json
 
 # Env / secrets
 .env
@@ -24,6 +29,8 @@ logs/
 audit/
 screenshots/
 out/
+output/
+tmp/
 
 # OS / editor
 Thumbs.db

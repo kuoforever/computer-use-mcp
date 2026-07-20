@@ -1,7 +1,7 @@
 """MCP server smoke — exercise the tools in-process (no transport) and verify
 the foreground gate allows/denies correctly.
 
-  - list_tools() registers the 8 expected tools
+  - list_tools() matches the reviewed tool registry exactly
   - ui_snapshot tool returns the ref text; type tool writes by ref (allowed)
   - screenshot tool returns image content
   - with notepad NOT on the allowlist, key/click are DENIED by the gate
@@ -24,6 +24,7 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
+from computer_use_agent.tool_registry import EXPECTED_TOOL_NAMES  # noqa: E402
 from computer_use_mcp.dpi import enable_dpi_awareness  # noqa: E402
 
 enable_dpi_awareness()
@@ -79,8 +80,12 @@ async def run() -> int:
     # --- allowlisted server: notepad allowed ---
     srv = build_server(allowlist=["notepad.exe"], driver=driver)
     tools = sorted(t.name for t in await srv.list_tools())
-    expected = {"ui_snapshot", "find", "screenshot", "list_windows", "activate_window", "click", "type", "key"}
+    # Derived from the reviewed registry, never hand-listed: a literal set here
+    # silently rotted when `ocr` was added and would have failed this smoke.
+    expected = set(EXPECTED_TOOL_NAMES)
     print(f"[tools] {tools}")
+    if set(tools) != expected:
+        print(f"[tools] MISMATCH expected={sorted(expected)}")
     ok_all &= set(tools) == expected
 
     driver.activate_window(str(hwnd))

@@ -106,7 +106,7 @@ src/computer_use_agent/
   runner.py              # bounded observe -> act -> verify state machine
   policy.py              # action authorization, budgets, retries, and run lock
   approvals.py           # console/native approval port
-  tool_registry.py       # reviewed schemas for the current eight MCP tools
+  tool_registry.py       # reviewed schemas for the current nine MCP tools
   desktop_mcp.py         # local stdio client, tool validation, result conversion
   context.py             # canonical event ledger and context-budget reduction
   memory.py              # explicit-only local SQLite memory store

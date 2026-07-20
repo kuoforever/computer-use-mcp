@@ -33,13 +33,22 @@ test was attempted and failed unless a linked evidence record says so.
 
 ## Verification snapshot
 
-The following read-only checks were run against this checkout on 2026-07-19:
+The following read-only checks are the offline gate for this repository. Every
+pull request and every push to `main` runs them on Windows across Python 3.11,
+3.12, and 3.13; see the [CI workflow](../.github/workflows/ci.yml) and the
+[latest runs](https://github.com/kuoforever/computer-use-mcp/actions/workflows/ci.yml)
+for the exact per-run totals.
 
 ~~~text
-python -m pytest -q              903 passed, 5 skipped
-ruff check .                     PASS
-relative Markdown targets       PASS
+python -m pytest -q                          offline suite
+python -m ruff check src tests scripts       lint
+python scripts/check_docs_consistency.py     current-state tool surface
 ~~~
+
+This page deliberately does not restate a running test total. That number moves
+on nearly every commit, and a hand-maintained copy of it drifts silently. Dated
+evidence records keep the exact totals observed by their own runs; this
+dashboard states the gate, not a snapshot of it.
 
 These results support offline claims only. The separately retained E3 and E4
 records fill only their explicitly scoped provider and desktop cells; neither
