@@ -33,6 +33,7 @@ not a line-by-line mirror of every reference page.
 | I am implementing or reviewing the Agent Host Phase 0-3 foundation and MCP bridge | [Agent Host contract](AGENT.md) and [evaluation contract](EVALUATION.md) |
 | I am reviewing declarative TaskPlan, Planner, Executor, WAL, or reconciliation contracts | [Task planning](PLANNING.md) |
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
+| I am adding telemetry, or need the observation-vs-authority boundary | [Telemetry contract](TELEMETRY.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
 | I need context-budget or explicit-memory rules | [Agent context and memory](CONTEXT_MEMORY.md) |
 | I need local text or screenshot pseudonymization before provider dispatch | [Local privacy boundary](LOCAL_PRIVACY.md) |
