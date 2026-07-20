@@ -21,6 +21,9 @@ not a line-by-line mirror of every reference page.
 | I need environment variables or safety behavior | [Configuration and safety](CONFIGURATION.md) |
 | I need exact MCP tool parameters and behavior | [Tool reference](TOOLS.md) |
 | I need the architecture and design decisions | [Design](DESIGN.md) |
+| I want to know why a specific safety rule exists, and what was rejected | [Architecture decision records](adr/) |
+| I want a worked failure analysis with root cause and detection gap | [Postmortems](postmortems/) |
+| I want to know how coding agents are used here and who is responsible | [AI-assisted development](AI_ASSISTED_DEVELOPMENT.md) |
 | I am implementing a driver | [Driver Contract](DRIVER_CONTRACT.md) |
 | I need the current stack and platform boundary | [Tech stack](TECH_STACK.md) |
 | I am reviewing non-functional requirements | [Quality attributes](QUALITY_ATTRIBUTES.md) |
