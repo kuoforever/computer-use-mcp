@@ -11,6 +11,7 @@ import os
 import re
 import stat
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -32,6 +33,13 @@ MAX_CAMPAIGN_ITEMS = 10_000
 MAX_CAMPAIGN_DISCOVERY_PASSES = 100
 MAX_HEARTBEAT_FRESHNESS_SECONDS = 5 * 60
 MAX_ITEM_LEASE_SECONDS = 60 * 60
+
+#: Bounded retry for the atomic rename. A real-time file scanner can hold a
+#: freshly written destination for a few milliseconds; five attempts with
+#: exponential backoff span under 0.2s total, short enough that a genuine
+#: permission fault still surfaces promptly.
+_REPLACE_RETRY_ATTEMPTS = 5
+_REPLACE_RETRY_BASE_SECONDS = 0.01
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _ITEM_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\Z")
 _KIND = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
@@ -778,6 +786,28 @@ class CampaignStore:
         return self._directory(campaign_id) / name
 
     @staticmethod
+    def _replace_with_retry(temporary: Path, path: Path) -> None:
+        """Rename ``temporary`` onto ``path``, retrying a transient hold.
+
+        On Windows a real-time file scanner can hold the destination open for a
+        few milliseconds, and ``os.replace`` then fails with
+        ERROR_ACCESS_DENIED. Retrying is safe: the rename either happened or it
+        did not, so a lost race never leaves a partial record. Only that exact
+        error is retried, and only for a bounded time -- a genuine permission
+        problem must still fail rather than stall.
+        """
+
+        delay = _REPLACE_RETRY_BASE_SECONDS
+        for _ in range(_REPLACE_RETRY_ATTEMPTS - 1):
+            try:
+                os.replace(temporary, path)
+                return
+            except PermissionError:
+                time.sleep(delay)
+                delay *= 2
+        os.replace(temporary, path)
+
+    @staticmethod
     def _atomic_write(path: Path, data: bytes, *, create: bool, maximum: int) -> None:
         if not data or len(data) > maximum:
             raise CampaignStoreError("CAMPAIGN_TOO_LARGE")
@@ -797,11 +827,17 @@ class CampaignStore:
                 os.fsync(file.fileno())
             if create and path.exists():
                 raise CampaignStoreError("CAMPAIGN_ALREADY_EXISTS")
-            os.replace(temporary, path)
+            CampaignStore._replace_with_retry(temporary, path)
             temporary = None
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
         except CampaignStoreError:
             raise
+        except FileNotFoundError as exc:
+            # A directory this method just created cannot be missing, so this
+            # is the path itself being unusable -- on Windows almost always a
+            # MAX_PATH overflow. Reporting it as a write failure sends the
+            # reader looking for a storage fault that is not there.
+            raise CampaignStoreError("CAMPAIGN_PATH_UNAVAILABLE") from exc
         except OSError as exc:
             raise CampaignStoreError("CAMPAIGN_WRITE_FAILED") from exc
         finally:
