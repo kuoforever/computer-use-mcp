@@ -33,6 +33,7 @@ desktop execution authority, and durable evidence that outlives a crash.
 | Result | Evidence |
 | --- | --- |
 | Forced-crash campaign: killed mid-flight, resumed in a fresh process, **0 duplicate side effects** at every fault point | [Reliability demo](docs/demo/README.md) |
+| Reliability benchmark: **30 runs × 100 items**, a crash injected at every named fault point, **0 duplicate side effects**, every item either committed or parked for a human | [Benchmark evidence](docs/benchmark/README.md) |
 | Windows activation repair: a five-case regression passed in an isolated VM | [E4 evidence](docs/E4_EVIDENCE.md) |
 | Bounded OCR recovered a static tab that UIA omitted, matched to one UIA card | [OCR evidence](docs/BOSS_OCR_EVIDENCE.md) |
 | One real BOSS page: 7 stable public job keys, 0 duplicates, 0 retries, 0 tokens — **measured under a contract the discovery-pass ledger has since replaced** | [Discovery evidence](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |

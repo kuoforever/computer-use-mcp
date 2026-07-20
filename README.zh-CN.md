@@ -30,6 +30,7 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 | 结果 | 证据 |
 | --- | --- |
 | 强制崩溃的 campaign：中途杀掉、新进程恢复，每个故障点都是 **0 重复副作用** | [可靠性 demo](docs/demo/README.md) |
+| 可靠性基准：**30 次运行 × 100 item**，在每个命名故障点注入崩溃，**0 重复副作用**，每个 item 要么提交要么停下等人 | [基准证据](docs/benchmark/README.md) |
 | 一页真实 BOSS 页面：7 个稳定公开 job key、0 重复、0 重试、0 token —— **该测量所依据的契约已被 discovery-pass ledger 取代** | [发现证据](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
 
 每条记录**只支持它自己的范围**：这些都不是 application acceptance，也不表示
