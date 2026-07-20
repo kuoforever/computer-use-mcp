@@ -1,6 +1,6 @@
 # Capability status and evidence dashboard
 
-> **Status: current review dashboard, verified 2026-07-18.** This page is the
+> **Status: current review dashboard, verified 2026-07-20.** This page is the
 > shortest path to the project's actual boundary. It separates design,
 > implementation, offline evidence, provider evidence, desktop evidence, and
 > application evidence. A design or offline test is never promoted to a live
@@ -26,7 +26,7 @@ test was attempted and failed unless a linked evidence record says so.
 | MCP Server | `YES` | `YES` — nine-tool Windows stdio server, including bounded OCR | `YES` | `N/A` | `YES` — [the five-case Windows activation regression passed](E4_EVIDENCE.md) in the isolated VM | `PARTIAL` — bounded BOSS [home](BOSS_EVIDENCE.md) and [interested-jobs OCR](BOSS_OCR_EVIDENCE.md) observations passed, not application acceptance | Add a bounded multi-item read-only BOSS campaign with restart evidence |
 | Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop, private signed/redacted Claude reasoning-block continuation, and locally approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs; Sonnet 5 compatibility is revalidated on the exact repair commit | `YES` — [both reviewed providers passed](E4_EVIDENCE.md) read-only and one approved action with post-action verification | `NO` | Proceed to bounded application evidence without widening action authority |
 | Planner / Executor | `YES` | `PARTIAL` — `plan run` composes one provider plan, 1-4 observations through the sole Runner boundary, and one tool-free final response; side effects remain unavailable | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) the exact bounded CLI path with reviewed model IDs | `NO` | `NO` | Retain isolated E4 evidence; any side-effect expansion remains a separate review |
-| Campaign | `YES` | `PARTIAL` — the synthetic seam and host-status projection remain bounded; two fixed BOSS commands now create the reviewed discovery manifest and dispatch one foreground `ui_snapshot` through Runner/project MCP into stable public job keys | `YES` | `NO` | `YES` — the exact [synthetic path](SYNTHETIC_CAMPAIGN_EVIDENCE.md) and [one-page BOSS discovery path](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) passed on-device | `PARTIAL` — seven identities from one real page, not progression, restart, processing, or application acceptance | Add reviewed page progression and the multi-item restart gate; no general worker |
+| Campaign | `YES` | `PARTIAL` — the synthetic seam and host-status projection remain bounded; two fixed BOSS commands create the reviewed discovery manifest and dispatch one foreground `ui_snapshot` through Runner/project MCP into stable public job keys, now accumulated across bounded discovery passes | `YES` — the discovery-pass ledger, unchanged-source refusal, pass bound, torn-ledger refusal, and fresh-run reconstruction are tested | `NO` | `PARTIAL` — the [synthetic path](SYNTHETIC_CAMPAIGN_EVIDENCE.md) passed on-device; the [one-page BOSS discovery result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) predates the advanced discovery digests | `PARTIAL` — seven identities from one real page under a superseded contract, not progression, restart, processing, or application acceptance | Retain a multi-page on-device discovery result, then the multi-item restart gate; no general worker |
 | Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, bounded region OCR, and bounded Agent image handling exist; document text, standalone crop, and delta sources do not | `YES` — OCR limits, schema, redaction, timeout, and result projection are tested | `NO` | `YES` — [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) recovered a missing static tab and matched one job card to UIA | `PARTIAL` — one real page and card, not application acceptance | Exercise the same source ladder across bounded multi-item and restart cases |
 | Operator UI | `YES` | `PARTIAL` — console yes/deny approval and internal fake-host status decisions exist; presence indicator, passive progress window, Decision Cards, public status tool, and notification bridge do not | `PARTIAL` — approval and status-decision paths have fake evidence | `NO` | `NO` | `NO` | Implement the checkpoint-to-view-model reducer and isolated viewer smoke; keep mobile delivery host-owned |
 | Continual Learning | `YES` | `NO` — current explicit memory is not automatic learning | `NO` | `NO` | `NO` | `NO` | Deliver L0 normalized episode outcomes and complete cost vectors before candidate extraction or strategy routing |
@@ -81,8 +81,13 @@ or fills application or release gates. The separate
    provider, MCP port, or selector. The complete sequence now has
    [retained on-device state, trace, and cost evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).
    The bounded internal terminal-status projection and fake-host polling
-   contract are now offline verified. No public status tool or general worker is
-   connected; proceed to the bounded multi-item BOSS restart gate.
+   contract are now offline verified. BOSS discovery now accumulates across a
+   durable, append-only discovery-pass ledger that refuses an unchanged source,
+   bounds the pass count, fails closed on a torn ledger, and is reconstructed by
+   a fresh run from durable records alone; this advanced the BOSS policy and
+   schema digests and is offline evidence only. No public status tool or general
+   worker is connected; retain a multi-page on-device discovery result, then
+   proceed to the bounded multi-item BOSS restart gate.
 4. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
    and WeChat draft-only cases and retain success, token, retry, recovery, and
    takeover measurements.

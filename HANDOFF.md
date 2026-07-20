@@ -46,7 +46,12 @@ campaign records and reaches the expected exhausted resume decision. The exact
 three-command seam now has [retained on-device evidence](docs/SYNTHETIC_CAMPAIGN_EVIDENCE.md).
 A third fixed CLI command now creates exactly that one-item synthetic manifest,
 discovery record, heartbeat, batch, and claim without opening provider or MCP
-ports. No general campaign worker or complete application workflow is
+ports. BOSS discovery now accumulates identities across repeated observations
+through a durable append-only discovery-pass ledger that stores only counts and
+a source digest, refuses an unchanged source, bounds the pass count, fails
+closed when a pass claims unpersisted items, and is reconstructed by a fresh run
+from durable records; the operator still causes progression by moving the
+observed foreground, because no command accepts a page, URL, or selector. No general campaign worker or complete application workflow is
 connected. The broader universal GUI,
 operator UI, cross-application demo, and continual-learning layers remain
 planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the

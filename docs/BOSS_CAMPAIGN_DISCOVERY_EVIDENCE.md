@@ -1,9 +1,15 @@
 # Bounded BOSS campaign discovery evidence
 
-> **Status: one on-device page retained 2026-07-19.** This record demonstrates
-> the fixed BOSS campaign preparation and one-page observation commands through
-> the Agent Runner and project stdio MCP. It is not page-progression, provider,
-> item-processing, restart, 100-item, or application-acceptance evidence.
+> **Status: one on-device page retained 2026-07-19, superseded contract.** This
+> record demonstrates the fixed BOSS campaign preparation and one-page
+> observation commands through the Agent Runner and project stdio MCP. It is not
+> page-progression, provider, item-processing, restart, 100-item, or
+> application-acceptance evidence.
+>
+> The discovery-pass ledger change advanced the BOSS policy and schema digests
+> after this run, so the measurement below describes the earlier contract. A
+> campaign created under it is no longer accepted, and the multi-page on-device
+> result remains an open gate.
 
 ## Reviewed boundary
 
@@ -69,8 +75,10 @@ credential is retained in the repository.
 
 ## Supported claim and next gate
 
-This closes only the one-page on-device BOSS campaign discovery gate. Next add
-a separately reviewed, bounded page-progression mechanism and run the first
-100-item read-only campaign with a forced restart and retained committed-item,
-retry, recovery, takeover, and cost evidence. Do not infer general worker,
+This closes only the one-page on-device BOSS campaign discovery gate, under the
+contract that the discovery-pass ledger has since replaced. The bounded
+page-progression mechanism is now implemented and offline verified; it needs a
+separate multi-page on-device result before any progression claim. After that,
+run the first 100-item read-only campaign with a forced restart and retained
+committed-item, retry, recovery, takeover, and cost evidence. Do not infer general worker,
 provider, extraction, item commit, or side-effect authority from this result.

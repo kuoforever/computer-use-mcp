@@ -5,6 +5,12 @@ desktop MCP path. It requires a same-page BOSS interested-jobs source marker,
 extracts public BOSS job-detail identifiers, discards URL query data, and
 persists only stable item keys in the existing campaign ledger. It does not
 navigate, call MCP, start a worker, or grant action authority.
+
+Repeated observations accumulate through a durable discovery-pass ledger. Page
+progression is driven entirely by the operator moving the observed foreground;
+this module records that a distinct source was observed, refuses an unchanged
+source, bounds the number of passes, and fails closed when the pass ledger and
+the item ledger disagree.
 """
 
 from __future__ import annotations
@@ -21,6 +27,7 @@ from .campaign import (
     CampaignStatus,
     CampaignStore,
     CampaignStoreError,
+    DiscoveryPass,
     ItemStatus,
     ItemTransition,
 )
@@ -32,6 +39,7 @@ MAX_BOSS_SNAPSHOT_CHARS = 64 * 1024
 MAX_BOSS_SNAPSHOT_LINES = 256
 MAX_BOSS_IDENTITIES_PER_SNAPSHOT = 50
 MAX_BOSS_CAMPAIGN_ITEMS = 200
+MAX_BOSS_DISCOVERY_PASSES = 20
 _BOSS_HOST = "www.zhipin.com"
 _VALUE_URL = re.compile(r'\| value="(https://[^"<>]+)"\Z')
 _JOB_PATH = re.compile(r"/job_detail/([A-Za-z0-9_-]{8,128})\.html\Z")
@@ -55,12 +63,18 @@ class BossDiscoveryOutcome:
     new_item_keys: tuple[str, ...]
     duplicate_count: int
     discovered_count: int
+    pass_sequence: int
+    source_digest: str
+    added_nothing: bool
 
 
 @dataclass(frozen=True)
 class BossDiscoveryPreflight:
     campaign_id: str
     discovered_count: int
+    pass_count: int
+    last_source_digest: str | None
+    last_pass_added_nothing: bool
 
 
 def _contract_digest(label: str, material: dict[str, object]) -> str:
@@ -75,9 +89,11 @@ def _contract_digest(label: str, material: dict[str, object]) -> str:
 
 def boss_discovery_policy_digest() -> str:
     return _contract_digest(
-        "boss-discovery-policy-v2",
+        "boss-discovery-policy-v3",
         {
             "effect": "observation_only",
+            "progression": "operator_moved_source_only",
+            "max_discovery_passes": MAX_BOSS_DISCOVERY_PASSES,
             "host": _BOSS_HOST,
             "source_marker": BOSS_SOURCE_MARKER,
             "source_marker_scope": "same_snapshot_boss_link",
@@ -92,12 +108,28 @@ def boss_discovery_policy_digest() -> str:
 
 def boss_discovery_schema_digest() -> str:
     return _contract_digest(
-        "boss-discovery-schema-v1",
+        "boss-discovery-schema-v2",
         {
             "persisted_item_key": "boss:job:<public_id>",
             "discarded_url_fields": ["scheme", "host", "query", "fragment"],
+            "discovery_pass_fields": [
+                "sequence",
+                "at",
+                "source_digest",
+                "observed_count",
+                "new_count",
+                "run_id",
+            ],
         },
     )
+
+
+def boss_snapshot_source_digest(snapshot_text: str) -> str:
+    """Digest one bounded snapshot so passes are distinguishable without content."""
+
+    if not isinstance(snapshot_text, str) or not snapshot_text:
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_SNAPSHOT_INVALID")
+    return hashlib.sha256(snapshot_text.encode("utf-8", "surrogatepass")).hexdigest()
 
 
 def _require_timestamp(value: str) -> str:
@@ -208,8 +240,18 @@ def inspect_boss_discovery_campaign(
         manifest = store.read_manifest(campaign_id)
         projection = store.read_ledger(campaign_id)
         batches = store.read_batches(campaign_id)
+        passes = store.read_discovery_passes(campaign_id)
     except CampaignStoreError as exc:
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_STATE_INVALID") from exc
+    # Items are appended before the pass that records them, so a persisted item
+    # count above the recorded total is an interrupted pass and stays repairable
+    # by replay. The reverse claims items that were never persisted.
+    if projection.discovered_count < passes.total_new_count:
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_LEDGER_TORN")
+    if passes.last_at is not None and datetime.fromisoformat(timestamp) < datetime.fromisoformat(
+        passes.last_at
+    ):
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_STATE_INVALID")
     if (
         manifest.kind != BOSS_CAMPAIGN_KIND
         or manifest.status is not CampaignStatus.RUNNING
@@ -224,7 +266,13 @@ def inspect_boss_discovery_campaign(
         )
     ):
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_STATE_INVALID")
-    return BossDiscoveryPreflight(campaign_id, projection.discovered_count)
+    return BossDiscoveryPreflight(
+        campaign_id=campaign_id,
+        discovered_count=projection.discovered_count,
+        pass_count=passes.pass_count,
+        last_source_digest=passes.last_source_digest,
+        last_pass_added_nothing=passes.last_pass_added_nothing,
+    )
 
 
 def record_boss_snapshot_discoveries(
@@ -234,15 +282,25 @@ def record_boss_snapshot_discoveries(
     snapshot_text: str,
     observed_at: str,
 ) -> BossDiscoveryOutcome:
-    """Idempotently append new identities while the campaign is discovery-only."""
+    """Idempotently append new identities while the campaign is discovery-only.
+
+    One call records exactly one discovery pass. The caller cannot select a
+    page: progression happens only because the operator moved the observed
+    source, which this boundary verifies through a changed source digest.
+    """
 
     if not isinstance(store, CampaignStore) or not store.lock.acquired:
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_LOCK_REQUIRED")
     timestamp = _require_timestamp(observed_at)
     identities = parse_boss_job_identities(snapshot_text)
+    source_digest = boss_snapshot_source_digest(snapshot_text)
     preflight = inspect_boss_discovery_campaign(
         store, campaign_id=campaign_id, observed_at=timestamp
     )
+    if source_digest == preflight.last_source_digest:
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_SOURCE_UNCHANGED")
+    if preflight.pass_count >= MAX_BOSS_DISCOVERY_PASSES:
+        raise BossCampaignDiscoveryError("BOSS_DISCOVERY_PASS_LIMIT")
     projection = store.read_ledger(campaign_id)
 
     new_identities = tuple(
@@ -267,6 +325,16 @@ def record_boss_snapshot_discoveries(
                     at=timestamp,
                 ),
             )
+        passes = store.append_discovery_pass(
+            campaign_id,
+            DiscoveryPass(
+                sequence=preflight.pass_count + 1,
+                at=timestamp,
+                source_digest=source_digest,
+                observed_count=len(identities),
+                new_count=len(new_identities),
+            ),
+        )
     except CampaignStoreError as exc:
         raise BossCampaignDiscoveryError("BOSS_DISCOVERY_WRITE_FAILED") from exc
     return BossDiscoveryOutcome(
@@ -274,6 +342,9 @@ def record_boss_snapshot_discoveries(
         new_item_keys=tuple(identity.item_key for identity in new_identities),
         duplicate_count=len(identities) - len(new_identities),
         discovered_count=projection.discovered_count,
+        pass_sequence=passes.pass_count,
+        source_digest=source_digest,
+        added_nothing=passes.last_pass_added_nothing,
     )
 
 
@@ -281,6 +352,7 @@ __all__ = [
     "BOSS_CAMPAIGN_KIND",
     "BOSS_SOURCE_MARKER",
     "MAX_BOSS_CAMPAIGN_ITEMS",
+    "MAX_BOSS_DISCOVERY_PASSES",
     "MAX_BOSS_IDENTITIES_PER_SNAPSHOT",
     "MAX_BOSS_SNAPSHOT_CHARS",
     "MAX_BOSS_SNAPSHOT_LINES",
@@ -290,6 +362,7 @@ __all__ = [
     "BossJobIdentity",
     "boss_discovery_policy_digest",
     "boss_discovery_schema_digest",
+    "boss_snapshot_source_digest",
     "create_boss_discovery_campaign",
     "inspect_boss_discovery_campaign",
     "parse_boss_job_identities",

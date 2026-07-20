@@ -591,6 +591,8 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
                 discovered_count=2,
                 duplicate_count=1,
                 new_item_keys=("boss:job:publicjob002",),
+                pass_sequence=2,
+                added_nothing=False,
             ),
         )
 
@@ -633,6 +635,8 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
         "discovered_count": 2,
         "duplicate_count": 1,
         "new_item_count": 1,
+        "pass_sequence": 2,
+        "pass_added_nothing": False,
         "run_id": "run_1",
         "tool_calls": 1,
     }
