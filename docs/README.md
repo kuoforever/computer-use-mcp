@@ -52,6 +52,7 @@ not a line-by-line mirror of every reference page.
 | I need the retained BOSS static-content OCR result | [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
 | I need the retained one-page BOSS campaign discovery result | [BOSS campaign discovery evidence](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
 | I need the retained on-device synthetic campaign result | [Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md) |
+| I need the 100-item forced-restart reliability result | [Reliability benchmark evidence](benchmark/README.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need the retained sanitized isolated desktop outcomes | [E4 evidence](E4_EVIDENCE.md) |
