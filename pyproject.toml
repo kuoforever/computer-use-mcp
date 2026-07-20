@@ -27,7 +27,7 @@ dependencies = [
 # uiautomation.SendKeys — no pyautogui dependency needed.
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5", "build>=1.2", "setuptools>=77.0.3"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.11", "build>=1.2", "setuptools>=77.0.3"]
 agent-openai = ["openai>=1.68,<3"]
 agent-anthropic = ["anthropic>=0.77,<1"]
 agent = ["openai>=1.68,<3", "anthropic>=0.77,<1"]
@@ -47,3 +47,132 @@ markers = [
     "openai_integration: opt-in live OpenAI Responses API test with a harmless fake MCP child",
     "anthropic_integration: opt-in live Claude Messages API test with a harmless fake MCP child",
 ]
+
+[tool.mypy]
+# Type checking is on by default for everything under src/, so a new module is
+# checked the day it is written. The exemptions below are pre-existing debt.
+#
+# The rule for this list: it may only shrink. Adding a module to it is not a
+# way to land new code, and a module removed from it must stay clean.
+python_version = "3.11"
+files = ["src"]
+# Windows, UIA, and provider SDK stubs are incomplete or absent. Scoped
+# per-module overrides are preferred over silencing a whole error class.
+ignore_missing_imports = true
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.campaign"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.campaign_host_status"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.campaign_resume"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.cli"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.config"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.continuation"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.demo_campaign"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.desktop_mcp"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.evaluation"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.executor_final_reconciliation"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.plan_store"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.privacy.core"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.privacy.image"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.providers.anthropic"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.providers.anthropic_final"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.providers.anthropic_planner"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.providers.openai"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.providers.openai_final"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.providers.openai_planner"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.recovery"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.release"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.report"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.run_lock"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.runner"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.tool_registry"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.trace"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_agent.types"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_mcp.audit"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "computer_use_mcp.drivers.windows"
+ignore_errors = true

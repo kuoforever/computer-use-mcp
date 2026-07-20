@@ -198,12 +198,79 @@ def check_no_handwritten_test_totals() -> list[Finding]:
     return findings
 
 
+# Markdown inline links, excluding images, which are checked the same way.
+_LINK = re.compile(r"(?<!\!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+
+
+def _heading_slugs(text: str) -> set[str]:
+    """GitHub's slug rules, reduced to what this repository actually uses."""
+
+    slugs: set[str] = set()
+    for heading in re.findall(r"^#{1,6}\s+(.+?)\s*$", text, re.M):
+        # Strip inline code, emphasis, and links down to their text.
+        plain = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", heading)
+        plain = re.sub(r"[`*_]", "", plain)
+        slug = re.sub(r"[^a-z0-9 \-]", "", plain.lower()).strip().replace(" ", "-")
+        if slug:
+            slugs.add(slug)
+    return slugs
+
+
+def check_relative_links() -> list[Finding]:
+    """Every relative Markdown link and image target must exist.
+
+    A broken link on a landing page costs more than a wrong sentence: it makes
+    the evidence look unmaintained. Anchors are checked too, because a heading
+    rename silently breaks them.
+    """
+
+    findings: list[Finding] = []
+    for path in sorted(REPO_ROOT.rglob("*.md")):
+        if any(part in {".venv", "node_modules", ".git", "out"} for part in path.parts):
+            continue
+        text = path.read_text(encoding="utf-8")
+        relative_path = path.relative_to(REPO_ROOT).as_posix()
+        slugs = _heading_slugs(text)
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            for match in (*_LINK.finditer(line), *_IMAGE.finditer(line)):
+                target = match.group(1)
+                if target.startswith(("http://", "https://", "mailto:")):
+                    continue
+                file_part, _, anchor = target.partition("#")
+                if not file_part:
+                    if anchor and anchor not in slugs:
+                        findings.append(
+                            Finding(
+                                path=relative_path,
+                                line=line_number,
+                                expected="an in-page anchor matching a heading",
+                                actual=f"#{anchor}",
+                                detail="in-page anchor does not match any heading",
+                            )
+                        )
+                    continue
+                resolved = (path.parent / file_part).resolve()
+                if not resolved.exists():
+                    findings.append(
+                        Finding(
+                            path=relative_path,
+                            line=line_number,
+                            expected="an existing relative target",
+                            actual=file_part,
+                            detail="relative link target does not exist",
+                        )
+                    )
+    return findings
+
+
 def run_checks() -> list[Finding]:
     expected_names = tuple(tool.name for tool in REVIEWED_TOOLS)
     return [
         *check_tool_counts(len(expected_names)),
         *check_tool_names(expected_names),
         *check_no_handwritten_test_totals(),
+        *check_relative_links(),
     ]
 
 

@@ -402,20 +402,18 @@ def render_markdown(
 ) -> str:
     """Render a summary that states median and p95, never a best run."""
 
-    expectations = {
-        scenario.name: scenario.expectation
-        for scenario in (scenarios if scenarios is not None else default_scenarios())
-    }
-    payload = report.as_json()
+    specs = tuple(scenarios if scenarios is not None else default_scenarios())
+    expectations = {spec.name: spec.expectation for spec in specs}
+    total_duplicates = sum(run.duplicates for run in report.results)
     lines = [
         "# Reliability benchmark",
         "",
         f"{report.item_count} synthetic items per run, "
         f"{report.repetitions} repetitions per scenario, "
-        f"{payload['total_runs']} runs total.",
+        f"{len(report.results)} runs total.",
         "",
         f"**Result: {'PASS' if report.passed else 'FAIL'}** — "
-        f"{payload['total_duplicate_side_effects']} duplicate side effects across all runs.",
+        f"{total_duplicates} duplicate side effects across all runs.",
         "",
         "Every number below is a median with p95 in parentheses, computed across "
         "all repetitions. No run is selected for being the best one. An item "
@@ -424,23 +422,23 @@ def render_markdown(
         "| Scenario | Committed | Uncertain | Duplicates | Wall ms | Recovery ms |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
-    for entry in payload["scenarios"]:  # type: ignore[union-attr]
-        wall = entry["wall_ms"]  # type: ignore[index]
-        recovery = entry["recovery_ms"]  # type: ignore[index]
-        committed = entry["committed_items"]  # type: ignore[index]
-        uncertain = entry["uncertain_items"]  # type: ignore[index]
+    for name in report.scenario_names():
+        runs = report.for_scenario(name)
+        wall = _summarize([run.wall_ms for run in runs])
+        recovery = _summarize([run.recovery_ms for run in runs])
+        committed = sorted({run.report.committed_items for run in runs})
+        uncertain = sorted({run.report.uncertain_items for run in runs})
         lines.append(
-            f"| `{entry['scenario']}` "  # type: ignore[index]
+            f"| `{name}` "
             f"| {', '.join(str(value) for value in committed)} "
             f"| {', '.join(str(value) for value in uncertain)} "
-            f"| {entry['duplicate_side_effects']} "  # type: ignore[index]
+            f"| {max(run.duplicates for run in runs)} "
             f"| {wall['median']} ({wall['p95']}) "
             f"| {recovery['median']} ({recovery['p95']}) |"
         )
     lines.extend(["", "## What each scenario asserts", ""])
-    for entry in payload["scenarios"]:  # type: ignore[union-attr]
-        name = entry["scenario"]  # type: ignore[index]
-        lines.append(f"- **`{name}`** — {expectations.get(str(name), 'unknown')}")
+    for name in report.scenario_names():
+        lines.append(f"- **`{name}`** — {expectations.get(name, 'unknown')}")
     lines.extend(
         [
             "",

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Mapping, Protocol, runtime_checkable
+from typing import Literal, Mapping, Protocol, runtime_checkable
 
 __all__ = [
     "ALLOWED_ATTRIBUTES",
@@ -176,7 +176,7 @@ class SpanPort(Protocol):
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool: ...
+    ) -> Literal[False]: ...
 
 
 @runtime_checkable
@@ -214,7 +214,7 @@ class _NoOpSpan:
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         return False
 
 
@@ -270,7 +270,7 @@ class InMemorySpan:
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         self.end()
         return False
 
