@@ -13,6 +13,7 @@ env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.codex/
 
 # Env / secrets
 .env
@@ -24,6 +25,8 @@ logs/
 audit/
 screenshots/
 out/
+output/
+tmp/
 
 # OS / editor
 Thumbs.db
