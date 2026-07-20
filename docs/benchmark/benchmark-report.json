@@ -1,0 +1,206 @@
+{
+  "item_count": 100,
+  "passed": true,
+  "repetitions": 5,
+  "report_version": 1,
+  "scenarios": [
+    {
+      "accepted_side_effects": [
+        100
+      ],
+      "committed_items": [
+        100
+      ],
+      "deterministic": true,
+      "duplicate_side_effects": 0,
+      "fault_points_exercised": [],
+      "recovery_ms": {
+        "max": 0,
+        "median": 0,
+        "min": 0,
+        "p95": 0
+      },
+      "repetitions": 5,
+      "resumed_runs": [
+        0
+      ],
+      "scenario": "clean",
+      "uncertain_items": [
+        0
+      ],
+      "wall_ms": {
+        "max": 10020,
+        "median": 9810,
+        "min": 9722,
+        "p95": 10020
+      }
+    },
+    {
+      "accepted_side_effects": [
+        100
+      ],
+      "committed_items": [
+        100
+      ],
+      "deterministic": true,
+      "duplicate_side_effects": 0,
+      "fault_points_exercised": [
+        "after_item_claim"
+      ],
+      "recovery_ms": {
+        "max": 11960,
+        "median": 10089,
+        "min": 8853,
+        "p95": 11960
+      },
+      "repetitions": 5,
+      "resumed_runs": [
+        1
+      ],
+      "scenario": "crash_after_claim",
+      "uncertain_items": [
+        0
+      ],
+      "wall_ms": {
+        "max": 13605,
+        "median": 11245,
+        "min": 9993,
+        "p95": 13605
+      }
+    },
+    {
+      "accepted_side_effects": [
+        99
+      ],
+      "committed_items": [
+        99
+      ],
+      "deterministic": true,
+      "duplicate_side_effects": 0,
+      "fault_points_exercised": [
+        "after_dispatch_intent"
+      ],
+      "recovery_ms": {
+        "max": 10336,
+        "median": 9945,
+        "min": 9079,
+        "p95": 10336
+      },
+      "repetitions": 5,
+      "resumed_runs": [
+        1
+      ],
+      "scenario": "crash_after_dispatch_intent",
+      "uncertain_items": [
+        1
+      ],
+      "wall_ms": {
+        "max": 12817,
+        "median": 12595,
+        "min": 11508,
+        "p95": 12817
+      }
+    },
+    {
+      "accepted_side_effects": [
+        100
+      ],
+      "committed_items": [
+        100
+      ],
+      "deterministic": true,
+      "duplicate_side_effects": 0,
+      "fault_points_exercised": [
+        "after_side_effect_completion"
+      ],
+      "recovery_ms": {
+        "max": 8004,
+        "median": 7436,
+        "min": 7088,
+        "p95": 8004
+      },
+      "repetitions": 5,
+      "resumed_runs": [
+        1
+      ],
+      "scenario": "crash_after_side_effect_completion",
+      "uncertain_items": [
+        0
+      ],
+      "wall_ms": {
+        "max": 14461,
+        "median": 13622,
+        "min": 12800,
+        "p95": 14461
+      }
+    },
+    {
+      "accepted_side_effects": [
+        100
+      ],
+      "committed_items": [
+        100
+      ],
+      "deterministic": true,
+      "duplicate_side_effects": 0,
+      "fault_points_exercised": [
+        "after_item_commit"
+      ],
+      "recovery_ms": {
+        "max": 4298,
+        "median": 3977,
+        "min": 3545,
+        "p95": 4298
+      },
+      "repetitions": 5,
+      "resumed_runs": [
+        1
+      ],
+      "scenario": "crash_after_commit",
+      "uncertain_items": [
+        0
+      ],
+      "wall_ms": {
+        "max": 12969,
+        "median": 12370,
+        "min": 12167,
+        "p95": 12969
+      }
+    },
+    {
+      "accepted_side_effects": [
+        100
+      ],
+      "committed_items": [
+        100
+      ],
+      "deterministic": true,
+      "duplicate_side_effects": 0,
+      "fault_points_exercised": [
+        "before_final_projection"
+      ],
+      "recovery_ms": {
+        "max": 55,
+        "median": 42,
+        "min": 34,
+        "p95": 55
+      },
+      "repetitions": 5,
+      "resumed_runs": [
+        1
+      ],
+      "scenario": "crash_before_projection",
+      "uncertain_items": [
+        0
+      ],
+      "wall_ms": {
+        "max": 12655,
+        "median": 12266,
+        "min": 12167,
+        "p95": 12655
+      }
+    }
+  ],
+  "total_duplicate_side_effects": 0,
+  "total_runs": 30
+}

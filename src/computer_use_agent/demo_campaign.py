@@ -503,6 +503,18 @@ def reconcile_after_restart(
             continue
 
         if item.status is ItemStatus.CLAIMED:
+            # Nothing was dispatched, so this item is safe to redo -- but the
+            # ledger only permits CLAIMED -> RETRYABLE through lease expiry.
+            # That rule is not an inconvenience to route around: a claim must
+            # outlive a crash, because a process we believe is dead may still
+            # be running. Releasing early is exactly how two owners end up
+            # working the same item.
+            if item.lease_expires_at is None or now < datetime.fromisoformat(
+                item.lease_expires_at
+            ):
+                # Still leased. Leave it claimed; a later pass, after the lease
+                # expires, releases it.
+                continue
             store.append(
                 campaign_id,
                 ItemTransition(
@@ -513,8 +525,8 @@ def reconcile_after_restart(
                     attempt=item.attempt,
                     at=timestamp,
                     run_id=owner,
-                    boundary="reconcile",
-                    code="NOT_DISPATCHED",
+                    boundary="lease_expired",
+                    code="LEASE_EXPIRED",
                 ),
             )
             released.append(item_key)
@@ -643,6 +655,33 @@ def run_demo_campaign(
     )
 
 
+def _beat_heartbeat(store: CampaignStore, *, campaign_id: str, now: datetime) -> None:
+    """Advance this run's heartbeat to ``now``.
+
+    Only the current owner may advance its own heartbeat, and only forward, so
+    this cannot be used to steal ownership or to revive a stale claim.
+    """
+
+    current = store.read_heartbeat(campaign_id)
+    if current is None:
+        return
+    timestamp = now.isoformat(timespec="seconds")
+    if datetime.fromisoformat(timestamp) <= datetime.fromisoformat(current.heartbeat_at):
+        return
+    store.write_heartbeat(
+        campaign_id,
+        CampaignHeartbeat(
+            campaign_id=campaign_id,
+            run_id=current.run_id,
+            started_at=current.started_at,
+            heartbeat_at=timestamp,
+            fresh_until=(now + timedelta(seconds=DEMO_ITEM_LEASE_SECONDS)).isoformat(
+                timespec="seconds"
+            ),
+        ),
+    )
+
+
 def _process_batch(
     coordinator: BatchCoordinator,
     sink: DurableFakeSideEffectSink,
@@ -675,6 +714,10 @@ def _process_batch(
         except BatchCoordinatorError:
             break
         injector.check(DemoFaultPoint.AFTER_ITEM_CLAIM, ordinal=claimed.ordinal)
+        # Beat the heartbeat while working. A worker that only writes one
+        # heartbeat at startup declares itself dead partway through any batch
+        # that outlives the freshness window, and then blocks its own commits.
+        _beat_heartbeat(coordinator.store, campaign_id=campaign_id, now=clock)
 
         clock = clock + timedelta(seconds=1)
         if first:
