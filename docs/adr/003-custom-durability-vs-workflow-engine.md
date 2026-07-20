@@ -131,6 +131,26 @@ On-device: [synthetic campaign evidence](../SYNTHETIC_CAMPAIGN_EVIDENCE.md) and
 [BOSS discovery evidence](../BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md), each scoped
 to its own recorded run.
 
-Unknown: no Temporal integration exists in this repository. The comparison above
-is a design position, not a measured result, and the table describing a future
-split is **planned**, not implemented.
+**Update, 2026-07-20.** A proof of concept now exists behind the optional
+`temporal` extra: `src/computer_use_agent/temporal_poc.py` and
+`temporal_poc_workflow.py`, exercised in `tests/agent/test_temporal_poc.py`
+against a real Temporal test server.
+
+It supports the specific claim this ADR rests on, and nothing wider. The
+activity consults `classify_item`, which reads only the ledger and the sink
+receipt, before doing anything. Two cases are tested:
+
+- a worker killed after a committed item: Temporal reschedules, the activity
+  reads `COMMITTED`, and continues without repeating it;
+- a worker killed between the durable intent and the result: Temporal is
+  configured with a retry policy and retries, and the item still ends in
+  attention with exactly one recorded side-effect attempt.
+
+The second case is the whole point. Temporal wanted to run the work again; the
+project's own classification refused, so `activity retry` never became
+`side effect retry`.
+
+Still unknown: this is a proof of concept over synthetic items and a fake sink.
+No Temporal server is deployed, no real desktop work is scheduled through it,
+the main package does not import `temporalio`, and the responsibility table
+above remains a **design position** rather than a shipped architecture.

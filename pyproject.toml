@@ -34,6 +34,9 @@ agent = ["openai>=1.68,<3", "anthropic>=0.77,<1"]
 # Observability is opt-in. Without it the telemetry port stays a no-op and
 # opens no connection, so offline runs and CI never depend on a collector.
 observability = ["opentelemetry-sdk>=1.25", "opentelemetry-exporter-otlp>=1.25"]
+# Proof of concept only. The main package never imports temporalio, and no
+# runtime path depends on a Temporal server being reachable.
+temporal = ["temporalio>=1.7"]
 
 [project.scripts]
 computer-use-mcp = "computer_use_mcp.server:main"
