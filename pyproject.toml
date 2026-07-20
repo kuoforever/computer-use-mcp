@@ -31,6 +31,9 @@ dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.11", "build>=1.2", "setuptools>=77.0.3
 agent-openai = ["openai>=1.68,<3"]
 agent-anthropic = ["anthropic>=0.77,<1"]
 agent = ["openai>=1.68,<3", "anthropic>=0.77,<1"]
+# Observability is opt-in. Without it the telemetry port stays a no-op and
+# opens no connection, so offline runs and CI never depend on a collector.
+observability = ["opentelemetry-sdk>=1.25", "opentelemetry-exporter-otlp>=1.25"]
 
 [project.scripts]
 computer-use-mcp = "computer_use_mcp.server:main"
