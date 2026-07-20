@@ -32,14 +32,19 @@ desktop execution authority, and durable evidence that outlives a crash.
 
 | Result | Evidence |
 | --- | --- |
-| One real BOSS page: **7 stable public job keys, 0 duplicates, 0 retries**, `SUCCESS` in 2,823 ms (2,076 ms of it MCP latency), **0 tokens** | [Discovery evidence](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
 | Forced-crash campaign: killed mid-flight, resumed in a fresh process, **0 duplicate side effects** at every fault point | [Reliability demo](docs/demo/README.md) |
 | Windows activation repair: a five-case regression passed in an isolated VM | [E4 evidence](docs/E4_EVIDENCE.md) |
 | Bounded OCR recovered a static tab that UIA omitted, matched to one UIA card | [OCR evidence](docs/BOSS_OCR_EVIDENCE.md) |
+| One real BOSS page: 7 stable public job keys, 0 duplicates, 0 retries, 0 tokens — **measured under a contract the discovery-pass ledger has since replaced** | [Discovery evidence](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
 
 Each record supports **only its own scope**. None is application acceptance, and
-none makes this a general-purpose worker. The
-[capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
+none makes this a general-purpose worker. The last row is listed last on
+purpose: its numbers are real and unaltered, but the policy and schema digests
+moved after that run, so it no longer describes the current contract. Bounded
+page progression is implemented and offline-verified; the multi-page on-device
+result is still an open gate.
+
+The [capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
 designed, implemented, offline-verified, provider-verified, desktop-verified,
 and application-verified.
 
