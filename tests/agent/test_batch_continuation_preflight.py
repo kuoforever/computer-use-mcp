@@ -159,7 +159,17 @@ def test_committed_prefix_is_ready_only_for_exact_next_planned_claim(
         lock.release()
 
 
-def test_continuation_requires_a_nonempty_committed_prefix(tmp_path: Path) -> None:
+def test_continuation_is_ready_at_index_zero_before_any_commit(tmp_path: Path) -> None:
+    """The empty committed prefix is now a valid entry state, not a special case.
+
+    Continuation previously refused the pre-commit call with
+    ``COMMITTED_PREFIX_REQUIRED``, forcing callers into a separate
+    ``claim_first_item`` path. That guard is gone: a fresh batch reports
+    ``READY`` for its first planned item under exactly the same ownership,
+    freshness, in-flight, and plan checks that already governed later
+    positions.
+    """
+
     store, lock, coordinator, session = _committed_prefix_store(
         tmp_path,
         commit_first=False,
@@ -173,9 +183,59 @@ def test_continuation_requires_a_nonempty_committed_prefix(tmp_path: Path) -> No
             now=NOW,
         )
 
-        assert result.state is BatchContinuationState.COMMITTED_PREFIX_REQUIRED
+        assert result.state is BatchContinuationState.READY
+        assert result.ready
+        assert result.completed_items == 0
+        assert result.next_item_key == "item_1"
+        assert result.next_item_ordinal == 1
+        assert result.stop_reason is None
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_continuation_rejects_a_drifted_tail_past_position_zero(
+    tmp_path: Path,
+) -> None:
+    """A ledger that added an eligible item past the committed prefix drifts.
+
+    The next planned key is still present and eligible, so a next-key-only
+    check would let the continuation through. The plan whose ownership this
+    session was granted no longer describes the eligible set, though; the
+    caller should be told to replan rather than proceed on a stale plan.
+    """
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=2,
+        commit_first=True,
+    )
+    try:
+        # Append a new eligible item after the plan was captured. The next
+        # planned key (item_2) is untouched, but the tail computed now no
+        # longer matches session.plan.item_keys[1:].
+        store.append(
+            "campaign_1",
+            ItemTransition(
+                sequence=1,
+                ordinal=3,
+                item_key="item_3",
+                status=ItemStatus.DISCOVERED,
+                attempt=0,
+                at=NOW.isoformat(timespec="seconds"),
+            ),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            session,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+        )
+
+        assert result.state is BatchContinuationState.PLAN_DRIFT
         assert not result.ready
-        assert result.next_item_key is None
         assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()

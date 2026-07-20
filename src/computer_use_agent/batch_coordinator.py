@@ -78,7 +78,6 @@ class BatchContinuationState(str, Enum):
     ITEMS_IN_FLIGHT = "ITEMS_IN_FLIGHT"
     PLAN_DRIFT = "PLAN_DRIFT"
     USAGE_MISMATCH = "USAGE_MISMATCH"
-    COMMITTED_PREFIX_REQUIRED = "COMMITTED_PREFIX_REQUIRED"
     LIMIT_REACHED = "LIMIT_REACHED"
     PLAN_COMPLETE = "PLAN_COMPLETE"
 
@@ -939,8 +938,6 @@ class BatchCoordinator:
             state = BatchContinuationState.PLAN_DRIFT
         elif usage.items_completed != completed_items:
             state = BatchContinuationState.USAGE_MISMATCH
-        elif completed_items == 0:
-            state = BatchContinuationState.COMMITTED_PREFIX_REQUIRED
         elif reason is not None:
             state = BatchContinuationState.LIMIT_REACHED
             stop_reason = reason
@@ -954,11 +951,20 @@ class BatchCoordinator:
             expected_key = planned[completed_items]
             selected = projection.items.get(expected_key)
             current_plan = plan_batch(projection, session.policy, usage)
+            # Require the whole remaining tail to match, not only the next
+            # key. The tail-loose check inherited from the pre-unification
+            # continuation path would accept a ledger whose upcoming items
+            # (positions completed_items+1..end) had drifted, on the theory
+            # that continuation only processes one item at a time. That
+            # theory silently discards a check the first-claim path always
+            # performed on the whole plan; unifying both paths through here
+            # preserves that historical strictness at index 0 and extends
+            # the same protection to every index.
+            expected_tail = planned[completed_items:]
             if (
                 selected is None
                 or selected.status not in {ItemStatus.DISCOVERED, ItemStatus.RETRYABLE}
-                or not current_plan.item_keys
-                or current_plan.item_keys[0] != expected_key
+                or tuple(current_plan.item_keys) != expected_tail
             ):
                 state = BatchContinuationState.PLAN_DRIFT
             else:
