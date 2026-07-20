@@ -1,32 +1,96 @@
 # computer-use-mcp
 
-[中文快速开始](README.zh-CN.md) | [Documentation](docs/README.md)
+**A durable, safety-governed computer-use runtime for Windows.**
 
-> **Status: experimental, local Windows desktop control.** The English documentation is canonical.
+[中文快速开始](README.zh-CN.md) · [Architecture](#architecture) · [Reliability demo](#try-the-reliability-demo) · [Evidence dashboard](docs/CAPABILITY_STATUS.md) · [Documentation](docs/README.md)
 
-computer-use-mcp is a model-agnostic MCP server for inspecting and controlling
-Windows desktop applications. It combines screenshots for vision-capable agents
-with UI Automation (UIA) snapshots and stable element references for text-first
-agents.
+> **Status: experimental.** Windows-only, foreground desktop, primary display.
+> The English documentation is canonical. Every claim below links to retained
+> evidence; read [Honest limits](#honest-limits) before assuming more.
 
-It is intended for local, explicitly authorized desktop automation. The long-
-term direction is a universal GUI agent: pixel input remains the fallback while
-UIA, OCR, document text, and optional browser adapters provide progressively
-more structured observations. The current runtime is still a foreground Windows
-MCP server, not a background worker or a complete browser automation framework.
+Letting a model click around a desktop is easy. Knowing *what it was allowed to
+do*, *what it actually did*, and *what is safe to retry after the process dies*
+is the hard part. This project keeps those layers separate: UI Automation and
+bounded OCR for observation, an explicit policy and approval boundary, a single
+desktop execution authority, and durable evidence that outlives a crash.
 
-## Supported today
+## What this proves
 
-- Windows only; Python 3.11 through 3.13.
-- Stdio MCP transport.
-- Primary-display screenshots and UIA-based control discovery.
-- Nine MCP tools: `ui_snapshot`, `find`, `list_windows`, `screenshot`, `ocr`,
-  `activate_window`, `click`, `type`, and `key`.
-- A safe default mode with an allowlist, human-activity yielding, dangerous
-  ref-click confirmation, audit logging, and an emergency-stop hotkey.
+- **9 reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
+  `screenshot`, `ocr`, `activate_window`, `click`, `type`, and `key` — with
+  fixed schemas, argument validation, and discovery-mismatch checks.
+- **Two provider paths** (OpenAI and Claude) behind one provider-neutral tool
+  contract, with [retained dual-provider evidence](docs/E3_EVIDENCE.md).
+- **Fresh grounding before a side effect**, and mandatory observation after it.
+- **Recovery that never auto-replays an uncertain action.** A dispatch intent
+  with no correlated completion stops for a human instead of guessing.
+- **Offline CI** on Windows across Python 3.11–3.13, plus a wheel clean-install
+  smoke ([workflow](.github/workflows/ci.yml) ·
+  [runs](https://github.com/kuoforever/computer-use-mcp/actions/workflows/ci.yml)).
 
-macOS, Linux, multi-monitor grounding, and isolated-worker orchestration are
-roadmap items, not current product capabilities.
+## Measured results
+
+| Result | Evidence |
+| --- | --- |
+| One real BOSS page: **7 stable public job keys, 0 duplicates, 0 retries**, `SUCCESS` in 2,823 ms (2,076 ms of it MCP latency), **0 tokens** | [Discovery evidence](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
+| Forced-crash campaign: killed mid-flight, resumed in a fresh process, **0 duplicate side effects** at every fault point | [Reliability demo](docs/demo/README.md) |
+| Windows activation repair: a five-case regression passed in an isolated VM | [E4 evidence](docs/E4_EVIDENCE.md) |
+| Bounded OCR recovered a static tab that UIA omitted, matched to one UIA card | [OCR evidence](docs/BOSS_OCR_EVIDENCE.md) |
+
+Each record supports **only its own scope**. None is application acceptance, and
+none makes this a general-purpose worker. The
+[capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
+designed, implemented, offline-verified, provider-verified, desktop-verified,
+and application-verified.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    OP[Operator / MCP client] --> AR
+    PA[Provider adapter<br/>OpenAI · Claude] --> AR
+    AR[Agent Runner<br/>sole dispatch boundary] --> PG
+    PG[Policy · approval · grounding] --> SRV
+    SRV[MCP server<br/>SOLE DESKTOP EXECUTION AUTHORITY] --> WD
+    WD[Windows driver<br/>UIA · capture · input]
+    AR -. evidence .-> DS[(Durable state<br/>checkpoint · WAL · ledger · trace)]
+    SRV -. evidence .-> DS
+```
+
+**The MCP server is the only path to the desktop.** No provider adapter, plan,
+or campaign reaches the driver another way, so every desktop effect crosses the
+same policy, grounding, and audit boundary exactly once.
+
+## Why this is different
+
+- **Least privilege by default.** `safe_local` gates actions on the foreground
+  window's *process ancestry*, not just its executable name, and yields while a
+  human is typing.
+- **A ref is intent, not a coordinate.** A `ref` action never silently degrades
+  into a center-point click: a stale or occluded element fails loudly instead of
+  clicking whatever moved into that pixel.
+- **Uncertainty is a first-class state.** Known-completed, known-not-dispatched,
+  and unknown are distinct outcomes. Only the first two may proceed on their own.
+- **Evidence integrity is maintained by CI, not by hand.** Dated records keep the
+  numbers their own run observed; current-state documents are checked against the
+  reviewed tool registry.
+
+## Try the reliability demo
+
+Offline: no provider, no desktop, no tokens. Kill a multi-item campaign at a
+named fault point and watch a fresh process decide what it may resume.
+
+~~~powershell
+# crash between the durable intent and the side-effect result
+.\.venv\Scripts\python.exe scripts\demo_reliability_campaign.py `
+    --state-dir out\demo --items 5 `
+    --fault-point after_dispatch_intent --fault-ordinal 3
+~~~
+
+The item whose outcome is unknown is parked as `UNCERTAIN` for a human, the rest
+of the campaign still completes, and the command exits non-zero if a duplicate
+side effect was ever attempted. The [runbook](docs/demo/README.md) has the full
+fault matrix.
 
 ## Safety first
 
@@ -106,15 +170,22 @@ environment values above are the portable part.
 See the exact parameters, ref lifecycle, safeguards, and errors in
 [Tool reference](docs/TOOLS.md).
 
-## Limitations
+## Honest limits
 
+- **Windows only**, Python 3.11 through 3.13, stdio MCP transport. macOS, Linux,
+  multi-monitor grounding, and isolated-worker orchestration are roadmap items,
+  not current capabilities.
+- **Foreground desktop, primary display.** This is not a background worker.
+- **Not a browser automation framework.** Chromium-family UIA trees may be
+  incomplete until accessibility content is exposed; verify per application.
+- **No application acceptance.** The retained BOSS records cover bounded
+  read-only observation of specific pages. They do not support any claim about
+  automated applications, messages, or a general campaign worker.
 - `screenshot()` captures the primary display only. Multi-monitor coordinate
   support is not yet implemented.
 - A shared desktop has one foreground window, pointer, and keyboard focus.
   This project does not promise safe, parallel background control on that
   desktop.
-- Chromium-family UIA trees may be incomplete until accessibility content is
-  exposed. Browser support is limited and should be verified per application.
 - The VMware helper can start an existing VM, but it does not create the guest,
   start its MCP server, or provide host-to-guest MCP transport.
 - Screenshot redaction is title-substring based; it is not comprehensive secret
@@ -127,6 +198,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Understand the complete project, every feature family, implementation path, quality attribute, status, and next gate | [Project overview](docs/PROJECT_OVERVIEW.md) |
 | Find the right document | [Documentation index](docs/README.md) |
 | See what is implemented, verified, or still planned | [Capability status](docs/CAPABILITY_STATUS.md) |
+| Run the crash/resume reliability demo and read its fault matrix | [Reliability demo](docs/demo/README.md) |
 | Configure modes, safeguards, and environment variables | [Configuration and safety](docs/CONFIGURATION.md) |
 | Use the MCP API exactly | [Tool reference](docs/TOOLS.md) |
 | Understand the implementation architecture | [Design](docs/DESIGN.md) |

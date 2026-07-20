@@ -1,15 +1,17 @@
 # computer-use-mcp（中文快速开始）
 
+**面向 Windows 的、可恢复且受安全策略约束的 computer-use 运行时。**
+
 [English README](README.md) | [完整项目总览（英文）](docs/PROJECT_OVERVIEW.md) | [文档索引（英文）](docs/README.md)
 
-> **状态：实验性、本机 Windows 桌面控制。** 英文文档是唯一的规范来源；本页提供中文快速开始。
+> **状态：实验性。** 仅 Windows、前台桌面、主显示器。英文文档是唯一的规范
+> 来源；本页只提供中文快速开始。所有能力主张都以英文
+> [能力状态看板](docs/CAPABILITY_STATUS.md)中的留存证据为准。
 
-computer-use-mcp 是一个与模型无关的 MCP 服务器，用于查看并控制
-Windows 桌面应用。它同时提供面向视觉模型的截图，以及基于 Windows UI
-Automation（UIA）的控件快照和稳定引用。
-
-当前实现仅面向本机、明确授权的自动化任务。它不是后台 worker、远程控制
-服务或通用浏览器自动化框架。
+让模型在桌面上乱点并不难；难的是知道它**被允许做什么**、**实际做了什么**，
+以及进程崩溃后**什么才可以安全重试**。本项目把这几层分开：UIA 与受限 OCR
+负责观察，策略与审批构成显式边界，桌面执行权限收敛到唯一入口，证据持久化
+到崩溃之后仍然可用。
 
 ## 当前支持
 
@@ -22,6 +24,16 @@ Automation（UIA）的控件快照和稳定引用。
   日志和急停热键。
 
 macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图中，尚未实现。
+
+## 已验证的结果
+
+| 结果 | 证据 |
+| --- | --- |
+| 一页真实 BOSS 页面：**7 个稳定公开 job key、0 重复、0 重试**，2,823 ms 内 `SUCCESS`，**0 token** | [发现证据](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
+| 强制崩溃的 campaign：中途杀掉、新进程恢复，每个故障点都是 **0 重复副作用** | [可靠性 demo](docs/demo/README.md) |
+
+每条记录**只支持它自己的范围**：这些都不是 application acceptance，也不表示
+本项目是通用 worker。
 
 ## 安全提示
 
