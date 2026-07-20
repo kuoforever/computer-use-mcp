@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter_ns
+from typing import Mapping
 from uuid import uuid4
 
 from .campaign import CampaignStore
@@ -18,6 +19,7 @@ from .plan_store import TaskPlanStore
 from .policy import HostPolicy, PolicyDisposition
 from .privacy import PrivacyError, PrivacyImageRedactionPort, PrivacySession
 from .run_lock import RunLock
+from .telemetry import MAX_ATTRIBUTE_STRING_LENGTH, NoOpTelemetry, TelemetryPort
 from .tool_registry import (
     REVIEWED_TOOLS,
     ToolValidationError,
@@ -97,6 +99,46 @@ class RunnerPorts:
     desktop: DesktopMCPPort
     approvals: ApprovalPort
     image_redactor: PrivacyImageRedactionPort | None = None
+    telemetry: TelemetryPort | None = None
+
+
+class _SafeSpan:
+    """Wrap a span so telemetry can never propagate a failure into a run.
+
+    Telemetry is observation only. An exporter or attribute error must not be
+    able to change what a run does, so every call here is swallowed. Losing a
+    span is acceptable; losing a checkpoint is not.
+    """
+
+    __slots__ = ("_span",)
+
+    def __init__(self, span: object) -> None:
+        self._span = span
+
+    def set_attributes(self, attributes: Mapping[str, object]) -> None:
+        try:
+            self._span.set_attributes(attributes)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def record_error(self, code: str) -> None:
+        try:
+            self._span.record_error(code)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def end(self) -> None:
+        try:
+            self._span.end()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def __enter__(self) -> "_SafeSpan":
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback) -> bool:
+        self.end()
+        return False
 
 
 @dataclass
@@ -164,6 +206,17 @@ class AgentRunner:
         self.config = config
         self.ports = ports
         self.policy = HostPolicy.from_config(config.policy_version, config.policy)
+        configured = ports.telemetry if ports is not None else None
+        self.telemetry: TelemetryPort = configured or NoOpTelemetry()
+
+    def _span(self, name: str, **attributes: object) -> _SafeSpan:
+        """Start a span that cannot fail the run."""
+
+        try:
+            span = self.telemetry.start_span(name, attributes=attributes or None)
+        except Exception:
+            return _SafeSpan(NoOpTelemetry().start_span(name))
+        return _SafeSpan(span)
 
     def prepare(
         self, task: str, *, run_id: str | None = None, recover_stale_lock: bool = False
@@ -568,6 +621,19 @@ class AgentRunner:
         recorder_started = False
         desktop_closed = False
         continuation: RuntimeContinuationRecorder | None = None
+        # Read defensively: telemetry observes injected ports and must never be
+        # the reason a run fails, even against a port that omits an optional
+        # protocol attribute.
+        run_span = self._span(
+            "agent.run",
+            **{
+                "run.phase": "running",
+                "run.resumed": bool(resume_initial),
+                "provider.name": str(getattr(self.ports.provider, "name", "unknown"))[
+                    :MAX_ATTRIBUTE_STRING_LENGTH
+                ],
+            },
+        )
         try:
             if resume_initial:
                 recorder.attach_initial(state)
@@ -675,14 +741,42 @@ class AgentRunner:
                     return RunOutcome(text=final_text, state=state)
 
                 for call in turn.tool_calls:
-                    outcome = await self._execute_requested_call_boundary(
-                        state,
-                        call,
-                        grounding=grounding,
-                        recorder=recorder,
-                        continuation=continuation,
-                        privacy=privacy,
-                    )
+                    # Observed from the call site on purpose. The authoritative
+                    # boundary below stays one auditable function; telemetry
+                    # must not reshape the path it observes.
+                    boundary_started_ns = perf_counter_ns()
+                    with self._span("tool.boundary", **{"tool.name": call.name}) as span:
+                        try:
+                            outcome = await self._execute_requested_call_boundary(
+                                state,
+                                call,
+                                grounding=grounding,
+                                recorder=recorder,
+                                continuation=continuation,
+                                privacy=privacy,
+                            )
+                        except RunFailure as failure:
+                            span.record_error(failure.code)
+                            raise
+                        finally:
+                            span.set_attributes(
+                                {
+                                    "duration.ms": max(
+                                        0,
+                                        (perf_counter_ns() - boundary_started_ns)
+                                        // 1_000_000,
+                                    )
+                                }
+                            )
+                        span.set_attributes(
+                            {
+                                "tool.effect": get_tool_spec(call.name).effect.value,
+                                "result.status": outcome.result.status.value,
+                                "dispatch.certainty": outcome.result.dispatch.value,
+                            }
+                        )
+                        if outcome.result.code is not None:
+                            span.set_attributes({"result.code": outcome.result.code})
                     state = outcome.state
                     grounding = outcome.grounding
         except asyncio.CancelledError:
@@ -721,6 +815,15 @@ class AgentRunner:
             raise
         finally:
             had_active_error = sys.exc_info()[0] is not None
+            run_span.set_attributes(
+                {
+                    "run.phase": "failed" if had_active_error else "completed",
+                    "duration.ms": max(
+                        0, (perf_counter_ns() - run_started_ns) // 1_000_000
+                    ),
+                }
+            )
+            run_span.end()
             prepared.close()
             if continuation is not None:
                 try:
