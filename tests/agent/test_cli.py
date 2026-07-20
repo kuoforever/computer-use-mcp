@@ -1360,7 +1360,10 @@ cli.load_agent_config = lambda path: config
 try:
     import asyncio
     asyncio.run(_run_live_async(Path({str(config_path)!r}), "inspect"))
-except RuntimeError:
+except Exception:
+    # This test asserts which provider module got imported, nothing else.
+    # How the run then fails depends on whether the optional provider package
+    # is installed and whether credentials exist, and neither is the subject.
     pass
 selected={provider_module!r}
 other="computer_use_agent.providers.anthropic" if selected.endswith("openai") else "computer_use_agent.providers.openai"
@@ -1368,6 +1371,10 @@ raise SystemExit(1 if other in sys.modules else 0)
 """
     environment = dict(os.environ)
     environment["LOCALAPPDATA"] = str(tmp_path)
+    # Drop provider credentials so the outcome cannot depend on whether the
+    # developer running the suite happens to have them exported.
+    for credential in ("OPENAI_API_KEY", "OPENAI_ADMIN_KEY", "ANTHROPIC_API_KEY"):
+        environment.pop(credential, None)
 
     result = subprocess.run([sys.executable, "-c", script], check=False, env=environment)
 
