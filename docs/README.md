@@ -56,6 +56,8 @@ not a line-by-line mirror of every reference page.
 | I need the retained sanitized isolated desktop outcomes | [E4 evidence](E4_EVIDENCE.md) |
 | I need the retained sanitized provider integration outcomes | [Provider E3 evidence](E3_EVIDENCE.md) |
 | I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |
+| I need to report a vulnerability or read the threat-model boundary | [Security policy](../SECURITY.md) |
+| I need what changed in a packaged version | [Changelog](../CHANGELOG.md) |
 | I need to record a release review or explicit waiver | [Release evidence record](RELEASE_EVIDENCE.md) |
 | I am taking over maintenance | [Maintainer handoff](../HANDOFF.md) |
 

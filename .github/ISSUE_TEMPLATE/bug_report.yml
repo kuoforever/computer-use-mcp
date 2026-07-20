@@ -1,0 +1,80 @@
+name: Bug report
+description: Something behaves differently from what the documentation states.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, full URLs with tokens, screenshots of private
+        pages, or page text. Redacted excerpts and error codes are enough.
+
+        For a guard bypass or a credential leak, use private reporting instead —
+        see [SECURITY.md](https://github.com/kuoforever/computer-use-mcp/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "0.1.0, or a commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface
+      options:
+        - MCP server (computer-use-mcp)
+        - Agent Host (computer-use-agent)
+        - Campaign / recovery
+        - Packaging or install
+        - Documentation
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - safe_local
+        - full_control_local
+        - not applicable
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Windows and Python version
+      placeholder: "Windows 11 26200, Python 3.13"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the documentation says should happen
+      description: Quote or link the document. If none covers it, say so.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Include the fixed result code, not the raw message, when one was returned.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: |
+        Exact commands and configuration with credentials and personal paths
+        removed. Say whether it reproduces every time or intermittently.
+    validations:
+      required: true
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed credentials, tokens, full URLs, and page content.
+          required: true
+        - label: I checked the capability dashboard, in case this is a known unverified layer.
+          required: true

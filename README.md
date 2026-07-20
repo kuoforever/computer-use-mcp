@@ -212,6 +212,8 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Know how coding agents are used here and who is responsible | [AI-assisted development](docs/AI_ASSISTED_DEVELOPMENT.md) |
 | Implement a platform driver | [Driver Contract](docs/DRIVER_CONTRACT.md) |
 | Test or maintain the project | [Development](docs/DEVELOPMENT.md) and [Maintainer handoff](HANDOFF.md) |
+| Report a vulnerability, or see what counts as one | [Security policy](SECURITY.md) |
+| See what changed in a packaged version | [Changelog](CHANGELOG.md) |
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
 | Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
 | Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |

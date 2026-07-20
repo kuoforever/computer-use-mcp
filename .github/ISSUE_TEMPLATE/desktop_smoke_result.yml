@@ -1,0 +1,77 @@
+name: Desktop smoke result
+description: Report the outcome of a real Windows desktop run, passing or failing.
+labels: ["desktop-evidence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Desktop behavior cannot be established by CI, so real-machine results
+        are useful **even when everything passes**. A result reported here is
+        not retained evidence: only records under `docs/` reviewed by the
+        maintainer fill an evidence cell.
+
+        Report shape and counts, never page content, window titles from private
+        applications, or screenshots of real accounts.
+  - type: dropdown
+    id: which
+    attributes:
+      label: Which smoke
+      options:
+        - scripts/smoke_server.py
+        - E4 isolated desktop runbook
+        - Reliability demo (offline)
+        - Campaign discovery on a real page
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - PASS
+        - FAIL
+        - PARTIAL
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows build, Python version, and version or commit
+      placeholder: "Windows 11 26200, Python 3.13.7, 0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: allowlist
+    attributes:
+      label: Allowlisted applications
+      placeholder: "notepad.exe"
+    validations:
+      required: true
+  - type: dropdown
+    id: isolation
+    attributes:
+      label: Isolation
+      options:
+        - Disposable VM
+        - Personal machine, non-sensitive application only
+        - Personal machine, other
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: |
+        Tool counts, result codes, latency, and which step diverged. For a
+        failure, state whether the target became foreground and whether any
+        side effect executed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: This contains no page text, private window titles, full URLs, or credentials.
+          required: true

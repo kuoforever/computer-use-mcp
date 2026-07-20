@@ -1,0 +1,67 @@
+# Changelog
+
+Notable changes to this project. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Each released entry describes that version and is not revised afterwards.
+Current-state claims belong in [Capability status](docs/CAPABILITY_STATUS.md);
+a version number states what is packaged, never what has been verified.
+
+## [Unreleased]
+
+Nothing yet.
+
+## [0.1.0] — not yet released
+
+First packaged version. **Experimental**: Windows-only, foreground desktop,
+primary display. A release does not mean production-ready, and it does not
+promote any capability evidence level.
+
+### Added
+
+- **MCP server** over stdio exposing nine reviewed tools: `ui_snapshot`,
+  `find`, `list_windows`, `screenshot`, `ocr`, `activate_window`, `click`,
+  `type`, and `key`. Session-scoped `ref_N` handles, one bounded relocation of
+  a stale ref by role and name, and no silent coordinate fallback.
+- **Safety modes.** `safe_local` gates action tools on the foreground window's
+  process ancestry, yields to human input, confirms dangerous ref clicks, and
+  writes an audit record. `full_control_local` deliberately removes the
+  allowlist and yielding checks and retains audit plus emergency stop.
+- **Typed Driver Contract** with one in-process Windows implementation using
+  UI Automation, screen capture, and process inspection.
+- **Agent Host** (`computer-use-agent`) with provider-neutral tool contracts
+  and OpenAI and Claude adapters behind optional extras, explicit local
+  approval, budgets, a single-owner run lock, and a redacted event ledger.
+- **Durable campaign layer**: append-only item ledger with an explicit
+  transition table, per-call intent/completion boundary, lease and heartbeat
+  ownership, and content digests. An uncertain dispatch is never replayed
+  automatically.
+- **Bounded OCR** as a static-text fallback after UIA, with run and character
+  caps, a whole-call timeout, explicit truncation metadata, and blackout of
+  configured sensitive window titles before recognition.
+- **Local privacy boundary**, disabled by default: run-scoped text
+  pseudonymization and local screenshot redaction before provider dispatch.
+- **Offline release preflight** (`release preflight`) producing a sanitized
+  report: candidate stability, lint, tests, frozen E2 manifests, deterministic
+  E1/E2, wheel build with SHA-256, and a clean no-deps install smoke.
+- **CI** on Windows across Python 3.11, 3.12, and 3.13, plus a wheel
+  clean-install smoke, a documentation-consistency gate, and retained JUnit and
+  JSON evaluation artifacts.
+- **Decision records** for uncertain dispatch, ref actions, and the durability
+  boundary; one postmortem; and a statement of AI-assisted development scope.
+
+### Known limitations
+
+- Windows only. No macOS, Linux, or multi-monitor coordinate support.
+- Foreground desktop, primary display. Not a background worker.
+- Not a browser automation framework. Chromium-family UIA trees may be
+  incomplete until accessibility content is exposed.
+- No application acceptance evidence. Retained BOSS records cover bounded
+  read-only observation of specific pages only.
+- Screenshot redaction is title-substring based, not comprehensive secret
+  detection.
+- Live provider and isolated desktop validation remain explicit human gates and
+  are deliberately absent from default CI.
+
+[Unreleased]: https://github.com/kuoforever/computer-use-mcp/compare/main...HEAD
