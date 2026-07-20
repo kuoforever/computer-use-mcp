@@ -12,9 +12,6 @@ import io
 from dataclasses import dataclass, replace
 from typing import Protocol
 
-from PIL import Image as PILImage
-from PIL import ImageDraw
-
 from ..types import ImageContent, ToolResult
 from .core import PrivacyError, PrivacySession
 
@@ -287,6 +284,13 @@ class LocalPrivacyImageRedactor:
             )
             for region in visual_regions
         )
+
+        # Imported here, not at module scope: image redaction is disabled by
+        # default, but this module is on the CLI import chain through
+        # `runner`. An eager import would make Pillow a hard requirement for
+        # every offline command, including `--help` and the fake-MCP eval.
+        from PIL import Image as PILImage
+        from PIL import ImageDraw
 
         try:
             with PILImage.open(io.BytesIO(image.data)) as source:
