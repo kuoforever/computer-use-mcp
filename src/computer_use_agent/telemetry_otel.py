@@ -17,7 +17,7 @@ content can leave the machine, so it is the last place to relax a privacy rule.
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Literal, Mapping
+from typing import Any, Literal, Mapping
 
 from .telemetry import TelemetryError, validate_attributes
 
@@ -51,13 +51,17 @@ class OpenTelemetrySpan:
 
     __slots__ = ("_span", "_token", "_ended")
 
-    def __init__(self, span: object, token: object) -> None:
-        self._span = span
-        self._token = token
+    def __init__(self, span: Any, token: Any) -> None:
+        # These are OpenTelemetry objects from an optional dependency. Typing
+        # them as Any keeps this module checkable both with and without the
+        # extra installed, instead of needing ignores that only apply in one
+        # of the two environments.
+        self._span: Any = span
+        self._token: Any = token
         self._ended = False
 
     def set_attributes(self, attributes: Mapping[str, object]) -> None:
-        self._span.set_attributes(_flatten(attributes))  # type: ignore[attr-defined]
+        self._span.set_attributes(_flatten(attributes))
 
     def record_error(self, code: str) -> None:
         """Record a fixed code as the span status.
@@ -70,8 +74,8 @@ class OpenTelemetrySpan:
 
         if not isinstance(code, str) or not code or len(code) > 64 or "\n" in code:
             raise TelemetryError("error codes must be short single-line strings")
-        self._span.set_status(Status(StatusCode.ERROR, code))  # type: ignore[attr-defined]
-        self._span.set_attribute("result.code", code)  # type: ignore[attr-defined]
+        self._span.set_status(Status(StatusCode.ERROR, code))
+        self._span.set_attribute("result.code", code)
 
     def end(self) -> None:
         """End the span and detach its context exactly once.
@@ -87,9 +91,9 @@ class OpenTelemetrySpan:
         from opentelemetry import context as otel_context
 
         try:
-            self._span.end()  # type: ignore[attr-defined]
+            self._span.end()
         finally:
-            otel_context.detach(self._token)  # type: ignore[arg-type]
+            otel_context.detach(self._token)
 
     def __enter__(self) -> "OpenTelemetrySpan":
         return self
@@ -112,15 +116,15 @@ class OpenTelemetryAdapter:
     ``docs/TELEMETRY.md``.
     """
 
-    def __init__(self, tracer: object | None = None, *, meter: object | None = None) -> None:
+    def __init__(self, tracer: Any = None, *, meter: Any = None) -> None:
         require_opentelemetry()
         if tracer is None:
             from opentelemetry import trace
 
             tracer = trace.get_tracer("computer-use-agent")
-        self._tracer = tracer
-        self._meter = meter
-        self._counters: dict[str, object] = {}
+        self._tracer: Any = tracer
+        self._meter: Any = meter
+        self._counters: dict[str, Any] = {}
 
     def start_span(
         self, name: str, *, attributes: Mapping[str, object] | None = None
@@ -128,7 +132,7 @@ class OpenTelemetryAdapter:
         from opentelemetry import context as otel_context
         from opentelemetry import trace
 
-        span = self._tracer.start_span(  # type: ignore[attr-defined]
+        span = self._tracer.start_span(
             name, attributes=_flatten(attributes) if attributes else None
         )
         token = otel_context.attach(trace.set_span_in_context(span))
@@ -143,7 +147,7 @@ class OpenTelemetryAdapter:
             return None
         counter = self._counters.get(name)
         if counter is None:
-            counter = self._meter.create_counter(name)  # type: ignore[attr-defined]
+            counter = self._meter.create_counter(name)
             self._counters[name] = counter
-        counter.add(value, _flatten(attributes or {}))  # type: ignore[attr-defined]
+        counter.add(value, _flatten(attributes or {}))
         return None
