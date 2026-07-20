@@ -130,6 +130,9 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | Configure modes, safeguards, and environment variables | [Configuration and safety](docs/CONFIGURATION.md) |
 | Use the MCP API exactly | [Tool reference](docs/TOOLS.md) |
 | Understand the implementation architecture | [Design](docs/DESIGN.md) |
+| Understand why a safety rule exists, and what was rejected | [Architecture decision records](docs/adr/) |
+| Read a failure analysis with root cause and detection gap | [Postmortems](docs/postmortems/) |
+| Know how coding agents are used here and who is responsible | [AI-assisted development](docs/AI_ASSISTED_DEVELOPMENT.md) |
 | Implement a platform driver | [Driver Contract](docs/DRIVER_CONTRACT.md) |
 | Test or maintain the project | [Development](docs/DEVELOPMENT.md) and [Maintainer handoff](HANDOFF.md) |
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
