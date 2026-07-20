@@ -1,0 +1,76 @@
+name: Provider compatibility
+description: A provider or model rejects, mishandles, or changes the reviewed tool contract.
+labels: ["provider-compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Provider SDKs and model families differ in schema acceptance, tool-call
+        correlation, and reasoning-block handling. A model that used to work can
+        stop working without any change here.
+
+        **Never paste an API key, a raw request or response body, or provider
+        response identifiers.** Error codes and the failing schema fragment are
+        enough.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - OpenAI
+        - Anthropic (Claude)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model ID
+      placeholder: "the exact model identifier"
+    validations:
+      required: true
+  - type: input
+    id: sdk
+    attributes:
+      label: SDK version and project version or commit
+      placeholder: "openai 1.99.0, computer-use-mcp 0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Failure kind
+      options:
+        - Tool schema rejected
+        - Tool call or result correlation broken
+        - Reasoning or thinking block not preserved
+        - Post-action observation omitted
+        - Token or byte accounting mismatch
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: What failed
+      description: |
+        The fixed error code the host reported, which schema fragment was
+        rejected, and whether the run stopped fail-closed or continued.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: |
+        Does it affect read-only runs, action runs, or both? Does an older model
+        in the same family still work?
+    validations:
+      required: false
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed API keys, raw request and response bodies, and provider response identifiers.
+          required: true

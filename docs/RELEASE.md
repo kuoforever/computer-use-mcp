@@ -85,5 +85,42 @@ Use explicit `agent recover` only for a strictly eligible persisted boundary;
 uncertain dispatches, pending side effects, drift, corruption, and expired
 records require a new run after the required human re-observation.
 
+## Install, roll back, or remove a released build
+
+A release is consumed as a built wheel, not as this working tree. An editable
+install (`pip install -e .`) tracks whatever is checked out and therefore cannot
+be rolled back; do not use one to evaluate a release.
+
+Install a specific version into a clean environment:
+
+~~~powershell
+py -3 -m venv .release-venv
+.\.release-venv\Scripts\python.exe -m pip install `
+  --disable-pip-version-check computer_use_mcp-<version>-py3-none-any.whl
+.\.release-venv\Scripts\python.exe -c "import importlib.metadata as m; print(m.version('computer-use-mcp'))"
+~~~
+
+Verify the artifact before installing it. The preflight report records the
+wheel filename and its SHA-256; compare against the file you received:
+
+~~~powershell
+(Get-FileHash computer_use_mcp-<version>-py3-none-any.whl -Algorithm SHA256).Hash.ToLower()
+~~~
+
+Roll back by installing the previous wheel over the current one, or by deleting
+the environment and recreating it. Removing the package leaves user data in
+place:
+
+~~~powershell
+.\.release-venv\Scripts\python.exe -m pip uninstall -y computer-use-mcp
+~~~
+
+State, memory, traces, checkpoints, and campaign ledgers live under the
+configured `agent.state_dir`, and audit records under the configured MCP audit
+path. Neither is removed by uninstalling; delete them explicitly if the machine
+is being decommissioned. Downgrading does not migrate durable state — a ledger
+written by a newer version may be rejected by an older one, so finish or
+abandon an in-flight campaign before rolling back.
+
 The project remains experimental until the retained E4 evidence is rerun as
 required for the release candidate and the full release review is complete.
