@@ -168,6 +168,69 @@ class BatchSession:
     plan: BatchPlan
 
 
+#: The states in which an item still holds an active claim. A claim is not
+#: released at OBSERVED or EXTRACTED; it survives until the item COMMITs, so
+#: all three states mean some other work is still in flight.
+_CLAIM_ACTIVE_STATUSES = frozenset(
+    {ItemStatus.CLAIMED, ItemStatus.OBSERVED, ItemStatus.EXTRACTED}
+)
+
+
+class _OwnershipVerdict(str, Enum):
+    """Outcome of the ownership guards shared by every batch preflight.
+
+    Every member except ``OK`` is named exactly like the corresponding member
+    of both :class:`BatchFirstClaimState` and :class:`BatchContinuationState`,
+    so a caller maps a blocked verdict onto its own state enum by name.
+    """
+
+    OK = "OK"
+    CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
+    BATCH_NOT_ACTIVE = "BATCH_NOT_ACTIVE"
+    BATCH_OWNER_MISMATCH = "BATCH_OWNER_MISMATCH"
+    HEARTBEAT_MISSING = "HEARTBEAT_MISSING"
+    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
+    HEARTBEAT_STALE = "HEARTBEAT_STALE"
+
+
+def _inspect_batch_ownership(
+    store: CampaignStore,
+    session: BatchSession,
+    *,
+    now: datetime,
+) -> _OwnershipVerdict:
+    """Apply the ownership guards every batch preflight shares.
+
+    Before either preflight may look at an item it must prove the same three
+    things: the campaign is running, this session still owns the active batch,
+    and this run still owns a fresh heartbeat. The ladder order is
+    load-bearing. A missing heartbeat is reported as missing rather than as an
+    owner mismatch, because "no owner" and "a different owner" call for
+    different operator responses.
+    """
+
+    manifest = store.read_manifest(session.campaign_id)
+    active = store.read_batches(session.campaign_id).active
+    try:
+        heartbeat = inspect_heartbeat(store.read_heartbeat(session.campaign_id), now=now)
+    except HeartbeatInspectionError as exc:
+        raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
+
+    if manifest.status is not CampaignStatus.RUNNING:
+        return _OwnershipVerdict.CAMPAIGN_NOT_RUNNING
+    if active is None:
+        return _OwnershipVerdict.BATCH_NOT_ACTIVE
+    if (active.batch_id, active.run_id) != (session.batch_id, session.run_id):
+        return _OwnershipVerdict.BATCH_OWNER_MISMATCH
+    if heartbeat.freshness is HeartbeatFreshness.MISSING:
+        return _OwnershipVerdict.HEARTBEAT_MISSING
+    if heartbeat.run_id != session.run_id:
+        return _OwnershipVerdict.HEARTBEAT_OWNER_MISMATCH
+    if heartbeat.freshness is HeartbeatFreshness.STALE:
+        return _OwnershipVerdict.HEARTBEAT_STALE
+    return _OwnershipVerdict.OK
+
+
 def _committed_plan_prefix(
     projection: CampaignProjection,
     session: BatchSession,
@@ -404,33 +467,18 @@ class BatchCoordinator:
         ):
             raise BatchCoordinatorError("BATCH_LEASE_INVALID")
 
-        manifest = self.store.read_manifest(session.campaign_id)
-        active = self.store.read_batches(session.campaign_id).active
-        try:
-            heartbeat = inspect_heartbeat(
-                self.store.read_heartbeat(session.campaign_id), now=now
-            )
-        except HeartbeatInspectionError as exc:
-            raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
+        verdict = _inspect_batch_ownership(self.store, session, now=now)
         projection = self.store.read_ledger(session.campaign_id)
         current_plan = plan_batch(projection, session.policy, BatchUsage())
         selected = None
         if current_plan.item_keys:
             selected = projection.items.get(current_plan.item_keys[0])
 
-        if manifest.status is not CampaignStatus.RUNNING:
-            state = BatchFirstClaimState.CAMPAIGN_NOT_RUNNING
-        elif active is None:
-            state = BatchFirstClaimState.BATCH_NOT_ACTIVE
-        elif (active.batch_id, active.run_id) != (session.batch_id, session.run_id):
-            state = BatchFirstClaimState.BATCH_OWNER_MISMATCH
-        elif heartbeat.freshness is HeartbeatFreshness.MISSING:
-            state = BatchFirstClaimState.HEARTBEAT_MISSING
-        elif heartbeat.run_id != session.run_id:
-            state = BatchFirstClaimState.HEARTBEAT_OWNER_MISMATCH
-        elif heartbeat.freshness is HeartbeatFreshness.STALE:
-            state = BatchFirstClaimState.HEARTBEAT_STALE
-        elif any(item.status is ItemStatus.CLAIMED for item in projection.items.values()):
+        if verdict is not _OwnershipVerdict.OK:
+            state = BatchFirstClaimState[verdict.name]
+        elif any(
+            item.status in _CLAIM_ACTIVE_STATUSES for item in projection.items.values()
+        ):
             state = BatchFirstClaimState.ITEM_CLAIM_ACTIVE
         elif current_plan != session.plan or not current_plan.item_keys:
             state = BatchFirstClaimState.PLAN_DRIFT
@@ -867,40 +915,22 @@ class BatchCoordinator:
         if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
             raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
 
-        manifest = self.store.read_manifest(session.campaign_id)
-        active = self.store.read_batches(session.campaign_id).active
+        verdict = _inspect_batch_ownership(self.store, session, now=now)
         projection = self.store.read_ledger(session.campaign_id)
-        try:
-            heartbeat = inspect_heartbeat(
-                self.store.read_heartbeat(session.campaign_id), now=now
-            )
-        except HeartbeatInspectionError as exc:
-            raise BatchCoordinatorError("BATCH_HEARTBEAT_INVALID") from exc
 
         planned = session.plan.item_keys
         completed_items, committed_by_run = _committed_plan_prefix(projection, session)
         expected_committed = set(planned[:completed_items])
         in_flight = any(
-            item.status in {ItemStatus.CLAIMED, ItemStatus.OBSERVED, ItemStatus.EXTRACTED}
-            for item in projection.items.values()
+            item.status in _CLAIM_ACTIVE_STATUSES for item in projection.items.values()
         )
         reason = batch_stop_reason(session.policy, usage)
         next_item_key: str | None = None
         next_item_ordinal: int | None = None
         stop_reason: BatchStopReason | None = None
 
-        if manifest.status is not CampaignStatus.RUNNING:
-            state = BatchContinuationState.CAMPAIGN_NOT_RUNNING
-        elif active is None:
-            state = BatchContinuationState.BATCH_NOT_ACTIVE
-        elif (active.batch_id, active.run_id) != (session.batch_id, session.run_id):
-            state = BatchContinuationState.BATCH_OWNER_MISMATCH
-        elif heartbeat.freshness is HeartbeatFreshness.MISSING:
-            state = BatchContinuationState.HEARTBEAT_MISSING
-        elif heartbeat.run_id != session.run_id:
-            state = BatchContinuationState.HEARTBEAT_OWNER_MISMATCH
-        elif heartbeat.freshness is HeartbeatFreshness.STALE:
-            state = BatchContinuationState.HEARTBEAT_STALE
+        if verdict is not _OwnershipVerdict.OK:
+            state = BatchContinuationState[verdict.name]
         elif in_flight:
             state = BatchContinuationState.ITEMS_IN_FLIGHT
         elif not planned or session.plan.stop_reason is not None:

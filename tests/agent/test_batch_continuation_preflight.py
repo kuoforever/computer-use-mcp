@@ -4738,3 +4738,51 @@ def test_repeated_finish_and_complete_continuation_states_are_stable(
         assert complete.next_item_key is None
     finally:
         lock.release()
+
+
+@pytest.mark.parametrize("advance_to", ["OBSERVED", "EXTRACTED"])
+def test_first_claim_preflight_blocks_a_dangling_in_flight_item(
+    tmp_path: Path,
+    advance_to: str,
+) -> None:
+    """A claim is not released at OBSERVED or EXTRACTED, so it still blocks.
+
+    A torn run can leave an item past CLAIMED but short of COMMITTED. The plan
+    equality check already refused this case, but it reported PLAN_DRIFT, which
+    sends an operator looking for a changed plan instead of for the in-flight
+    item that is the actual cause. The refusal is not new; the diagnosis is.
+    """
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=2,
+        commit_first=False,
+    )
+    try:
+        coordinator.claim_first_item(session, now=NOW, lease_seconds=300)
+        coordinator.record_first_claimed_item_observed(
+            session,
+            now=NOW,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
+        if advance_to == "EXTRACTED":
+            coordinator.record_first_observed_item_extracted(
+                session,
+                now=NOW,
+                read_only_extraction_completed=True,
+            )
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_first_item_claim(
+            session,
+            now=NOW,
+            lease_seconds=300,
+        )
+
+        assert result.state is BatchFirstClaimState.ITEM_CLAIM_ACTIVE
+        assert not result.ready
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
