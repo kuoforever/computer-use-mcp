@@ -27,7 +27,9 @@ MAX_CAMPAIGN_HANDOFF_BYTES = 16 * 1024
 MAX_CAMPAIGN_HEARTBEAT_BYTES = 4 * 1024
 MAX_CAMPAIGN_LEDGER_BYTES = 1024 * 1024
 MAX_CAMPAIGN_BATCH_LEDGER_BYTES = 1024 * 1024
+MAX_CAMPAIGN_DISCOVERY_LEDGER_BYTES = 256 * 1024
 MAX_CAMPAIGN_ITEMS = 10_000
+MAX_CAMPAIGN_DISCOVERY_PASSES = 100
 MAX_HEARTBEAT_FRESHNESS_SECONDS = 5 * 60
 MAX_ITEM_LEASE_SECONDS = 60 * 60
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
@@ -432,6 +434,44 @@ class BatchTransition:
 
 
 @dataclass(frozen=True)
+class DiscoveryPass:
+    """One recorded observation of a discovery source that added item keys.
+
+    The record keeps only counts and a digest of the bounded source text. It
+    never stores observed content, a URL, a page number, or a selector.
+    """
+
+    sequence: int
+    at: str
+    source_digest: str
+    observed_count: int
+    new_count: int
+    run_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.sequence <= 0:
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+        _require_timestamp(self.at)
+        _require_digest(self.source_digest)
+        _require_nonnegative_int(self.observed_count)
+        _require_nonnegative_int(self.new_count)
+        if self.observed_count == 0 or self.new_count > self.observed_count:
+            raise CampaignStoreError("CAMPAIGN_INVALID")
+        if self.run_id is not None:
+            _require_identifier(self.run_id)
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "sequence": self.sequence,
+            "at": self.at,
+            "source_digest": self.source_digest,
+            "observed_count": self.observed_count,
+            "new_count": self.new_count,
+            "run_id": self.run_id,
+        }
+
+
+@dataclass(frozen=True)
 class CampaignProjection:
     transitions: tuple[ItemTransition, ...]
     items: Mapping[str, ItemTransition]
@@ -467,6 +507,35 @@ class BatchProjection:
     transitions: tuple[BatchTransition, ...]
     active: BatchTransition | None
     finished_count: int
+
+
+@dataclass(frozen=True)
+class DiscoveryPassProjection:
+    """Durable progression facts for a discovery-only campaign."""
+
+    passes: tuple[DiscoveryPass, ...]
+
+    @property
+    def pass_count(self) -> int:
+        return len(self.passes)
+
+    @property
+    def last_source_digest(self) -> str | None:
+        return self.passes[-1].source_digest if self.passes else None
+
+    @property
+    def last_at(self) -> str | None:
+        return self.passes[-1].at if self.passes else None
+
+    @property
+    def total_new_count(self) -> int:
+        return sum(entry.new_count for entry in self.passes)
+
+    @property
+    def last_pass_added_nothing(self) -> bool:
+        """Report only the recorded fact, never an inferred end of a source."""
+
+        return bool(self.passes) and self.passes[-1].new_count == 0
 
 
 def reduce_item_ledger(transitions: Sequence[ItemTransition]) -> CampaignProjection:
@@ -531,6 +600,41 @@ def reduce_batch_ledger(transitions: Sequence[BatchTransition]) -> BatchProjecti
             active = None
             finished_count += 1
     return BatchProjection(tuple(transitions), active, finished_count)
+
+
+def reduce_discovery_passes(passes: Sequence[DiscoveryPass]) -> DiscoveryPassProjection:
+    """Validate an append-only discovery-pass ledger without executing it."""
+
+    previous: DiscoveryPass | None = None
+    for expected_sequence, entry in enumerate(passes, start=1):
+        if entry.sequence != expected_sequence:
+            raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID")
+        if previous is not None:
+            if entry.source_digest == previous.source_digest:
+                raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID")
+            if datetime.fromisoformat(entry.at) < datetime.fromisoformat(previous.at):
+                raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID")
+        previous = entry
+    if len(passes) > MAX_CAMPAIGN_DISCOVERY_PASSES:
+        raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_TOO_LARGE")
+    return DiscoveryPassProjection(tuple(passes))
+
+
+def _decode_discovery_pass(value: object) -> DiscoveryPass:
+    fields = {"sequence", "at", "source_digest", "observed_count", "new_count", "run_id"}
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID")
+    try:
+        return DiscoveryPass(
+            sequence=value.get("sequence"),
+            at=value.get("at"),
+            source_digest=value.get("source_digest"),
+            observed_count=value.get("observed_count"),
+            new_count=value.get("new_count"),
+            run_id=value.get("run_id"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID") from exc
 
 
 def _decode_manifest(value: object, *, campaign_id: str) -> CampaignManifest:
@@ -1042,6 +1146,50 @@ class CampaignStore:
         )
         return updated
 
+    def read_discovery_passes(self, campaign_id: str) -> DiscoveryPassProjection:
+        self._require_lock()
+        path = self._path(campaign_id, "discovery.jsonl")
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError:
+            return DiscoveryPassProjection(())
+        except OSError as exc:
+            raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_READ_FAILED") from exc
+        if len(raw) > MAX_CAMPAIGN_DISCOVERY_LEDGER_BYTES:
+            raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_TOO_LARGE")
+        try:
+            lines = raw.decode("utf-8").splitlines()
+            passes = tuple(_decode_discovery_pass(json.loads(line)) for line in lines if line)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID") from exc
+        return reduce_discovery_passes(passes)
+
+    def append_discovery_pass(
+        self, campaign_id: str, entry: DiscoveryPass
+    ) -> DiscoveryPassProjection:
+        self._require_lock()
+        if not isinstance(entry, DiscoveryPass):
+            raise CampaignStoreError("CAMPAIGN_DISCOVERY_LEDGER_INVALID")
+        self.read_manifest(campaign_id)
+        projection = self.read_discovery_passes(campaign_id)
+        next_entry = DiscoveryPass(
+            sequence=projection.pass_count + 1,
+            at=entry.at,
+            source_digest=entry.source_digest,
+            observed_count=entry.observed_count,
+            new_count=entry.new_count,
+            run_id=entry.run_id,
+        )
+        updated = reduce_discovery_passes((*projection.passes, next_entry))
+        encoded = b"".join(_canonical(item.as_json()) + b"\n" for item in updated.passes)
+        self._atomic_write(
+            self._path(campaign_id, "discovery.jsonl"),
+            encoded,
+            create=False,
+            maximum=MAX_CAMPAIGN_DISCOVERY_LEDGER_BYTES,
+        )
+        return updated
+
     def write_handoff(self, campaign_id: str, *, last_run_id: str) -> dict[str, object]:
         """Atomically replace a status-aware handoff derived from durable state."""
 
@@ -1132,6 +1280,8 @@ class CampaignStore:
 __all__ = [
     "CAMPAIGN_VERSION",
     "MAX_CAMPAIGN_BATCH_LEDGER_BYTES",
+    "MAX_CAMPAIGN_DISCOVERY_LEDGER_BYTES",
+    "MAX_CAMPAIGN_DISCOVERY_PASSES",
     "MAX_CAMPAIGN_HANDOFF_BYTES",
     "MAX_CAMPAIGN_HEARTBEAT_BYTES",
     "MAX_CAMPAIGN_ITEMS",
@@ -1146,9 +1296,12 @@ __all__ = [
     "CampaignStatus",
     "CampaignStore",
     "CampaignStoreError",
+    "DiscoveryPass",
+    "DiscoveryPassProjection",
     "ItemStatus",
     "ItemTransition",
     "campaign_dir",
     "reduce_batch_ledger",
+    "reduce_discovery_passes",
     "reduce_item_ledger",
 ]

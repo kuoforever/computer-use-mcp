@@ -59,6 +59,7 @@ state_dir/
     manifest.json
     items.jsonl
     batches.jsonl
+    discovery.jsonl
     handoff.json
   runs/<run_id>/state.json
   traces/<run_id>.jsonl
@@ -117,6 +118,27 @@ Required item metadata:
 Append state transitions to `items.jsonl`; do not rewrite prior transitions.
 The reducer may build an index, but the append-only ledger remains the recovery
 source.
+
+## Discovery-pass ledger
+
+A campaign that discovers its items by observing a source repeatedly records
+each observation in `discovery.jsonl`. One pass holds only `sequence`, `at`, a
+`source_digest` of the bounded observed text, `observed_count`, `new_count`, and
+an optional `run_id`. It never holds observed content, a URL, a page number, or
+a selector, because progression is caused by the operator moving the observed
+source, not by a parameter this boundary accepts.
+
+The ledger is append-only and enforces two durable invariants: sequence numbers
+are contiguous with non-decreasing timestamps, and a pass may not repeat the
+immediately preceding `source_digest`. An unchanged source therefore fails
+closed instead of recording a second pass over the same observation.
+
+Items are appended before the pass that records them. A persisted item count
+above the recorded `new_count` total means an interrupted pass and stays
+repairable by observing the same source again; the reverse means a pass claims
+items that were never persisted and must fail closed for operator inspection. A
+pass with `new_count` zero is a recorded fact, not an inferred end of the
+source: a later distinct source may still add items.
 
 ## Atomic work boundary
 

@@ -582,6 +582,8 @@ async def _observe_boss_discovery_page_async(path: Path, campaign_id: str, run_i
             "discovered_count": outcome.discovery.discovered_count,
             "duplicate_count": outcome.discovery.duplicate_count,
             "new_item_count": len(outcome.discovery.new_item_keys),
+            "pass_sequence": outcome.discovery.pass_sequence,
+            "pass_added_nothing": outcome.discovery.added_nothing,
             "run_id": outcome.state.run_id,
             "tool_calls": outcome.state.budgets.tool_calls_used,
         }

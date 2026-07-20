@@ -11,9 +11,11 @@ from computer_use_agent.campaign import (
     CampaignManifest,
     CampaignStore,
     CampaignStoreError,
+    DiscoveryPass,
     ItemStatus,
     ItemTransition,
     campaign_dir,
+    reduce_discovery_passes,
     reduce_item_ledger,
 )
 from computer_use_agent.run_lock import RunLock
@@ -297,3 +299,67 @@ def test_handoff_is_fixed_schema_and_derived_only_from_durable_ledger(tmp_path: 
         }
     finally:
         lock.release()
+
+
+def _pass(sequence: int, *, digest: str, at: str = "2026-07-19T03:00:00+00:00") -> DiscoveryPass:
+    return DiscoveryPass(
+        sequence=sequence,
+        at=at,
+        source_digest=digest,
+        observed_count=2,
+        new_count=1,
+    )
+
+
+def test_discovery_pass_ledger_is_append_only_and_resequenced(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        manifest = store.create(_manifest())
+        assert store.read_discovery_passes(manifest.campaign_id).pass_count == 0
+
+        store.append_discovery_pass(manifest.campaign_id, _pass(99, digest="c" * 64))
+        projection = store.append_discovery_pass(
+            manifest.campaign_id, _pass(1, digest="d" * 64)
+        )
+
+        path = campaign_dir((tmp_path / "state").resolve(), manifest.campaign_id) / "discovery.jsonl"
+        persisted = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        assert [entry.sequence for entry in projection.passes] == [1, 2]
+        assert [entry["sequence"] for entry in persisted] == [1, 2]
+        assert projection.last_source_digest == "d" * 64
+        assert projection.total_new_count == 2
+        assert projection.last_pass_added_nothing is False
+    finally:
+        lock.release()
+
+
+def test_discovery_pass_ledger_rejects_a_repeated_source_and_time_regression() -> None:
+    with pytest.raises(CampaignStoreError, match="CAMPAIGN_DISCOVERY_LEDGER_INVALID"):
+        reduce_discovery_passes((_pass(1, digest="c" * 64), _pass(2, digest="c" * 64)))
+
+    with pytest.raises(CampaignStoreError, match="CAMPAIGN_DISCOVERY_LEDGER_INVALID"):
+        reduce_discovery_passes(
+            (
+                _pass(1, digest="c" * 64),
+                _pass(2, digest="d" * 64, at="2026-07-19T02:59:59+00:00"),
+            )
+        )
+
+
+def test_discovery_pass_rejects_counts_that_cannot_describe_an_observation() -> None:
+    with pytest.raises(CampaignStoreError, match="CAMPAIGN_INVALID"):
+        DiscoveryPass(
+            sequence=1,
+            at="2026-07-19T03:00:00+00:00",
+            source_digest="c" * 64,
+            observed_count=1,
+            new_count=2,
+        )
+    with pytest.raises(CampaignStoreError, match="CAMPAIGN_INVALID"):
+        DiscoveryPass(
+            sequence=1,
+            at="2026-07-19T03:00:00+00:00",
+            source_digest="c" * 64,
+            observed_count=0,
+            new_count=0,
+        )

@@ -7,10 +7,12 @@ import pytest
 from computer_use_agent.batch_coordinator import BatchCoordinator
 from computer_use_agent.batching import BatchPolicy
 from computer_use_agent.boss_campaign_discovery import (
+    MAX_BOSS_DISCOVERY_PASSES,
     MAX_BOSS_IDENTITIES_PER_SNAPSHOT,
     MAX_BOSS_SNAPSHOT_CHARS,
     BossCampaignDiscoveryError,
     create_boss_discovery_campaign,
+    inspect_boss_discovery_campaign,
     parse_boss_job_identities,
     record_boss_snapshot_discoveries,
 )
@@ -109,12 +111,13 @@ def test_multi_page_discovery_is_idempotent_and_persists_only_item_keys(tmp_path
         )
         ledger_path = campaign_dir(store.state_dir, "campaign_1") / "items.jsonl"
         before_replay = ledger_path.read_bytes()
-        replay = record_boss_snapshot_discoveries(
-            store,
-            campaign_id="campaign_1",
-            snapshot_text="\n".join([_line("publicjob001"), _line("publicjob002")]),
-            observed_at=AT,
-        )
+        with pytest.raises(BossCampaignDiscoveryError, match="^BOSS_DISCOVERY_SOURCE_UNCHANGED$"):
+            record_boss_snapshot_discoveries(
+                store,
+                campaign_id="campaign_1",
+                snapshot_text="\n".join([_line("publicjob001"), _line("publicjob002")]),
+                observed_at=AT,
+            )
         assert ledger_path.read_bytes() == before_replay
         second = record_boss_snapshot_discoveries(
             store,
@@ -126,8 +129,8 @@ def test_multi_page_discovery_is_idempotent_and_persists_only_item_keys(tmp_path
         projection = store.read_ledger("campaign_1")
         persisted = ledger_path.read_text(encoding="utf-8")
         assert first.new_item_keys == ("boss:job:publicjob001", "boss:job:publicjob002")
-        assert replay.new_item_keys == ()
-        assert replay.duplicate_count == 2
+        assert first.pass_sequence == 1
+        assert second.pass_sequence == 2
         assert second.new_item_keys == ("boss:job:publicjob003",)
         assert second.duplicate_count == 1
         assert second.discovered_count == 3
@@ -270,6 +273,156 @@ def test_discovery_rejects_timestamp_regression(tmp_path: Path) -> None:
                 observed_at="2026-07-19T02:59:59+00:00",
             )
         assert store.read_ledger("campaign_1").discovered_count == 1
+    finally:
+        lock.release()
+
+
+def test_pass_ledger_records_progression_without_source_content(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text=_line("publicjob001"),
+            observed_at=AT,
+        )
+        second = record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text="\n".join([_line("publicjob001"), _line("publicjob002")]),
+            observed_at=AT,
+        )
+
+        passes = store.read_discovery_passes("campaign_1")
+        persisted = (campaign_dir(store.state_dir, "campaign_1") / "discovery.jsonl").read_text(
+            encoding="utf-8"
+        )
+        assert [entry.sequence for entry in passes.passes] == [1, 2]
+        assert [entry.observed_count for entry in passes.passes] == [1, 2]
+        assert [entry.new_count for entry in passes.passes] == [1, 1]
+        assert passes.total_new_count == store.read_ledger("campaign_1").discovered_count
+        assert second.source_digest == passes.last_source_digest
+        assert "publicjob001" not in persisted
+        assert "zhipin" not in persisted
+    finally:
+        lock.release()
+
+
+def test_a_pass_that_adds_nothing_is_recorded_without_ending_discovery(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text=_line("publicjob001"),
+            observed_at=AT,
+        )
+        exhausted = record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text="\n".join([_line("publicjob001"), _line("publicjob001")]) + "\n",
+            observed_at=AT,
+        )
+        resumed = record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text=_line("publicjob002"),
+            observed_at=AT,
+        )
+
+        assert exhausted.new_item_keys == ()
+        assert exhausted.added_nothing is True
+        assert resumed.new_item_keys == ("boss:job:publicjob002",)
+        assert resumed.added_nothing is False
+        assert store.read_discovery_passes("campaign_1").pass_count == 3
+    finally:
+        lock.release()
+
+
+def test_a_fresh_run_reconstructs_progression_from_durable_records(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text=_line("publicjob001"),
+            observed_at=AT,
+        )
+    finally:
+        lock.release()
+
+    restarted_lock = RunLock(tmp_path / "application")
+    restarted_lock.acquire()
+    restarted = CampaignStore((tmp_path / "state").resolve(), restarted_lock)
+    try:
+        preflight = inspect_boss_discovery_campaign(
+            restarted, campaign_id="campaign_1", observed_at=AT
+        )
+        assert preflight.pass_count == 1
+        assert preflight.discovered_count == 1
+
+        with pytest.raises(BossCampaignDiscoveryError, match="^BOSS_DISCOVERY_SOURCE_UNCHANGED$"):
+            record_boss_snapshot_discoveries(
+                restarted,
+                campaign_id="campaign_1",
+                snapshot_text=_line("publicjob001"),
+                observed_at=AT,
+            )
+
+        resumed = record_boss_snapshot_discoveries(
+            restarted,
+            campaign_id="campaign_1",
+            snapshot_text="\n".join([_line("publicjob001"), _line("publicjob002")]),
+            observed_at=AT,
+        )
+        assert resumed.pass_sequence == 2
+        assert resumed.new_item_keys == ("boss:job:publicjob002",)
+        assert resumed.discovered_count == 2
+    finally:
+        restarted_lock.release()
+
+
+def test_discovery_refuses_more_passes_than_the_reviewed_bound(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        for index in range(MAX_BOSS_DISCOVERY_PASSES):
+            record_boss_snapshot_discoveries(
+                store,
+                campaign_id="campaign_1",
+                snapshot_text=_line(f"publicjob{index:03d}"),
+                observed_at=AT,
+            )
+
+        with pytest.raises(BossCampaignDiscoveryError, match="^BOSS_DISCOVERY_PASS_LIMIT$"):
+            record_boss_snapshot_discoveries(
+                store,
+                campaign_id="campaign_1",
+                snapshot_text=_line("publicjob999"),
+                observed_at=AT,
+            )
+        assert store.read_ledger("campaign_1").discovered_count == MAX_BOSS_DISCOVERY_PASSES
+    finally:
+        lock.release()
+
+
+def test_discovery_fails_closed_when_a_pass_claims_missing_items(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    try:
+        record_boss_snapshot_discoveries(
+            store,
+            campaign_id="campaign_1",
+            snapshot_text=_line("publicjob001"),
+            observed_at=AT,
+        )
+        (campaign_dir(store.state_dir, "campaign_1") / "items.jsonl").unlink()
+
+        with pytest.raises(BossCampaignDiscoveryError, match="^BOSS_DISCOVERY_LEDGER_TORN$"):
+            record_boss_snapshot_discoveries(
+                store,
+                campaign_id="campaign_1",
+                snapshot_text=_line("publicjob002"),
+                observed_at=AT,
+            )
     finally:
         lock.release()
 

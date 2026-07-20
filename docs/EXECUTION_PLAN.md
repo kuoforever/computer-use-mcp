@@ -85,10 +85,23 @@ persisted idempotently, and discovery is refused after batch execution begins.
 The commands accept no task, URL, page, scope, item selector, provider, or
 navigation authority. The fixed path now has
 [one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) with
-seven stable public job keys and no provider or side effect. Next add reviewed
-page progression and run the first 100-item read-only BOSS campaign across
-multiple provider contexts and at least one forced restart. Retain
-committed-item, token, retry, recovery, and takeover evidence.
+seven stable public job keys and no provider or side effect.
+
+Repeated observation is now bounded by the durable discovery-pass ledger
+described in [Long-running tasks](LONG_RUNNING_TASKS.md). The observation
+command still accepts no page, URL, or selector: progression happens only
+because the operator moved the observed foreground, and the boundary records
+that a distinct source was observed, refuses an unchanged source, bounds the
+campaign to twenty passes, and fails closed when a pass claims items that were
+never persisted. A fresh run reconstructs pass count and last source digest
+from durable records alone. This is offline evidence only; the BOSS discovery
+policy and schema digests were advanced for the change, so the earlier retained
+one-page result does not transfer to the new contract.
+
+Next run a multi-page on-device discovery sequence against the reviewed BOSS
+source and retain its progression evidence, then the first 100-item read-only
+BOSS campaign across multiple provider contexts and at least one forced
+restart. Retain committed-item, token, retry, recovery, and takeover evidence.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);
