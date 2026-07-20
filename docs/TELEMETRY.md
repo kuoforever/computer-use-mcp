@@ -1,9 +1,14 @@
 # Telemetry contract
 
-> **Status: port implemented, exporter not.** The telemetry port and its no-op
-> default exist and the Agent run and tool boundary are instrumented. No
-> OpenTelemetry SDK, exporter, collector, or dashboard is part of this
-> repository yet. Treat every OTLP reference below as **planned**.
+> **Status: port and OpenTelemetry adapter implemented; no collector wiring.**
+> The telemetry port, its no-op default, and an OpenTelemetry adapter behind the
+> optional `observability` extra all exist, and the Agent run and tool boundary
+> are instrumented. Span structure, attributes, and the absence of content are
+> verified against a real OTel SDK in-memory exporter.
+>
+> **Not verified:** anything past the SDK. No OTLP endpoint, collector, Jaeger,
+> Tempo, Prometheus, Grafana, or dashboard has been exercised, and no metrics
+> are emitted by the runner. Treat those as **planned**.
 
 ## Three kinds of data, three authorities
 
@@ -123,15 +128,37 @@ stay silent.
 `InMemoryTelemetry` exists for tests. It records span structure and validates
 every attribute strictly, which is what makes the privacy assertions meaningful.
 
+## Enabling the adapter
+
+```powershell
+pip install "computer-use-mcp[observability]"
+```
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from computer_use_agent.runner import AgentRunner, RunnerPorts
+from computer_use_agent.telemetry_otel import OpenTelemetryAdapter
+
+provider = TracerProvider()          # add your own span processor/exporter
+adapter = OpenTelemetryAdapter(provider.get_tracer("computer-use-agent"))
+runner = AgentRunner(config, RunnerPorts(..., telemetry=adapter))
+```
+
+`telemetry_otel` is the only module in the package that imports OpenTelemetry,
+and nothing in the domain imports it. Constructing the adapter is an explicit
+operator action; there is no environment variable that turns it on implicitly.
+
+The adapter keeps the port's strict attribute validation instead of handing
+values to OpenTelemetry directly. An exporter is where data leaves the machine,
+so it is the last place to relax a privacy rule, and
+`test_nothing_content_bearing_reaches_the_exporter` asserts that against real
+exported spans.
+
 ## Not implemented
 
-- No OpenTelemetry SDK dependency, and no `observability` optional extra.
-- No OTLP, Jaeger, Tempo, Prometheus, or Grafana wiring, and no dashboard.
-- No metrics: `record_metric` exists on the port and is not yet called by the
-  runner.
+- No OTLP endpoint, collector, Jaeger, Tempo, Prometheus, or Grafana wiring,
+  and no dashboard. The adapter is verified only against an in-memory exporter.
+- No metrics from the runner: `record_metric` exists and works, but nothing
+  calls it yet, and the adapter drops metrics unless a meter is supplied.
 - No spans below `tool.boundary`, and no `provider.turn` or recovery spans.
-- No trace/run correlation identifier is exported, because nothing exports yet.
-
-When an exporter adapter is added it must live outside the domain, behind an
-optional dependency, disabled by default, and it must not become a recovery
-authority.
+- No trace/run correlation identifier is exported.
