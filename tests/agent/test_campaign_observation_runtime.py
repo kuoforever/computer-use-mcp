@@ -146,7 +146,7 @@ def _claimed_runtime(
         policy=BatchPolicy(max_items=1),
     )
     assert isinstance(session, BatchSession)
-    coordinator.claim_first_item(session, now=NOW, lease_seconds=300)
+    coordinator.claim_next_item(session, usage=BatchUsage(), now=NOW, lease_seconds=300)
     return runner, prepared, session, desktop, config
 
 
