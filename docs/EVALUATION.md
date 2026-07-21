@@ -55,7 +55,7 @@ provider credentials, a child process, or a desktop.
 | Child startup/discovery times out | Report a not-dispatched startup timeout and clean the partial lease. |
 | A call times out, exits, throws, or is cancelled after SDK dispatch begins | Return `unknown_outcome`, close that generation, never replay the call, and require full discovery before a new call. |
 | Text/image content is oversized, mixed, malformed, corrupt, or carries an expanded structured result | Discard it and return a fixed protocol outcome; never retain typed text or image payloads in errors. |
-| Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly nine tools and complete a text call while all sentinel variables remain absent from the child. |
+| Harmless real stdio fixture starts while provider/cloud sentinel secrets exist in the host | Discover exactly ten tools and complete a text call while all sentinel variables remain absent from the child. |
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
 | Claude returns reasoning plus a tool-use block | Normalize the tool name/input/ID, preserve only strict signed `thinking` and opaque `redacted_thinking` blocks in private history, exclude them from canonical text/trace, reject malformed or unadvertised calls and invalid stop reasons, then append the complete assistant block and adjacent matching user `tool_result`. |
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |

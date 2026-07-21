@@ -121,8 +121,8 @@ sensitive text within a word or across up to eight adjacent words on the same
 visual line, then replaces the corresponding pixels with solid,
 coordinate-preserving token labels before the screenshot enters the ledger.
 Missing or failed image redaction stops the screenshot; disabling it removes
-`screenshot` from the provider surface. A non-text visual-detector extension
-port exists, but no face, QR, document, signature, or DeepSeek backend is
+`screenshot` and `capture_region` from the provider surface. A non-text
+visual-detector extension port exists, but no face, QR, document, signature, or DeepSeek backend is
 installed or enabled. Because this MVP does not persist the vault, privacy and
 continuation cannot both be enabled. See
 [Local text privacy](LOCAL_PRIVACY.md) for the exact boundary and limitations.

@@ -175,7 +175,7 @@ def test_start_verifies_registry_before_dispatch_and_close_is_idempotent(
     async def scenario() -> None:
         assert isinstance(bridge, DesktopMCPPort)
         descriptors = await bridge.discover_tools()
-        assert len(descriptors) == 9
+        assert len(descriptors) == 10
         assert bridge.generation == 1
 
         result = await bridge.call_tool(_call())

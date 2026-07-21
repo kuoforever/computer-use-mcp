@@ -1,9 +1,9 @@
 # Observation contract
 
 > **Status: partially implemented multi-source contract.** UIA snapshots,
-> primary-display screenshots, and bounded region OCR are implemented.
-> Document text, deltas, and standalone scoped image capture remain design
-> targets.
+> primary-display screenshots, bounded region OCR, and bounded region image
+> capture are implemented. Document text and deltas remain design targets, as
+> does any scope beyond one explicit primary-display rectangle.
 
 ## Purpose
 
@@ -88,6 +88,14 @@ both crop-local `bbox` and primary-display `screen_bbox` values.
 
 PNG bytes plus dimensions, scale, crop origin, display metadata, and digest.
 Image bytes travel through native image content, never text serialization.
+
+The current Windows backend accepts one explicit primary-display rectangle
+bounded at 4,000,000 pixels and 4 MiB encoded, blacks out configured sensitive
+window titles inside the crop, and digests exactly the bytes the caller
+receives. It refuses a rectangle the driver did not return instead of passing
+off a differently sized capture, and reports a refusal as text alone. Its
+coordinates are evidence in the primary-display pixel space; acting on them
+still requires a fresh target-location check.
 
 ### Delta
 

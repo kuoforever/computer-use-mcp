@@ -10,14 +10,15 @@
 
 Letting a model click around a desktop is easy. Knowing *what it was allowed to
 do*, *what it actually did*, and *what is safe to retry after the process dies*
-is the hard part. This project keeps those layers separate: UI Automation and
-bounded OCR for observation, an explicit policy and approval boundary, a single
+is the hard part. This project keeps those layers separate: UI Automation,
+bounded OCR, and bounded region capture for observation, an explicit policy and approval boundary, a single
 desktop execution authority, and durable evidence that outlives a crash.
 
 ## What this proves
 
-- **9 reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
-  `screenshot`, `ocr`, `activate_window`, `click`, `type`, and `key` — with
+- **10 reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
+  `screenshot`, `capture_region`, `ocr`, `activate_window`, `click`, `type`, and
+  `key` — with
   fixed schemas, argument validation, and discovery-mismatch checks.
 - **Two provider paths** (OpenAI and Claude) behind one provider-neutral tool
   contract, with [retained dual-provider evidence](docs/E3_EVIDENCE.md).
@@ -148,8 +149,9 @@ environment values above are the portable part.
 ## Typical workflow
 
 1. Call `ui_snapshot()` to obtain a flat list of interactive controls and
-   their `ref_N` handles, call `ocr(x, y, w, h)` for bounded static text, or
-   call `screenshot()` for visual inspection.
+   their `ref_N` handles, call `ocr(x, y, w, h)` for bounded static text, call
+   `capture_region(x, y, w, h)` for one cropped image, or call `screenshot()`
+   for whole-display visual inspection.
 2. Prefer `click(ref="ref_N")` and `type(text, ref="ref_N")` when UIA
    exposes the target. These use accessibility patterns rather than synthetic
    coordinate clicks.
@@ -167,6 +169,7 @@ environment values above are the portable part.
 | `find(query, scope="foreground")` | Returns a smaller matching subset of a UIA snapshot. |
 | `list_windows()` | Lists visible top-level windows, including owned dialogs. |
 | `screenshot()` | Returns a PNG of the primary display; it has no MCP region parameter. |
+| `capture_region(x, y, w, h)` | Returns a grounding envelope plus a PNG of one explicit primary-display region. |
 | `ocr(x, y, w, h)` | Recognizes bounded text runs in one explicit primary-display region. |
 | `activate_window(window_id)` | Attempts to restore and activate a listed window; success requires the driver to verify that it became foreground. |
 | `click(ref=...)` / `click(x=..., y=...)` | Invokes an accessible control or performs a coordinate click. |

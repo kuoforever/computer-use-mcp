@@ -254,3 +254,80 @@ def test_sdk_structured_text_mirror_is_accepted_but_cannot_add_content() -> None
             _call("list_windows"),
             _text_result("safe", structured_content={"result": "different"}),
         )
+
+
+def _capture_call() -> ToolCall:
+    return _call("capture_region", {"x": 0, "y": 0, "w": 1, "h": 1})
+
+
+def _capture_result(
+    *blocks: object,
+    is_error: bool = False,
+    structured_content: object = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        isError=is_error,
+        content=list(blocks),
+        structuredContent=structured_content,
+    )
+
+
+ENVELOPE = '{"source":"image","crop_origin":[0,0]}'
+
+
+def test_region_capture_keeps_the_envelope_with_its_crop() -> None:
+    result = convert_mcp_result(
+        _capture_call(),
+        _capture_result(
+            SimpleNamespace(type="text", text=ENVELOPE),
+            SimpleNamespace(type="image", data=VALID_PNG_BASE64, mimeType="image/png"),
+        ),
+    )
+
+    assert result.status is ToolResultStatus.SUCCESS
+    assert result.sanitized_text == ENVELOPE
+    assert len(result.images) == 1
+    assert result.images[0].data == base64.b64decode(VALID_PNG_BASE64)
+
+
+def test_refused_region_capture_is_text_alone_and_keeps_no_pixels() -> None:
+    result = convert_mcp_result(
+        _capture_call(),
+        _capture_result(SimpleNamespace(type="text", text="ERROR CAPTURE_INVALID_REGION: bad")),
+    )
+
+    assert result.status is ToolResultStatus.SUCCESS
+    assert result.images == ()
+    assert result.sanitized_text.startswith("ERROR CAPTURE_INVALID_REGION")
+
+
+@pytest.mark.parametrize(
+    "raw_result",
+    [
+        _capture_result(),
+        _capture_result(
+            SimpleNamespace(type="image", data=VALID_PNG_BASE64, mimeType="image/png"),
+            SimpleNamespace(type="text", text=ENVELOPE),
+        ),
+        _capture_result(
+            SimpleNamespace(type="text", text=ENVELOPE),
+            SimpleNamespace(type="text", text="second envelope"),
+        ),
+        _capture_result(
+            SimpleNamespace(type="text", text=ENVELOPE),
+            SimpleNamespace(type="image", data=VALID_PNG_BASE64, mimeType="image/png"),
+            SimpleNamespace(type="image", data=VALID_PNG_BASE64, mimeType="image/png"),
+        ),
+        _capture_result(
+            SimpleNamespace(type="text", text=ENVELOPE),
+            SimpleNamespace(type="image", data="not-base64", mimeType="image/png"),
+        ),
+        _capture_result(
+            SimpleNamespace(type="text", text=ENVELOPE),
+            structured_content={"expanded": "authority"},
+        ),
+    ],
+)
+def test_malformed_region_capture_content_fails_closed(raw_result: object) -> None:
+    with pytest.raises(MCPResultConversionError):
+        convert_mcp_result(_capture_call(), raw_result)

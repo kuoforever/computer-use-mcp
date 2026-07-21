@@ -165,7 +165,8 @@ operation without conversational history.
 1. Compare full `ui_snapshot` with `find` on known BOSS controls.
 2. Add a bounded OCR region and compare it with full screenshots for one job
    card and one detail panel.
-3. Measure full image versus crop token usage through both providers.
+3. Measure full `screenshot` versus `capture_region` crop token usage through
+   both providers.
 4. Process 20 items with no context rotation, then 5 x 4-item batches, and
    compare tokens per committed item.
 5. Prototype UIA deltas and stop if their ambiguity increases retries enough to

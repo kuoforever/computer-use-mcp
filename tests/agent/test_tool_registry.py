@@ -53,24 +53,25 @@ def _png(width: int = 1, height: int = 1) -> bytes:
     )
 
 
-def test_registry_contains_the_exact_nine_reviewed_mcp_tools() -> None:
+def test_registry_contains_the_exact_ten_reviewed_mcp_tools() -> None:
     assert EXPECTED_TOOL_NAMES == {
         "ui_snapshot",
         "find",
         "list_windows",
         "screenshot",
+        "capture_region",
         "ocr",
         "activate_window",
         "click",
         "type",
         "key",
     }
-    assert len(REVIEWED_TOOLS) == 9
+    assert len(REVIEWED_TOOLS) == 10
     assert all(tool.input_schema["additionalProperties"] is False for tool in REVIEWED_TOOLS)
     assert get_tool_spec("screenshot").result_sensitivity is ResultSensitivity.SENSITIVE
     assert (
         reviewed_registry_digest()
-        == "ff9e4f2ce47331715ac96bb1096ba004d884991ba1ddf76b065ebd84574dd963"
+        == "2f1e3d9e9c0aea90b35c413a40f194115c6f99c2631cfc72a6f072445a96b1eb"
     )
 
 
@@ -179,15 +180,28 @@ def test_click_accepts_exactly_one_valid_target_form() -> None:
         {"x": 0, "y": 0, "w": 1},
     ],
 )
-def test_ocr_host_validation_rejects_unbounded_regions(arguments: dict[str, object]) -> None:
-    with pytest.raises(ToolValidationError):
-        validate_tool_arguments("ocr", arguments)
+def test_region_host_validation_rejects_unbounded_regions(arguments: dict[str, object]) -> None:
+    for name in ("ocr", "capture_region"):
+        with pytest.raises(ToolValidationError):
+            validate_tool_arguments(name, arguments)
 
 
-def test_ocr_host_validation_accepts_one_bounded_region() -> None:
+def test_region_host_validation_accepts_one_bounded_region() -> None:
     arguments = {"x": 10, "y": 20, "w": 300, "h": 400}
 
     assert validate_tool_arguments("ocr", arguments) == arguments
+    assert validate_tool_arguments("capture_region", arguments) == arguments
+
+
+def test_only_the_pixel_returning_tools_declare_image_output() -> None:
+    """The privacy layer selects redaction targets from this property, not names."""
+
+    assert {tool.name for tool in REVIEWED_TOOLS if tool.returns_image} == {
+        "screenshot",
+        "capture_region",
+    }
+    assert get_tool_spec("capture_region").result_sensitivity is ResultSensitivity.SENSITIVE
+    assert get_tool_spec("capture_region").effect is ToolEffect.OBSERVATION
 
 
 def test_unknown_tool_and_argument_fail_before_dispatch() -> None:

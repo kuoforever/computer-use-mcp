@@ -10,7 +10,7 @@
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
-nine-tool local stdio MCP server as its sole desktop execution authority.
+ten-tool local stdio MCP server as its sole desktop execution authority.
 
 ## Scope
 
@@ -53,8 +53,9 @@ the following commands:
   revalidated, user-confirmed memories from that exact scope in the provider's
   initial turn. Omitting it reads no memory; it is rejected with `--dry-run`.
 - `plan run --config PATH --task TEXT` makes exactly one configured-provider
-  Planner request over the fixed `ui_snapshot`, `find`, `list_windows`, and
-  `screenshot` schemas, accepts only one to four observation steps plus the
+  Planner request over the fixed `ui_snapshot`, `find`, `list_windows`,
+  `screenshot`, `capture_region`, and `ocr` schemas, accepts only one to four
+  observation steps plus the
   required final step, executes observations through the sole Runner boundary,
   and makes one stateless tool-free final-response request. It exposes no tool
   selector, action, approval, memory, recovery, or ordinary provider-loop
@@ -412,7 +413,7 @@ recovery rather than relying on a garbage-collection finalizer.
 fixed local stdio child. It starts the configured absolute executable and argv
 without a shell, initializes an MCP client session, follows bounded discovery
 pagination, and requires the discovered names and input schemas to equal the
-reviewed nine-tool registry before any call can be dispatched.
+reviewed ten-tool registry before any call can be dispatched.
 
 One asyncio task owns each live child generation and all calls are serialized.
 A call must be host-authorized and structurally valid. Unknown tools, bad
@@ -490,6 +491,7 @@ authority.
 | `find` | observation | non-empty `query`, optional non-empty `scope` | text | establishes an observation epoch |
 | `list_windows` | observation | none | text | establishes current window IDs |
 | `screenshot` | observation | none | image | sensitive output with configured title-based redaction; establishes screenshot geometry |
+| `capture_region` | observation | integer `x`, `y`, `w`, `h` | text and image | sensitive output with configured title-based redaction inside the crop; the envelope declares the crop origin and does not establish click grounding |
 | `activate_window` | side effect | non-empty `window_id` | text | approval; ID must come from current `list_windows` result |
 | `click` | side effect | exactly `ref` **or** integer `x` and `y` | text | approval; ref or screenshot grounding required |
 | `type` | side effect | `text`, optional non-empty `ref` | text | approval; `text` is sensitive and must never be logged raw |
@@ -524,10 +526,13 @@ free-form server text.
 Current server action results are text, so result conversion must classify known
 error text explicitly rather than treating any returned content as success.
 
-Only `screenshot` may return image content. Its result must be one bounded
-`image/png` with parsed positive dimensions; all other tools reject image
-content. Screenshot output is marked sensitive and its only currently reviewed
-redaction guarantee is configured title matching, not general secret detection.
+Only `screenshot` and `capture_region` may return image content. Every image
+must be one bounded `image/png` with parsed positive dimensions; all other tools
+reject image content. A `screenshot` result is exactly one image, while a
+`capture_region` result is one grounding envelope optionally followed by one
+crop, so a refused region carries no pixels. Both are marked sensitive and their
+only currently reviewed redaction guarantee is configured title matching, not
+general secret detection.
 After conversion, `type` results must also carry no text content; success and
 failure are represented by status/code and safe metadata rather than a server
 message that could echo the typed value.
@@ -637,7 +642,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Acceptance case | Evidence required | Status |
 | --- | --- | --- |
 | Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
-| Exactly nine reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
+| Exactly ten reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
 | Invalid tool arguments fail before dispatch | Unknown fields, missing fields, bad scalar types, and all invalid `click` combinations are rejected | implemented contract test |
 | Host is stricter than server | All action specs require approval and invalidate grounding; `click` XOR is tested | implemented contract test |
 | Configuration cannot weaken or leak into MCP | Parser allowlists child variable names, pins a safe baseline, rejects unsafe server controls, and confines state to the user-local app root | implemented contract test |

@@ -27,6 +27,11 @@ from .types import (
 class ResultContentKind(str, Enum):
     TEXT = "text"
     IMAGE = "image"
+    #: One grounding envelope followed by one image, or one error text alone.
+    TEXT_AND_IMAGE = "text_and_image"
+
+
+IMAGE_RESULT_KINDS = frozenset({ResultContentKind.IMAGE, ResultContentKind.TEXT_AND_IMAGE})
 
 
 class ResultSensitivity(str, Enum):
@@ -70,6 +75,12 @@ class ToolSpec:
     sensitive_arguments: tuple[str, ...] = ()
     required_safety_baselines: tuple[str, ...] = ()
 
+    @property
+    def returns_image(self) -> bool:
+        """True when a successful result carries pixels the privacy layer must see."""
+
+        return self.result_content in IMAGE_RESULT_KINDS
+
     def __post_init__(self) -> None:
         if not self.name or not self.name.replace("_", "").isalnum():
             raise ValueError("tool names must be non-empty snake_case identifiers")
@@ -84,11 +95,11 @@ class ToolSpec:
                 raise ValueError("observation tools cannot require approval or invalidate grounding")
         elif not self.requires_host_approval or not self.invalidates_observation:
             raise ValueError("side-effect tools require approval and invalidate grounding")
-        if self.result_content is ResultContentKind.IMAGE:
+        if self.result_content in IMAGE_RESULT_KINDS:
             if self.result_sensitivity is not ResultSensitivity.SENSITIVE:
                 raise ValueError("image output must be marked sensitive")
             if self.redaction_policy is not RedactionPolicy.TITLE_MATCHED_ONLY:
-                raise ValueError("current screenshot output has title-matched-only redaction")
+                raise ValueError("current image output has title-matched-only redaction")
         elif self.redaction_policy is not RedactionPolicy.NONE:
             raise ValueError("text tools cannot claim an image redaction policy")
         if not isinstance(self.required_safety_baselines, tuple) or not all(
@@ -211,6 +222,34 @@ REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
         invalidates_observation=False,
     ),
     ToolSpec(
+        name="capture_region",
+        description=(
+            "Capture one explicit primary-display region as a bounded PNG with its "
+            "grounding envelope."
+        ),
+        input_schema=_host_schema(
+            {"x": _INTEGER, "y": _INTEGER, "w": _INTEGER, "h": _INTEGER},
+            ("x", "y", "w", "h"),
+        ),
+        mcp_input_schema=_mcp_schema(
+            "capture_regionArguments",
+            {
+                "x": {**_MCP_INTEGER, "title": "X"},
+                "y": {**_MCP_INTEGER, "title": "Y"},
+                "w": {**_MCP_INTEGER, "title": "W"},
+                "h": {**_MCP_INTEGER, "title": "H"},
+            },
+            ("x", "y", "w", "h"),
+        ),
+        effect=ToolEffect.OBSERVATION,
+        result_content=ResultContentKind.TEXT_AND_IMAGE,
+        result_sensitivity=ResultSensitivity.SENSITIVE,
+        redaction_policy=RedactionPolicy.TITLE_MATCHED_ONLY,
+        grounding=GroundingRequirement.NONE,
+        requires_host_approval=False,
+        invalidates_observation=False,
+    ),
+    ToolSpec(
         name="ocr",
         description=(
             "Recognize bounded text runs inside one explicit primary-display region."
@@ -318,6 +357,10 @@ REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
     ),
 )
 
+# Region-bounded observation tools share the desktop server's pixel ceiling.
+_REGION_TOOLS = frozenset({"ocr", "capture_region"})
+MAX_REGION_PIXELS = 4_000_000
+
 _TOOLS_BY_NAME = {tool.name: tool for tool in REVIEWED_TOOLS}
 EXPECTED_TOOL_NAMES = frozenset(_TOOLS_BY_NAME)
 
@@ -370,9 +413,7 @@ def reviewed_mcp_descriptors() -> tuple[MCPToolDescriptor, ...]:
             name=tool.name,
             input_schema=tool.mcp_input_schema,
             output_schema=(
-                None
-                if tool.result_content is ResultContentKind.IMAGE
-                else _mcp_text_output_schema(tool.name)
+                None if tool.returns_image else _mcp_text_output_schema(tool.name)
             ),
         )
         for tool in REVIEWED_TOOLS
@@ -413,9 +454,7 @@ def verify_discovered_tools(discovered_tools: Sequence[object]) -> None:
         if to_json_value(descriptor.input_schema) != to_json_value(reviewed.mcp_input_schema):
             raise ToolRegistryMismatchError(f"MCP input schema mismatch for tool {descriptor.name}")
         expected_output = (
-            None
-            if reviewed.result_content is ResultContentKind.IMAGE
-            else _mcp_text_output_schema(reviewed.name)
+            None if reviewed.returns_image else _mcp_text_output_schema(reviewed.name)
         )
         if to_json_value(descriptor.output_schema) != to_json_value(expected_output):
             raise ToolRegistryMismatchError(f"MCP output schema mismatch for tool {descriptor.name}")
@@ -434,8 +473,11 @@ def validate_tool_result(call: ToolCall, result: ToolResult) -> None:
     if spec.result_content is ResultContentKind.IMAGE:
         if result.status is ToolResultStatus.SUCCESS and len(result.images) != 1:
             raise ToolValidationError(f"{call.name} must return exactly one image on success")
-        if result.status is not ToolResultStatus.SUCCESS and result.images:
-            raise ToolValidationError(f"{call.name} must not retain image content on failure")
+    if spec.result_content is ResultContentKind.TEXT_AND_IMAGE and len(result.images) > 1:
+        # A refused region reports its reason as text alone, so zero is allowed.
+        raise ToolValidationError(f"{call.name} must return at most one image")
+    if spec.returns_image and result.status is not ToolResultStatus.SUCCESS and result.images:
+        raise ToolValidationError(f"{call.name} must not retain image content on failure")
     if call.name == "type" and result.sanitized_text:
         raise ToolValidationError("type results must not retain text content after result conversion")
 
@@ -493,10 +535,12 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[
             raise ToolValidationError("click requires exactly one of ref or the x,y coordinate pair")
         if has_coordinates and not {"x", "y"}.issubset(validated):
             raise ToolValidationError("click coordinates require both x and y")
-    if name == "ocr":
+    if name in _REGION_TOOLS:
         x, y, w, h = (validated[field] for field in ("x", "y", "w", "h"))
         if x < 0 or y < 0 or w <= 0 or h <= 0:
-            raise ToolValidationError("ocr region must be positive and within the primary display")
-        if w * h > 4_000_000:
-            raise ToolValidationError("ocr region exceeds the 4000000 pixel limit")
+            raise ToolValidationError(
+                f"{name} region must be positive and within the primary display"
+            )
+        if w * h > MAX_REGION_PIXELS:
+            raise ToolValidationError(f"{name} region exceeds the {MAX_REGION_PIXELS} pixel limit")
     return validated

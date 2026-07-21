@@ -23,6 +23,7 @@ OBSERVATION_PLAN_TOOLS = (
     "find",
     "list_windows",
     "screenshot",
+    "capture_region",
     "ocr",
 )
 MAX_PLANNED_OBSERVATIONS = 4

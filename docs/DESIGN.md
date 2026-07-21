@@ -29,7 +29,7 @@ server boundary when no driver is explicitly supplied.
 
 | Component | Responsibility |
 | --- | --- |
-| `server.py` | Exposes nine MCP tools and applies runtime guard behavior. |
+| `server.py` | Exposes ten MCP tools and applies runtime guard behavior. |
 | `core.py` | Maintains session-scoped `ref_N` handles, serializes snapshots, and retries one stale ref relocation. |
 | `contract.py` | Defines the typed Driver boundary and shared data structures. |
 | `drivers/windows.py` | Uses UIA/Win32, screen capture, and process inspection to implement the contract. |

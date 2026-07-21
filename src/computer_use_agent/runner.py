@@ -397,7 +397,7 @@ class AgentRunner:
                 privacy.validate_tool_call(call)
                 if (
                     privacy.config.enabled
-                    and call.name == "screenshot"
+                    and get_tool_spec(call.name).returns_image
                     and self.ports.image_redactor is None
                 ):
                     raise PrivacyError("PRIVACY_IMAGE_REDACTOR_UNAVAILABLE")
@@ -608,7 +608,7 @@ class AgentRunner:
             tool
             for tool in REVIEWED_TOOLS
             if not self.config.privacy.enabled
-            or tool.name != "screenshot"
+            or not tool.returns_image
             or (
                 self.config.privacy.image_redaction
                 and self.ports is not None
