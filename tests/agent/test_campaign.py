@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -363,3 +364,78 @@ def test_discovery_pass_rejects_counts_that_cannot_describe_an_observation() -> 
             observed_count=0,
             new_count=0,
         )
+
+
+def test_atomic_write_retries_a_transient_replace_hold(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scanner holding the destination briefly must not fail the write."""
+
+    store, lock = _store(tmp_path)
+    try:
+        manifest = store.create(_manifest())
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(source: object, target: object) -> None:
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                raise PermissionError(5, "denied")
+            real_replace(source, target)
+
+        monkeypatch.setattr(os, "replace", flaky_replace)
+        store.append(manifest.campaign_id, _transition(ItemStatus.DISCOVERED))
+
+        assert calls["n"] == 3
+        projection = store.read_ledger(manifest.campaign_id)
+        assert len(projection.items) == 1
+    finally:
+        lock.release()
+
+
+def test_atomic_write_gives_up_on_a_persistent_permission_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retry is bounded: a real permission fault still fails, and fails loudly."""
+
+    store, lock = _store(tmp_path)
+    try:
+        manifest = store.create(_manifest())
+        path = campaign_dir((tmp_path / "state").resolve(), manifest.campaign_id) / "items.jsonl"
+        before = path.read_bytes() if path.exists() else b""
+        calls = {"n": 0}
+
+        def always_denied(_source: object, _target: object) -> None:
+            calls["n"] += 1
+            raise PermissionError(5, "denied")
+
+        monkeypatch.setattr(os, "replace", always_denied)
+        with pytest.raises(CampaignStoreError, match="CAMPAIGN_WRITE_FAILED"):
+            store.append(manifest.campaign_id, _transition(ItemStatus.DISCOVERED))
+
+        assert calls["n"] == 5
+        assert (path.read_bytes() if path.exists() else b"") == before
+    finally:
+        lock.release()
+
+
+def test_atomic_write_reports_an_unusable_path_distinctly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing path is not a write fault; MAX_PATH overflow looks like this."""
+
+    store, lock = _store(tmp_path)
+    try:
+        manifest = store.create(_manifest())
+
+        def missing(*_args: object, **_kwargs: object) -> None:
+            raise FileNotFoundError(2, "No such file or directory")
+
+        monkeypatch.setattr(tempfile, "mkstemp", missing)
+        with pytest.raises(CampaignStoreError, match="CAMPAIGN_PATH_UNAVAILABLE"):
+            store.append(manifest.campaign_id, _transition(ItemStatus.DISCOVERED))
+    finally:
+        lock.release()
