@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from computer_use_agent.batching import BatchPolicy
+from computer_use_agent.batching import BatchPolicy, BatchUsage
 from computer_use_agent.batch_coordinator import BatchCoordinator, BatchSession
 from computer_use_agent.campaign import (
     CampaignHeartbeat,
@@ -66,7 +66,7 @@ def _claimed_store(tmp_path: Path) -> tuple[CampaignStore, RunLock, BatchSession
         policy=BatchPolicy(),
     )
     assert isinstance(opened, BatchSession)
-    coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+    coordinator.claim_next_item(opened, usage=BatchUsage(), now=NOW, lease_seconds=300)
     return store, lock, opened
 
 

@@ -696,20 +696,10 @@ def _process_batch(
     clock = now
 
     while usage.items_completed < len(session.plan.item_keys):
-        # The coordinator deliberately separates the first item of a batch from
-        # its continuation: a continuation preflight requires a committed prefix,
-        # which the first item does not have yet.
-        first = usage.items_completed == 0
         clock = clock + timedelta(seconds=1)
         try:
-            claimed = (
-                coordinator.claim_first_item(
-                    session, now=clock, lease_seconds=DEMO_ITEM_LEASE_SECONDS
-                )
-                if first
-                else coordinator.claim_next_item(
-                    session, usage=usage, now=clock, lease_seconds=DEMO_ITEM_LEASE_SECONDS
-                )
+            claimed = coordinator.claim_next_item(
+                session, usage=usage, now=clock, lease_seconds=DEMO_ITEM_LEASE_SECONDS
             )
         except BatchCoordinatorError:
             break
@@ -720,21 +710,13 @@ def _process_batch(
         _beat_heartbeat(coordinator.store, campaign_id=campaign_id, now=clock)
 
         clock = clock + timedelta(seconds=1)
-        if first:
-            coordinator.record_first_claimed_item_observed(
-                session,
-                now=clock,
-                application_state_verified=True,
-                item_identity_verified=True,
-            )
-        else:
-            coordinator.record_next_claimed_item_observed(
-                session,
-                usage=usage,
-                now=clock,
-                application_state_verified=True,
-                item_identity_verified=True,
-            )
+        coordinator.record_next_claimed_item_observed(
+            session,
+            usage=usage,
+            now=clock,
+            application_state_verified=True,
+            item_identity_verified=True,
+        )
 
         receipt = sink.dispatch(
             idempotency_key(campaign_id, claimed.item_key),
@@ -745,30 +727,17 @@ def _process_batch(
         injector.check(DemoFaultPoint.AFTER_SIDE_EFFECT_COMPLETION, ordinal=claimed.ordinal)
 
         clock = clock + timedelta(seconds=1)
-        if first:
-            coordinator.record_first_observed_item_extracted(
-                session, now=clock, read_only_extraction_completed=True
-            )
-        else:
-            coordinator.record_next_observed_item_extracted(
-                session, usage=usage, now=clock, read_only_extraction_completed=True
-            )
+        coordinator.record_next_observed_item_extracted(
+            session, usage=usage, now=clock, read_only_extraction_completed=True
+        )
         clock = clock + timedelta(seconds=1)
-        if first:
-            coordinator.record_first_extracted_item_committed(
-                session,
-                now=clock,
-                bounded_result_verified=True,
-                content_digest=receipt.receipt_digest,
-            )
-        else:
-            coordinator.record_next_extracted_item_committed(
-                session,
-                usage=usage,
-                now=clock,
-                bounded_result_verified=True,
-                content_digest=receipt.receipt_digest,
-            )
+        coordinator.record_next_extracted_item_committed(
+            session,
+            usage=usage,
+            now=clock,
+            bounded_result_verified=True,
+            content_digest=receipt.receipt_digest,
+        )
         usage = BatchUsage(items_completed=usage.items_completed + 1)
         committed.append(
             DemoItemOutcome(

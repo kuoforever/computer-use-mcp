@@ -229,8 +229,9 @@ def prepare_synthetic_campaign(
             raise CampaignObservationRuntimeError(
                 "CAMPAIGN_PREPARATION_PLAN_INVALID"
             )
-        claimed = coordinator.claim_first_item(
+        claimed = coordinator.claim_next_item(
             opened,
+            usage=BatchUsage(),
             now=now,
             lease_seconds=SYNTHETIC_CLAIM_LEASE_SECONDS,
         )
@@ -435,7 +436,9 @@ async def _execute_claimed_synthetic_observation(
             raise CampaignObservationRuntimeError(
                 "CAMPAIGN_OBSERVATION_BINDING_INVALID"
             )
-        preflight = coordinator.inspect_first_claimed_item(session, now=now)
+        preflight = coordinator.inspect_next_claimed_item(
+            session, usage=BatchUsage(), now=now
+        )
         if (
             not preflight.ready
             or preflight.item_key != SYNTHETIC_ITEM_KEY
@@ -494,8 +497,9 @@ async def _execute_claimed_synthetic_observation(
                 "CAMPAIGN_OBSERVATION_TOOL_FAILED"
             )
         try:
-            observed = coordinator.record_first_claimed_item_observed(
+            observed = coordinator.record_next_claimed_item_observed(
                 session,
+                usage=BatchUsage(),
                 now=now,
                 application_state_verified=True,
                 item_identity_verified=True,
@@ -537,8 +541,9 @@ async def _execute_claimed_synthetic_observation(
                 if line.strip()
             )
             try:
-                extracted = coordinator.record_first_observed_item_extracted(
+                extracted = coordinator.record_next_observed_item_extracted(
                     session,
+                    usage=BatchUsage(),
                     now=now,
                     read_only_extraction_completed=True,
                 )
@@ -570,8 +575,9 @@ async def _execute_claimed_synthetic_observation(
                     )
                 content_digest = synthetic_window_count_digest(window_count)
                 try:
-                    committed = coordinator.record_first_extracted_item_committed(
+                    committed = coordinator.record_next_extracted_item_committed(
                         session,
+                        usage=BatchUsage(),
                         now=now,
                         bounded_result_verified=True,
                         content_digest=content_digest,

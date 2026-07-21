@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from computer_use_agent.batching import BatchPolicy, BatchStopReason
+from computer_use_agent.batching import BatchPolicy, BatchStopReason, BatchUsage
 from computer_use_agent.batch_coordinator import (
     BatchCoordinator,
     BatchCoordinatorError,
@@ -190,7 +190,7 @@ def test_resumed_batch_claims_only_its_first_planned_item(tmp_path: Path) -> Non
         )
         assert isinstance(opened, BatchSession)
 
-        claimed = coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+        claimed = coordinator.claim_next_item(opened, usage=BatchUsage(), now=NOW, lease_seconds=300)
 
         assert claimed.item_key == "item_1"
         assert claimed.status is ItemStatus.CLAIMED
@@ -216,11 +216,11 @@ def test_resumed_batch_refuses_a_second_claim_without_mutation(tmp_path: Path) -
             policy=BatchPolicy(),
         )
         assert isinstance(opened, BatchSession)
-        coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(opened, usage=BatchUsage(), now=NOW, lease_seconds=300)
         ledger_before = store.read_ledger("campaign_1")
 
-        with pytest.raises(BatchCoordinatorError, match="BATCH_ITEM_CLAIM_ACTIVE"):
-            coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+        with pytest.raises(BatchCoordinatorError, match="BATCH_CONTINUATION_BLOCKED_ITEMS_IN_FLIGHT"):
+            coordinator.claim_next_item(opened, usage=BatchUsage(), now=NOW, lease_seconds=300)
 
         assert store.read_ledger("campaign_1") == ledger_before
     finally:
@@ -236,7 +236,7 @@ def test_resumed_batch_refuses_a_second_claim_without_mutation(tmp_path: Path) -
         (
             datetime(2026, 7, 16, 0, 12, tzinfo=timezone.utc),
             300,
-            "BATCH_HEARTBEAT_NOT_FRESH",
+            "BATCH_CONTINUATION_BLOCKED_HEARTBEAT_STALE",
         ),
     ],
 )
@@ -260,8 +260,9 @@ def test_resumed_batch_claim_fails_closed_for_invalid_time_or_lease(
         ledger_before = store.read_ledger("campaign_1")
 
         with pytest.raises(BatchCoordinatorError, match=code):
-            coordinator.claim_first_item(
+            coordinator.claim_next_item(
                 opened,
+                usage=BatchUsage(),
                 now=claim_now,
                 lease_seconds=lease_seconds,
             )
@@ -292,8 +293,8 @@ def test_resumed_batch_refuses_a_forged_or_drifted_plan(tmp_path: Path) -> None:
         )
         ledger_before = store.read_ledger("campaign_1")
 
-        with pytest.raises(BatchCoordinatorError, match="BATCH_PLAN_DRIFT"):
-            coordinator.claim_first_item(forged, now=NOW, lease_seconds=300)
+        with pytest.raises(BatchCoordinatorError, match="BATCH_CONTINUATION_BLOCKED_PLAN_DRIFT"):
+            coordinator.claim_next_item(forged, usage=BatchUsage(), now=NOW, lease_seconds=300)
 
         assert store.read_ledger("campaign_1") == ledger_before
     finally:

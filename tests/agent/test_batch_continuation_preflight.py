@@ -12,7 +12,6 @@ from computer_use_agent.batch_coordinator import (
     BatchContinuationState,
     BatchCoordinator,
     BatchCoordinatorError,
-    BatchFirstClaimState,
     BatchHandoffState,
     BatchRunTransferState,
     BatchSession,
@@ -97,7 +96,7 @@ def _committed_prefix_store(
     assert isinstance(opened, BatchSession)
     if commit_first:
         first_key = opened.plan.item_keys[0]
-        coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(opened, usage=BatchUsage(), now=NOW, lease_seconds=300)
         record_item_observed(
             store,
             campaign_id="campaign_1",
@@ -159,7 +158,16 @@ def test_committed_prefix_is_ready_only_for_exact_next_planned_claim(
         lock.release()
 
 
-def test_continuation_requires_a_nonempty_committed_prefix(tmp_path: Path) -> None:
+def test_continuation_is_ready_at_index_zero_before_any_commit(tmp_path: Path) -> None:
+    """The empty committed prefix is now a valid entry state, not a special case.
+
+    Continuation previously refused the pre-commit call with
+    ``COMMITTED_PREFIX_REQUIRED``, forcing callers into a separate first-item
+    entry path that no longer exists. A fresh batch now reports ``READY`` for
+    its first planned item under exactly the same ownership, freshness,
+    in-flight, and plan checks that already governed later positions.
+    """
+
     store, lock, coordinator, session = _committed_prefix_store(
         tmp_path,
         commit_first=False,
@@ -173,9 +181,59 @@ def test_continuation_requires_a_nonempty_committed_prefix(tmp_path: Path) -> No
             now=NOW,
         )
 
-        assert result.state is BatchContinuationState.COMMITTED_PREFIX_REQUIRED
+        assert result.state is BatchContinuationState.READY
+        assert result.ready
+        assert result.completed_items == 0
+        assert result.next_item_key == "item_1"
+        assert result.next_item_ordinal == 1
+        assert result.stop_reason is None
+        assert store.read_ledger("campaign_1") == ledger_before
+    finally:
+        lock.release()
+
+
+def test_continuation_rejects_a_drifted_tail_past_position_zero(
+    tmp_path: Path,
+) -> None:
+    """A ledger that added an eligible item past the committed prefix drifts.
+
+    The next planned key is still present and eligible, so a next-key-only
+    check would let the continuation through. The plan whose ownership this
+    session was granted no longer describes the eligible set, though; the
+    caller should be told to replan rather than proceed on a stale plan.
+    """
+
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1, 2),
+        max_items=2,
+        commit_first=True,
+    )
+    try:
+        # Append a new eligible item after the plan was captured. The next
+        # planned key (item_2) is untouched, but the tail computed now no
+        # longer matches session.plan.item_keys[1:].
+        store.append(
+            "campaign_1",
+            ItemTransition(
+                sequence=1,
+                ordinal=3,
+                item_key="item_3",
+                status=ItemStatus.DISCOVERED,
+                attempt=0,
+                at=NOW.isoformat(timespec="seconds"),
+            ),
+        )
+        ledger_before = store.read_ledger("campaign_1")
+
+        result = coordinator.inspect_continuation(
+            session,
+            usage=BatchUsage(items_completed=1),
+            now=NOW,
+        )
+
+        assert result.state is BatchContinuationState.PLAN_DRIFT
         assert not result.ready
-        assert result.next_item_key is None
         assert store.read_ledger("campaign_1") == ledger_before
     finally:
         lock.release()
@@ -999,155 +1057,6 @@ def test_transferred_resume_cannot_append_a_second_started_record(
         lock.release()
 
 
-def test_transferred_batch_first_claim_preflight_is_exact_and_read_only(
-    tmp_path: Path,
-) -> None:
-    store, lock, coordinator, session = _committed_prefix_store(
-        tmp_path,
-        ordinals=(1, 2, 3),
-        max_items=1,
-    )
-    try:
-        usage = BatchUsage(items_completed=1)
-        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
-        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
-        coordinator.replace_finished_run_heartbeat_owner(
-            session,
-            usage=usage,
-            now=NOW,
-            replacement=_replacement_heartbeat(),
-        )
-        resumed = coordinator.open_transferred_resumed_batch(
-            session,
-            batch_id="batch_2",
-            replacement_run_id="run_2",
-            now=NOW,
-            policy=BatchPolicy(max_items=2),
-        )
-        ledger_before = store.read_ledger("campaign_1")
-        batches_before = store.read_batches("campaign_1")
-
-        result = coordinator.inspect_first_item_claim(
-            resumed,
-            now=NOW,
-            lease_seconds=300,
-        )
-
-        assert result.state is BatchFirstClaimState.READY
-        assert result.ready
-        assert result.item_key == "item_2"
-        assert result.item_ordinal == 2
-        assert result.attempt == 1
-        assert result.lease_expires_at == "2026-07-16T00:15:00+00:00"
-        assert result.required_claim == "claim_exact_first_planned_item"
-        assert store.read_ledger("campaign_1") == ledger_before
-        assert store.read_batches("campaign_1") == batches_before
-    finally:
-        lock.release()
-
-
-def test_first_claim_preflight_before_resumed_batch_open_is_blocked(
-    tmp_path: Path,
-) -> None:
-    store, lock, coordinator, session = _committed_prefix_store(
-        tmp_path,
-        ordinals=(1, 2),
-        max_items=1,
-    )
-    try:
-        usage = BatchUsage(items_completed=1)
-        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
-        batches_before = store.read_batches("campaign_1")
-        ledger_before = store.read_ledger("campaign_1")
-
-        result = coordinator.inspect_first_item_claim(
-            session,
-            now=NOW,
-            lease_seconds=300,
-        )
-
-        assert result.state is BatchFirstClaimState.BATCH_NOT_ACTIVE
-        assert not result.ready
-        assert store.read_batches("campaign_1") == batches_before
-        assert store.read_ledger("campaign_1") == ledger_before
-    finally:
-        lock.release()
-
-
-def test_first_claim_preflight_blocks_an_existing_claim_without_writes(
-    tmp_path: Path,
-) -> None:
-    store, lock, coordinator, session = _committed_prefix_store(
-        tmp_path,
-        ordinals=(1, 2),
-        max_items=2,
-        commit_first=False,
-    )
-    try:
-        coordinator.claim_first_item(session, now=NOW, lease_seconds=300)
-        ledger_before = store.read_ledger("campaign_1")
-
-        result = coordinator.inspect_first_item_claim(
-            session,
-            now=NOW,
-            lease_seconds=300,
-        )
-
-        assert result.state is BatchFirstClaimState.ITEM_CLAIM_ACTIVE
-        assert not result.ready
-        assert store.read_ledger("campaign_1") == ledger_before
-    finally:
-        lock.release()
-
-
-def test_first_claim_persistence_uses_the_exact_preflight_boundary(
-    tmp_path: Path,
-) -> None:
-    store, lock, coordinator, session = _committed_prefix_store(
-        tmp_path,
-        ordinals=(1, 2, 3),
-        max_items=1,
-    )
-    try:
-        usage = BatchUsage(items_completed=1)
-        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
-        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
-        coordinator.replace_finished_run_heartbeat_owner(
-            session,
-            usage=usage,
-            now=NOW,
-            replacement=_replacement_heartbeat(),
-        )
-        resumed = coordinator.open_transferred_resumed_batch(
-            session,
-            batch_id="batch_2",
-            replacement_run_id="run_2",
-            now=NOW,
-            policy=BatchPolicy(max_items=2),
-        )
-        preflight = coordinator.inspect_first_item_claim(
-            resumed,
-            now=NOW,
-            lease_seconds=300,
-        )
-
-        claimed = coordinator.claim_first_item(
-            resumed,
-            now=NOW,
-            lease_seconds=300,
-        )
-
-        assert preflight.ready
-        assert claimed.item_key == preflight.item_key == "item_2"
-        assert claimed.ordinal == preflight.item_ordinal == 2
-        assert claimed.attempt == preflight.attempt == 1
-        assert claimed.lease_expires_at == preflight.lease_expires_at
-        assert claimed.status is ItemStatus.CLAIMED
-        assert store.read_ledger("campaign_1").items["item_3"].status is ItemStatus.DISCOVERED
-    finally:
-        lock.release()
-
-
 def test_resumed_first_claim_is_ready_for_exact_reobservation_without_writes(
     tmp_path: Path,
 ) -> None:
@@ -1173,11 +1082,11 @@ def test_resumed_first_claim_is_ready_for_exact_reobservation_without_writes(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
         ledger_before = store.read_ledger("campaign_1")
         batches_before = store.read_batches("campaign_1")
 
-        result = coordinator.inspect_first_claimed_item(resumed, now=NOW)
+        result = coordinator.inspect_next_claimed_item(resumed, usage=BatchUsage(), now=NOW)
 
         assert result.state is CampaignItemPreflightState.READY
         assert result.ready
@@ -1219,7 +1128,7 @@ def test_resumed_first_item_requires_the_exact_durable_claim(tmp_path: Path) -> 
         )
         ledger_before = store.read_ledger("campaign_1")
 
-        result = coordinator.inspect_first_claimed_item(resumed, now=NOW)
+        result = coordinator.inspect_next_claimed_item(resumed, usage=BatchUsage(), now=NOW)
 
         assert result.state is CampaignItemPreflightState.ITEM_NOT_CLAIMED
         assert not result.ready
@@ -1254,13 +1163,14 @@ def test_resumed_first_item_records_only_the_attested_observed_boundary(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
         manifest_before = store.read_manifest("campaign_1")
         batches_before = store.read_batches("campaign_1")
         heartbeat_before = store.read_heartbeat("campaign_1")
 
-        observed = coordinator.record_first_claimed_item_observed(
+        observed = coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
@@ -1312,15 +1222,16 @@ def test_resumed_first_item_requires_exact_observation_attestations(
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
         ledger_before = store.read_ledger("campaign_1")
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_OBSERVATION_REQUIRED",
+            match="BATCH_NEXT_ITEM_OBSERVATION_REQUIRED",
         ):
-            coordinator.record_first_claimed_item_observed(
+            coordinator.record_next_claimed_item_observed(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 application_state_verified=application_verified,  # type: ignore[arg-type]
                 item_identity_verified=item_verified,  # type: ignore[arg-type]
@@ -1354,9 +1265,10 @@ def test_resumed_first_item_observation_cannot_be_repeated(tmp_path: Path) -> No
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
@@ -1365,10 +1277,11 @@ def test_resumed_first_item_observation_cannot_be_repeated(tmp_path: Path) -> No
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_OBSERVATION_BLOCKED_ITEM_NOT_CLAIMED",
+            match="BATCH_NEXT_ITEM_OBSERVATION_BLOCKED_ITEM_NOT_CLAIMED",
         ):
-            coordinator.record_first_claimed_item_observed(
+            coordinator.record_next_claimed_item_observed(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 application_state_verified=True,
                 item_identity_verified=True,
@@ -1404,9 +1317,10 @@ def test_resumed_first_observed_item_is_ready_for_bounded_extraction(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
@@ -1414,7 +1328,7 @@ def test_resumed_first_observed_item_is_ready_for_bounded_extraction(
         ledger_before = store.read_ledger("campaign_1")
         batches_before = store.read_batches("campaign_1")
 
-        result = coordinator.inspect_first_observed_item(resumed, now=NOW)
+        result = coordinator.inspect_next_observed_item(resumed, usage=BatchUsage(), now=NOW)
 
         assert result.state is CampaignExtractionPreflightState.READY
         assert result.ready
@@ -1452,10 +1366,10 @@ def test_resumed_first_item_must_be_observed_before_extraction_preflight(
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
         ledger_before = store.read_ledger("campaign_1")
 
-        result = coordinator.inspect_first_observed_item(resumed, now=NOW)
+        result = coordinator.inspect_next_observed_item(resumed, usage=BatchUsage(), now=NOW)
 
         assert result.state is CampaignExtractionPreflightState.ITEM_NOT_OBSERVED
         assert not result.ready
@@ -1490,9 +1404,10 @@ def test_resumed_first_item_records_only_confirmed_extracted_boundary(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
@@ -1501,8 +1416,9 @@ def test_resumed_first_item_records_only_confirmed_extracted_boundary(
         batches_before = store.read_batches("campaign_1")
         heartbeat_before = store.read_heartbeat("campaign_1")
 
-        extracted = coordinator.record_first_observed_item_extracted(
+        extracted = coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
@@ -1550,9 +1466,10 @@ def test_resumed_first_item_requires_exact_extraction_confirmation(
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
@@ -1561,10 +1478,11 @@ def test_resumed_first_item_requires_exact_extraction_confirmation(
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_EXTRACTION_REQUIRED",
+            match="BATCH_NEXT_ITEM_EXTRACTION_REQUIRED",
         ):
-            coordinator.record_first_observed_item_extracted(
+            coordinator.record_next_observed_item_extracted(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 read_only_extraction_completed=confirmation,  # type: ignore[arg-type]
             )
@@ -1597,15 +1515,17 @@ def test_resumed_first_item_extraction_cannot_be_repeated(tmp_path: Path) -> Non
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
@@ -1613,10 +1533,11 @@ def test_resumed_first_item_extraction_cannot_be_repeated(tmp_path: Path) -> Non
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_EXTRACTION_BLOCKED_ITEM_NOT_OBSERVED",
+            match="BATCH_NEXT_ITEM_EXTRACTION_BLOCKED_ITEM_NOT_OBSERVED",
         ):
-            coordinator.record_first_observed_item_extracted(
+            coordinator.record_next_observed_item_extracted(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 read_only_extraction_completed=True,
             )
@@ -1651,15 +1572,17 @@ def test_resumed_first_extracted_item_is_ready_for_commit_preparation(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
@@ -1667,7 +1590,7 @@ def test_resumed_first_extracted_item_is_ready_for_commit_preparation(
         batches_before = store.read_batches("campaign_1")
         heartbeat_before = store.read_heartbeat("campaign_1")
 
-        result = coordinator.inspect_first_extracted_item(resumed, now=NOW)
+        result = coordinator.inspect_next_extracted_item(resumed, usage=BatchUsage(), now=NOW)
 
         assert result.state is CampaignCommitPreflightState.READY
         assert result.ready
@@ -1710,16 +1633,17 @@ def test_resumed_first_item_must_be_extracted_before_commit_preflight(
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
         ledger_before = store.read_ledger("campaign_1")
 
-        result = coordinator.inspect_first_extracted_item(resumed, now=NOW)
+        result = coordinator.inspect_next_extracted_item(resumed, usage=BatchUsage(), now=NOW)
 
         assert result.state is CampaignCommitPreflightState.ITEM_NOT_EXTRACTED
         assert not result.ready
@@ -1754,15 +1678,17 @@ def test_resumed_first_item_records_only_verified_committed_boundary(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
@@ -1770,8 +1696,9 @@ def test_resumed_first_item_records_only_verified_committed_boundary(
         batches_before = store.read_batches("campaign_1")
         heartbeat_before = store.read_heartbeat("campaign_1")
 
-        committed = coordinator.record_first_extracted_item_committed(
+        committed = coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -1823,15 +1750,17 @@ def test_resumed_first_item_commit_requires_exact_result_verification(
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
@@ -1839,10 +1768,11 @@ def test_resumed_first_item_commit_requires_exact_result_verification(
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_COMMIT_VERIFICATION_REQUIRED",
+            match="BATCH_NEXT_ITEM_COMMIT_VERIFICATION_REQUIRED",
         ):
-            coordinator.record_first_extracted_item_committed(
+            coordinator.record_next_extracted_item_committed(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 bounded_result_verified=confirmation,  # type: ignore[arg-type]
                 content_digest=CONTENT_DIGEST,
@@ -1880,15 +1810,17 @@ def test_resumed_first_item_commit_requires_exact_sha256_digest(
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
@@ -1896,10 +1828,11 @@ def test_resumed_first_item_commit_requires_exact_sha256_digest(
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_COMMIT_DIGEST_INVALID",
+            match="BATCH_NEXT_ITEM_COMMIT_DIGEST_INVALID",
         ):
-            coordinator.record_first_extracted_item_committed(
+            coordinator.record_next_extracted_item_committed(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 bounded_result_verified=True,
                 content_digest=digest,  # type: ignore[arg-type]
@@ -1933,20 +1866,23 @@ def test_resumed_first_item_commit_cannot_be_repeated(tmp_path: Path) -> None:
             now=NOW,
             policy=BatchPolicy(),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -1955,10 +1891,11 @@ def test_resumed_first_item_commit_cannot_be_repeated(tmp_path: Path) -> None:
 
         with pytest.raises(
             BatchCoordinatorError,
-            match="BATCH_FIRST_ITEM_COMMIT_BLOCKED_ITEM_NOT_EXTRACTED",
+            match="BATCH_NEXT_EXTRACTED_ITEM_INVALID",
         ):
-            coordinator.record_first_extracted_item_committed(
+            coordinator.record_next_extracted_item_committed(
                 resumed,
+                usage=BatchUsage(),
                 now=NOW,
                 bounded_result_verified=True,
                 content_digest=CONTENT_DIGEST,
@@ -1994,20 +1931,23 @@ def test_resumed_first_commit_is_ready_for_exact_batch_continuation(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2060,20 +2000,23 @@ def test_resumed_continuation_requires_exact_run_local_completed_usage(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2120,20 +2063,23 @@ def test_resumed_continuation_claims_only_exact_next_item_once(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2203,20 +2149,23 @@ def test_resumed_next_claimed_item_is_ready_for_exact_reobservation(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2274,20 +2223,23 @@ def test_resumed_next_claimed_item_rejects_run_local_usage_drift(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2340,20 +2292,23 @@ def test_resumed_next_item_records_only_attested_observed_boundary(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2437,20 +2392,23 @@ def test_resumed_next_item_requires_exact_observation_attestations(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2506,20 +2464,23 @@ def test_resumed_next_observed_item_is_ready_for_bounded_extraction(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2583,20 +2544,23 @@ def test_resumed_next_observed_item_rejects_run_local_usage_drift(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2657,20 +2621,23 @@ def test_resumed_next_item_records_only_confirmed_extracted_boundary(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2756,20 +2723,23 @@ def test_resumed_next_item_requires_exact_extraction_confirmation(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2831,20 +2801,23 @@ def test_resumed_next_extracted_item_is_ready_for_commit_preparation(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2918,20 +2891,23 @@ def test_resumed_next_extracted_item_rejects_run_local_usage_drift(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -2998,20 +2974,23 @@ def test_resumed_next_item_records_only_verified_committed_boundary(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3118,20 +3097,23 @@ def test_resumed_next_item_commit_requires_exact_verification_and_digest(
             now=NOW,
             policy=BatchPolicy(max_items=2),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3207,20 +3189,23 @@ def test_resumed_completed_plan_reaches_only_exact_terminal_preflight(
             now=NOW,
             policy=BatchPolicy(max_items=max_items),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3306,20 +3291,23 @@ def test_resumed_terminal_preflight_finishes_exact_batch_without_handoff(
             now=NOW,
             policy=BatchPolicy(max_items=max_items),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3416,20 +3404,23 @@ def test_resumed_finished_batch_is_ready_for_exact_handoff_write(
             now=NOW,
             policy=BatchPolicy(max_items=max_items),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3521,20 +3512,23 @@ def test_resumed_finished_batch_replaces_only_current_fixed_handoff(
             now=NOW,
             policy=BatchPolicy(max_items=3),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3629,20 +3623,23 @@ def test_resumed_finished_handoff_is_ready_for_next_run_transfer(
             now=NOW,
             policy=BatchPolicy(max_items=3),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3731,20 +3728,23 @@ def test_resumed_finished_run_transfers_only_heartbeat_owner_once(
             now=NOW,
             policy=BatchPolicy(max_items=3),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3840,20 +3840,23 @@ def test_fully_committed_transferred_run_never_opens_empty_resumed_batch(
             now=NOW,
             policy=BatchPolicy(max_items=3),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -3963,20 +3966,23 @@ def test_exhausted_transferred_run_is_ready_only_for_campaign_completion(
             now=NOW,
             policy=BatchPolicy(max_items=3),
         )
-        coordinator.claim_first_item(resumed, now=NOW, lease_seconds=300)
-        coordinator.record_first_claimed_item_observed(
+        coordinator.claim_next_item(resumed, usage=BatchUsage(), now=NOW, lease_seconds=300)
+        coordinator.record_next_claimed_item_observed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             application_state_verified=True,
             item_identity_verified=True,
         )
-        coordinator.record_first_observed_item_extracted(
+        coordinator.record_next_observed_item_extracted(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             read_only_extraction_completed=True,
         )
-        coordinator.record_first_extracted_item_committed(
+        coordinator.record_next_extracted_item_committed(
             resumed,
+            usage=BatchUsage(),
             now=NOW,
             bounded_result_verified=True,
             content_digest=CONTENT_DIGEST,
@@ -4738,3 +4744,5 @@ def test_repeated_finish_and_complete_continuation_states_are_stable(
         assert complete.next_item_key is None
     finally:
         lock.release()
+
+
