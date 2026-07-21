@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from computer_use_agent.batching import BatchPolicy
+from computer_use_agent.batching import BatchPolicy, BatchUsage
 from computer_use_agent.batch_coordinator import BatchCoordinator, BatchSession
 from computer_use_agent.campaign import (
     CampaignHeartbeat,
@@ -60,7 +60,7 @@ def _opened_store(tmp_path: Path, *, claim: bool) -> tuple[CampaignStore, RunLoc
     )
     assert isinstance(opened, BatchSession)
     if claim:
-        coordinator.claim_first_item(opened, now=NOW, lease_seconds=300)
+        coordinator.claim_next_item(opened, usage=BatchUsage(), now=NOW, lease_seconds=300)
     return store, lock
 
 

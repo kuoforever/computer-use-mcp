@@ -144,20 +144,6 @@ class BatchCompletedHeartbeatState(str, Enum):
     ITEMS_NOT_COMPLETE = "ITEMS_NOT_COMPLETE"
 
 
-class BatchFirstClaimState(str, Enum):
-    READY = "READY"
-    CAMPAIGN_NOT_RUNNING = "CAMPAIGN_NOT_RUNNING"
-    BATCH_NOT_ACTIVE = "BATCH_NOT_ACTIVE"
-    BATCH_OWNER_MISMATCH = "BATCH_OWNER_MISMATCH"
-    HEARTBEAT_MISSING = "HEARTBEAT_MISSING"
-    HEARTBEAT_STALE = "HEARTBEAT_STALE"
-    HEARTBEAT_OWNER_MISMATCH = "HEARTBEAT_OWNER_MISMATCH"
-    ITEM_CLAIM_ACTIVE = "ITEM_CLAIM_ACTIVE"
-    PLAN_DRIFT = "PLAN_DRIFT"
-    ITEM_NOT_CLAIMABLE = "ITEM_NOT_CLAIMABLE"
-    ITEM_TIME_INVALID = "ITEM_TIME_INVALID"
-
-
 @dataclass(frozen=True)
 class BatchSession:
     campaign_id: str
@@ -358,22 +344,6 @@ class BatchCompletedHeartbeatPreflight:
         return self.state is BatchCompletedHeartbeatState.READY
 
 
-@dataclass(frozen=True)
-class BatchFirstClaimPreflight:
-    state: BatchFirstClaimState
-    campaign_id: str
-    batch_id: str
-    run_id: str
-    item_key: str | None
-    item_ordinal: int | None
-    attempt: int | None
-    lease_expires_at: str
-    required_claim: str
-
-    @property
-    def ready(self) -> bool:
-        return self.state is BatchFirstClaimState.READY
-
 
 class BatchCoordinator:
     """Run-lock-bound opener/closer for one persisted batch lifecycle."""
@@ -445,138 +415,6 @@ class BatchCoordinator:
             ),
         )
         return BatchSession(campaign_id, batch_id, run_id, policy, plan)
-
-    def inspect_first_item_claim(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-        lease_seconds: int,
-    ) -> BatchFirstClaimPreflight:
-        """Inspect the exact first planned claim without changing the ledger."""
-
-        if not isinstance(session, BatchSession):
-            raise BatchCoordinatorError("BATCH_SESSION_INVALID")
-        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-            raise BatchCoordinatorError("BATCH_CLOCK_INVALID")
-        if (
-            isinstance(lease_seconds, bool)
-            or not isinstance(lease_seconds, int)
-            or not 0 < lease_seconds <= MAX_ITEM_LEASE_SECONDS
-        ):
-            raise BatchCoordinatorError("BATCH_LEASE_INVALID")
-
-        verdict = _inspect_batch_ownership(self.store, session, now=now)
-        projection = self.store.read_ledger(session.campaign_id)
-        current_plan = plan_batch(projection, session.policy, BatchUsage())
-        selected = None
-        if current_plan.item_keys:
-            selected = projection.items.get(current_plan.item_keys[0])
-
-        if verdict is not _OwnershipVerdict.OK:
-            state = BatchFirstClaimState[verdict.name]
-        elif any(
-            item.status in _CLAIM_ACTIVE_STATUSES for item in projection.items.values()
-        ):
-            state = BatchFirstClaimState.ITEM_CLAIM_ACTIVE
-        elif current_plan != session.plan or not current_plan.item_keys:
-            state = BatchFirstClaimState.PLAN_DRIFT
-        elif selected is None or selected.status not in {
-            ItemStatus.DISCOVERED,
-            ItemStatus.RETRYABLE,
-        }:
-            state = BatchFirstClaimState.ITEM_NOT_CLAIMABLE
-        elif datetime.fromisoformat(selected.at) > now:
-            state = BatchFirstClaimState.ITEM_TIME_INVALID
-        else:
-            state = BatchFirstClaimState.READY
-        return BatchFirstClaimPreflight(
-            state=state,
-            campaign_id=session.campaign_id,
-            batch_id=session.batch_id,
-            run_id=session.run_id,
-            item_key=None if selected is None else selected.item_key,
-            item_ordinal=None if selected is None else selected.ordinal,
-            attempt=None if selected is None else selected.attempt + 1,
-            lease_expires_at=(now + timedelta(seconds=lease_seconds)).isoformat(
-                timespec="seconds"
-            ),
-            required_claim="claim_exact_first_planned_item",
-        )
-
-    def claim_first_item(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-        lease_seconds: int,
-    ) -> ItemTransition:
-        """Claim the exact first planned item without performing its operation."""
-
-        preflight = self.inspect_first_item_claim(
-            session,
-            now=now,
-            lease_seconds=lease_seconds,
-        )
-        if not preflight.ready:
-            error_codes = {
-                BatchFirstClaimState.CAMPAIGN_NOT_RUNNING: "BATCH_CAMPAIGN_NOT_RUNNING",
-                BatchFirstClaimState.BATCH_NOT_ACTIVE: "BATCH_NOT_ACTIVE",
-                BatchFirstClaimState.BATCH_OWNER_MISMATCH: "BATCH_NOT_ACTIVE",
-                BatchFirstClaimState.HEARTBEAT_MISSING: "BATCH_HEARTBEAT_OWNER_MISMATCH",
-                BatchFirstClaimState.HEARTBEAT_STALE: "BATCH_HEARTBEAT_NOT_FRESH",
-                BatchFirstClaimState.HEARTBEAT_OWNER_MISMATCH: "BATCH_HEARTBEAT_OWNER_MISMATCH",
-                BatchFirstClaimState.ITEM_CLAIM_ACTIVE: "BATCH_ITEM_CLAIM_ACTIVE",
-                BatchFirstClaimState.PLAN_DRIFT: "BATCH_PLAN_DRIFT",
-                BatchFirstClaimState.ITEM_NOT_CLAIMABLE: "BATCH_PLAN_INVALID",
-                BatchFirstClaimState.ITEM_TIME_INVALID: "BATCH_CLOCK_INVALID",
-            }
-            raise BatchCoordinatorError(error_codes[preflight.state])
-        if (
-            preflight.item_key is None
-            or preflight.item_ordinal is None
-            or preflight.attempt is None
-        ):
-            raise BatchCoordinatorError("BATCH_PLAN_INVALID")
-
-        claimed_at = now.isoformat(timespec="seconds")
-        updated = self.store.append(
-            session.campaign_id,
-            ItemTransition(
-                sequence=1,
-                ordinal=preflight.item_ordinal,
-                item_key=preflight.item_key,
-                status=ItemStatus.CLAIMED,
-                attempt=preflight.attempt,
-                at=claimed_at,
-                run_id=session.run_id,
-                lease_expires_at=preflight.lease_expires_at,
-                boundary="claim",
-            ),
-        )
-        return updated.items[preflight.item_key]
-
-    def inspect_first_claimed_item(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-    ) -> CampaignItemPreflight:
-        """Inspect re-observation readiness for the exact first planned item."""
-
-        if not isinstance(session, BatchSession) or not session.plan.item_keys:
-            raise BatchCoordinatorError("BATCH_FIRST_CLAIMED_ITEM_INVALID")
-        try:
-            return inspect_claimed_item(
-                self.store,
-                campaign_id=session.campaign_id,
-                batch_id=session.batch_id,
-                run_id=session.run_id,
-                item_key=session.plan.item_keys[0],
-                now=now,
-            )
-        except CampaignItemPreflightError as exc:
-            raise BatchCoordinatorError("BATCH_FIRST_CLAIMED_ITEM_INVALID") from exc
 
     def inspect_next_claimed_item(
         self,
@@ -756,138 +594,6 @@ class BatchCoordinator:
         if not preflight.ready:
             raise BatchCoordinatorError(
                 f"BATCH_NEXT_ITEM_COMMIT_BLOCKED_{preflight.state.value}"
-            )
-        return record_item_committed(
-            self.store,
-            campaign_id=session.campaign_id,
-            batch_id=session.batch_id,
-            run_id=session.run_id,
-            item_key=preflight.item_key,
-            now=now,
-            bounded_result_verified=True,
-            content_digest=content_digest,
-        )
-
-    def record_first_claimed_item_observed(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-        application_state_verified: bool,
-        item_identity_verified: bool,
-    ) -> ItemTransition:
-        """Persist OBSERVED for the exact first item after explicit attestations."""
-
-        if application_state_verified is not True or item_identity_verified is not True:
-            raise BatchCoordinatorError("BATCH_FIRST_ITEM_OBSERVATION_REQUIRED")
-        preflight = self.inspect_first_claimed_item(session, now=now)
-        if not preflight.ready:
-            raise BatchCoordinatorError(
-                f"BATCH_FIRST_ITEM_OBSERVATION_BLOCKED_{preflight.state.value}"
-            )
-        return record_item_observed(
-            self.store,
-            campaign_id=session.campaign_id,
-            batch_id=session.batch_id,
-            run_id=session.run_id,
-            item_key=preflight.item_key,
-            now=now,
-            application_state_verified=True,
-            item_identity_verified=True,
-        )
-
-    def inspect_first_observed_item(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-    ) -> CampaignExtractionPreflight:
-        """Inspect extraction readiness for the exact first planned item."""
-
-        if not isinstance(session, BatchSession) or not session.plan.item_keys:
-            raise BatchCoordinatorError("BATCH_FIRST_OBSERVED_ITEM_INVALID")
-        try:
-            return inspect_observed_item(
-                self.store,
-                campaign_id=session.campaign_id,
-                batch_id=session.batch_id,
-                run_id=session.run_id,
-                item_key=session.plan.item_keys[0],
-                now=now,
-            )
-        except CampaignExtractionPreflightError as exc:
-            raise BatchCoordinatorError("BATCH_FIRST_OBSERVED_ITEM_INVALID") from exc
-
-    def record_first_observed_item_extracted(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-        read_only_extraction_completed: bool,
-    ) -> ItemTransition:
-        """Persist EXTRACTED for the exact first item after explicit confirmation."""
-
-        if read_only_extraction_completed is not True:
-            raise BatchCoordinatorError("BATCH_FIRST_ITEM_EXTRACTION_REQUIRED")
-        preflight = self.inspect_first_observed_item(session, now=now)
-        if not preflight.ready:
-            raise BatchCoordinatorError(
-                f"BATCH_FIRST_ITEM_EXTRACTION_BLOCKED_{preflight.state.value}"
-            )
-        return record_item_extracted(
-            self.store,
-            campaign_id=session.campaign_id,
-            batch_id=session.batch_id,
-            run_id=session.run_id,
-            item_key=preflight.item_key,
-            now=now,
-            read_only_extraction_completed=True,
-        )
-
-    def inspect_first_extracted_item(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-    ) -> CampaignCommitPreflight:
-        """Inspect commit preparation for the exact first planned item."""
-
-        if not isinstance(session, BatchSession) or not session.plan.item_keys:
-            raise BatchCoordinatorError("BATCH_FIRST_EXTRACTED_ITEM_INVALID")
-        try:
-            return inspect_extracted_item(
-                self.store,
-                campaign_id=session.campaign_id,
-                batch_id=session.batch_id,
-                run_id=session.run_id,
-                item_key=session.plan.item_keys[0],
-                now=now,
-            )
-        except CampaignCommitPreflightError as exc:
-            raise BatchCoordinatorError("BATCH_FIRST_EXTRACTED_ITEM_INVALID") from exc
-
-    def record_first_extracted_item_committed(
-        self,
-        session: BatchSession,
-        *,
-        now: datetime,
-        bounded_result_verified: bool,
-        content_digest: str,
-    ) -> ItemTransition:
-        """Persist COMMITTED for the exact first item after result verification."""
-
-        if bounded_result_verified is not True:
-            raise BatchCoordinatorError("BATCH_FIRST_ITEM_COMMIT_VERIFICATION_REQUIRED")
-        if (
-            not isinstance(content_digest, str)
-            or len(content_digest) != 64
-            or any(character not in "0123456789abcdef" for character in content_digest)
-        ):
-            raise BatchCoordinatorError("BATCH_FIRST_ITEM_COMMIT_DIGEST_INVALID")
-        preflight = self.inspect_first_extracted_item(session, now=now)
-        if not preflight.ready:
-            raise BatchCoordinatorError(
-                f"BATCH_FIRST_ITEM_COMMIT_BLOCKED_{preflight.state.value}"
             )
         return record_item_committed(
             self.store,
@@ -1634,8 +1340,6 @@ __all__ = [
     "BatchContinuationState",
     "BatchCoordinator",
     "BatchCoordinatorError",
-    "BatchFirstClaimPreflight",
-    "BatchFirstClaimState",
     "BatchHandoffPreflight",
     "BatchHandoffState",
     "BatchRunTransferPreflight",
