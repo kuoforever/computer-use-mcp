@@ -1,9 +1,13 @@
 # Operator experience
 
-> **Status: planned complete-product operator experience.** No desktop presence
-> indicator, interactive decision card, or production progress window is
-> implemented. The current approved-action flow remains an interactive console
-> confirmation for one action at a time.
+> **Status: passive progress and a bounded primary-display presence surface are
+> implemented; complete-product integration remains planned.** The presence
+> surface has a pure Host-state projection, click-through/non-activating Win32
+> halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
+> E-stop/authority-release teardown. It is not yet automatically wired into the
+> Agent CLI lifecycle. No interactive Decision Card is implemented. The current
+> approved-action flow remains an interactive console confirmation for one
+> action at a time.
 
 ## Goal
 
@@ -72,6 +76,17 @@ Implementation requirements:
   guarantee;
 - define per-monitor bounds and DPI behavior before claiming multi-monitor
   support.
+
+The implemented slice is deliberately primary-display-only. Its native window
+uses `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW |
+WS_EX_TOPMOST | WS_EX_LAYERED`, returns `HTTRANSPARENT` and `MA_NOACTIVATE`, and
+has no controls or focus/input API. `PresenceSnapshot` accepts only fixed phase,
+desktop-authority, E-stop, terminal-close, and accessibility-preference values;
+its rendered model contains only fixed label/glyph/color/motion fields. The
+controller exposes its HWND solely as trusted masking identity and reports
+whether Windows accepted `WDA_EXCLUDEFROMCAPTURE`; that affinity is feedback
+prevention, not a secrecy guarantee. Runtime lifecycle wiring and multi-monitor
+selection remain separate gates.
 
 The indicator must not claim that an action succeeded. It displays only the
 current validated Host phase and ownership state.
@@ -233,10 +248,13 @@ There is no global "always allow" control in the first interactive version.
 ## Delivery sequence
 
 1. Define pure presence, progress, option, trade-off, and Decision Card view
-   models with redaction and stale-state tests.
+   models with redaction and stale-state tests. **Presence and progress models
+   implemented; option/trade-off/Decision Card models remain planned.**
 2. Implement the passive non-activating progress window from synthetic records.
 3. Implement the click-through presence indicator, capture filtering, reduced
-   motion, DPI handling, and E-stop/authority-release teardown.
+   motion, DPI handling, and E-stop/authority-release teardown. **Implemented
+   for one primary display over an injected controller and ctypes backend;
+   automatic Agent lifecycle wiring and multi-monitor selection remain.**
 4. Add a fake-only Decision Card compiler and deterministic choice tests.
 5. Connect a focus-taking local Decision Card to the existing ApprovalPort
    without changing the ordinary Host/MCP dispatch boundary.

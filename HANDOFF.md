@@ -93,6 +93,7 @@ src/computer_use_agent/
   campaign*.py         offline campaign control state and preflights
   continuation*.py     private bounded crash evidence and recovery
   progress_view.py     pure run/campaign reducer and fixed relevance grouping
+  presence*.py         pure presence state plus passive primary-display halo
 
 scripts/               on-device smoke and VMware helper
 tests/                 side-effect-free unit tests
