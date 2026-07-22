@@ -356,6 +356,8 @@ class OperatorConfig:
     presence_enabled: bool = False
     reduced_motion: bool = False
     high_contrast: bool = False
+    decision_cards_enabled: bool = False
+    decision_timeout_seconds: int = 300
 
     def __post_init__(self) -> None:
         if not all(
@@ -364,9 +366,18 @@ class OperatorConfig:
                 self.presence_enabled,
                 self.reduced_motion,
                 self.high_contrast,
+                self.decision_cards_enabled,
             )
         ):
-            raise ConfigError("operator presence settings must be boolean")
+            raise ConfigError("operator boolean settings must be boolean")
+        if (
+            isinstance(self.decision_timeout_seconds, bool)
+            or not isinstance(self.decision_timeout_seconds, int)
+            or not 5 <= self.decision_timeout_seconds <= 3_600
+        ):
+            raise ConfigError(
+                "operator decision_timeout_seconds must be between 5 and 3600"
+            )
 
 
 @dataclass(frozen=True)
@@ -473,7 +484,13 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     )
     _reject_unknown(
         operator,
-        {"presence_enabled", "reduced_motion", "high_contrast"},
+        {
+            "presence_enabled",
+            "reduced_motion",
+            "high_contrast",
+            "decision_cards_enabled",
+            "decision_timeout_seconds",
+        },
         "operator",
     )
 
@@ -565,7 +582,12 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         image_redaction=image_redaction,
     )
     operator_values: dict[str, bool] = {}
-    for key in ("presence_enabled", "reduced_motion", "high_contrast"):
+    for key in (
+        "presence_enabled",
+        "reduced_motion",
+        "high_contrast",
+        "decision_cards_enabled",
+    ):
         value = operator.get(key, False)
         if not isinstance(value, bool):
             raise ConfigError(f"[operator].{key} must be boolean")
@@ -578,5 +600,13 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         policy=policy_config,
         continuation=continuation_config,
         privacy=privacy_config,
-        operator=OperatorConfig(**operator_values),
+        operator=OperatorConfig(
+            **operator_values,
+            decision_timeout_seconds=_read_nonnegative_int(
+                operator,
+                "decision_timeout_seconds",
+                "operator",
+                300,
+            ),
+        ),
     )

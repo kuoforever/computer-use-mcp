@@ -81,3 +81,7 @@ image_redaction = true
 presence_enabled = false
 reduced_motion = false
 high_contrast = false
+# Focus-taking multi-option approval card for approved-actions mode. The Host
+# yields desktop authority before opening it; close and timeout deny.
+decision_cards_enabled = false
+decision_timeout_seconds = 300

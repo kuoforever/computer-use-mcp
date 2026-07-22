@@ -32,8 +32,10 @@ For each requested action, the Host performs these checks in order:
 3. Grounding belongs to the current MCP child generation and satisfies the
    tool-specific requirement.
 4. The side-effect budget has remaining capacity.
-5. The console displays a non-sensitive argument summary and SHA-256 call
-   digest. Only an explicit `y` or `yes` approves that one request.
+5. The default console displays a non-sensitive argument summary and SHA-256
+   call digest. With explicit Decision Card opt-in, the Runner first yields
+   desktop authority and opens a two-choice native card. Only explicit Yes on
+   the exact-effect choice approves that one request.
 6. The returned decision must match request ID, run/turn/call identity, and
    digest. A stale or mismatched decision is rejected.
 7. The call is marked Host-authorized and dispatched through the serialized
@@ -43,7 +45,7 @@ For each requested action, the Host performs these checks in order:
 The console defaults to deny on empty input, EOF, interruption, or any answer
 other than explicit yes. It never prints raw typed text.
 
-## Fake-only Decision Card foundation
+## Decision Card approval adapter
 
 The pure Host model can compile two or three bounded alternatives
 with benefits, costs, risks, reversibility, authority scope, fallback, and
@@ -56,12 +58,20 @@ bound Host decision; any resulting side effect still passes the existing
 grounding, budget, approval, MCP safety, and post-action verification path.
 Evidence or object-version drift invalidates the card before dispatch.
 
-The compiler and deterministic choice validator have no provider, approval,
-desktop, or dispatch port. A choice of `approve_exact_effect` returns only a
-fixed `requires_separate_approval` fact; it does not create a `PolicyDecision`.
-The planned graphical card does not change the current runtime boundary: today
-the interactive console still accepts only an explicit approval or denial for
-one exact request and offers no alternatives or trade-off UI.
+The compiler and deterministic choice validator still have no provider,
+approval, desktop, or dispatch port. The opt-in local adapter now implements
+the existing `ApprovalPort`: it converts only a fresh, correlated
+`approve_exact_effect` selection into the ordinary digest-bound
+`PolicyDecision`. The Runner recomputes state, policy, task, registry, object,
+and grounding-evidence digests after the interaction before dispatch.
+
+The first Win32 adapter uses a timed system dialog with two choices. It shows
+fixed trade-offs and provenance; Yes requests approval for the exact effect,
+No denies, and Cancel/close/timeout return no selection and deny. Native errors,
+malformed choices, missing context, and expiry deny. This creates no alternate
+MCP call site, global allow control, batch approval, model approval, or
+automatic recommendation selection. The console remains the default when the
+card is disabled.
 
 ## Grounding rules
 

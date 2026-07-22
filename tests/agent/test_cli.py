@@ -1435,3 +1435,43 @@ def test_live_cli_passes_configured_request_budget_to_provider(
     assert captured["context_window_tokens"] == 128_000
     assert captured["output_token_reserve"] == 1_024
     assert json.loads(capsys.readouterr().out)["text"] == "done"
+
+
+def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from computer_use_agent.approvals import DecisionCardApprovalPort
+    from computer_use_agent.config import (
+        APPROVED_ACTIONS_MODE,
+        AgentConfig,
+        MCPLaunchConfig,
+        OperatorConfig,
+        PolicyConfig,
+        ProviderConfig,
+    )
+    from computer_use_agent import decision_card_window_win32
+
+    local = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    config = AgentConfig(
+        state_dir=local / "computer-use-agent" / "card-cli-test",
+        policy_version="approved-v1",
+        provider=ProviderConfig("openai", "test-model"),
+        mcp=MCPLaunchConfig(
+            tmp_path / "mcp.exe", (), tmp_path, {"CUMCP_ALLOWLIST": "notepad.exe"}
+        ),
+        policy=PolicyConfig(mode=APPROVED_ACTIONS_MODE),
+        operator=OperatorConfig(
+            decision_cards_enabled=True, decision_timeout_seconds=45
+        ),
+    )
+    native = object()
+    monkeypatch.setattr(
+        decision_card_window_win32, "Win32DecisionCardWindowApi", lambda: native
+    )
+
+    port = agent_cli._approval_port(config)
+
+    assert isinstance(port, DecisionCardApprovalPort)
+    assert port._timeout_seconds == 45
+    assert port._surface.api is native

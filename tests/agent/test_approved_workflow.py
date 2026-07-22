@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,8 @@ from computer_use_agent.config import (
     PolicyConfig,
     ProviderConfig,
 )
+from computer_use_agent.approvals import DecisionCardApprovalPort
+from computer_use_agent.decision_cards import DecisionSelection
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.runner import AgentRunner, RunFailure, RunnerPorts
 from computer_use_agent.trace import read_run_record
@@ -133,10 +136,108 @@ def test_approved_action_requires_grounding_then_reobservation_before_success(
     assert outcome.state.verified_observation_epoch == 2
     assert len(approvals.requests) == 1
     assert approvals.requests[0].tool_name == "click"
+    assert approvals.requests[0].binding is not None
+    assert approvals.requests[0].binding.object_digest == action.digest
     assert [event.kind for event in outcome.state.event_log].count(
         LedgerEventKind.POLICY_DECISION
     ) == 1
     assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "SUCCESS"
+
+
+def test_focus_taking_card_yields_before_choice_and_uses_sole_dispatch_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_card_order"
+    observe = _call(run_id, 1, "call_1", "list_windows", {})
+    action = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
+    verify = _call(run_id, 3, "call_3", "list_windows", {})
+    provider = FakeModelProvider(turns=deque([
+        _turn(run_id, 1, observe),
+        _turn(run_id, 2, action),
+        _turn(run_id, 3, verify),
+        _turn(run_id, 4, text="verified"),
+    ]))
+    events: list[str] = []
+
+    class OrderedDesktop(FakeDesktopMCP):
+        async def call_tool(self, call: ToolCall) -> ToolResult:
+            if call.name == "activate_window":
+                events.append("dispatch")
+            return await super().call_tool(call)
+
+    desktop = OrderedDesktop(results=deque([
+        _result(observe, text='* 42 | app.exe | "App"'),
+        _result(action),
+        _result(verify, text='* 42 | app.exe | "App"'),
+    ]))
+
+    class Surface:
+        cards = []
+
+        async def choose(self, card, *, timeout_seconds: int):  # noqa: ANN001
+            del timeout_seconds
+            events.append("card")
+            self.cards.append(card)
+            return DecisionSelection(
+                card.decision_id, card.card_digest, "option_approve_exact_effect"
+            )
+
+    class Presence:
+        def on_phase(self, _phase) -> None:  # noqa: ANN001
+            pass
+
+        def estop(self) -> None:
+            pass
+
+        def release(self) -> None:
+            events.append("yield")
+
+    surface = Surface()
+    approvals = DecisionCardApprovalPort(
+        surface, timeout_seconds=30, clock=lambda: datetime(2026, 7, 22, tzinfo=UTC)
+    )
+    outcome = asyncio.run(AgentRunner(
+        _config(tmp_path, monkeypatch),
+        RunnerPorts(provider, desktop, approvals, presence=Presence()),
+    ).run("Activate and verify", run_id=run_id))
+
+    assert outcome.text == "verified"
+    assert events == ["yield", "card", "dispatch"]
+    assert surface.cards[0].binding.object_digest == action.digest
+
+
+def test_host_binding_drift_during_card_blocks_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_card_drift"
+    observe = _call(run_id, 1, "call_1", "list_windows", {})
+    action = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque([_result(observe, text='* 42 | app.exe | "App"')])
+    )
+    runner: AgentRunner
+
+    class DriftSurface:
+        async def choose(self, card, *, timeout_seconds: int):  # noqa: ANN001
+            del timeout_seconds
+            runner.policy = replace(runner.policy, version="changed-policy")
+            return DecisionSelection(
+                card.decision_id, card.card_digest, "option_approve_exact_effect"
+            )
+
+    approvals = DecisionCardApprovalPort(
+        DriftSurface(), clock=lambda: datetime(2026, 7, 22, tzinfo=UTC)
+    )
+    runner = AgentRunner(
+        _config(tmp_path, monkeypatch), RunnerPorts(provider, desktop, approvals)
+    )
+
+    with pytest.raises(RunFailure, match="APPROVAL_MISMATCH"):
+        asyncio.run(runner.run("Activate", run_id=run_id))
+    assert [call.name for call in desktop.tool_calls] == ["list_windows"]
 
 
 def test_action_without_grounding_is_denied_before_approval_or_dispatch(

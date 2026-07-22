@@ -7,14 +7,16 @@
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
 > it from durable phases in ordinary Agent `run` and `resume` lifecycles when
 > explicitly enabled. Planned/campaign/recovery runtimes, multi-monitor support,
-> and abrupt-process teardown remain separate gates. Pure fake-only Decision
-> Card compilation and choice validation are implemented, but no interactive
-> card is connected. The current
-> approved-action flow remains an interactive console confirmation for one
-> action at a time. The standalone native surface has retained
+> and abrupt-process teardown remain separate gates. Decision Card compilation,
+> choice validation, and an opt-in two-choice focus-taking Win32 adapter are
+> implemented through the existing `ApprovalPort`. The approved-action flow
+> remains one exact action at a time; console confirmation is default and the
+> card requires explicit opt-in. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
 > has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
-> Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md).
+> Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md),
+> and the opt-in approval path has bounded native
+> [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md).
 
 ## Goal
 
@@ -272,7 +274,10 @@ There is no global "always allow" control in the first interactive version.
    **Implemented: expiry plus state, policy, task, registry, object, and evidence
    drift all fail closed; recommendation never selects an option.**
 5. Connect a focus-taking local Decision Card to the existing ApprovalPort
-   without changing the ordinary Host/MCP dispatch boundary.
+   without changing the ordinary Host/MCP dispatch boundary. **Implemented for
+   exact one-action approval: the Runner yields first; close, timeout, error,
+   expiry, malformed selection, and Host binding drift deny. The native
+   focus/timeout and sole-dispatch path has retained on-device evidence.**
 6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
    and trade-off provenance.
 7. After the executable campaign worker exists, verify fake-host terminal and
