@@ -8,10 +8,10 @@ promise is that a live view never shows something that was never true.
 
 Two properties carry that promise:
 
-* **Atomic reads.** Checkpoints are written with ``tempfile.mkstemp`` +
-  ``os.replace``, so a poll observes either the previous or the next complete
-  record — never a mixture. The poller adds no buffering or partial parsing that
-  could reintroduce a torn read.
+* **Atomic reads.** Checkpoints and campaign control files are atomically
+  published, so a poll observes complete records. Campaigns add a stable
+  double-read across their bounded file set, refusing a concurrently changing
+  snapshot instead of inventing a cross-transition state.
 * **Stale data is discarded, not shown.** If a scan fails closed (a symlinked
   runs directory, an oversized scan), the poller does **not** keep the last good
   lines on screen where they would read as current. It replaces them with a
@@ -30,6 +30,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .progress_view import ProgressProjection, ProgressViewError, build_progress_projection
@@ -49,6 +50,10 @@ SCAN_UNAVAILABLE_LINES = (
 )
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 @dataclass(frozen=True)
 class PollOutcome:
     """What one poll observed and whether it changed the screen."""
@@ -57,6 +62,8 @@ class PollOutcome:
     scan_failed: bool
     run_count: int
     unavailable_count: int
+    campaign_count: int
+    unavailable_campaign_count: int
 
 
 @dataclass
@@ -71,6 +78,7 @@ class ProgressPoller:
     window: PassiveProgressWindow
     interval_seconds: float = DEFAULT_INTERVAL_SECONDS
     sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], datetime] = _utc_now
     _last_lines: tuple[str, ...] | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
@@ -88,16 +96,28 @@ class ProgressPoller:
         """
 
         try:
-            projection = build_progress_projection(self.state_dir)
+            projection = build_progress_projection(self.state_dir, now=self.clock())
         except (ProgressViewError, OSError):
             # Directory-level failure: the whole view is untrustworthy.
-            return self._draw(SCAN_UNAVAILABLE_LINES, scan_failed=True, runs=0, unavailable=0)
+            return self._draw(
+                SCAN_UNAVAILABLE_LINES,
+                scan_failed=True,
+                runs=0,
+                unavailable=0,
+                campaigns=0,
+                unavailable_campaigns=0,
+            )
 
         return self._draw(
             render_progress_lines(projection),
             scan_failed=False,
             runs=len(projection.views),
             unavailable=len(projection.unavailable_run_ids) + projection.unavailable_unnamed,
+            campaigns=len(projection.campaigns),
+            unavailable_campaigns=(
+                len(projection.unavailable_campaign_ids)
+                + projection.unavailable_campaign_unnamed
+            ),
         )
 
     def run(
@@ -124,7 +144,14 @@ class ProgressPoller:
         return tuple(outcomes)
 
     def _draw(
-        self, lines: tuple[str, ...], *, scan_failed: bool, runs: int, unavailable: int
+        self,
+        lines: tuple[str, ...],
+        *,
+        scan_failed: bool,
+        runs: int,
+        unavailable: int,
+        campaigns: int,
+        unavailable_campaigns: int,
     ) -> PollOutcome:
         changed = lines != self._last_lines
         if changed:
@@ -135,6 +162,8 @@ class ProgressPoller:
             scan_failed=scan_failed,
             run_count=runs,
             unavailable_count=unavailable,
+            campaign_count=campaigns,
+            unavailable_campaign_count=unavailable_campaigns,
         )
 
     def _render(self, lines: tuple[str, ...]) -> None:

@@ -10,11 +10,18 @@ import json
 import os
 import tempfile
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from computer_use_agent.atomic_file import publish_atomically
+from computer_use_agent.campaign import (
+    CampaignHeartbeat,
+    CampaignManifest,
+    CampaignStatus,
+    CampaignStore,
+)
 from computer_use_agent.progress_poller import (
     SCAN_UNAVAILABLE_LINES,
     ProgressPoller,
@@ -22,9 +29,11 @@ from computer_use_agent.progress_poller import (
 from computer_use_agent.fakes import FakeProgressWindowApi
 from computer_use_agent.progress_window import PassiveProgressWindow
 from computer_use_agent.trace import RunPhase, RunRecorder
+from computer_use_agent.run_lock import RunLock
 from computer_use_agent.types import LedgerEvent, LedgerEventKind, RunBudget, RunState
 
 FORBIDDEN = "POLLER_TASK_SECRET"
+NOW = datetime(2026, 7, 22, 9, 0, tzinfo=timezone.utc)
 
 
 def _state(run_id: str) -> RunState:
@@ -310,3 +319,57 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
     assert observed, "expected at least one observation"
     # Transient misses are tolerated but must stay the exception.
     assert transient_misses < 150
+
+
+def test_campaign_change_redraws_while_execution_lock_remains_held(tmp_path: Path) -> None:
+    state_dir = (tmp_path / "state").resolve()
+    lock = RunLock(tmp_path / "application")
+    lock.acquire()
+    store = CampaignStore(state_dir, lock)
+    store.create(
+        CampaignManifest(
+            campaign_id="campaign_1",
+            kind="private_campaign_kind",
+            policy_digest="a" * 64,
+            schema_digest="b" * 64,
+            created_at="2026-07-22T08:00:00+00:00",
+            updated_at="2026-07-22T08:00:00+00:00",
+        )
+    )
+    store.write_heartbeat(
+        "campaign_1",
+        CampaignHeartbeat(
+            "campaign_1",
+            "private_worker_run",
+            "2026-07-22T08:00:00+00:00",
+            "2026-07-22T08:59:00+00:00",
+            "2026-07-22T09:04:00+00:00",
+        ),
+    )
+    api = FakeProgressWindowApi()
+    poller = ProgressPoller(
+        state_dir,
+        PassiveProgressWindow(api),
+        clock=lambda: NOW,
+    )
+    try:
+        first = poller.poll_once()
+        assert first.campaign_count == 1
+        assert "Active campaigns  1" in api.lines[poller.window.hwnd]
+
+        store.transition_pause_state(
+            "campaign_1",
+            status=CampaignStatus.PAUSED,
+            at="2026-07-22T09:00:01+00:00",
+        )
+        second = poller.poll_once()
+    finally:
+        lock.release()
+
+    drawn = "\n".join(api.lines[poller.window.hwnd])
+    assert second.redrew is True
+    assert second.campaign_count == 1
+    assert "Campaign attention  1" in drawn
+    assert "Paused; operator attention" in drawn
+    assert "private_campaign_kind" not in drawn
+    assert "private_worker_run" not in drawn

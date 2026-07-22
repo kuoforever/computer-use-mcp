@@ -34,6 +34,7 @@ import sys
 import tempfile
 import threading
 from ctypes import wintypes
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,8 +46,15 @@ for stream in (sys.stdout, sys.stderr):
         pass
 
 from computer_use_agent.progress_poller import ProgressPoller  # noqa: E402
+from computer_use_agent.campaign import (  # noqa: E402
+    CampaignHeartbeat,
+    CampaignManifest,
+    CampaignStatus,
+    CampaignStore,
+)
 from computer_use_agent.progress_window import PassiveProgressWindow  # noqa: E402
 from computer_use_agent.progress_window_win32 import Win32ProgressWindowApi  # noqa: E402
+from computer_use_agent.run_lock import RunLock  # noqa: E402
 from computer_use_agent.trace import RunPhase, RunRecorder, TraceError  # noqa: E402
 from computer_use_agent.types import (  # noqa: E402
     LedgerEvent,
@@ -56,6 +64,7 @@ from computer_use_agent.types import (  # noqa: E402
 )
 
 SECRET = "SMOKE_TASK_TEXT_MUST_NOT_APPEAR"
+CAMPAIGN_SECRET = "smoke_campaign_secret"
 PUBLISH_ROUNDS = 400
 
 
@@ -88,6 +97,30 @@ def _state(run_id: str) -> RunState:
 
 def main() -> int:
     state_dir = Path(tempfile.mkdtemp(prefix="cua-poll-smoke-")).resolve()
+    campaign_clock = datetime.now(UTC).replace(microsecond=0)
+    campaign_lock = RunLock(state_dir.parent / f"{state_dir.name}-application")
+    campaign_lock.acquire()
+    campaign_store = CampaignStore(state_dir, campaign_lock)
+    campaign_store.create(
+        CampaignManifest(
+            campaign_id="campaign_live",
+            kind=CAMPAIGN_SECRET,
+            policy_digest="a" * 64,
+            schema_digest="b" * 64,
+            created_at=campaign_clock.isoformat(),
+            updated_at=campaign_clock.isoformat(),
+        )
+    )
+    campaign_store.write_heartbeat(
+        "campaign_live",
+        CampaignHeartbeat(
+            "campaign_live",
+            "private_campaign_worker",
+            campaign_clock.isoformat(),
+            campaign_clock.isoformat(),
+            (campaign_clock + timedelta(minutes=5)).isoformat(),
+        ),
+    )
 
     # One run that will transition live, and one that stays put so the view has
     # to keep two runs separate while it updates.
@@ -101,7 +134,12 @@ def main() -> int:
 
     api = Win32ProgressWindowApi()
     window = PassiveProgressWindow(api)
-    poller = ProgressPoller(state_dir, window, interval_seconds=0.05)
+    poller = ProgressPoller(
+        state_dir,
+        window,
+        interval_seconds=0.05,
+        clock=lambda: campaign_clock + timedelta(minutes=3),
+    )
 
     foreground_before = api.foreground()
     tick_before = _last_input_tick()
@@ -113,16 +151,29 @@ def main() -> int:
     # Publish continuously from another thread while the poller reads, so the
     # read/publish race is exercised the way a live agent would create it.
     publish_failures: list[str] = []
-    stop = threading.Event()
+    publish_successes = 0
 
     def writer() -> None:
+        nonlocal publish_successes
         state = _state("run_idle")
-        for _ in range(PUBLISH_ROUNDS):
-            if stop.is_set():
-                return
+        for index in range(PUBLISH_ROUNDS):
             try:
                 still.record(state, RunPhase.OBSERVING)
+                heartbeat_at = campaign_clock + timedelta(milliseconds=index + 1)
+                campaign_store.write_heartbeat(
+                    "campaign_live",
+                    CampaignHeartbeat(
+                        "campaign_live",
+                        "private_campaign_worker",
+                        campaign_clock.isoformat(),
+                        heartbeat_at.isoformat(),
+                        (heartbeat_at + timedelta(minutes=5)).isoformat(),
+                    ),
+                )
+                publish_successes += 1
             except TraceError as exc:
+                publish_failures.append(str(exc))
+            except Exception as exc:  # campaign publish failure is also fatal
                 publish_failures.append(str(exc))
 
     thread = threading.Thread(target=writer, daemon=True)
@@ -132,12 +183,16 @@ def main() -> int:
             poller.poll_once()
             api.pump()
     finally:
-        stop.set()
         thread.join(timeout=10)
 
     # Now make a real, visible transition and confirm it reaches the window.
     moving.record(_state("run_live"), RunPhase.PLANNING)
     moving.record(_state("run_live"), RunPhase.SUCCESS, run_duration_ms=1234)
+    campaign_store.transition_pause_state(
+        "campaign_live",
+        status=CampaignStatus.PAUSED,
+        at=(campaign_clock + timedelta(minutes=2)).isoformat(),
+    )
     outcome = poller.poll_once()
     api.pump()
     final_lines = api.lines(window.hwnd)
@@ -146,6 +201,7 @@ def main() -> int:
     tick_after = _last_input_tick()
     window.close()
     api.pump()
+    campaign_lock.release()
 
     drawn = "\n".join(final_lines)
     problems: list[str] = []
@@ -154,20 +210,28 @@ def main() -> int:
             f"{len(publish_failures)}/{PUBLISH_ROUNDS} publishes FAILED "
             f"(first: {publish_failures[0]})"
         )
+    if publish_successes != PUBLISH_ROUNDS:
+        problems.append(
+            f"only {publish_successes}/{PUBLISH_ROUNDS} paired publishes completed"
+        )
     if foreground_after != foreground_before:
         problems.append(f"foreground changed {foreground_before:#x} -> {foreground_after:#x}")
     if not outcome.redrew or final_lines == first_lines:
         problems.append("the live transition never reached the window")
     if "In progress  2" not in first_lines:
         problems.append("the initial runs were not grouped together as in progress")
+    if "Active campaigns  1" not in first_lines:
+        problems.append("the live campaign was not initially grouped as active")
     if "In progress  1" not in final_lines or "History  1" not in final_lines:
         problems.append("the completed run was not regrouped into history")
     if "Complete" not in drawn:
         problems.append("terminal phase not displayed")
     if "run_idle" not in drawn or "run_live" not in drawn:
         problems.append("the two runs were not both displayed")
-    if SECRET in drawn:
-        problems.append("task text leaked into the drawn view")
+    if "Campaign attention  1" not in final_lines or "Paused; operator attention" not in drawn:
+        problems.append("the paused campaign was not regrouped into attention")
+    if SECRET in drawn or CAMPAIGN_SECRET in drawn or "private_campaign_worker" in drawn:
+        problems.append("private task or campaign content leaked into the drawn view")
 
     if tick_after != tick_before:
         print("RESULT: INCONCLUSIVE (local input occurred during the probe)")
@@ -180,9 +244,9 @@ def main() -> int:
 
     print(
         f"RESULT: PASS (foreground unchanged at {foreground_before:#x}; "
-        f"{PUBLISH_ROUNDS}/{PUBLISH_ROUNDS} publishes succeeded under a live poller; "
+        f"{PUBLISH_ROUNDS}/{PUBLISH_ROUNDS} checkpoint+campaign publishes succeeded; "
         "live SUCCESS transition regrouped one of two independent runs into History; "
-        "no task text)"
+        "live campaign transition regrouped Active into Attention; no private content)"
     )
     return 0
 

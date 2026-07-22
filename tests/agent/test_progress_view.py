@@ -2,16 +2,26 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from computer_use_agent.progress_view import (
+    campaign_status_to_view,
+    group_campaign_views,
     ProgressViewError,
     build_progress_projection,
     checkpoint_to_view,
     group_progress_views,
 )
+from computer_use_agent.campaign import (
+    CampaignHeartbeat,
+    CampaignManifest,
+    CampaignStore,
+)
+from computer_use_agent.campaign_host_status import CampaignHostStatus, HostTaskStatus
+from computer_use_agent.run_lock import RunLock
 from computer_use_agent.trace import RunPhase, RunRecorder
 from computer_use_agent.types import (
     LedgerEvent,
@@ -22,6 +32,9 @@ from computer_use_agent.types import (
 )
 
 FORBIDDEN = "PROGRESS_TASK_SECRET"
+CAMPAIGN_SECRET = "progress_task_secret"
+DIGEST = "a" * 64
+NOW = datetime(2026, 7, 22, 9, 0, tzinfo=timezone.utc)
 
 
 def _state(run_id: str) -> RunState:
@@ -82,6 +95,33 @@ def _record(state_dir: Path, run_id: str, phase: RunPhase) -> RunRecorder:
 def _checkpoint(state_dir: Path, run_id: str, phase: RunPhase) -> dict:
     recorder = _record(state_dir, run_id, phase)
     return json.loads(recorder.checkpoint_path.read_text(encoding="utf-8"))
+
+
+def _campaign(state_dir: Path, campaign_id: str = "campaign_1") -> RunLock:
+    lock = RunLock(state_dir.parent / f"lock_{campaign_id}")
+    lock.acquire()
+    store = CampaignStore(state_dir, lock)
+    store.create(
+        CampaignManifest(
+            campaign_id=campaign_id,
+            kind=CAMPAIGN_SECRET,
+            policy_digest=DIGEST,
+            schema_digest=DIGEST,
+            created_at="2026-07-22T08:00:00+00:00",
+            updated_at="2026-07-22T08:00:00+00:00",
+        )
+    )
+    store.write_heartbeat(
+        campaign_id,
+        CampaignHeartbeat(
+            campaign_id=campaign_id,
+            run_id="private_worker_run",
+            started_at="2026-07-22T08:00:00+00:00",
+            heartbeat_at="2026-07-22T08:59:00+00:00",
+            fresh_until="2026-07-22T09:04:00+00:00",
+        ),
+    )
+    return lock
 
 
 def test_success_view_reports_terminal_facts(tmp_path: Path) -> None:
@@ -274,3 +314,58 @@ def test_projection_is_empty_and_read_only_without_a_runs_directory(tmp_path: Pa
 
     assert projection.views == ()
     assert not state_dir.exists()
+
+
+def test_campaign_projection_is_lock_free_bounded_and_redacted(tmp_path: Path) -> None:
+    state_dir = (tmp_path / "state").resolve()
+    lock = _campaign(state_dir)
+    try:
+        projection = build_progress_projection(state_dir, now=NOW)
+    finally:
+        lock.release()
+
+    assert len(projection.campaigns) == 1
+    view = projection.campaigns[0]
+    assert view.campaign_id == "campaign_1"
+    assert view.status == "RUNNING"
+    assert view.display_state == "Running"
+    assert view.discovered_count == view.completed_count == 0
+    rendered = json.dumps(view.as_display_dict())
+    assert CAMPAIGN_SECRET not in rendered
+    assert DIGEST not in rendered
+    assert "private_worker_run" not in rendered
+
+
+def test_campaign_corruption_is_isolated_from_valid_campaign(tmp_path: Path) -> None:
+    state_dir = (tmp_path / "state").resolve()
+    good_lock = _campaign(state_dir, "campaign_good")
+    good_lock.release()
+    bad_lock = _campaign(state_dir, "campaign_bad")
+    bad_lock.release()
+    (state_dir / "campaigns" / "campaign_bad" / "manifest.json").write_text(
+        "{ not json", encoding="utf-8"
+    )
+
+    projection = build_progress_projection(state_dir, now=NOW)
+
+    assert [view.campaign_id for view in projection.campaigns] == ["campaign_good"]
+    assert projection.unavailable_campaign_ids == ("campaign_bad",)
+
+
+def test_campaign_groups_attention_before_active_and_history() -> None:
+    def view(campaign_id: str, status: HostTaskStatus, at: str):
+        return campaign_status_to_view(
+            CampaignHostStatus(campaign_id, status, 3, 1, 1, 0, at)
+        )
+
+    groups = group_campaign_views(
+        (
+            view("done", HostTaskStatus.COMPLETED, "2026-07-22T09:03:00+00:00"),
+            view("active", HostTaskStatus.RUNNING, "2026-07-22T09:02:00+00:00"),
+            view("paused", HostTaskStatus.PAUSED, "2026-07-22T09:01:00+00:00"),
+            view("stale", HostTaskStatus.STALE, "2026-07-22T09:04:00+00:00"),
+        )
+    )
+
+    assert [group.key for group in groups] == ["attention", "active", "history"]
+    assert [view.campaign_id for view in groups[0].views] == ["stale", "paused"]

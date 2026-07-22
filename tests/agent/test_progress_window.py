@@ -11,10 +11,12 @@ import pytest
 
 from computer_use_agent.progress_view import (
     CallBudget,
+    CampaignProgressView,
     ProgressProjection,
     RunProgressView,
 )
 from computer_use_agent.progress_window import (
+    MAX_DISPLAYED_CAMPAIGNS,
     MAX_DISPLAYED_RUNS,
     PASSIVE_EX_STYLE,
     PASSIVE_STYLE,
@@ -115,6 +117,23 @@ def _projection(*views: RunProgressView, unavailable=(), unnamed: int = 0) -> Pr
         unavailable_run_ids=tuple(unavailable),
         unavailable_unnamed=unnamed,
     )
+
+
+def _campaign(campaign_id: str, *, status: str = "RUNNING", **over) -> CampaignProgressView:
+    base = dict(
+        campaign_id=campaign_id,
+        status=status,
+        display_state="Running",
+        is_terminal=False,
+        needs_attention=False,
+        discovered_count=5,
+        completed_count=2,
+        retryable_count=1,
+        uncertain_count=0,
+        updated_at_us=1,
+    )
+    base.update(over)
+    return CampaignProgressView(**base)
 
 
 def test_recording_api_satisfies_the_interface() -> None:
@@ -331,3 +350,58 @@ def test_long_run_id_line_is_bounded() -> None:
     long_id = "r" + "a" * 130
     lines = render_progress_lines(_projection(_view(long_id)))
     assert all(len(line) <= 120 for line in lines)
+
+
+def test_campaigns_render_before_runs_with_aggregate_counts_only() -> None:
+    projection = _projection(_view("run_a"))
+    projection = ProgressProjection(
+        projection.views,
+        projection.unavailable_run_ids,
+        projection.unavailable_unnamed,
+        campaigns=(
+            _campaign(
+                "campaign_paused",
+                status="PAUSED",
+                display_state="Paused; operator attention",
+                needs_attention=True,
+            ),
+            _campaign("campaign_active"),
+        ),
+    )
+
+    lines = render_progress_lines(projection)
+    blob = "\n".join(lines)
+
+    assert lines[0] == "Computer Use  campaigns 2/2  runs 1/1"
+    assert lines.index("Campaign attention  1") < lines.index("Active campaigns  1")
+    assert lines.index("Active campaigns  1") < lines.index("In progress  1")
+    assert "items 2/5 complete  retryable 1  uncertain 0" in blob
+    assert FORBIDDEN not in blob
+
+
+def test_campaign_render_cap_preserves_attention_first() -> None:
+    campaigns = tuple(
+        _campaign(
+            f"campaign_history_{index}",
+            status="COMPLETED",
+            display_state="Complete",
+            is_terminal=True,
+            updated_at_us=100 + index,
+        )
+        for index in range(MAX_DISPLAYED_CAMPAIGNS)
+    ) + (
+        _campaign(
+            "campaign_needs_operator",
+            status="STALE",
+            display_state="Stale; inspect before reclaim",
+            needs_attention=True,
+        ),
+    )
+    projection = ProgressProjection((), (), 0, campaigns=campaigns)
+
+    lines = render_progress_lines(projection)
+    blob = "\n".join(lines)
+
+    assert lines[1] == "Campaign attention  1"
+    assert "campaign_needs_operator" in blob
+    assert "Campaign history  9/10" in lines
