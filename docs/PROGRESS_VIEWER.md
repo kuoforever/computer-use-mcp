@@ -1,7 +1,10 @@
 # Operator progress viewer
 
-> **Status: planned Windows viewer.** No progress window is implemented. The
-> first version is a read-only projection of validated checkpoints and future
+> **Status: reducer implemented; no window yet.** The pure
+> checkpoint-to-view-model reducer (delivery step 1) is implemented and offline
+> tested in `computer_use_agent.progress_view`. No progress window is drawn: the
+> passive non-activating surface, live polling, and campaign state remain
+> planned. The projection stays read-only over validated checkpoints and future
 > campaign state.
 
 This passive projection is one surface of the planned
@@ -150,7 +153,10 @@ model prose, arbitrary errors, credentials, or account identifiers.
 
 ## Delivery sequence
 
-1. Pure checkpoint-to-view-model reducer and tests.
+1. Pure checkpoint-to-view-model reducer and tests. **Implemented** in
+   `computer_use_agent.progress_view`: `checkpoint_to_view` reduces one
+   validated checkpoint and `build_progress_projection` scans a bounded
+   `state_dir`, isolating corrupt or unsafely named records.
 2. Passive non-activating window with synthetic records.
 3. Atomic live checkpoint polling.
 4. Multi-run grouping.
