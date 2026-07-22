@@ -10,6 +10,7 @@ from computer_use_agent.config import (
     READ_ONLY_MODE,
     ConfigError,
     MCPLaunchConfig,
+    OperatorConfig,
     PolicyConfig,
     PrivacyConfig,
     ProviderConfig,
@@ -179,6 +180,45 @@ def test_privacy_config_rejects_unknown_detectors_and_reserved_terms() -> None:
         PrivacyConfig(enabled=True, detectors=("ner",))
     with pytest.raises(ConfigError, match="token syntax"):
         PrivacyConfig(enabled=True, terms=("[[PRIVATE:EMAIL:value]]",))
+
+
+def test_operator_presence_is_disabled_by_default_and_strictly_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(_config_text(tmp_path), encoding="utf-8")
+    assert load_agent_config(path).operator == OperatorConfig()
+
+    path.write_text(
+        _config_text(tmp_path)
+        + "\n[operator]\npresence_enabled = true\n"
+        + "reduced_motion = true\nhigh_contrast = true\n",
+        encoding="utf-8",
+    )
+    assert load_agent_config(path).operator == OperatorConfig(
+        presence_enabled=True, reduced_motion=True, high_contrast=True
+    )
+
+
+def test_operator_presence_rejects_non_boolean_and_unknown_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path) + '\n[operator]\npresence_enabled = "yes"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="presence_enabled.*boolean"):
+        load_agent_config(path)
+
+    path.write_text(
+        _config_text(tmp_path) + "\n[operator]\nlabel = true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match=r"unknown \[operator\] key"):
+        load_agent_config(path)
 
 
 @pytest.mark.parametrize(

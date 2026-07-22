@@ -237,8 +237,9 @@ its UIA tree.
   [progress viewer](docs/PROGRESS_VIEWER.md), and
   [approved actions](docs/APPROVALS.md).
 - Retain standalone presence desktop results in
-  [presence evidence](docs/PRESENCE_WINDOW_EVIDENCE.md); do not infer automatic
-  Host lifecycle wiring or multi-monitor support from that bounded smoke.
+  [presence evidence](docs/PRESENCE_WINDOW_EVIDENCE.md). Ordinary `run`/`resume`
+  now have default-off, fail-silent durable-phase wiring; do not infer planned,
+  campaign, recovery, multi-monitor, or abrupt-process support from it.
 - Keep host completion polling synchronized across
   [long-running tasks](docs/LONG_RUNNING_TASKS.md),
   [operator experience](docs/OPERATOR_EXPERIENCE.md), the roadmap, and the

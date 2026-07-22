@@ -73,3 +73,11 @@ terms = []
 # When false, or when the complete local image-redaction port is unavailable,
 # screenshot is removed from the provider tool surface and calls fail closed.
 image_redaction = true
+
+[operator]
+# Passive primary-display lifecycle halo for ordinary `run`/`resume` workflows.
+# It accepts only fixed Host phases, never task or target content, and cannot
+# approve or execute work. E-stop, human activity, and terminal states remove it.
+presence_enabled = false
+reduced_motion = false
+high_contrast = false

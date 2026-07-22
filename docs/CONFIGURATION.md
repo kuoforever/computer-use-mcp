@@ -101,6 +101,28 @@ it makes its one Planner request, because every observation and final-response
 dispatch must retain the existing crash boundary. It remains disabled when
 `enabled = false`.
 
+## Passive operator presence
+
+The ordinary Agent `run` and `resume` paths can show the primary-display
+computer-use halo with an explicit local opt-in:
+
+~~~toml
+[operator]
+presence_enabled = true
+reduced_motion = false
+high_contrast = false
+~~~
+
+All three values are strict booleans and default to `false`. When disabled, the
+CLI does not construct the native Win32 surface. When enabled, the surface
+receives only fixed phases after their run checkpoints are durably published.
+It receives no task, target, model output, arguments, approval, or execution
+capability. E-stop, detected human activity, terminal completion, and final
+cleanup remove it and prevent later reopening. A presence failure is
+fail-silent and cannot fail, approve, or advance the run. This integration does
+not yet cover `plan`, campaign, or recovery runtimes and remains
+primary-display-only.
+
 ## Agent text privacy
 
 The Agent Host can pseudonymize reviewed text before provider dispatch:

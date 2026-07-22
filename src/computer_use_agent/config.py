@@ -350,6 +350,26 @@ class PrivacyConfig:
 
 
 @dataclass(frozen=True)
+class OperatorConfig:
+    """Disabled-by-default passive operator-presence preferences."""
+
+    presence_enabled: bool = False
+    reduced_motion: bool = False
+    high_contrast: bool = False
+
+    def __post_init__(self) -> None:
+        if not all(
+            isinstance(value, bool)
+            for value in (
+                self.presence_enabled,
+                self.reduced_motion,
+                self.high_contrast,
+            )
+        ):
+            raise ConfigError("operator presence settings must be boolean")
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Complete Phase-0 configuration model; parsing performs no desktop I/O."""
 
@@ -360,6 +380,7 @@ class AgentConfig:
     policy: PolicyConfig
     continuation: ContinuationConfig = field(default_factory=ContinuationConfig)
     privacy: PrivacyConfig = field(default_factory=PrivacyConfig)
+    operator: OperatorConfig = field(default_factory=OperatorConfig)
     _application_state_dir: Path = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -376,6 +397,8 @@ class AgentConfig:
             raise ConfigError("continuation must be a ContinuationConfig")
         if not isinstance(self.privacy, PrivacyConfig):
             raise ConfigError("privacy must be a PrivacyConfig")
+        if not isinstance(self.operator, OperatorConfig):
+            raise ConfigError("operator must be an OperatorConfig")
         if self.privacy.enabled and self.continuation.enabled:
             raise ConfigError(
                 "ephemeral privacy vault cannot be combined with continuation"
@@ -404,7 +427,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         document = tomllib.load(file)
     _reject_unknown(
         document,
-        {"agent", "provider", "mcp", "policy", "continuation", "privacy"},
+        {"agent", "provider", "mcp", "policy", "continuation", "privacy", "operator"},
         "root",
     )
 
@@ -414,6 +437,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     policy = _read_table(document, "policy", required=False)
     continuation = _read_table(document, "continuation", required=False)
     privacy = _read_table(document, "privacy", required=False)
+    operator = _read_table(document, "operator", required=False)
 
     _reject_unknown(agent, {"state_dir", "policy_version"}, "agent")
     _reject_unknown(
@@ -446,6 +470,11 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         privacy,
         {"enabled", "detectors", "terms", "image_redaction"},
         "privacy",
+    )
+    _reject_unknown(
+        operator,
+        {"presence_enabled", "reduced_motion", "high_contrast"},
+        "operator",
     )
 
     state_dir_value = agent.get("state_dir")
@@ -535,6 +564,12 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         terms=_read_string_array(privacy, "terms", "privacy", ()),
         image_redaction=image_redaction,
     )
+    operator_values: dict[str, bool] = {}
+    for key in ("presence_enabled", "reduced_motion", "high_contrast"):
+        value = operator.get(key, False)
+        if not isinstance(value, bool):
+            raise ConfigError(f"[operator].{key} must be boolean")
+        operator_values[key] = value
     return AgentConfig(
         state_dir=state_dir,
         policy_version=policy_version,
@@ -543,4 +578,5 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         policy=policy_config,
         continuation=continuation_config,
         privacy=privacy_config,
+        operator=OperatorConfig(**operator_values),
     )
