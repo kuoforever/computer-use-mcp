@@ -115,11 +115,13 @@ The BOSS live probe established that important static text may be absent from
 the interactive UIA tree. Bounded region OCR and bounded region image capture
 now implement the OCR and image rungs of
 [Observation contract](OBSERVATION_CONTRACT.md); `capture_region` is offline
-verified only and has no on-device result yet. Bounded UIA document text is
+verified and now has a retained synthetic
+[on-device result](CAPTURE_REGION_EVIDENCE.md). Bounded UIA document text is
 implemented, offline verified, and has a retained
 [on-device result](DOCUMENT_TEXT_EVIDENCE.md). Deltas and any image scope beyond
-one explicit primary-display rectangle remain unimplemented. Measure each
-source using [Token efficiency](TOKEN_EFFICIENCY.md).
+one explicit primary-display rectangle remain unimplemented. Next exercise the
+implemented ladder inside the bounded multi-item restart campaign and measure
+each source using [Token efficiency](TOKEN_EFFICIENCY.md).
 
 ### P1 - operator presence and progress foundation
 
