@@ -10,7 +10,16 @@ a version number states what is packaged, never what has been verified.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Operator progress reducer.** A pure checkpoint-to-view-model reducer
+  (`computer_use_agent.progress_view`) projects a validated run checkpoint into
+  the small, honest field set a passive viewer may show. It reads only the
+  checkpoint the `agent report` reader already trusts, copies a fixed allowlist
+  of scalar fields, marks checkpoint-v1 token coverage and elapsed time as
+  unknown rather than zero, never infers liveness from a nonterminal phase, and
+  isolates a corrupt record from valid ones. This is delivery step 1 of the
+  [operator progress viewer](docs/PROGRESS_VIEWER.md); no window is drawn yet.
 
 ## [0.1.0] — not yet released
 
