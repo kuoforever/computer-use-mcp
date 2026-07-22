@@ -7,7 +7,8 @@
 > E-stop/authority-release teardown. It is not yet automatically wired into the
 > Agent CLI lifecycle. No interactive Decision Card is implemented. The current
 > approved-action flow remains an interactive console confirmation for one
-> action at a time.
+> action at a time. The standalone native surface has retained
+> [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md).
 
 ## Goal
 
