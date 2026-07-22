@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from computer_use_agent.progress_view import (
     ProgressViewError,
     build_progress_projection,
     checkpoint_to_view,
+    group_progress_views,
 )
 from computer_use_agent.trace import RunPhase, RunRecorder
 from computer_use_agent.types import (
@@ -150,6 +152,43 @@ def test_unknown_outcome_is_distinct_and_flags_reobservation(tmp_path: Path) -> 
     }
 
 
+def test_groups_attention_in_progress_and_history_with_stable_order(tmp_path: Path) -> None:
+    attention_old = replace(
+        checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_wait", RunPhase.WAITING_APPROVAL)),
+        updated_at_us=10,
+    )
+    attention_new = replace(
+        checkpoint_to_view(
+            _checkpoint(tmp_path.resolve(), "run_uncertain", RunPhase.UNKNOWN_OUTCOME)
+        ),
+        updated_at_us=20,
+    )
+    current = replace(
+        checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_current", RunPhase.PLANNING)),
+        updated_at_us=30,
+    )
+    history = replace(
+        checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_done", RunPhase.SUCCESS)),
+        updated_at_us=40,
+    )
+
+    groups = group_progress_views((history, attention_old, current, attention_new))
+
+    assert [group.key for group in groups] == ["attention", "in_progress", "history"]
+    assert [view.run_id for view in groups[0].views] == ["run_uncertain", "run_wait"]
+    assert [view.run_id for view in groups[1].views] == ["run_current"]
+    assert [view.run_id for view in groups[2].views] == ["run_done"]
+
+
+def test_grouping_rejects_duplicate_or_inconsistent_views(tmp_path: Path) -> None:
+    view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_one", RunPhase.PLANNING))
+
+    with pytest.raises(ProgressViewError):
+        group_progress_views((view, view))
+    with pytest.raises(ProgressViewError):
+        group_progress_views((replace(view, is_terminal=True),))
+
+
 def test_failed_view_carries_only_the_fixed_code(tmp_path: Path) -> None:
     view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_bad", RunPhase.FAILED))
 
@@ -181,6 +220,8 @@ def test_display_dict_excludes_forbidden_checkpoint_content(tmp_path: Path) -> N
         lambda c: c["metrics"].__setitem__("input_tokens", -1),
         lambda c: c["budgets"].__setitem__("tool_calls_used", 99),
         lambda c: c.__setitem__("failure_code", "lowercase bad"),
+        lambda c: c.__setitem__("updated_at", "not-a-timestamp"),
+        lambda c: c.__setitem__("updated_at", "2026-07-22T09:00:00"),
     ],
 )
 def test_corrupt_checkpoint_fails_closed(tmp_path: Path, mutate) -> None:

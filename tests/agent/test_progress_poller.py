@@ -111,7 +111,9 @@ def test_phase_change_is_picked_up_on_the_next_poll(tmp_path: Path) -> None:
     outcome = poller.poll_once()
 
     assert outcome.redrew is True
-    assert "Complete" in "\n".join(api.lines[poller.window.hwnd])
+    drawn = "\n".join(api.lines[poller.window.hwnd])
+    assert "History  1" in drawn
+    assert "Complete" in drawn
 
 
 def test_new_run_appears_and_runs_stay_separate(tmp_path: Path) -> None:
@@ -285,7 +287,11 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
                 transient_misses += 1
                 continue
             assert outcome.run_count == 1
-            head = api.lines[poller.window.hwnd][1]
+            head = next(
+                line
+                for line in api.lines[poller.window.hwnd]
+                if line.startswith("run_a  ")
+            )
             observed.add(head.split("  ", 1)[1])
     finally:
         stop.set()

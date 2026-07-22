@@ -1,17 +1,16 @@
 # Live checkpoint polling on-device evidence
 
-> **Status: bounded on-device live-polling smoke retained 2026-07-22.** This
-> record demonstrates that the operator progress poller (delivery step 3 of the
-> [progress viewer](PROGRESS_VIEWER.md)) follows real checkpoint state on a live
-> Windows desktop, stays passive while doing it, and does not reintroduce the
-> publish/read hazard it originally exposed. It is not multi-run-grouping,
-> campaign, presence-indicator, Decision-Card, application-acceptance, or release
-> evidence.
+> **Status: bounded on-device live-polling and independent-run grouping smoke
+> retained 2026-07-22.** This record demonstrates that the operator progress
+> poller (delivery steps 3-4 of the [progress viewer](PROGRESS_VIEWER.md)) follows
+> real checkpoint state on a live Windows desktop, regroups two independent
+> runs after a terminal transition, stays passive, and does not reintroduce the
+> publish/read hazard it originally exposed. It is not campaign grouping,
+> presence-indicator, Decision-Card, application-acceptance, or release evidence.
 
 ## Reviewed boundary
 
-- Source commit: `3d02938` (`Merge pull request #186`), plus the read-only
-  `Win32ProgressWindowApi.lines()` accessor added for the probe assertion.
+- Source commit: `b4974d0b14a0c63d7b59ec309783750441956c15`.
 - Interpreter: CPython 3.13.7 from the checked-out virtual environment.
 - Surface: `scripts/smoke_progress_poller.py`, driving the real
   `ProgressPoller` -> `PassiveProgressWindow` -> `Win32ProgressWindowApi` chain
@@ -32,9 +31,12 @@ models, this probe closes the loop on real state:
 3. A writer thread republishes `run_idle`'s checkpoint 400 times while the
    poller concurrently scans and reads the same directory — the exact
    read/publish race a live viewer creates.
-4. `run_live` is then transitioned `PLANNING` -> `SUCCESS`, and the probe checks
-   the drawn lines actually changed to show the terminal state.
-5. Foreground HWND and `GetLastInputInfo` are compared across the whole session;
+4. The initial projection must place both nonterminal runs under
+   `In progress  2`.
+5. `run_live` is then transitioned `PLANNING` -> `SUCCESS`; the next real poll
+   must redraw as `In progress  1` plus `History  1`, moving only the terminal
+   run while keeping both IDs separate.
+6. Foreground HWND and `GetLastInputInfo` are compared across the whole session;
    the run is discarded as inconclusive if local input occurred.
 
 ## Result
@@ -51,6 +53,20 @@ So, on a real desktop: the foreground stayed `0x00030040` throughout; every one
 of the 400 concurrent publishes succeeded; a real phase transition reached the
 drawn surface; the two runs stayed separate; and the run's task text never
 entered the view.
+
+After delivery step 4 was implemented, the updated smoke was run on the exact
+source commit above and reported:
+
+~~~text
+RESULT: PASS (foreground unchanged at 0xb0598; 400/400 publishes succeeded
+under a live poller; live SUCCESS transition regrouped one of two independent
+runs into History; no task text)
+~~~
+
+The updated result retains every original assertion and additionally proves the
+real drawn projection moved one run from `In progress` to `History` after its
+atomic checkpoint transition. The other independent run stayed in its original
+group, and the foreground remained `0x000b0598`.
 
 ## Control: the probe has teeth
 
@@ -72,14 +88,16 @@ the collision rate differs with polling pressure.
 
 ## Supported claim and next gate
 
-This closes the on-device gate for live checkpoint polling and supports the
+This closes the on-device gates for live checkpoint polling and bounded
+independent-run regrouping, and supports the
 Operator UI **Desktop verified** cell in [Capability status](CAPABILITY_STATUS.md)
-for the bounded live-polling slice. It does not demonstrate multi-run grouping
-beyond two runs, campaign heartbeat display, the presence indicator, Decision
-Cards, DPI or reduced-motion behaviour, or any long-duration soak.
+for those bounded slices. It does not demonstrate the Attention-priority cap on
+a live desktop, grouping beyond two runs, campaign heartbeat display, the
+presence indicator, Decision Cards, DPI or reduced-motion behaviour, or any
+long-duration soak.
 
-Remaining after this gate: delivery step 4 (multi-run grouping) and step 5
-(campaign progress) from [Operator progress viewer](PROGRESS_VIEWER.md); the
+Remaining after this gate: delivery step 5 (campaign progress) from
+[Operator progress viewer](PROGRESS_VIEWER.md); the
 presence indicator and fake-only Decision Card view models stay sequenced behind
 the passive surfaces per the [roadmap](EXECUTION_PLAN.md).
 
