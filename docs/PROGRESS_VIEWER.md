@@ -6,11 +6,12 @@
 > non-activating window (delivery step 2) is implemented in
 > `computer_use_agent.progress_window` over an injectable native surface and
 > offline tested against a recording fake; its real ctypes backend lives in
-> `computer_use_agent.progress_window_win32` and is exercised only by the
-> operator-approved `scripts/smoke_progress_window.py`, which has **not** been
-> run on-device yet. Live checkpoint polling, multi-run grouping, and campaign
-> state remain planned. The projection stays read-only over validated
-> checkpoints and future campaign state.
+> `computer_use_agent.progress_window_win32` and its non-activation was
+> confirmed on a live desktop over synthetic records by the operator-approved
+> `scripts/smoke_progress_window.py` ([retained evidence](PROGRESS_WINDOW_EVIDENCE.md),
+> 2026-07-22). Live checkpoint polling, multi-run grouping, and campaign state
+> remain planned. The projection stays read-only over validated checkpoints and
+> future campaign state.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -172,9 +173,10 @@ model prose, arbitrary errors, credentials, or account identifiers.
    with `SW_SHOWNOACTIVATE`, and repositioned with `SWP_NOACTIVATE`. Acceptance
    check 1 is proven in injectable form (foreground unchanged across
    open/refresh/move/topmost/close) by `tests/agent/test_progress_window.py`;
-   the real ctypes backend is `computer_use_agent.progress_window_win32` and is
-   confirmed on a live desktop only by the operator-approved
-   `scripts/smoke_progress_window.py`.
+   the real ctypes backend is `computer_use_agent.progress_window_win32`, whose
+   live-desktop non-activation is confirmed by the operator-approved
+   `scripts/smoke_progress_window.py` with
+   [retained evidence](PROGRESS_WINDOW_EVIDENCE.md).
 3. Atomic live checkpoint polling.
 4. Multi-run grouping.
 5. Campaign progress after the long-running task manifest is implemented.
