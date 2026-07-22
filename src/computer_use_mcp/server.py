@@ -31,7 +31,8 @@ from mcp.server.fastmcp import Image as MCPImage
 from .audit import AuditLog
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
-from .contract import DriverError
+from .contract import DriverError, PruneOpts
+from .document_text import DocumentTextError, serialize_document_text
 from .core import Session
 from .dpi import enable_dpi_awareness
 from .gate import Gate
@@ -254,6 +255,20 @@ def build_server(
         except (DriverError, CaptureError) as exc:
             return [f"ERROR {exc}"]
         return [envelope, MCPImage(data=png, format="png")]
+
+    @mcp.tool(
+        description=(
+            "Read bounded semantic document text for a scope ('foreground' | a window id "
+            "| 'all'). Returns ordered text blocks from a real UIA text channel, not an "
+            "accessibility-tree dump; password fields are skipped."
+        )
+    )
+    def document_text(scope: str = "foreground") -> str:
+        try:
+            result = session.driver.get_document_text(PruneOpts(scope=scope))
+            return serialize_document_text(result, scope)
+        except (DriverError, DocumentTextError) as exc:
+            return f"ERROR {exc}"
 
     # --- action -------------------------------------------------------------
 

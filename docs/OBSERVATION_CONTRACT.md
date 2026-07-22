@@ -1,9 +1,10 @@
 # Observation contract
 
 > **Status: partially implemented multi-source contract.** UIA snapshots,
-> primary-display screenshots, bounded region OCR, and bounded region image
-> capture are implemented. Document text and deltas remain design targets, as
-> does any scope beyond one explicit primary-display rectangle.
+> primary-display screenshots, bounded region OCR, bounded region image
+> capture, and bounded UIA document text are implemented. Deltas remain a
+> design target, as does any image/OCR scope beyond one explicit
+> primary-display rectangle. Document text has offline evidence only.
 
 ## Purpose
 
@@ -72,6 +73,13 @@ session ref. Preserve truncation and incomplete-browser hints.
 Text exposed through an application- or browser-supported semantic channel.
 Return bounded blocks with stable local ordering and optional bounding boxes.
 Do not label DOM body dumps or hidden application state as document text.
+
+The current Windows backend reads UIA `TextPattern` document ranges. A control's
+range already covers its subtree, so the walk reads one range and stops
+descending, yielding a small number of ordered blocks rather than a per-node
+dump. Password subtrees are skipped, the result is bounded to 200 blocks and
+20,000 characters with explicit truncation metadata, and a backend without a
+semantic text channel fails closed instead of falling back to the tree.
 
 ### OCR
 

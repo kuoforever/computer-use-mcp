@@ -156,6 +156,7 @@ def test_claude_tool_use_and_adjacent_matching_tool_result() -> None:
         "list_windows",
         "screenshot",
         "capture_region",
+        "document_text",
     ]
     assert second_request["messages"] == [
         {"role": "user", "content": "Inspect windows"},
@@ -844,6 +845,7 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "list_windows",
         "screenshot",
         "capture_region",
+        "document_text",
         "activate_window",
         "click",
         "key",

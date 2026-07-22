@@ -1,6 +1,6 @@
 # MCP tool reference
 
-> **Status: implemented on Windows.** These are the ten tools currently
+> **Status: implemented on Windows.** These are the eleven tools currently
 > exposed by the stdio MCP server.
 
 ## Read tools
@@ -13,6 +13,7 @@
 | `screenshot` | none | Returns a PNG of the primary display. It does not accept a region parameter and does not provide a virtual-desktop capture. |
 | `capture_region` | `x, y, w, h` | Captures exactly one primary-display region and returns a grounding envelope followed by the cropped PNG. The region is limited to 4,000,000 pixels and the encoding to 4 MiB. |
 | `ocr` | `x, y, w, h` | Captures exactly one primary-display region and returns bounded Windows OCR text runs with crop-local and screen-relative boxes. The region is limited to 4,000,000 pixels. |
+| `document_text` | `scope="foreground"` | Returns bounded ordered text blocks read through a real UIA text channel for the scope, with a content digest and truncation metadata. Password fields are skipped; a backend without a semantic text channel fails closed. |
 
 `capture_region` is the cropped rung between `ocr` and `screenshot`: the caller
 pays for the pixels it names. Its envelope reports the source, scope, crop
@@ -26,6 +27,14 @@ are evidence in the primary-display pixel space, not invokable refs.
 truncation metadata. Its boxes are evidence, not invokable refs. Configured
 sensitive-window title matches are blacked out before recognition. Unsupported
 or out-of-bounds regions fail instead of widening to a full-display capture.
+
+`document_text` is the ladder rung between the interactive `ui_snapshot` and
+`ocr`: it reads text an application or browser exposes through a real UIA
+TextPattern channel, not a dump of the accessibility tree or hidden state. A
+control's text range already covers its subtree, so page text comes back as a
+small number of ordered blocks, each with an optional bounding box. It returns
+at most 200 blocks and 20,000 characters with explicit truncation metadata, and
+its offsets do not imply clickable coordinates.
 
 Snapshots are capped at 200 qualifying controls. If controls were omitted, the
 text result explicitly reports a truncation count. Chromium-family windows get

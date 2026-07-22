@@ -12,7 +12,7 @@ contract.
 ## Current shape
 
 The codebase has two executable surfaces. The public baseline is an
-experimental Windows-only MCP server with ten tools, a typed Driver Contract
+experimental Windows-only MCP server with eleven tools, a typed Driver Contract
 v1.0.0, and one in-process Windows implementation. The second is an
 experimental `computer-use-agent` Host with a dual-provider read-only loop,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
@@ -77,6 +77,7 @@ src/computer_use_mcp/
   audit.py             JSONL records
   capture.py           bounded region image envelope
   ocr.py               bounded Windows OCR over captured bytes
+  document_text.py     bounded UIA document-text envelope
   region.py            shared region validation and crop-local redaction boxes
   dpi.py               DPI-awareness bootstrap
   drivers/windows.py   UIA, Win32, capture, process ownership
@@ -222,7 +223,7 @@ its UIA tree.
   [long-running tasks](docs/LONG_RUNNING_TASKS.md),
   [operator experience](docs/OPERATOR_EXPERIENCE.md), the roadmap, and the
   capability dashboard. Mobile delivery belongs to the Codex/Claude host; do
-  not add it to the ten-tool desktop MCP surface or treat MCP logs as terminal
+  not add it to the eleven-tool desktop MCP surface or treat MCP logs as terminal
   evidence.
 - Keep planned automatic extraction and strategy-learning claims synchronized
   across [context and memory](docs/CONTEXT_MEMORY.md),

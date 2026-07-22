@@ -10,7 +10,7 @@
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
-ten-tool local stdio MCP server as its sole desktop execution authority.
+eleven-tool local stdio MCP server as its sole desktop execution authority.
 
 ## Scope
 
@@ -413,7 +413,7 @@ recovery rather than relying on a garbage-collection finalizer.
 fixed local stdio child. It starts the configured absolute executable and argv
 without a shell, initializes an MCP client session, follows bounded discovery
 pagination, and requires the discovered names and input schemas to equal the
-reviewed ten-tool registry before any call can be dispatched.
+reviewed eleven-tool registry before any call can be dispatched.
 
 One asyncio task owns each live child generation and all calls are serialized.
 A call must be host-authorized and structurally valid. Unknown tools, bad
@@ -642,7 +642,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Acceptance case | Evidence required | Status |
 | --- | --- | --- |
 | Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
-| Exactly ten reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
+| Exactly eleven reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
 | Invalid tool arguments fail before dispatch | Unknown fields, missing fields, bad scalar types, and all invalid `click` combinations are rejected | implemented contract test |
 | Host is stricter than server | All action specs require approval and invalidate grounding; `click` XOR is tested | implemented contract test |
 | Configuration cannot weaken or leak into MCP | Parser allowlists child variable names, pins a safe baseline, rejects unsafe server controls, and confines state to the user-local app root | implemented contract test |

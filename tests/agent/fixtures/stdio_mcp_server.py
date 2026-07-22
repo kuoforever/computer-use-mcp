@@ -84,6 +84,11 @@ def ocr(x: int, y: int, w: int, h: int) -> str:
 
 
 @mcp.tool()
+def document_text(scope: str = "foreground") -> str:
+    return f'{{"source":"document_text","scope":"{scope}","blocks":[]}}'
+
+
+@mcp.tool()
 def activate_window(window_id: str) -> str:
     return "ok"
 
