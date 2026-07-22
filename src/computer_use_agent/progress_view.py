@@ -1,10 +1,11 @@
 """Pure checkpoint-to-view-model reducer for the passive operator progress viewer.
 
-This is delivery step 1 of the [operator progress viewer](../../docs/PROGRESS_VIEWER.md):
-a read-only projection of a validated run checkpoint into the small, honest set
-of facts a passive window may show. It reads nothing but the checkpoint the
-`agent report` reader already trusts, copies only a fixed allowlist of scalar
-fields, and never infers liveness a checkpoint-v1 record cannot prove.
+This implements delivery steps 1 and 4 of the
+[operator progress viewer](../../docs/PROGRESS_VIEWER.md): a read-only projection
+of validated run checkpoints into the small, honest set of facts and fixed
+multi-run groups a passive window may show. It reads nothing but checkpoints
+the `agent report` reader already trusts, copies only a fixed allowlist of
+scalar fields, and never infers liveness a checkpoint-v1 record cannot prove.
 
 The reducer is the only place that decides what a viewer is allowed to display,
 so redaction is structural: forbidden content (task text, titles, model prose,
@@ -15,6 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .trace import RunPhase, TraceError, read_run_checkpoint
@@ -50,6 +52,9 @@ _BUDGET_USED = {"model_calls": "model_turns_used", "tool_calls": "tool_calls_use
 _BUDGET_LIMIT = {"model_calls": "max_model_turns", "tool_calls": "max_tool_calls"}
 _METRIC_TOKENS = ("input_tokens", "output_tokens")
 _METRIC_COUNTS = ("image_results", "tool_failures")
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+_ATTENTION_PHASES = frozenset({RunPhase.WAITING_APPROVAL, RunPhase.UNKNOWN_OUTCOME})
 
 
 class ProgressViewError(RuntimeError):
@@ -89,6 +94,9 @@ class RunProgressView:
     elapsed_known: bool
     duration_ms: int | None
     failure_code: str | None
+    # Internal, redaction-safe ordering key derived from the validated
+    # checkpoint timestamp. It is not rendered or included in display output.
+    updated_at_us: int = 0
 
     def as_display_dict(self) -> dict[str, JSONValue]:
         """Return only the whitelisted display fields, for a window or a test."""
@@ -127,6 +135,15 @@ class ProgressProjection:
     unavailable_unnamed: int
 
 
+@dataclass(frozen=True)
+class RunProgressGroup:
+    """One fixed, non-authoritative status group for independent runs."""
+
+    key: str
+    label: str
+    views: tuple[RunProgressView, ...]
+
+
 def _nonnegative_int(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
@@ -139,6 +156,75 @@ def _call_budget(budgets: Mapping[str, object], kind: str) -> CallBudget:
     if used > limit:
         raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
     return CallBudget(used=used, limit=limit)
+
+
+def _updated_at_us(value: object) -> int:
+    """Validate one bounded timezone-aware timestamp and return a stable key."""
+
+    if not isinstance(value, str) or not value or len(value) > 64:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+    delta = parsed.astimezone(UTC) - _EPOCH
+    if delta.days < 0:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+    return (delta.days * 86_400 + delta.seconds) * 1_000_000 + delta.microseconds
+
+
+def group_progress_views(views: tuple[RunProgressView, ...]) -> tuple[RunProgressGroup, ...]:
+    """Group independent runs by operator relevance with stable newest-first order.
+
+    These labels describe checkpoint state, not liveness. In particular,
+    ``In progress`` means only that the last checkpoint was nonterminal.
+    """
+
+    buckets: dict[str, list[RunProgressView]] = {
+        "attention": [],
+        "in_progress": [],
+        "history": [],
+    }
+    seen_run_ids: set[str] = set()
+    for view in views:
+        if not isinstance(view, RunProgressView) or view.run_id in seen_run_ids:
+            raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+        seen_run_ids.add(view.run_id)
+        if (
+            isinstance(view.updated_at_us, bool)
+            or not isinstance(view.updated_at_us, int)
+            or view.updated_at_us < 0
+        ):
+            raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+        try:
+            phase = RunPhase(view.phase)
+        except ValueError as exc:
+            raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID") from exc
+        if view.is_terminal != (phase in _TERMINAL_PHASES):
+            raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+        if view.needs_reobserve != (phase is RunPhase.UNKNOWN_OUTCOME):
+            raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+        if phase in _ATTENTION_PHASES:
+            buckets["attention"].append(view)
+        elif view.is_terminal:
+            buckets["history"].append(view)
+        else:
+            buckets["in_progress"].append(view)
+
+    groups: list[RunProgressGroup] = []
+    for key, label in (
+        ("attention", "Attention"),
+        ("in_progress", "In progress"),
+        ("history", "History"),
+    ):
+        ordered = tuple(
+            sorted(buckets[key], key=lambda view: (-view.updated_at_us, view.run_id))
+        )
+        if ordered:
+            groups.append(RunProgressGroup(key=key, label=label, views=ordered))
+    return tuple(groups)
 
 
 def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
@@ -203,6 +289,7 @@ def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
         elapsed_known=False,
         duration_ms=duration_ms,
         failure_code=failure_code if is_terminal else None,
+        updated_at_us=_updated_at_us(checkpoint.get("updated_at")),
     )
 
 
@@ -252,8 +339,10 @@ def build_progress_projection(state_dir: Path) -> ProgressProjection:
 __all__ = [
     "CallBudget",
     "ProgressProjection",
+    "RunProgressGroup",
     "ProgressViewError",
     "RunProgressView",
     "build_progress_projection",
     "checkpoint_to_view",
+    "group_progress_views",
 ]

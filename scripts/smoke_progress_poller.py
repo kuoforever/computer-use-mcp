@@ -14,6 +14,10 @@ form:
    continuously while the poller reads the same checkpoints. Every publish must
    succeed: before the ``ReplaceFileW`` + share-delete fix this measured 61.9%
    hard ``CHECKPOINT_WRITE_FAILED`` failures, which would fail the agent's run.
+4. **Independent runs regroup honestly.** The initial two nonterminal runs are
+   shown under ``In progress``; after one reaches ``SUCCESS``, the next poll
+   keeps the other under ``In progress`` and moves only the completed run to
+   ``History``.
 
 The probe discards its result if the system's last-input tick changes during the
 observation window, because human or injected input would make foreground
@@ -154,6 +158,10 @@ def main() -> int:
         problems.append(f"foreground changed {foreground_before:#x} -> {foreground_after:#x}")
     if not outcome.redrew or final_lines == first_lines:
         problems.append("the live transition never reached the window")
+    if "In progress  2" not in first_lines:
+        problems.append("the initial runs were not grouped together as in progress")
+    if "In progress  1" not in final_lines or "History  1" not in final_lines:
+        problems.append("the completed run was not regrouped into history")
     if "Complete" not in drawn:
         problems.append("terminal phase not displayed")
     if "run_idle" not in drawn or "run_live" not in drawn:
@@ -173,7 +181,8 @@ def main() -> int:
     print(
         f"RESULT: PASS (foreground unchanged at {foreground_before:#x}; "
         f"{PUBLISH_ROUNDS}/{PUBLISH_ROUNDS} publishes succeeded under a live poller; "
-        "live SUCCESS transition reached the window; two runs kept separate; no task text)"
+        "live SUCCESS transition regrouped one of two independent runs into History; "
+        "no task text)"
     )
     return 0
 

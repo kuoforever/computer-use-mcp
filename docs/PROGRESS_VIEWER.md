@@ -1,6 +1,7 @@
 # Operator progress viewer
 
-> **Status: reducer, passive window, and live polling implemented (steps 1-3).**
+> **Status: reducer, passive window, live polling, and independent-run grouping
+> implemented (steps 1-4).**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -15,9 +16,12 @@
 > ([measurements](CHECKPOINT_PUBLISH_EVIDENCE.md)); it followed a real
 > `RunRecorder` transition to the drawn window on a live desktop with the
 > foreground unchanged and every concurrent publish succeeding
-> ([retained evidence](PROGRESS_POLLER_EVIDENCE.md), 2026-07-22). Multi-run
-> grouping and campaign state remain planned. The projection
-> stays read-only over validated checkpoints and future campaign state.
+> ([retained evidence](PROGRESS_POLLER_EVIDENCE.md), 2026-07-22). Independent
+> runs are now grouped into fixed Attention, In progress, and History sections,
+> with strict timestamp validation, deterministic newest-first ordering, and a
+> global display cap that prioritizes attention. Campaign grouping remains
+> planned. The projection stays read-only over validated checkpoints and future
+> campaign state.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -127,12 +131,13 @@ action.
 
 ~~~text
 + Computer Use --------------------------------------+
-| campaign: saved-jobs     40 / 300      last 00:12  |
-| run_ab12  PLANNING       calls 6/9     usage known |
-| tokens    in 18.4k       out 2.1k      images 2    |
-|----------------------------------------------------|
-| run_cd34  WAITING_APPROVAL               00:31     |
-| run_ef56  UNKNOWN_OUTCOME       re-observe         |
+| Attention  2                                      |
+| run_cd34  Waiting approval                        |
+| run_ef56  Uncertain; re-observe before retry      |
+| In progress  1                                    |
+| run_ab12  last checkpoint; liveness unknown       |
+| History  1                                        |
+| run_gh78  Complete                                |
 +----------------------------------------------------+
 ~~~
 
@@ -141,10 +146,19 @@ model prose, arbitrary errors, credentials, or account identifiers.
 
 ## Multi-session behavior
 
-- Group by `campaign_id` when present and otherwise by independent `run_id`.
+- Independent run checkpoints are grouped by fixed operator relevance:
+  Attention (`WAITING_APPROVAL` / `UNKNOWN_OUTCOME`), In progress (other
+  nonterminal checkpoints, without claiming liveness), then History.
+- Within each group, sort by strictly validated timezone-aware `updated_at`
+  descending and use run ID as a stable tie-breaker.
+- Apply one global display cap and allocate it in group order so terminal
+  history cannot hide a waiting or uncertain run.
+- Group by `campaign_id` only after campaign manifests are connected in step 5;
+  never infer campaign membership from a run ID or conversational context.
 - Never merge conversational context from different Codex sessions.
 - Existing run IDs are immutable; duplicate or path-unsafe IDs fail closed.
-- Sort active campaigns first, then by validated update timestamp.
+- Future campaign groups sort live/attention state first, then by validated
+  update timestamp.
 - Bound scanning to the same maximum used by `agent report`.
 - A corrupt record makes that record unavailable; it must not contaminate a
   valid record or produce a partially trusted view model.
@@ -153,8 +167,8 @@ model prose, arbitrary errors, credentials, or account identifiers.
 
 1. Opening, refreshing, moving, or changing topmost state does not alter the
    foreground HWND in passive mode.
-2. Two run IDs and two campaign IDs remain separate under rapid atomic file
-   replacement.
+2. Two run IDs remain separate and correctly regroup under rapid atomic file
+   replacement. Two campaign IDs remain a step-5 acceptance check.
 3. The reader returns the previous or next complete checkpoint, never a mixed
    record.
 4. Unknown versions, symlinks, malformed metrics, and unsafe paths fail closed.
@@ -196,7 +210,16 @@ model prose, arbitrary errors, credentials, or account identifiers.
    `scripts/smoke_progress_poller.py`, which drives real checkpoints into the
    real window while publishing concurrently
    ([retained evidence](PROGRESS_POLLER_EVIDENCE.md)).
-4. Multi-run grouping.
+4. Multi-run grouping. **Implemented** in `computer_use_agent.progress_view`
+   and `computer_use_agent.progress_window`: checkpoints require a bounded,
+   timezone-aware `updated_at`; `group_progress_views` rejects duplicates and
+   inconsistent phase/terminal flags, produces fixed relevance groups, and
+   sorts each newest-first with a stable run-ID tie-breaker. Rendering applies
+   one 20-run cap in group order, so Attention cannot be displaced by newer
+   History. Reducer/window/poller tests cover grouping, regrouping after a live
+   phase transition, equal timestamps, corrupt timestamps, duplicate IDs, and
+   rapid atomic replacement. This step has offline evidence only; the retained
+   live poller result predates grouping.
 5. Campaign progress after the long-running task manifest is implemented.
 6. Integrate shared presence and Decision Card state only through the pure
    operator view-model contracts; keep execution and approval out of the

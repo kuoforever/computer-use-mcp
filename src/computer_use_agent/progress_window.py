@@ -1,10 +1,11 @@
 """Passive, non-activating operator progress window (delivery step 2).
 
-This is delivery step 2 of the [operator progress viewer](../../docs/PROGRESS_VIEWER.md):
-draw the small window that shows the step-1 reducer's view models without ever
-taking foreground or keyboard focus. Step 1 (`progress_view`) decided *what* a
-viewer may display; this module decides *how* it is drawn, and its central
-promise is that drawing it changes nothing an operator was doing.
+This implements delivery step 2 and the rendering half of step 4 of the
+[operator progress viewer](../../docs/PROGRESS_VIEWER.md): draw the small window
+that shows the reducer's grouped view models without ever taking foreground or
+keyboard focus. `progress_view` decides *what* a viewer may display and how runs
+are grouped; this module decides *how* those groups are drawn, and its central
+promise is that drawing changes nothing an operator was doing.
 
 That promise is made structural, the same way redaction was in step 1:
 
@@ -31,7 +32,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from .progress_view import ProgressProjection, RunProgressView
+from .progress_view import ProgressProjection, RunProgressView, group_progress_views
 
 # The passive window is a monitoring surface, not a console: it shows a bounded
 # newest slice rather than an unbounded scroll. The reducer already caps the
@@ -103,20 +104,28 @@ def render_progress_lines(projection: ProgressProjection) -> tuple[str, ...]:
     """Project a bounded scan into the exact lines the passive window draws.
 
     The result is a flat, bounded tuple of plain strings. It carries a header
-    with honest run counts, one block per shown run (newest-first, capped at
-    :data:`MAX_DISPLAYED_RUNS`), and an explicit account of records that were
-    unavailable or hidden for having unsafe names — surfacing suppression
-    instead of silently dropping it.
+    with honest run counts, fixed operator-relevance groups, and one block per
+    shown run (newest-first within each group, globally capped at
+    :data:`MAX_DISPLAYED_RUNS`). Attention is allocated first so terminal
+    history cannot hide a waiting or uncertain run.
     """
 
     total = len(projection.views)
     shown = min(total, MAX_DISPLAYED_RUNS)
     lines: list[str] = [_clip(f"Computer Use  runs {shown}/{total}")]
 
-    # Newest first: the reducer scans in ascending name order, so the tail is
-    # the most recently named. This module owns display order, not the reducer.
-    for view in reversed(projection.views[-MAX_DISPLAYED_RUNS:]):
-        lines.extend(_run_lines(view))
+    remaining = MAX_DISPLAYED_RUNS
+    for group in group_progress_views(projection.views):
+        if remaining <= 0:
+            break
+        group_views = group.views[:remaining]
+        group_total = len(group.views)
+        group_shown = len(group_views)
+        count = str(group_total) if group_shown == group_total else f"{group_shown}/{group_total}"
+        lines.append(_clip(f"{group.label}  {count}"))
+        for view in group_views:
+            lines.extend(_run_lines(view))
+        remaining -= group_shown
 
     unavailable = projection.unavailable_run_ids
     if unavailable:

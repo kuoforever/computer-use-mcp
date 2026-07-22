@@ -147,7 +147,17 @@ def test_full_cycle_never_changes_foreground() -> None:
     before = api.foreground()
 
     window.open(_projection(_view("run_a")))
-    window.update(_projection(_view("run_a", phase="SUCCESS", display_state="Complete")))
+    window.update(
+        _projection(
+            _view(
+                "run_a",
+                phase="SUCCESS",
+                display_state="Complete",
+                is_terminal=True,
+                liveness_known=True,
+            )
+        )
+    )
     window.move(120, 240)
     window.set_topmost(False)
     window.close()
@@ -179,7 +189,17 @@ def test_open_twice_refreshes_instead_of_recreating() -> None:
     window = PassiveProgressWindow(api)
 
     first = window.open(_projection(_view("run_a")))
-    second = window.open(_projection(_view("run_a", phase="SUCCESS", display_state="Complete")))
+    second = window.open(
+        _projection(
+            _view(
+                "run_a",
+                phase="SUCCESS",
+                display_state="Complete",
+                is_terminal=True,
+                liveness_known=True,
+            )
+        )
+    )
 
     assert first == second
     assert api.kinds().count("create") == 1
@@ -241,15 +261,60 @@ def test_terminal_duration_shown_only_when_present() -> None:
 
 
 def test_header_counts_and_newest_first_bounded_display() -> None:
-    views = [_view(f"run_{i:03d}") for i in range(MAX_DISPLAYED_RUNS + 5)]
+    views = [
+        _view(f"run_{i:03d}", updated_at_us=i) for i in range(MAX_DISPLAYED_RUNS + 5)
+    ]
     lines = render_progress_lines(_projection(*views))
 
     assert lines[0] == f"Computer Use  runs {MAX_DISPLAYED_RUNS}/{len(views)}"
-    # Newest (highest index) first, oldest excess dropped.
-    assert lines[1].startswith(f"run_{len(views) - 1:03d}")
+    assert lines[1] == f"In progress  {MAX_DISPLAYED_RUNS}/{len(views)}"
+    # Newest checkpoint first within the group; oldest excess dropped.
+    assert lines[2].startswith(f"run_{len(views) - 1:03d}")
     body = "\n".join(lines)
     assert "run_000" not in body and "run_004" not in body
     assert f"run_{len(views) - 1:03d}" in body
+
+
+def test_grouping_prioritizes_attention_over_newer_history() -> None:
+    views = [
+        _view(
+            f"run_done_{i:03d}",
+            phase="SUCCESS",
+            display_state="Complete",
+            is_terminal=True,
+            updated_at_us=1000 + i,
+        )
+        for i in range(MAX_DISPLAYED_RUNS)
+    ]
+    views.append(
+        _view(
+            "run_needs_operator",
+            phase="WAITING_APPROVAL",
+            display_state="Waiting approval",
+            updated_at_us=1,
+        )
+    )
+
+    lines = render_progress_lines(_projection(*views))
+    blob = "\n".join(lines)
+
+    assert lines[1] == "Attention  1"
+    assert lines[2].startswith("run_needs_operator")
+    assert "History  19/20" in lines
+    assert "run_done_000" not in blob
+
+
+def test_grouping_uses_stable_run_id_order_for_equal_timestamps() -> None:
+    lines = render_progress_lines(
+        _projection(
+            _view("run_b", updated_at_us=7),
+            _view("run_a", updated_at_us=7),
+        )
+    )
+
+    assert lines[1] == "In progress  2"
+    assert lines[2].startswith("run_a")
+    assert lines[5].startswith("run_b")
 
 
 def test_unavailable_and_unsafe_records_are_surfaced_not_hidden() -> None:
