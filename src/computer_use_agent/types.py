@@ -544,6 +544,31 @@ class SafeArgumentSummary:
 
 
 @dataclass(frozen=True)
+class ApprovalBinding:
+    """Host facts whose drift invalidates an interactive approval surface."""
+
+    run_id: str
+    state_digest: str
+    policy_digest: str
+    task_digest: str
+    registry_digest: str
+    object_digest: str
+    evidence_digest: str
+
+    def __post_init__(self) -> None:
+        _require_nonempty(self.run_id, "run_id")
+        for field_name, value in (
+            ("state_digest", self.state_digest),
+            ("policy_digest", self.policy_digest),
+            ("task_digest", self.task_digest),
+            ("registry_digest", self.registry_digest),
+            ("object_digest", self.object_digest),
+            ("evidence_digest", self.evidence_digest),
+        ):
+            _require_sha256_digest(value, field_name)
+
+
+@dataclass(frozen=True)
 class PolicyDecision:
     """An approval-bound host policy decision; provider text cannot create one."""
 
@@ -573,6 +598,7 @@ class ApprovalRequest:
     call_digest: str
     reason: str
     safe_argument_summary: SafeArgumentSummary
+    binding: ApprovalBinding | None = None
 
     def __post_init__(self) -> None:
         _require_nonempty(self.request_id, "request_id")
@@ -584,6 +610,8 @@ class ApprovalRequest:
             raise ValueError("safe_argument_summary must be a SafeArgumentSummary")
         if self.safe_argument_summary.tool_name != self.tool_name:
             raise ValueError("safe_argument_summary must describe the requested tool")
+        if self.binding is not None and not isinstance(self.binding, ApprovalBinding):
+            raise ValueError("binding must be an ApprovalBinding or None")
         _require_nonempty(self.reason, "reason")
 
     @classmethod
@@ -594,6 +622,7 @@ class ApprovalRequest:
         call: ToolCall,
         reason: str,
         sensitive_arguments: Sequence[str],
+        binding: ApprovalBinding | None = None,
     ) -> "ApprovalRequest":
         return cls(
             request_id=request_id,
@@ -604,6 +633,7 @@ class ApprovalRequest:
             safe_argument_summary=SafeArgumentSummary.from_tool_call(
                 call, sensitive_arguments=sensitive_arguments
             ),
+            binding=binding,
         )
 
     def matches(self, decision: PolicyDecision) -> bool:
@@ -802,3 +832,10 @@ class ApprovalPort(Protocol):
     """Local approval boundary; an adapter cannot approve its own action."""
 
     async def request_approval(self, request: ApprovalRequest) -> PolicyDecision: ...
+
+
+@runtime_checkable
+class FocusTakingApprovalPort(ApprovalPort, Protocol):
+    """Approval surface that requires Agent desktop authority to be yielded."""
+
+    focus_taking: bool

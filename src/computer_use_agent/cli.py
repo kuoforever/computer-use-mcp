@@ -15,7 +15,7 @@ from .config import APPROVED_ACTIONS_MODE, AgentConfig, ConfigError, load_agent_
 from .presence_lifecycle import PresenceLifecyclePort
 from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
-from .types import AGENT_CONTRACT_VERSION, ProviderContinuationStrategy
+from .types import AGENT_CONTRACT_VERSION, ApprovalPort, ProviderContinuationStrategy
 
 
 def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
@@ -36,6 +36,25 @@ def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
             reduced_motion=operator.reduced_motion,
             high_contrast=operator.high_contrast,
         ),
+    )
+
+
+def _approval_port(config: AgentConfig) -> ApprovalPort:
+    """Build the configured local approval surface without eager native imports."""
+
+    from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
+
+    if config.policy.mode != APPROVED_ACTIONS_MODE:
+        return ReadOnlyApprovalPort()
+    if not config.operator.decision_cards_enabled:
+        return ConsoleApprovalPort(input_fn=_console_input, output_fn=_console_output)
+    from .approvals import DecisionCardApprovalPort
+    from .decision_card_window import DecisionCardWindow
+    from .decision_card_window_win32 import Win32DecisionCardWindowApi
+
+    return DecisionCardApprovalPort(
+        DecisionCardWindow(Win32DecisionCardWindowApi()),
+        timeout_seconds=config.operator.decision_timeout_seconds,
     )
 
 
@@ -287,7 +306,6 @@ async def _run_live_async(
     run_id: str | None = None,
     resume_initial: bool = False,
 ) -> int:
-    from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
     from .privacy import LocalPrivacyImageRedactor, WindowsPrivacyImageRecognizer
 
@@ -322,11 +340,8 @@ async def _run_live_async(
     else:
         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
     desktop = StdioDesktopMCP(config.mcp)
-    approvals = (
-        ConsoleApprovalPort(input_fn=_console_input, output_fn=_console_output)
-        if config.policy.mode == APPROVED_ACTIONS_MODE
-        else ReadOnlyApprovalPort()
-    )
+    presence = _presence_lifecycle(config)
+    approvals = _approval_port(config)
     runner = AgentRunner(
         config,
         RunnerPorts(
@@ -338,7 +353,7 @@ async def _run_live_async(
                 if config.privacy.enabled and config.privacy.image_redaction
                 else None
             ),
-            presence=_presence_lifecycle(config),
+            presence=presence,
         ),
     )
     outcome = await runner.run(

@@ -14,7 +14,7 @@ from enum import Enum
 from hashlib import sha256
 from json import dumps
 
-from .types import JSONValue
+from .types import ApprovalBinding, JSONValue
 
 MAX_CARD_LIFETIME = timedelta(hours=24)
 MAX_EVIDENCE_REFS = 8
@@ -133,29 +133,7 @@ def _aware(value: datetime) -> None:
         raise DecisionCardError("DECISION_CARD_TIME_INVALID")
 
 
-@dataclass(frozen=True)
-class DecisionBinding:
-    """All Host facts whose drift invalidates a displayed card."""
-
-    run_id: str
-    state_digest: str
-    policy_digest: str
-    task_digest: str
-    registry_digest: str
-    object_digest: str
-    evidence_digest: str
-
-    def __post_init__(self) -> None:
-        _safe_id(self.run_id)
-        for value in (
-            self.state_digest,
-            self.policy_digest,
-            self.task_digest,
-            self.registry_digest,
-            self.object_digest,
-            self.evidence_digest,
-        ):
-            _digest(value)
+DecisionBinding = ApprovalBinding
 
 
 @dataclass(frozen=True)
@@ -295,6 +273,7 @@ class DecisionCardRequest:
         _aware(self.expires_at)
         if not isinstance(self.binding, DecisionBinding):
             raise DecisionCardError("DECISION_CARD_BINDING_INVALID")
+        _safe_id(self.binding.run_id)
         if not all(
             isinstance(value, expected)
             for value, expected in (
@@ -355,6 +334,7 @@ class DecisionCard:
         _aware(self.expires_at)
         if not isinstance(self.binding, DecisionBinding) or not self.advisory_only:
             raise DecisionCardError("DECISION_CARD_INVALID")
+        _safe_id(self.binding.run_id)
         if not all(
             isinstance(value, expected)
             for value, expected in (

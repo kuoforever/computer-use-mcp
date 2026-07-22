@@ -221,6 +221,26 @@ def test_operator_presence_rejects_non_boolean_and_unknown_settings(
         load_agent_config(path)
 
 
+def test_decision_cards_are_default_off_and_timeout_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path)
+        + "\n[operator]\ndecision_cards_enabled = true\n"
+        + "decision_timeout_seconds = 45\n",
+        encoding="utf-8",
+    )
+    assert load_agent_config(path).operator == OperatorConfig(
+        decision_cards_enabled=True, decision_timeout_seconds=45
+    )
+
+    for value in (4, 3_601, True):
+        with pytest.raises(ConfigError, match="decision_timeout_seconds"):
+            OperatorConfig(decision_timeout_seconds=value)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize(
     "environment",
     [

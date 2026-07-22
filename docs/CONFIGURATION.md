@@ -123,6 +123,26 @@ fail-silent and cannot fail, approve, or advance the run. This integration does
 not yet cover `plan`, campaign, or recovery runtimes and remains
 primary-display-only.
 
+The approved-actions path can replace its one-action console prompt with the
+focus-taking local Decision Card:
+
+~~~toml
+[operator]
+decision_cards_enabled = true
+decision_timeout_seconds = 300
+~~~
+
+The feature is disabled by default; the timeout is a strict integer from 5 to
+3600 seconds. Before the card opens, the ordinary Runner records
+`WAITING_APPROVAL`, releases passive presence/Agent desktop authority, and makes
+no desktop call while the card is open. The first native adapter presents two
+fixed choices: request approval for the exact effect, or deny. Cancel, window
+close, timeout, malformed choice, missing binding, expiry, native failure, and
+Host digest drift all deny. An allow remains bound to the original
+`ApprovalRequest` and continues through the existing grounding, budget, MCP,
+audit, and post-action verification path. The adapter is Windows-only and does
+not apply to read-only, planned, campaign, or recovery runtimes.
+
 ## Agent text privacy
 
 The Agent Host can pseudonymize reviewed text before provider dispatch:

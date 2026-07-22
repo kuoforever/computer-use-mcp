@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import dataclass, field, replace
+from hashlib import sha256
+from json import dumps
 from pathlib import Path
 from time import perf_counter_ns
 from typing import Mapping
@@ -33,9 +35,11 @@ from .tool_registry import (
 from .trace import RunPhase, RunRecorder, TraceError
 from .types import (
     ApprovalPort,
+    ApprovalBinding,
     ApprovalRequest,
     DesktopMCPPort,
     DispatchCertainty,
+    FocusTakingApprovalPort,
     LedgerEvent,
     LedgerEventKind,
     MemoryContextItem,
@@ -409,6 +413,67 @@ class AgentRunner:
             budgets=replace(budget, side_effects_used=budget.side_effects_used + 1),
         )
 
+    def _approval_binding(
+        self, state: RunState, call: ToolCall, grounding: GroundingState
+    ) -> ApprovalBinding:
+        def digest(payload: object) -> str:
+            encoded = dumps(
+                payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            )
+            return sha256(encoded.encode("utf-8")).hexdigest()
+
+        budgets = state.budgets
+        state_digest = digest(
+            {
+                "run_id": state.run_id,
+                "observation_epoch": state.observation_epoch,
+                "verified_observation_epoch": state.verified_observation_epoch,
+                "recovery_status": state.recovery_status.value,
+                "event_count": len(state.event_log),
+                "last_event_id": (
+                    None if not state.event_log else state.event_log[-1].event_id
+                ),
+                "budgets": {
+                    "model_turns_used": budgets.model_turns_used,
+                    "tool_calls_used": budgets.tool_calls_used,
+                    "side_effects_used": budgets.side_effects_used,
+                    "input_tokens_used": budgets.input_tokens_used,
+                },
+            }
+        )
+        policy = self.policy.config
+        policy_digest = digest(
+            {
+                "version": self.policy.version,
+                "mode": policy.mode,
+                "require_approval_for_actions": policy.require_approval_for_actions,
+                "max_model_turns": policy.max_model_turns,
+                "max_tool_calls": policy.max_tool_calls,
+                "max_side_effects": policy.max_side_effects,
+                "max_context_events": policy.max_context_events,
+                "max_input_tokens": policy.max_input_tokens,
+            }
+        )
+        evidence_digest = digest(
+            {
+                "generation": grounding.generation,
+                "observation_epoch": grounding.observation_epoch,
+                "refs": sorted(grounding.refs),
+                "window_ids": sorted(grounding.window_ids),
+                "screenshot_size": grounding.screenshot_size,
+                "has_observation": grounding.has_observation,
+            }
+        )
+        return ApprovalBinding(
+            run_id=state.run_id,
+            state_digest=state_digest,
+            policy_digest=policy_digest,
+            task_digest=digest({"task": state.task}),
+            registry_digest=reviewed_registry_digest(),
+            object_digest=call.digest,
+            evidence_digest=evidence_digest,
+        )
+
     async def _execute_requested_call_boundary(
         self,
         state: RunState,
@@ -504,13 +569,27 @@ class AgentRunner:
                 call=call,
                 reason="side_effect_requires_local_approval",
                 sensitive_arguments=spec.sensitive_arguments,
+                binding=self._approval_binding(state, call, grounding),
             )
             recorder.record(state, RunPhase.WAITING_APPROVAL)
+            if isinstance(self.ports.approvals, FocusTakingApprovalPort):
+                if self.ports.approvals.focus_taking:
+                    safe_presence.release()
             decision = await self.ports.approvals.request_approval(request)
             if not request.matches(decision) or decision.kind not in {
                 PolicyDecisionKind.ALLOW,
                 PolicyDecisionKind.DENY,
             }:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="APPROVAL_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure("APPROVAL_MISMATCH", state)
+            if request.binding != self._approval_binding(state, call, grounding):
                 denied = ToolResult(
                     identity=call.identity,
                     tool_name=call.name,
