@@ -220,12 +220,17 @@ def test_options_are_bounded_unique_and_require_safe_exit(
 
 
 def test_schema_rejects_content_bearing_identifiers_and_false_precision() -> None:
+    assert RangeEstimate(EstimateKind.MEASURED_RANGE, 3, 4).minimum == 3
     with pytest.raises(DecisionCardError, match="ID_INVALID"):
         replace(_request(), decision_id="Secret conversation with Alice")
     with pytest.raises(DecisionCardError, match="ESTIMATE_INVALID"):
         RangeEstimate(EstimateKind.UNKNOWN, 1, 2)
     with pytest.raises(DecisionCardError, match="CONFIDENCE_INVALID"):
         ConfidenceEstimate(ConfidenceKind.UNCALIBRATED)
+    with pytest.raises(DecisionCardError, match="EXPIRY_INVALID"):
+        compile_decision_card(
+            replace(_request(), expires_at=NOW + timedelta(hours=25)), now=NOW
+        )
 
 
 def test_display_and_module_are_structurally_redaction_and_authority_safe() -> None:
