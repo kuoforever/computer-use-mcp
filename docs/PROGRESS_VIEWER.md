@@ -1,11 +1,17 @@
 # Operator progress viewer
 
-> **Status: reducer implemented; no window yet.** The pure
-> checkpoint-to-view-model reducer (delivery step 1) is implemented and offline
-> tested in `computer_use_agent.progress_view`. No progress window is drawn: the
-> passive non-activating surface, live polling, and campaign state remain
-> planned. The projection stays read-only over validated checkpoints and future
-> campaign state.
+> **Status: reducer and passive window shell implemented; live polling not yet.**
+> The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
+> offline tested in `computer_use_agent.progress_view`. The passive
+> non-activating window (delivery step 2) is implemented in
+> `computer_use_agent.progress_window` over an injectable native surface and
+> offline tested against a recording fake; its real ctypes backend lives in
+> `computer_use_agent.progress_window_win32` and its non-activation was
+> confirmed on a live desktop over synthetic records by the operator-approved
+> `scripts/smoke_progress_window.py` ([retained evidence](PROGRESS_WINDOW_EVIDENCE.md),
+> 2026-07-22). Live checkpoint polling, multi-run grouping, and campaign state
+> remain planned. The projection stays read-only over validated checkpoints and
+> future campaign state.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -157,7 +163,20 @@ model prose, arbitrary errors, credentials, or account identifiers.
    `computer_use_agent.progress_view`: `checkpoint_to_view` reduces one
    validated checkpoint and `build_progress_projection` scans a bounded
    `state_dir`, isolating corrupt or unsafely named records.
-2. Passive non-activating window with synthetic records.
+2. Passive non-activating window with synthetic records. **Implemented** in
+   `computer_use_agent.progress_window`: `render_progress_lines` renders the
+   step-1 view models into bounded, whitelisted lines, and
+   `PassiveProgressWindow` drives them over the `ProgressWindowApi` surface —
+   which deliberately exposes no activate, focus, or foreground-setting call, so
+   a controller written against it cannot take focus. The window is created
+   `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST` over `WS_POPUP`, shown
+   with `SW_SHOWNOACTIVATE`, and repositioned with `SWP_NOACTIVATE`. Acceptance
+   check 1 is proven in injectable form (foreground unchanged across
+   open/refresh/move/topmost/close) by `tests/agent/test_progress_window.py`;
+   the real ctypes backend is `computer_use_agent.progress_window_win32`, whose
+   live-desktop non-activation is confirmed by the operator-approved
+   `scripts/smoke_progress_window.py` with
+   [retained evidence](PROGRESS_WINDOW_EVIDENCE.md).
 3. Atomic live checkpoint polling.
 4. Multi-run grouping.
 5. Campaign progress after the long-running task manifest is implemented.

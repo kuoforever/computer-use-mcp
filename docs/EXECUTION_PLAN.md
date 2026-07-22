@@ -121,10 +121,14 @@ Measure each source using [Token efficiency](TOKEN_EFFICIENCY.md).
 
 ### P1 - operator presence and progress foundation
 
-Implement the checkpoint-to-view-model reducer and non-activating Windows
-overlay from [Operator progress viewer](PROGRESS_VIEWER.md), then add the
-click-through computer-use presence indicator from
-[Operator experience](OPERATOR_EXPERIENCE.md). Do not display
+The checkpoint-to-view-model reducer and the passive non-activating window
+shell from [Operator progress viewer](PROGRESS_VIEWER.md) are implemented and
+offline verified (delivery steps 1-2); the window is drawn over an injectable
+native surface with no focus-taking call, and its live-desktop non-activation is
+confirmed over synthetic records with
+[retained evidence](PROGRESS_WINDOW_EVIDENCE.md). Next add atomic live
+checkpoint polling, then the click-through computer-use presence indicator
+from [Operator experience](OPERATOR_EXPERIENCE.md). Do not display
 active elapsed time, screenshot count, token coverage, or liveness as known
 until the checkpoint/campaign schemas expose those facts.
 
@@ -162,7 +166,7 @@ release notes and cannot be inferred complete from offline CI:
 | Release approval | Offline preflight is implemented and must pass on a clean candidate; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, CI, and human approval |
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. A completed final provider response can be terminalized locally with zero external calls. Provider-requested actions are correlation-checked, terminalized as a fixed failure, and deleted without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, correlated OpenAI recovery token-state restoration, Claude-only oldest-complete-group packing, canonical OpenAI request-contract v3 digest binding, exact initial-input and ordered provider-output persistence, explicit portable encrypted-reasoning requests, and an explicit digest-bound OpenAI stateless-replay compiler for read-only recovery | Tokenizer-specific calibration, safe semantic compression, and broader replay/compaction policy beyond the explicit recovery boundary |
-| Operator experience | The console supports one-action yes/deny; the progress viewer, presence indicator, and Decision Cards are planned only | Passive progress and computer-use presence pass focus/capture/DPI/accessibility tests; Decision Cards present bounded alternatives and provenance-backed trade-offs, invalidate on drift, and connect through the existing ApprovalPort without a second dispatch path |
+| Operator experience | The console supports one-action yes/deny; the progress viewer's pure reducer and passive non-activating window shell are implemented and offline verified (foreground-unchanged in injectable form), with a [live-desktop non-activation smoke retained](PROGRESS_WINDOW_EVIDENCE.md) over synthetic records; live polling, the presence indicator, and Decision Cards are planned only | Passive progress and computer-use presence pass focus/capture/DPI/accessibility tests; Decision Cards present bounded alternatives and provenance-backed trade-offs, invalidate on drift, and connect through the existing ApprovalPort without a second dispatch path |
 | Host completion notification | Internal bounded projection and fake-host decisions are offline verified: running keeps polling, attention/uncertain states never complete, validated terminal events deduplicate across restart, and repeated polling is read-only. No public status tool, generic worker, notification bridge, or mobile adapter exists | Retain application evidence before reviewing any public status surface; keep mobile delivery host-owned and provider/MCP/desktop calls absent from polling |
 | Planner-Executor | Strict TaskPlan compilation/persistence, dual-provider Planner and final adapters, fresh-call preflight/session, observation runtime/reconciliation, final WAL, and completed-final local reconciliation are implemented. `plan run` now composes exactly one host-scoped plan request, one to four observations through the sole Runner boundary, and one stateless tool-free final response. It exposes no tool selector, side effect, ordinary provider continuation, approval option, or alternate MCP path. The complete path is offline fake-verified, and [dual-provider E3 is retained](E3_EVIDENCE.md); the Agent Host E4 record does not constitute a separate Planner / Executor desktop pass | Retain a separately scoped desktop result only when warranted; keep dispatch intent non-replayable, output untrusted, the four-step cap, and unchanged action boundaries. Side-effect plan execution remains a separate review |
 
