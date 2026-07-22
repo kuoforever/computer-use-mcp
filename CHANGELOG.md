@@ -20,10 +20,11 @@ promote any capability evidence level.
 
 ### Added
 
-- **MCP server** over stdio exposing nine reviewed tools: `ui_snapshot`,
-  `find`, `list_windows`, `screenshot`, `ocr`, `activate_window`, `click`,
-  `type`, and `key`. Session-scoped `ref_N` handles, one bounded relocation of
-  a stale ref by role and name, and no silent coordinate fallback.
+- **MCP server** over stdio exposing ten reviewed tools: `ui_snapshot`,
+  `find`, `list_windows`, `screenshot`, `capture_region`, `ocr`,
+  `activate_window`, `click`, `type`, and `key`. Session-scoped `ref_N`
+  handles, one bounded relocation of a stale ref by role and name, and no
+  silent coordinate fallback.
 - **Safety modes.** `safe_local` gates action tools on the foreground window's
   process ancestry, yields to human input, confirms dangerous ref clicks, and
   writes an audit record. `full_control_local` deliberately removes the
@@ -40,6 +41,11 @@ promote any capability evidence level.
 - **Bounded OCR** as a static-text fallback after UIA, with run and character
   caps, a whole-call timeout, explicit truncation metadata, and blackout of
   configured sensitive window titles before recognition.
+- **Bounded region image capture** (`capture_region`) as the cropped rung
+  between OCR and a full screenshot: a grounding envelope plus the PNG of one
+  explicit primary-display region, pixel and encoded-byte caps, blackout of
+  configured sensitive window titles inside the crop, a digest of exactly the
+  bytes the caller receives, and a text-only refusal that carries no pixels.
 - **Local privacy boundary**, disabled by default: run-scoped text
   pseudonymization and local screenshot redaction before provider dispatch.
 - **Offline release preflight** (`release preflight`) producing a sanitized

@@ -274,9 +274,10 @@ def convert_mcp_result(call: ToolCall, raw_result: object) -> ToolResult:
             )
         return _safe_result(call, ToolResultStatus.ACTION_ERROR, code="DRIVER_ERROR")
 
+    if spec.returns_image and structured_content is not None:
+        raise MCPResultConversionError("structured image results are not reviewed")
+
     if spec.result_content is ResultContentKind.IMAGE:
-        if structured_content is not None:
-            raise MCPResultConversionError("structured image results are not reviewed")
         if len(content) != 1 or getattr(content[0], "type", None) != "image":
             raise MCPResultConversionError("screenshot must return exactly one image block")
         image = _decode_png(
@@ -284,6 +285,32 @@ def convert_mcp_result(call: ToolCall, raw_result: object) -> ToolResult:
             getattr(content[0], "mimeType", None),
         )
         result = _safe_result(call, ToolResultStatus.SUCCESS, images=(image,))
+        validate_tool_result(call, result)
+        return result
+
+    if spec.result_content is ResultContentKind.TEXT_AND_IMAGE:
+        # One envelope plus one crop on success; a refused region is text alone.
+        if not content or len(content) > 2 or getattr(content[0], "type", None) != "text":
+            raise MCPResultConversionError("a region capture must begin with one text block")
+        envelope = getattr(content[0], "text", None)
+        if not isinstance(envelope, str) or len(envelope) > MAX_TEXT_RESULT_CHARS:
+            raise MCPResultConversionError("MCP text result exceeds the reviewed limit")
+        images: tuple[ImageContent, ...] = ()
+        if len(content) == 2:
+            if getattr(content[1], "type", None) != "image":
+                raise MCPResultConversionError("a region capture may only append one image block")
+            images = (
+                _decode_png(
+                    getattr(content[1], "data", None),
+                    getattr(content[1], "mimeType", None),
+                ),
+            )
+        result = _safe_result(
+            call,
+            ToolResultStatus.SUCCESS,
+            sanitized_text=envelope,
+            images=images,
+        )
         validate_tool_result(call, result)
         return result
 

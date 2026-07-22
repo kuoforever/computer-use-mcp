@@ -222,6 +222,7 @@ def test_openai_function_call_and_matching_output_continuation() -> None:
         "find",
         "list_windows",
         "screenshot",
+        "capture_region",
     ]
     assert second_request["previous_response_id"] == "response_1"
     assert second_request["include"] == ["reasoning.encrypted_content"]
@@ -808,7 +809,7 @@ def test_openai_token_window_keeps_remote_context_and_image_result_atomic() -> N
         model="test-model",
         responses=scripted,
         max_request_bytes=100_000,
-        context_window_tokens=2_000,
+        context_window_tokens=2_200,
         output_token_reserve=256,
     )
     first = asyncio.run(
@@ -1027,6 +1028,7 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "find",
         "list_windows",
         "screenshot",
+        "capture_region",
         "activate_window",
         "click",
         "key",

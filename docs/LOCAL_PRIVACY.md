@@ -51,8 +51,8 @@ the original PNG width, height, and coordinate system. OCR timeout, malformed
 or out-of-bounds boxes, excessive output, and rendering failure stop the
 screenshot before provider dispatch. The Runner depends only on the complete
 image-redaction port, not on an OCR implementation. Setting
-`image_redaction = false`, or omitting that port, removes `screenshot` from the
-provider registry and rejects an attempted call.
+`image_redaction = false`, or omitting that port, removes `screenshot` and
+`capture_region` from the provider registry and rejects an attempted call.
 
 This release does not claim general NER or semantic anonymity. Image detection
 is bounded OCR text detection. Values split across more than eight words,

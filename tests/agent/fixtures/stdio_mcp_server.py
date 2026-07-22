@@ -69,6 +69,15 @@ def screenshot() -> MCPImage:
     return MCPImage(data=_PNG, format="png")
 
 
+@mcp.tool(structured_output=False)
+def capture_region(x: int, y: int, w: int, h: int) -> list[str | MCPImage]:
+    envelope = (
+        f'{{"source":"image","scope":{{"display":"primary","region":[{x},{y},{w},{h}]}},'
+        f'"crop_origin":[{x},{y}],"width":1,"height":1}}'
+    )
+    return [envelope, MCPImage(data=_PNG, format="png")]
+
+
 @mcp.tool()
 def ocr(x: int, y: int, w: int, h: int) -> str:
     return f'{{"source":"ocr","scope":{{"region":[{x},{y},{w},{h}]}},"runs":[]}}'

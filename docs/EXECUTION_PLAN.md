@@ -112,10 +112,12 @@ the normative state and handoff rules remain in
 ### P1 - bounded multi-source observation
 
 The BOSS live probe established that important static text may be absent from
-the interactive UIA tree. Implement the source envelope and escalation rules in
-[Observation contract](OBSERVATION_CONTRACT.md), beginning with bounded OCR or
-document text and region-scoped image capture. Measure the result using
-[Token efficiency](TOKEN_EFFICIENCY.md).
+the interactive UIA tree. Bounded region OCR and bounded region image capture
+now implement the OCR and image rungs of
+[Observation contract](OBSERVATION_CONTRACT.md); `capture_region` is offline
+verified only and has no on-device result yet. Document text, deltas, and any
+scope beyond one explicit primary-display rectangle remain unimplemented.
+Measure each source using [Token efficiency](TOKEN_EFFICIENCY.md).
 
 ### P1 - operator presence and progress foundation
 

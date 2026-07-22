@@ -21,8 +21,8 @@ Cross-surface evidence promotion and the next executable gate belong in
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
-| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, completed-final local reconciliation, and bounded observation-only CLI composition implemented; action execution not connected | `plan run` permits only the fixed five observation schemas, rejects plans outside one to four observations before opening MCP, dispatches every observation through the sole Runner boundary, and uses one stateless tool-free final port. The ordinary provider continuation port is fail-closed and no tool/action selector is exposed. Final WAL and reconciliation semantics remain unchanged. The path is offline fake-verified and [dual-provider E3 is retained](E3_EVIDENCE.md); the Agent Host E4 result is not a separate Planner / Executor desktop pass. |
-| Reviewed desktop tools | Implemented | All nine tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
+| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, completed-final local reconciliation, and bounded observation-only CLI composition implemented; action execution not connected | `plan run` permits only the fixed six observation schemas, rejects plans outside one to four observations before opening MCP, dispatches every observation through the sole Runner boundary, and uses one stateless tool-free final port. The ordinary provider continuation port is fail-closed and no tool/action selector is exposed. Final WAL and reconciliation semantics remain unchanged. The path is offline fake-verified and [dual-provider E3 is retained](E3_EVIDENCE.md); the Agent Host E4 result is not a separate Planner / Executor desktop pass. |
+| Reviewed desktop tools | Implemented | All ten tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
 | Local stdio MCP bridge | Implemented | Fixed direct child launch, bounded/redacted transport, paginated discovery verification, lifecycle/generation handling, timeout and cancellation classification, no automatic replay, bounded text/PNG conversion, and real harmless stdio fixture tests. |
@@ -106,7 +106,7 @@ src/computer_use_agent/
   runner.py              # bounded observe -> act -> verify state machine
   policy.py              # action authorization, budgets, retries, and run lock
   approvals.py           # console/native approval port
-  tool_registry.py       # reviewed schemas for the current nine MCP tools
+  tool_registry.py       # reviewed schemas for the current ten MCP tools
   desktop_mcp.py         # local stdio client, tool validation, result conversion
   context.py             # canonical event ledger and context-budget reduction
   memory.py              # explicit-only local SQLite memory store
@@ -186,7 +186,7 @@ repository. Run traces and long-term memory use separate stores.
 
 | Phase | Dependencies | Deliverables | Exit gate |
 | --- | --- | --- | --- |
-| 0. Contract and threat model | None | Canonical types, ports, tool-registry specification, trust boundaries, configuration model, and acceptance matrix | Both providers can be described through the same `ToolCall`/`ToolResult` contract; all nine tools have reviewed schemas. |
+| 0. Contract and threat model | None | Canonical types, ports, tool-registry specification, trust boundaries, configuration model, and acceptance matrix | Both providers can be described through the same `ToolCall`/`ToolResult` contract; all ten tools have reviewed schemas. |
 | 1. Existing safety baseline | 0 | Typed-text audit redaction, regression tests, and host safety configuration policy | No raw typed text, screenshot payload, or API key can appear in server audit or host trace fixtures. |
 | 2. Agent foundation | 0-1 | Package skeleton, CLI, configuration, fakes, `AgentRunner` ports, and local run lock | CLI help and all unit tests run without a provider key, MCP child, or desktop side effect. |
 | 3. Desktop MCP bridge | 2 | stdio child lifecycle, tool discovery verification, static registry, schema validation, and text/image result conversion | Unknown tool, bad arguments, timeout, and child restart produce structured fail-closed outcomes. |

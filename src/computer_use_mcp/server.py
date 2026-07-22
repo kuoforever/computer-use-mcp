@@ -2,7 +2,7 @@
 
 Tools:
   ui_snapshot / find / list_windows      perception (ungated; passwords redacted)
-  screenshot / ocr                       perception; sensitive windows blacked out
+  screenshot / capture_region / ocr      perception; sensitive windows blacked out
   activate_window / click / type / key   action
 
 In ``safe_local`` mode, actions pass e-stop -> human activity -> foreground
@@ -29,6 +29,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
 from .audit import AuditLog
+from .capture import CaptureError, serialize_capture
+from .capture import validate_region as validate_capture_region
 from .contract import DriverError
 from .core import Session
 from .dpi import enable_dpi_awareness
@@ -42,6 +44,7 @@ from .ocr import (
     serialize_recognition,
     validate_region,
 )
+from .region import redaction_boxes
 from .safety import DANGEROUS_WORDS, EStop, is_dangerous, message_box_confirm, redact
 
 DEFAULT_ALLOWLIST = ("notepad.exe",)
@@ -214,21 +217,8 @@ def build_server(
                     raise OcrError("OCR_CAPTURE_MISMATCH: driver did not return requested region")
                 png = image.png
                 if rtitles:
-                    redactions: list[tuple[int, int, int, int]] = []
                     windows = await asyncio.to_thread(session.driver.list_windows)
-                    for window in windows:
-                        if not window.title or not any(
-                            title.lower() in window.title.lower() for title in rtitles
-                        ):
-                            continue
-                        ix = max(region.x, window.bounds.x)
-                        iy = max(region.y, window.bounds.y)
-                        right = min(region.right, window.bounds.right)
-                        bottom = min(region.bottom, window.bounds.bottom)
-                        if ix < right and iy < bottom:
-                            redactions.append(
-                                (ix - region.x, iy - region.y, right - ix, bottom - iy)
-                            )
+                    redactions = redaction_boxes(windows, region, rtitles)
                     if redactions:
                         png = redact(png, redactions)
                         audit.record("ocr", args, "redacted", f"{len(redactions)} window(s)")
@@ -240,6 +230,30 @@ def build_server(
             return f"ERROR OCR_TIMEOUT: exceeded {OCR_TIMEOUT_SECONDS:g} seconds"
         except (DriverError, OcrError) as exc:
             return f"ERROR {exc}"
+
+    @mcp.tool(
+        structured_output=False,
+        description=(
+            "Capture one explicit primary-display region as PNG, for vision models that "
+            "only need part of the screen. Returns a grounding envelope plus the image; "
+            "windows matching the redaction list are blacked out inside the crop."
+        ),
+    )
+    def capture_region(x: int, y: int, w: int, h: int) -> list[str | MCPImage]:
+        args = {"x": x, "y": y, "w": w, "h": h}
+        try:
+            region = validate_capture_region(x, y, w, h)
+            image = session.screenshot(region)
+            png = image.png
+            if rtitles:
+                redactions = redaction_boxes(session.driver.list_windows(), region, rtitles)
+                if redactions:
+                    png = redact(png, redactions)
+                    audit.record("capture_region", args, "redacted", f"{len(redactions)} window(s)")
+            envelope = serialize_capture(image, region, png)
+        except (DriverError, CaptureError) as exc:
+            return [f"ERROR {exc}"]
+        return [envelope, MCPImage(data=png, format="png")]
 
     # --- action -------------------------------------------------------------
 

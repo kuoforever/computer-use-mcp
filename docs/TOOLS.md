@@ -1,6 +1,6 @@
 # MCP tool reference
 
-> **Status: implemented on Windows.** These are the nine tools currently
+> **Status: implemented on Windows.** These are the ten tools currently
 > exposed by the stdio MCP server.
 
 ## Read tools
@@ -11,7 +11,15 @@
 | `find` | `query, scope="foreground"` | Returns a matching subset using the same snapshot/ref model. Use this to reduce context for large windows. |
 | `list_windows` | none | Lists visible top-level windows, including owned dialogs. Each row includes a window id, owner executable, title, and foreground marker. |
 | `screenshot` | none | Returns a PNG of the primary display. It does not accept a region parameter and does not provide a virtual-desktop capture. |
+| `capture_region` | `x, y, w, h` | Captures exactly one primary-display region and returns a grounding envelope followed by the cropped PNG. The region is limited to 4,000,000 pixels and the encoding to 4 MiB. |
 | `ocr` | `x, y, w, h` | Captures exactly one primary-display region and returns bounded Windows OCR text runs with crop-local and screen-relative boxes. The region is limited to 4,000,000 pixels. |
+
+`capture_region` is the cropped rung between `ocr` and `screenshot`: the caller
+pays for the pixels it names. Its envelope reports the source, scope, crop
+origin, dimensions, scale, encoded byte count, and a digest of exactly the bytes
+returned, so a redacted crop never carries the digest of the original capture. A
+refused region returns the reason as text alone and no pixels. Its coordinates
+are evidence in the primary-display pixel space, not invokable refs.
 
 `ocr` is a static-content fallback after UIA. It returns at most 100 runs and
 8,000 recognized characters, with a five-second whole-call timeout and explicit

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .contract import Rect
+from .region import RegionError
+from .region import validate_region as validate_bounded_region
 
 MAX_OCR_PIXELS = 4_000_000
 MAX_OCR_RUNS = 100
@@ -35,14 +37,10 @@ class OcrReader(Protocol):
 
 
 def validate_region(x: int, y: int, w: int, h: int) -> Rect:
-    values = {"x": x, "y": y, "w": w, "h": h}
-    if any(isinstance(value, bool) or not isinstance(value, int) for value in values.values()):
-        raise OcrError("OCR_INVALID_REGION: x, y, w, and h must be integers")
-    if x < 0 or y < 0 or w <= 0 or h <= 0:
-        raise OcrError("OCR_INVALID_REGION: region must be positive and within the primary display")
-    if w * h > MAX_OCR_PIXELS:
-        raise OcrError(f"OCR_REGION_TOO_LARGE: maximum is {MAX_OCR_PIXELS} pixels")
-    return Rect(x, y, w, h)
+    try:
+        return validate_bounded_region(x, y, w, h, max_pixels=MAX_OCR_PIXELS, code_prefix="OCR")
+    except RegionError as exc:
+        raise OcrError(str(exc)) from exc
 
 
 def serialize_recognition(recognition: OcrRecognition, region: Rect, png: bytes) -> str:
