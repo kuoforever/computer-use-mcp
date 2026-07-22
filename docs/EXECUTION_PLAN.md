@@ -220,6 +220,17 @@ macOS AX and Linux AT-SPI drivers can target the existing Driver Contract after
 the Windows baseline is sufficiently proven. They are not placeholders for
 current support.
 
+An Android device driver (ADB transport, `uiautomator dump` for structure,
+`screencap`/scrcpy for capture, OCR fallback) targets the same contract and is
+sequenced the same way — after the Windows vertical is application-verified, not
+before. It first requires the additive contract v1.1 `swipe` / `long_press`
+primitive and a deliberate second-coordinate-domain decision. Because a phone or
+emulator is a machine with independent input and capture authority, it doubles
+as an isolated-worker target for the mobile-first Wave 1 applications (BOSS,
+WeChat). See [ADR-008](adr/008-android-device-driver-behind-driver-contract.md).
+This is distinct from the roadmap's existing "mobile" work, which is a
+notification sink, not a control target.
+
 ### Hidden Windows desktops
 
 `CreateDesktop` / `SwitchDesktop` can be investigated as a research route,

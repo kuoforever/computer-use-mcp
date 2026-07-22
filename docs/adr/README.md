@@ -16,6 +16,7 @@ implementation looks over-strict until you know what the alternative costs.
 | [005](005-model-output-is-untrusted-data-not-authority.md) | Model output is untrusted data, not authority | Structure is not authenticity; a schema-conformant call can still be prompt-injected |
 | [006](006-durable-state-is-the-source-of-truth.md) | Durable state is the source of truth | In-memory projections and conversation histories survive neither a crash nor a rotation |
 | [007](007-one-active-lease-per-foreground-desktop.md) | One active lease per foreground desktop | "Appear non-interacting" is not enforceable; true concurrency requires an independent desktop |
+| [008](008-android-device-driver-behind-driver-contract.md) | An Android device is a driver behind the contract, not a second MCP | Reach a phone by adding one driver, not a parallel `android.*` surface; deferred until the Windows vertical is proven |
 
 Related: [postmortems](../postmortems/) record what actually failed, and
 [AI-assisted development](../AI_ASSISTED_DEVELOPMENT.md) records who is

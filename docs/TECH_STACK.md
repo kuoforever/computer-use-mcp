@@ -49,6 +49,7 @@ does not require stealth automation or evasion of site security controls.
 | --- | --- | --- |
 | macOS | AX-based native driver | Planned |
 | Linux | AT-SPI-based native driver | Planned |
+| Android device | ADB-transport driver (`input` / `uiautomator dump` / `screencap`), scrcpy as viewer, behind the same contract | Planned — deferred until the Windows vertical is application-verified; see [ADR-008](adr/008-android-device-driver-behind-driver-contract.md) |
 | Windows multi-monitor | Virtual-desktop coordinate/capture model | Planned |
 | Isolated Windows worker | Existing VMware VM helper as a host-side starting point | Experimental |
 | Other isolated workers | Second session, independent display server, VM, or second machine | Planned |
