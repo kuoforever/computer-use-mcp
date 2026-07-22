@@ -1,6 +1,6 @@
 # Operator progress viewer
 
-> **Status: reducer and passive window shell implemented; live polling not yet.**
+> **Status: reducer, passive window, and live polling implemented (steps 1-3).**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -9,9 +9,12 @@
 > `computer_use_agent.progress_window_win32` and its non-activation was
 > confirmed on a live desktop over synthetic records by the operator-approved
 > `scripts/smoke_progress_window.py` ([retained evidence](PROGRESS_WINDOW_EVIDENCE.md),
-> 2026-07-22). Live checkpoint polling, multi-run grouping, and campaign state
-> remain planned. The projection stays read-only over validated checkpoints and
-> future campaign state.
+> 2026-07-22). Atomic live checkpoint polling (delivery step 3) is implemented
+> and offline tested in `computer_use_agent.progress_poller`, including the
+> `computer_use_agent.atomic_file` publish/read contract it required
+> ([measurements](CHECKPOINT_PUBLISH_EVIDENCE.md)); it has no on-device result
+> yet. Multi-run grouping and campaign state remain planned. The projection
+> stays read-only over validated checkpoints and future campaign state.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -177,7 +180,15 @@ model prose, arbitrary errors, credentials, or account identifiers.
    live-desktop non-activation is confirmed by the operator-approved
    `scripts/smoke_progress_window.py` with
    [retained evidence](PROGRESS_WINDOW_EVIDENCE.md).
-3. Atomic live checkpoint polling.
+3. Atomic live checkpoint polling. **Implemented** in
+   `computer_use_agent.progress_poller`: `ProgressPoller.poll_once` rebuilds the
+   projection and redraws only when the rendered view actually changed, and
+   `run()` loops on an injected clock. A scan that fails closed discards the
+   last good view rather than leaving stale facts on screen that would read as
+   current; a single corrupt record stays isolated as unavailable. Building this
+   surfaced a Windows hazard — a reader blocked the checkpoint publish and could
+   fail a run — now removed by the `computer_use_agent.atomic_file` contract and
+   measured in [checkpoint publish evidence](CHECKPOINT_PUBLISH_EVIDENCE.md).
 4. Multi-run grouping.
 5. Campaign progress after the long-running task manifest is implemented.
 6. Integrate shared presence and Decision Card state only through the pure

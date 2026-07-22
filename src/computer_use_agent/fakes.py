@@ -171,3 +171,61 @@ class FakeApprovalPort:
         if not self.decisions:
             raise UnexpectedFakeCall("no fake approval decision was configured")
         return self.decisions.popleft()
+
+
+# Any focus/activation entry point a real Win32 window could offer. The passive
+# progress window must never reach for one, so the fake refuses them loudly
+# rather than silently recording a call that would steal the operator's focus.
+_FORBIDDEN_WINDOW_CALLS = frozenset(
+    {"activate", "set_focus", "set_foreground", "bring_to_top", "show", "focus"}
+)
+
+
+class FakeProgressWindowApi:
+    """A recording ``ProgressWindowApi`` for the passive progress window.
+
+    Its foreground never changes, because nothing on the real interface can move
+    it; a stable value here mirrors the real contract and lets a test assert the
+    operator's foreground survived a full open/refresh/move/topmost/close cycle.
+    """
+
+    def __init__(self, foreground: int = 4242) -> None:
+        self.calls: list[tuple] = []
+        self.lines: dict[int, tuple[str, ...]] = {}
+        self.alive: set[int] = set()
+        self._foreground = foreground
+        self._next_hwnd = 1000
+
+    def create(self, *, ex_style: int, style: int, title: str) -> int:
+        self._next_hwnd += 1
+        hwnd = self._next_hwnd
+        self.alive.add(hwnd)
+        self.calls.append(("create", ex_style, style, title, hwnd))
+        return hwnd
+
+    def set_lines(self, hwnd: int, lines: Sequence[str]) -> None:
+        self.lines[hwnd] = tuple(lines)
+        self.calls.append(("set_lines", hwnd, tuple(lines)))
+
+    def show_noactivate(self, hwnd: int) -> None:
+        self.calls.append(("show_noactivate", hwnd))
+
+    def reposition_noactivate(self, hwnd: int, *, x: int, y: int, topmost: bool) -> None:
+        self.calls.append(("reposition_noactivate", hwnd, x, y, topmost))
+
+    def foreground(self) -> int:
+        return self._foreground
+
+    def destroy(self, hwnd: int) -> None:
+        self.alive.discard(hwnd)
+        self.calls.append(("destroy", hwnd))
+
+    def __getattr__(self, name: str):  # pragma: no cover - only hit on misuse
+        if name in _FORBIDDEN_WINDOW_CALLS:
+            raise UnexpectedFakeCall(f"passive window must never call {name!r}")
+        raise AttributeError(name)
+
+    def kinds(self) -> list[str]:
+        """The call sequence by kind, for order assertions."""
+
+        return [call[0] for call in self.calls]

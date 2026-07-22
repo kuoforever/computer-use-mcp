@@ -38,7 +38,7 @@ _FORBIDDEN_CALLS = frozenset(
 )
 
 
-class RecordingWindowApi:
+class FakeProgressWindowApi:
     """A fake :class:`ProgressWindowApi` that records the call sequence.
 
     Its foreground never changes: nothing on the real interface can move it, so
@@ -118,11 +118,11 @@ def _projection(*views: RunProgressView, unavailable=(), unnamed: int = 0) -> Pr
 
 
 def test_recording_api_satisfies_the_interface() -> None:
-    assert isinstance(RecordingWindowApi(), ProgressWindowApi)
+    assert isinstance(FakeProgressWindowApi(), ProgressWindowApi)
 
 
 def test_open_creates_nonactivating_window_and_shows_without_focus() -> None:
-    api = RecordingWindowApi()
+    api = FakeProgressWindowApi()
     window = PassiveProgressWindow(api)
 
     hwnd = window.open(_projection(_view("run_ab12")))
@@ -142,7 +142,7 @@ def test_open_creates_nonactivating_window_and_shows_without_focus() -> None:
 def test_full_cycle_never_changes_foreground() -> None:
     # Acceptance check 1, in injectable form: open, refresh, move, retop, close —
     # the foreground HWND the operator was using is untouched throughout.
-    api = RecordingWindowApi(foreground=777)
+    api = FakeProgressWindowApi(foreground=777)
     window = PassiveProgressWindow(api)
     before = api.foreground()
 
@@ -162,7 +162,7 @@ def test_full_cycle_never_changes_foreground() -> None:
 
 
 def test_reopen_after_close_and_idempotent_close() -> None:
-    api = RecordingWindowApi()
+    api = FakeProgressWindowApi()
     window = PassiveProgressWindow(api)
 
     window.open(_projection(_view("run_a")))
@@ -175,7 +175,7 @@ def test_reopen_after_close_and_idempotent_close() -> None:
 
 
 def test_open_twice_refreshes_instead_of_recreating() -> None:
-    api = RecordingWindowApi()
+    api = FakeProgressWindowApi()
     window = PassiveProgressWindow(api)
 
     first = window.open(_projection(_view("run_a")))
@@ -187,7 +187,7 @@ def test_open_twice_refreshes_instead_of_recreating() -> None:
 
 
 def test_operations_before_open_fail_closed() -> None:
-    window = PassiveProgressWindow(RecordingWindowApi())
+    window = PassiveProgressWindow(FakeProgressWindowApi())
     for action in (
         lambda: window.update(_projection(_view("run_a"))),
         lambda: window.move(1, 2),
