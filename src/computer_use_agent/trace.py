@@ -5,11 +5,11 @@ import json
 import os
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from .atomic_file import publish_atomically, read_shared_bytes
 from .continuation import delete_continuation
@@ -331,12 +331,17 @@ class RunRecorder:
     phase: RunPhase = RunPhase.CREATED
     _event_count: int = 0
     _checkpoint_sequence: int = 0
+    phase_observer: Callable[[RunPhase], None] | None = field(
+        default=None, repr=False, kw_only=True
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.state_dir, Path) or not self.state_dir.is_absolute():
             raise ValueError("state_dir must be an absolute Path")
         if not isinstance(self.run_id, str) or _RUN_ID.fullmatch(self.run_id) is None:
             raise ValueError("run_id must be a path-safe identifier")
+        if self.phase_observer is not None and not callable(self.phase_observer):
+            raise ValueError("phase_observer must be callable")
 
     @property
     def run_dir(self) -> Path:
@@ -427,6 +432,11 @@ class RunRecorder:
         self._event_count = len(state.event_log)
         self._checkpoint_sequence = next_sequence
         self.phase = phase
+        if self.phase_observer is not None:
+            try:
+                self.phase_observer(phase)
+            except Exception:
+                pass
 
     def reconcile_final_success(
         self,

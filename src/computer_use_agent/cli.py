@@ -11,10 +11,32 @@ from pathlib import Path
 from typing import Sequence
 from uuid import uuid4
 
-from .config import APPROVED_ACTIONS_MODE, ConfigError, load_agent_config
+from .config import APPROVED_ACTIONS_MODE, AgentConfig, ConfigError, load_agent_config
+from .presence_lifecycle import PresenceLifecyclePort
 from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
 from .types import AGENT_CONTRACT_VERSION, ProviderContinuationStrategy
+
+
+def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
+    """Create the Win32 presence surface only for explicit operator opt-in."""
+
+    operator = config.operator
+    if not operator.presence_enabled:
+        return None
+    from .presence import PresencePreferences
+    from .presence_lifecycle import RunPresenceCoordinator
+    from .presence_window import PassivePresenceWindow
+    from .presence_window_win32 import Win32PresenceWindowApi
+
+    return RunPresenceCoordinator(
+        PassivePresenceWindow(Win32PresenceWindowApi()),
+        preferences=PresencePreferences(
+            enabled=True,
+            reduced_motion=operator.reduced_motion,
+            high_contrast=operator.high_contrast,
+        ),
+    )
 
 
 class _ForbiddenCampaignProvider:
@@ -316,6 +338,7 @@ async def _run_live_async(
                 if config.privacy.enabled and config.privacy.image_redaction
                 else None
             ),
+            presence=_presence_lifecycle(config),
         ),
     )
     outcome = await runner.run(

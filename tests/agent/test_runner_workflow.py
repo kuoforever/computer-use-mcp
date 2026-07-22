@@ -31,7 +31,7 @@ from computer_use_agent.privacy import (
     RecognizedImageText,
     TOKEN_PATTERN,
 )
-from computer_use_agent.trace import read_run_record
+from computer_use_agent.trace import RunPhase, read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -232,6 +232,121 @@ def test_read_only_observe_then_answer_is_bounded_and_canonical(
     assert len(record["events"]) == len(outcome.state.event_log)
     lock_path = _config(tmp_path, monkeypatch).application_state_dir / "active-run.lock"
     assert json.loads(lock_path.read_text(encoding="utf-8")) == {"released": True}
+
+
+def test_runner_projects_durable_phases_and_releases_presence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    identity = CallIdentity("run_presence", "turn_1", "call_1")
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    "run_presence", "turn_1", "response_1", "",
+                    tool_calls=(ToolCall(identity, "list_windows", {}),),
+                ),
+                ModelTurn("run_presence", "turn_2", "response_2", "Done"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(results=deque([ToolResult(
+        identity, "list_windows", ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+    )]))
+
+    class Presence:
+        def __init__(self) -> None:
+            self.events: list[RunPhase | str] = []
+
+        def on_phase(self, phase: RunPhase) -> None:
+            self.events.append(phase)
+
+        def estop(self) -> None:
+            self.events.append("estop")
+
+        def release(self) -> None:
+            self.events.append("release")
+
+    presence = Presence()
+    outcome = asyncio.run(AgentRunner(
+        _config(tmp_path, monkeypatch),
+        RunnerPorts(provider, desktop, FakeApprovalPort(), presence=presence),
+    ).run("Inspect", run_id="run_presence"))
+
+    assert outcome.text == "Done"
+    assert presence.events == [
+        RunPhase.CREATED, RunPhase.OBSERVING, RunPhase.PLANNING,
+        RunPhase.PLANNING, RunPhase.EXECUTING, RunPhase.OBSERVING,
+        RunPhase.PLANNING, RunPhase.PLANNING, RunPhase.SUCCESS, "release",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("code", "boundary"), [("ABORTED", "estop"), ("HUMAN_ACTIVE", "release")]
+)
+def test_runner_latches_presence_off_on_mcp_authority_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str, boundary: str
+) -> None:
+    identity = CallIdentity("run_boundary", "turn_1", "call_1")
+    provider = FakeModelProvider(turns=deque([
+        ModelTurn(
+            "run_boundary", "turn_1", "response_1", "",
+            tool_calls=(ToolCall(identity, "list_windows", {}),),
+        ),
+        ModelTurn("run_boundary", "turn_2", "response_2", "Stopped"),
+    ]))
+    desktop = FakeDesktopMCP(results=deque([ToolResult(
+        identity, "list_windows", ToolResultStatus.REJECTED,
+        DispatchCertainty.NOT_DISPATCHED, code=code,
+    )]))
+
+    class Presence:
+        def __init__(self) -> None:
+            self.events: list[RunPhase | str] = []
+
+        def on_phase(self, phase: RunPhase) -> None:
+            self.events.append(phase)
+
+        def estop(self) -> None:
+            self.events.append("estop")
+
+        def release(self) -> None:
+            self.events.append("release")
+
+    presence = Presence()
+    asyncio.run(AgentRunner(
+        _config(tmp_path, monkeypatch),
+        RunnerPorts(provider, desktop, FakeApprovalPort(), presence=presence),
+    ).run("Inspect", run_id="run_boundary"))
+    assert presence.events[-1] == boundary
+
+
+def test_presence_failure_cannot_change_successful_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class BrokenPresence:
+        calls = 0
+
+        def on_phase(self, _phase: RunPhase) -> None:
+            self.calls += 1
+            raise RuntimeError("surface unavailable")
+
+        def estop(self) -> None:
+            raise RuntimeError("surface unavailable")
+
+        def release(self) -> None:
+            raise RuntimeError("surface unavailable")
+
+    presence = BrokenPresence()
+    provider = FakeModelProvider(turns=deque([
+        ModelTurn("run_broken", "turn_1", "response_1", "OK")
+    ]))
+    outcome = asyncio.run(AgentRunner(
+        _config(tmp_path, monkeypatch),
+        RunnerPorts(provider, FakeDesktopMCP(), FakeApprovalPort(), presence=presence),
+    ).run("Answer", run_id="run_broken"))
+    assert outcome.text == "OK"
+    assert presence.calls == 1
 
 
 def test_runner_pseudonymizes_provider_and_ledger_text_then_restores_local_output(

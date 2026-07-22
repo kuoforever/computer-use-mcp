@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from computer_use_agent import trace as trace_module
+
 from computer_use_agent.trace import (
     RunPhase,
     RunRecorder,
@@ -91,6 +93,44 @@ def test_recorder_writes_atomic_checkpoint_and_redacted_trace(tmp_path: Path) ->
     assert "TASK_SECRET" not in serialized
     assert "TRACE_TYPED_SECRET" not in serialized
     assert not list(recorder.run_dir.glob("*.tmp"))
+
+
+def test_phase_observer_runs_only_after_durable_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _state(tmp_path)
+    observed: list[tuple[RunPhase, str]] = []
+    recorder = RunRecorder(
+        tmp_path.resolve(),
+        state.run_id,
+        phase_observer=lambda phase: observed.append(
+            (phase, recorder.checkpoint_path.read_text(encoding="utf-8"))
+        ),
+    )
+    recorder.start(state)
+    assert [phase for phase, _checkpoint in observed] == [RunPhase.CREATED]
+    assert '"phase":"CREATED"' in observed[0][1]
+
+    def fail_checkpoint(_path: Path, _payload: object) -> None:
+        raise TraceError("CHECKPOINT_WRITE_FAILED")
+
+    monkeypatch.setattr(trace_module, "_atomic_json", fail_checkpoint)
+    with pytest.raises(TraceError, match="CHECKPOINT_WRITE_FAILED"):
+        recorder.record(state, RunPhase.OBSERVING)
+    assert [phase for phase, _checkpoint in observed] == [RunPhase.CREATED]
+
+
+def test_phase_observer_failure_cannot_fail_recording(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+
+    def fail_observer(_phase: RunPhase) -> None:
+        raise RuntimeError("passive observer failed")
+
+    recorder = RunRecorder(
+        tmp_path.resolve(), state.run_id, phase_observer=fail_observer
+    )
+    recorder.start(state)
+    assert read_run_record(tmp_path.resolve(), state.run_id)["state"]["phase"] == "CREATED"
 
 
 def test_existing_record_and_illegal_transition_fail_closed(tmp_path: Path) -> None:

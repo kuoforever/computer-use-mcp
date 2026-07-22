@@ -1,14 +1,17 @@
 # Operator experience
 
-> **Status: passive progress and a bounded primary-display presence surface are
-> implemented; complete-product integration remains planned.** The presence
+> **Status: passive progress and an opt-in bounded primary-display presence
+> surface are implemented; complete-product integration remains planned.** The presence
 > surface has a pure Host-state projection, click-through/non-activating Win32
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
-> E-stop/authority-release teardown. It is not yet automatically wired into the
-> Agent CLI lifecycle. No interactive Decision Card is implemented. The current
+> E-stop/authority-release teardown. One fail-silent Host coordinator now drives
+> it from durable phases in ordinary Agent `run` and `resume` lifecycles when
+> explicitly enabled. Planned/campaign/recovery runtimes, multi-monitor support,
+> and abrupt-process teardown remain separate gates. No interactive Decision Card is implemented. The current
 > approved-action flow remains an interactive console confirmation for one
 > action at a time. The standalone native surface has retained
-> [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md).
+> [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
+> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md).
 
 ## Goal
 
@@ -86,8 +89,13 @@ desktop-authority, E-stop, terminal-close, and accessibility-preference values;
 its rendered model contains only fixed label/glyph/color/motion fields. The
 controller exposes its HWND solely as trusted masking identity and reports
 whether Windows accepted `WDA_EXCLUDEFROMCAPTURE`; that affinity is feedback
-prevention, not a secrecy guarantee. Runtime lifecycle wiring and multi-monitor
-selection remain separate gates.
+prevention, not a secrecy guarantee. `RunRecorder` publishes a phase to the
+coordinator only after its atomic checkpoint succeeds. `ABORTED`,
+`HUMAN_ACTIVE`, terminal phases, and final Host cleanup latch the surface off;
+later phase notifications cannot reopen it. Surface failure is swallowed and
+permanently disables that run's passive projection. The UI has no execution or
+approval method. Wiring beyond ordinary `run` and `resume`, plus multi-monitor
+selection, remains separate work.
 
 The indicator must not claim that an action succeeded. It displays only the
 current validated Host phase and ownership state.
