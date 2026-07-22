@@ -284,7 +284,6 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
     thread.start()
     try:
         observed: set[str] = set()
-        transient_misses = 0
         for _ in range(300):
             outcome = poller.poll_once()
             assert outcome.scan_failed is False
@@ -293,7 +292,6 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
                 # briefly frees the target name, so a racing read can miss it
                 # entirely. The record is then shown unavailable and the next
                 # poll recovers. What must never happen is a *partial* record.
-                transient_misses += 1
                 continue
             assert outcome.run_count == 1
             head = next(
@@ -317,8 +315,12 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
         "Complete",
     }
     assert observed, "expected at least one observation"
-    # Transient misses are tolerated but must stay the exception.
-    assert transient_misses < 150
+    # Scheduling determines how often a reader lands in ReplaceFileW's brief
+    # target-name gap, so a miss ratio is not a correctness property. Once the
+    # writer has stopped, the very next poll must recover the complete record.
+    recovered = poller.poll_once()
+    assert recovered.run_count == 1
+    assert recovered.unavailable_count == 0
 
 
 def test_campaign_change_redraws_while_execution_lock_remains_held(tmp_path: Path) -> None:

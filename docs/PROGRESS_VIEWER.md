@@ -234,6 +234,7 @@ model prose, arbitrary errors, credentials, or account identifiers.
    isolates one corrupt campaign, follows a live Running-to-Paused transition
    while the writer lock remains held, and excludes campaign kind, policy and
    schema digests, item keys, worker run IDs, and handoff content.
-6. Integrate shared presence and Decision Card state only through the pure
-   operator view-model contracts; keep execution and approval out of the
-   passive window.
+6. Integrate shared presence and Decision Card state only through pure operator
+   view-model contracts; keep execution and approval out of the passive window.
+   **The separate primary-display presence model/controller/backend now exists;
+   automatic Host lifecycle wiring and Decision Cards remain.**

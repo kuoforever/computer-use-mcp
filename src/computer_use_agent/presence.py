@@ -1,0 +1,194 @@
+"""Pure, redaction-safe state for the passive desktop presence indicator.
+
+The projection accepts only host-owned enums and booleans. It has no run ID,
+task text, model prose, target title, action arguments, or execution callback,
+so private or authoritative content cannot reach the presence surface.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+
+from .types import JSONValue
+
+
+class PresenceStateError(ValueError):
+    """Raised when host presence state is internally inconsistent."""
+
+
+class PresencePhase(str, Enum):
+    OBSERVING = "OBSERVING"
+    PLANNING = "PLANNING"
+    EXECUTING = "EXECUTING"
+    VERIFYING = "VERIFYING"
+    RECOVERING = "RECOVERING"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
+    PAUSED = "PAUSED"
+    INSPECT = "INSPECT"
+
+
+class DesktopAuthority(str, Enum):
+    HELD = "HELD"
+    WAITING = "WAITING"
+    RELEASED = "RELEASED"
+
+
+class PresenceMotion(str, Enum):
+    STEADY = "STEADY"
+    SLOW = "SLOW"
+    DIRECTIONAL = "DIRECTIONAL"
+    SHORT_PULSE = "SHORT_PULSE"
+    PULSE = "PULSE"
+    FIXED_WARNING = "FIXED_WARNING"
+
+
+@dataclass(frozen=True)
+class PresencePreferences:
+    enabled: bool = True
+    reduced_motion: bool = False
+    high_contrast: bool = False
+
+    def __post_init__(self) -> None:
+        if not all(
+            isinstance(value, bool)
+            for value in (self.enabled, self.reduced_motion, self.high_contrast)
+        ):
+            raise PresenceStateError("PRESENCE_PREFERENCES_INVALID")
+
+
+@dataclass(frozen=True)
+class PresenceSnapshot:
+    """One validated Host-owned lifecycle snapshot, never an authority token."""
+
+    phase: PresencePhase
+    authority: DesktopAuthority
+    estop_engaged: bool = False
+    terminal_closed: bool = False
+    preferences: PresencePreferences = PresencePreferences()
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.phase, PresencePhase)
+            or not isinstance(self.authority, DesktopAuthority)
+            or not isinstance(self.estop_engaged, bool)
+            or not isinstance(self.terminal_closed, bool)
+            or not isinstance(self.preferences, PresencePreferences)
+        ):
+            raise PresenceStateError("PRESENCE_SNAPSHOT_INVALID")
+        if self.phase is PresencePhase.PAUSED and self.authority is DesktopAuthority.HELD:
+            raise PresenceStateError("PRESENCE_AUTHORITY_INCONSISTENT")
+
+
+@dataclass(frozen=True)
+class PresenceView:
+    """The complete fixed allowlist a native indicator may render."""
+
+    phase: str
+    label: str
+    glyph: str
+    color_rgb: int
+    motion: str
+    motion_enabled: bool
+    animation_interval_ms: int | None
+    high_contrast: bool
+
+    def as_display_dict(self) -> dict[str, JSONValue]:
+        return {
+            "phase": self.phase,
+            "label": self.label,
+            "glyph": self.glyph,
+            "color_rgb": self.color_rgb,
+            "motion": self.motion,
+            "motion_enabled": self.motion_enabled,
+            "animation_interval_ms": self.animation_interval_ms,
+            "high_contrast": self.high_contrast,
+        }
+
+
+_PRESENTATION: dict[PresencePhase, tuple[str, str, int, PresenceMotion]] = {
+    PresencePhase.OBSERVING: ("Observing", "EYE", 0x2F80ED, PresenceMotion.STEADY),
+    PresencePhase.PLANNING: ("Planning", "PLAN", 0x8E5BE8, PresenceMotion.SLOW),
+    PresencePhase.EXECUTING: (
+        "Executing",
+        "ACTION",
+        0x27AE60,
+        PresenceMotion.DIRECTIONAL,
+    ),
+    PresencePhase.VERIFYING: (
+        "Verifying",
+        "VERIFY",
+        0x00A7B5,
+        PresenceMotion.SHORT_PULSE,
+    ),
+    PresencePhase.RECOVERING: (
+        "Recovering",
+        "RECOVERY",
+        0xE67E22,
+        PresenceMotion.SLOW,
+    ),
+    PresencePhase.WAITING_APPROVAL: (
+        "Waiting approval",
+        "APPROVAL",
+        0xF2C94C,
+        PresenceMotion.PULSE,
+    ),
+    PresencePhase.PAUSED: ("Paused", "PAUSED", 0xBDBDBD, PresenceMotion.STEADY),
+    PresencePhase.INSPECT: (
+        "Inspect required",
+        "INSPECT",
+        0xEB5757,
+        PresenceMotion.FIXED_WARNING,
+    ),
+}
+
+_MOTION_INTERVAL_MS: dict[PresenceMotion, int | None] = {
+    PresenceMotion.STEADY: None,
+    PresenceMotion.SLOW: 1_000,
+    PresenceMotion.DIRECTIONAL: 250,
+    PresenceMotion.SHORT_PULSE: 300,
+    PresenceMotion.PULSE: 500,
+    PresenceMotion.FIXED_WARNING: None,
+}
+
+
+def project_presence(snapshot: PresenceSnapshot) -> PresenceView | None:
+    """Return a fixed presentation, or ``None`` when the halo must be absent."""
+
+    if not isinstance(snapshot, PresenceSnapshot):
+        raise PresenceStateError("PRESENCE_SNAPSHOT_INVALID")
+    if (
+        not snapshot.preferences.enabled
+        or snapshot.estop_engaged
+        or snapshot.terminal_closed
+        or snapshot.authority is DesktopAuthority.RELEASED
+    ):
+        return None
+
+    label, glyph, color, motion = _PRESENTATION[snapshot.phase]
+    if snapshot.preferences.high_contrast:
+        color = 0xFFFFFF
+    motion_enabled = not snapshot.preferences.reduced_motion
+    return PresenceView(
+        phase=snapshot.phase.value,
+        label=label,
+        glyph=glyph,
+        color_rgb=color,
+        motion=motion.value,
+        motion_enabled=motion_enabled,
+        animation_interval_ms=(
+            _MOTION_INTERVAL_MS[motion] if motion_enabled else None
+        ),
+        high_contrast=snapshot.preferences.high_contrast,
+    )
+
+
+__all__ = [
+    "DesktopAuthority",
+    "PresenceMotion",
+    "PresencePhase",
+    "PresencePreferences",
+    "PresenceSnapshot",
+    "PresenceStateError",
+    "PresenceView",
+    "project_presence",
+]
