@@ -140,11 +140,12 @@ class ProgressPoller:
     def _render(self, lines: tuple[str, ...]) -> None:
         """Push lines to the window, opening it non-activated on first use."""
 
-        if self.window.hwnd is None:
+        hwnd = self.window.hwnd
+        if hwnd is None:
             # Open with an empty projection, then set the real lines: the window
             # must never appear before it has content to show.
-            self.window.open(_EMPTY_PROJECTION)
-        self.window.api.set_lines(self.window.hwnd, lines)
+            hwnd = self.window.open(_EMPTY_PROJECTION)
+        self.window.api.set_lines(hwnd, lines)
 
 
 __all__ = [

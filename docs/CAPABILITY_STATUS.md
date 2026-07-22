@@ -42,6 +42,7 @@ for the exact per-run totals.
 ~~~text
 python -m pytest -q                          offline suite
 python -m ruff check src tests scripts       lint
+python -m mypy                               types
 python scripts/check_docs_consistency.py     current-state tool surface
 ~~~
 
