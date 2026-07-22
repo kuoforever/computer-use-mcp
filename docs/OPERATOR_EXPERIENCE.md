@@ -13,7 +13,8 @@
 > approved-action flow remains an interactive console confirmation for one
 > action at a time. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
-> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md).
+> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
+> Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md).
 
 ## Goal
 
