@@ -209,6 +209,7 @@ def test_identity_expiry_and_every_binding_drift_fail_closed(
             DecisionOptionKind.DENY,
             DecisionOptionKind.HUMAN_TAKEOVER,
             DecisionOptionKind.REOBSERVE,
+            DecisionOptionKind.APPROVE_EXACT_EFFECT,
         ),
     ],
 )

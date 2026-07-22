@@ -19,7 +19,7 @@
 
 The 22 dedicated tests establish that:
 
-- each card has exactly two or three unique options and at least one explicit
+- each card has exactly two to four unique options and at least one explicit
   deny, defer, or human-takeover exit;
 - card inputs accept only fixed Host enums, safe identifiers, SHA-256 digests,
   timezone-aware bounded expiry, and bounded evidence/unknown-fact lists;

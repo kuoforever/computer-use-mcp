@@ -41,7 +41,8 @@ def _card():
             (UnknownFact.COMPLETION_OUTCOME,),
             (
                 DecisionOptionKind.APPROVE_EXACT_EFFECT,
-                DecisionOptionKind.HUMAN_TAKEOVER,
+                DecisionOptionKind.REOBSERVE,
+                DecisionOptionKind.DEFER,
                 DecisionOptionKind.DENY,
             ),
         ),
@@ -74,7 +75,8 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     assert call["timeout_seconds"] == 30
     assert [button.option_id for button in call["buttons"]] == [
         "option_approve_exact_effect",
-        "option_human_takeover",
+        "option_reobserve",
+        "option_defer",
         "option_deny",
     ]
     assert "Recommendation is advisory and grants no authority" in call["content"]

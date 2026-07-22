@@ -75,21 +75,23 @@ def test_exact_effect_choice_returns_only_one_digest_bound_allow() -> None:
     assert card.recommended_option_id is None
     assert [option.option_id for option in card.options] == [
         "option_approve_exact_effect",
-        "option_human_takeover",
+        "option_reobserve",
+        "option_defer",
         "option_deny",
     ]
 
 
 @pytest.mark.parametrize(
-    ("option_id", "reason"),
+    ("option_id", "kind", "reason"),
     [
-        ("option_deny", "decision_card_denied"),
-        ("option_human_takeover", "decision_card_handoff"),
-        (None, "decision_card_no_selection"),
+        ("option_reobserve", PolicyDecisionKind.REOBSERVE, "decision_card_reobserve"),
+        ("option_defer", PolicyDecisionKind.DEFER, "decision_card_deferred"),
+        ("option_deny", PolicyDecisionKind.DENY, "decision_card_denied"),
+        (None, PolicyDecisionKind.DENY, "decision_card_no_selection"),
     ],
 )
-def test_safe_alternatives_and_close_return_distinct_bound_denials(
-    option_id: str | None, reason: str
+def test_alternatives_return_distinct_bound_decisions(
+    option_id: str | None, kind: PolicyDecisionKind, reason: str
 ) -> None:
     request = _request()
     decision = asyncio.run(
@@ -98,7 +100,7 @@ def test_safe_alternatives_and_close_return_distinct_bound_denials(
         ).request_approval(request)
     )
     assert request.matches(decision)
-    assert decision.kind is PolicyDecisionKind.DENY
+    assert decision.kind is kind
     assert decision.reason == reason
 
 

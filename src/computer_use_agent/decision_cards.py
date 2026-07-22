@@ -296,7 +296,7 @@ class DecisionCardRequest:
             raise DecisionCardError("DECISION_CARD_UNKNOWN_FACT_INVALID")
         if len(set(self.unknown_facts)) != len(self.unknown_facts):
             raise DecisionCardError("DECISION_CARD_UNKNOWN_FACT_INVALID")
-        if not 2 <= len(self.option_kinds) <= 3 or not all(
+        if not 2 <= len(self.option_kinds) <= 4 or not all(
             isinstance(item, DecisionOptionKind) for item in self.option_kinds
         ):
             raise DecisionCardError("DECISION_CARD_OPTIONS_INVALID")
@@ -357,7 +357,7 @@ class DecisionCard:
             raise DecisionCardError("DECISION_CARD_UNKNOWN_FACT_INVALID")
         if len(set(self.unknown_facts)) != len(self.unknown_facts):
             raise DecisionCardError("DECISION_CARD_UNKNOWN_FACT_INVALID")
-        if not 2 <= len(self.options) <= 3 or not all(
+        if not 2 <= len(self.options) <= 4 or not all(
             isinstance(option, DecisionOption) for option in self.options
         ):
             raise DecisionCardError("DECISION_CARD_OPTIONS_INVALID")

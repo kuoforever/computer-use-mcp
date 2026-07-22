@@ -83,6 +83,10 @@ def _record(state_dir: Path, run_id: str, phase: RunPhase) -> RunRecorder:
     if phase is RunPhase.WAITING_APPROVAL:
         recorder.record(state, RunPhase.WAITING_APPROVAL)
         return recorder
+    if phase is RunPhase.PAUSED:
+        recorder.record(state, RunPhase.WAITING_APPROVAL)
+        recorder.record(state, RunPhase.PAUSED)
+        return recorder
     if phase is RunPhase.SUCCESS:
         recorder.record(state, RunPhase.SUCCESS, run_duration_ms=20)
         return recorder
@@ -161,6 +165,15 @@ def test_waiting_approval_has_a_definite_but_nonterminal_label(tmp_path: Path) -
     assert view.display_state == "Waiting approval"
     assert view.is_terminal is False
     assert view.liveness_known is False
+
+
+def test_paused_has_known_liveness_and_requires_operator_attention(tmp_path: Path) -> None:
+    view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_paused", RunPhase.PAUSED))
+
+    assert view.display_state == "Paused; operator attention"
+    assert view.is_terminal is False
+    assert view.liveness_known is True
+    assert view.needs_reobserve is False
 
 
 def test_unknown_outcome_is_distinct_and_flags_reobservation(tmp_path: Path) -> None:

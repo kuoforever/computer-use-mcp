@@ -53,6 +53,7 @@ _TERMINAL_PHASES = frozenset(
 # record cannot prove whether that run is alive, waiting, or crashed.
 _DISPLAY_STATE: dict[RunPhase, str] = {
     RunPhase.WAITING_APPROVAL: "Waiting approval",
+    RunPhase.PAUSED: "Paused; operator attention",
     RunPhase.SUCCESS: "Complete",
     RunPhase.FAILED: "Failed",
     RunPhase.UNKNOWN_OUTCOME: "Uncertain; re-observe before retry",
@@ -66,7 +67,9 @@ _METRIC_TOKENS = ("input_tokens", "output_tokens")
 _METRIC_COUNTS = ("image_results", "tool_failures")
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
-_ATTENTION_PHASES = frozenset({RunPhase.WAITING_APPROVAL, RunPhase.UNKNOWN_OUTCOME})
+_ATTENTION_PHASES = frozenset(
+    {RunPhase.WAITING_APPROVAL, RunPhase.PAUSED, RunPhase.UNKNOWN_OUTCOME}
+)
 
 _CAMPAIGN_DISPLAY_STATE: dict[HostTaskStatus, str] = {
     HostTaskStatus.RUNNING: "Running",
@@ -420,7 +423,7 @@ def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
         is_terminal=is_terminal,
         # Only a terminal checkpoint proves a run stopped; everything else is a
         # last-known intent that may already be dead.
-        liveness_known=is_terminal,
+        liveness_known=is_terminal or phase is RunPhase.PAUSED,
         needs_reobserve=phase is RunPhase.UNKNOWN_OUTCOME,
         model_calls=_call_budget(budgets, "model_calls"),
         tool_calls=_call_budget(budgets, "tool_calls"),

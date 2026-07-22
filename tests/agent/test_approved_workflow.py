@@ -18,8 +18,8 @@ from computer_use_agent.config import (
 from computer_use_agent.approvals import DecisionCardApprovalPort
 from computer_use_agent.decision_cards import DecisionSelection
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
-from computer_use_agent.runner import AgentRunner, RunFailure, RunnerPorts
-from computer_use_agent.trace import read_run_record
+from computer_use_agent.runner import AgentRunner, RunDeferred, RunFailure, RunnerPorts
+from computer_use_agent.trace import classify_run_recovery, read_run_record
 from computer_use_agent.types import (
     ApprovalRequest,
     CallIdentity,
@@ -206,15 +206,16 @@ def test_focus_taking_card_yields_before_choice_and_uses_sole_dispatch_boundary(
     assert surface.cards[0].binding.object_digest == action.digest
     assert [option.option_id for option in surface.cards[0].options] == [
         "option_approve_exact_effect",
-        "option_human_takeover",
+        "option_reobserve",
+        "option_defer",
         "option_deny",
     ]
 
 
-def test_decision_card_handoff_stops_before_side_effect_dispatch(
+def test_decision_card_defer_persists_paused_without_side_effect_dispatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run_id = "run_card_handoff"
+    run_id = "run_card_defer"
     observe = _call(run_id, 1, "call_1", "list_windows", {})
     action = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
     provider = FakeModelProvider(
@@ -224,32 +225,115 @@ def test_decision_card_handoff_stops_before_side_effect_dispatch(
         results=deque([_result(observe, text='* 42 | app.exe | "App"')])
     )
 
-    class HandoffSurface:
+    class DeferSurface:
         async def choose(self, card, *, timeout_seconds: int):  # noqa: ANN001
             del timeout_seconds
             return DecisionSelection(
-                card.decision_id, card.card_digest, "option_human_takeover"
+                card.decision_id, card.card_digest, "option_defer"
             )
 
     approvals = DecisionCardApprovalPort(
-        HandoffSurface(), clock=lambda: datetime(2026, 7, 22, tzinfo=UTC)
+        DeferSurface(), clock=lambda: datetime(2026, 7, 22, tzinfo=UTC)
     )
+    config = _config(tmp_path, monkeypatch)
 
-    with pytest.raises(RunFailure, match="APPROVAL_DENIED") as failure:
+    with pytest.raises(RunDeferred, match="APPROVAL_DEFERRED") as deferred:
         asyncio.run(
             AgentRunner(
-                _config(tmp_path, monkeypatch), RunnerPorts(provider, desktop, approvals)
-            ).run("Yield to operator", run_id=run_id)
+                config, RunnerPorts(provider, desktop, approvals)
+            ).run("Defer for operator", run_id=run_id)
         )
 
     assert [call.name for call in desktop.tool_calls] == ["list_windows"]
+    assert deferred.value.state.recovery_status is RecoveryStatus.STOPPED
+    assert deferred.value.state.budgets.side_effects_used == 0
     decisions = [
         event.policy_decision
-        for event in failure.value.state.event_log
+        for event in deferred.value.state.event_log
         if event.kind is LedgerEventKind.POLICY_DECISION
     ]
     assert decisions[-1] is not None
-    assert decisions[-1].reason == "decision_card_handoff"
+    assert decisions[-1].reason == "decision_card_deferred"
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "PAUSED"
+    assert record["state"]["recovery_status"] == "stopped"
+    assert record["state"]["resume_allowed"] is False
+    recovery = classify_run_recovery(
+        record["state"], task_length=len("Defer for operator"), policy_version="approved-v1"
+    )
+    assert (recovery.action, recovery.reason) == ("start_new_run", "OPERATOR_DEFERRED")
+
+
+def test_decision_card_reobserve_abandons_turn_and_requires_fresh_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_card_reobserve"
+    before = _call(run_id, 1, "call_1", "list_windows", {})
+    proposed = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
+    abandoned = _call(run_id, 2, "call_3", "activate_window", {"window_id": "43"})
+    refreshed = _call(run_id, 3, "call_4", "list_windows", {})
+    provider = FakeModelProvider(turns=deque([
+        _turn(run_id, 1, before),
+        _turn(run_id, 2, proposed, abandoned),
+        _turn(run_id, 3, refreshed),
+        _turn(run_id, 4, text="fresh evidence retained"),
+    ]))
+    desktop = FakeDesktopMCP(results=deque([
+        _result(before, text='* 42 | app.exe | "App"'),
+        _result(refreshed, text='* 42 | app.exe | "App"'),
+    ]))
+
+    outcome = asyncio.run(
+        AgentRunner(
+            _config(tmp_path, monkeypatch),
+            RunnerPorts(provider, desktop, DynamicApprovalPort(PolicyDecisionKind.REOBSERVE)),
+        ).run("Refresh before acting", run_id=run_id)
+    )
+
+    assert outcome.text == "fresh evidence retained"
+    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1", "call_4"]
+    assert outcome.state.budgets.side_effects_used == 0
+    assert outcome.state.recovery_status is RecoveryStatus.READY
+    results = [
+        event.tool_result for event in outcome.state.event_log
+        if event.kind is LedgerEventKind.TOOL_RESULT
+    ]
+    assert any(
+        result is not None and result.code == "APPROVAL_REOBSERVE_REQUIRED"
+        and result.dispatch is DispatchCertainty.NOT_DISPATCHED
+        for result in results
+    )
+
+
+def test_reobserve_choice_rejects_an_action_until_observation_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_card_reobserve_action"
+    before = _call(run_id, 1, "call_1", "list_windows", {})
+    proposed = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
+    premature = _call(run_id, 3, "call_3", "activate_window", {"window_id": "42"})
+    provider = FakeModelProvider(turns=deque([
+        _turn(run_id, 1, before),
+        _turn(run_id, 2, proposed),
+        _turn(run_id, 3, premature),
+    ]))
+    desktop = FakeDesktopMCP(
+        results=deque([_result(before, text='* 42 | app.exe | "App"')])
+    )
+
+    with pytest.raises(RunFailure, match="REOBSERVATION_REQUIRED"):
+        asyncio.run(
+            AgentRunner(
+                _config(tmp_path, monkeypatch),
+                RunnerPorts(
+                    provider,
+                    desktop,
+                    DynamicApprovalPort(PolicyDecisionKind.REOBSERVE),
+                ),
+            ).run("Refresh before acting", run_id=run_id)
+        )
+
+    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1"]
 
 
 def test_host_binding_drift_during_card_blocks_dispatch(

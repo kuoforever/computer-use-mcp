@@ -135,12 +135,15 @@ decision_timeout_seconds = 300
 The feature is disabled by default; the timeout is a strict integer from 5 to
 3600 seconds. Before the card opens, the ordinary Runner records
 `WAITING_APPROVAL`, releases passive presence/Agent desktop authority, and makes
-no desktop call while the card is open. The native adapter presents three fixed
-choices around one effect: request approval for the exact effect, hand
-control to the operator, or deny. Its expandable evidence section contains only
-fixed classifications, unknown-fact enums, expiry, and SHA-256 digests. Handoff,
-deny, cancel, window close, timeout, malformed choice, missing binding, expiry,
-native failure, and Host digest drift all stop before side-effect dispatch. An
+no desktop call while the card is open. The native adapter presents four fixed
+choices around one effect: request approval for the exact effect, re-observe,
+defer, or deny. Its expandable evidence section contains only fixed
+classifications, unknown-fact enums, expiry, and SHA-256 digests. Re-observe
+invalidates grounding and forces a fresh observation in the same run. Defer
+persists `PAUSED`/`stopped`, closes desktop ownership, and requires inspection
+plus a fresh run rather than resuming provider state. Deny, cancel, window close,
+timeout, malformed choice, missing binding, expiry, native failure, and Host
+digest drift all stop before side-effect dispatch. An
 allow remains bound to the original
 `ApprovalRequest` and continues through the existing grounding, budget, MCP,
 audit, and post-action verification path. The adapter is Windows-only and does

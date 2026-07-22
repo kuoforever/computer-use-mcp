@@ -239,8 +239,10 @@ its UIA tree.
 - Keep Decision Card choices on the existing `ApprovalPort`: the opt-in
   focus-taking Win32 adapter yields authority first, exposes only digest-bound
   evidence, and only its fresh exact-effect selection can become an allowing
-  request-bound `PolicyDecision`; handoff and denial remain zero-dispatch
-  denials. Never add a second
+  request-bound `PolicyDecision`; re-observe, defer, and denial remain
+  zero-side-effect decisions. Re-observe must abandon the stale provider turn
+  and refresh reviewed evidence. Defer persists `PAUSED` but is not permission
+  to resume post-provider state. Never add a second
   dispatch path, global/batch allow, or model-selected approval. Its bounded
   native focus/timeout result is retained in
   [Decision Card evidence](docs/DECISION_CARD_WINDOW_EVIDENCE.md).

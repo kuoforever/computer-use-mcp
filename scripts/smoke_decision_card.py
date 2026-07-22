@@ -231,7 +231,8 @@ def main() -> int:
         problems.append("native Decision Card did not become the foreground window")
     expected_controls = {
         "Request approval for one exact effect",
-        "Hand control to the operator",
+        "Re-observe before continuing",
+        "Defer and preserve handoff",
         "Deny or cancel the proposed effect",
         "Show bounded evidence",
     }
@@ -258,7 +259,7 @@ def main() -> int:
         return 1
     print(
         f"RESULT: PASS (card foreground {observed['hwnd']:#x}; authority yielded; "
-        "three bounded options and evidence affordance rendered; approved choice "
+        "four bounded options and evidence affordance rendered; approved choice "
         "used ordinary dispatch and verification; five-second timeout denied with "
         "zero side-effect dispatch; prior foreground restored)"
     )

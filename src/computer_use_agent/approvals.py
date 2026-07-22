@@ -141,7 +141,8 @@ class DecisionCardApprovalPort:
                     unknown_facts=(UnknownFact.COMPLETION_OUTCOME,),
                     option_kinds=(
                         DecisionOptionKind.APPROVE_EXACT_EFFECT,
-                        DecisionOptionKind.HUMAN_TAKEOVER,
+                        DecisionOptionKind.REOBSERVE,
+                        DecisionOptionKind.DEFER,
                         DecisionOptionKind.DENY,
                     ),
                 ),
@@ -169,6 +170,17 @@ class DecisionCardApprovalPort:
         ):
             return self._decision(
                 request, PolicyDecisionKind.ALLOW, "decision_card_exact_effect"
+            )
+        if (
+            result.status is SelectionStatus.SELECTED
+            and result.option_kind is DecisionOptionKind.REOBSERVE
+        ):
+            return self._decision(
+                request, PolicyDecisionKind.REOBSERVE, "decision_card_reobserve"
+            )
+        if result.status is SelectionStatus.DEFERRED:
+            return self._decision(
+                request, PolicyDecisionKind.DEFER, "decision_card_deferred"
             )
         return self._decision(
             request, PolicyDecisionKind.DENY, f"decision_card_{result.status.value}"
