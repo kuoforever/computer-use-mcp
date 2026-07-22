@@ -102,7 +102,7 @@ planned projections and adapters
   -> OCR / document text / cropped image / delta observation
   -> passive progress / presence / Decision Cards
   -> host terminal polling -> ChatGPT or Claude mobile notification
-  -> isolated workers / macOS / Linux / multi-monitor
+  -> isolated workers / macOS / Linux / Android device driver / multi-monitor
   -> verified experience promotion and strategy selection
 ~~~
 
@@ -227,7 +227,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance waves | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Complete-product demonstration | Planned/final integration gate | One chaptered campaign with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
 | Continual learning | Planned | Episode evidence, quarantined candidates, verified promotion, rollback, and cost-aware strategy routing | [Continual learning](CONTINUAL_LEARNING.md) |
-| Platform expansion | Planned | macOS AX, Linux AT-SPI, multi-monitor coordinate model, isolated worker runtimes | [Tech stack](TECH_STACK.md) |
+| Platform expansion | Planned | macOS AX, Linux AT-SPI, an Android device driver (ADB transport, behind the same contract; see [ADR-008](adr/008-android-device-driver-behind-driver-contract.md)), multi-monitor coordinate model, isolated worker runtimes | [Tech stack](TECH_STACK.md) |
 
 ## Implementation structure
 

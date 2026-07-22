@@ -53,9 +53,11 @@ closed when a pass claims unpersisted items, and is reconstructed by a fresh run
 from durable records; the operator still causes progression by moving the
 observed foreground, because no command accepts a page, URL, or selector. No general campaign worker or complete application workflow is
 connected. The broader universal GUI,
-operator UI, cross-application demo, and continual-learning layers remain
-planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and read the
-status header of every owner document before treating it as available.
+operator UI, cross-application demo, continual-learning, and additional
+platform-driver layers (macOS, Linux, and an ADB-transport Android device
+driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
+remain planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and
+read the status header of every owner document before treating it as available.
 
 Before changing behavior, inspect the current worktree and run the unit suite:
 

@@ -138,6 +138,37 @@ Server-level guard results such as `DENIED by gate`, `HUMAN_ACTIVE`, and
 
 The macOS and Linux columns are design directions, not supported integrations.
 
+### Android device direction (planned)
+
+A phone or emulator is a fourth planned driver behind this same contract, not a
+separate tool surface; see
+[ADR-008](adr/008-android-device-driver-behind-driver-contract.md). Its
+primitive mapping differs in kind from the desktop platforms:
+
+| Primitive family | Planned Android direction |
+| --- | --- |
+| Capture | `adb exec-out screencap`, or the scrcpy video frame |
+| Accessibility tree | `uiautomator dump` XML mapped into `Node` |
+| Accessible actions | UIAutomator node actions, coordinate fallback otherwise |
+| Input | `adb shell input tap` / `swipe` / `text` / `keyevent` |
+| Ownership chain | foreground package / activity from `dumpsys` |
+
+Two consequences are specific to a device target and are gated behind a
+**contract v1.1** minor bump, not assumed here:
+
+- **A `swipe` / `long_press` primitive does not exist in v1.0.** `click` is a
+  same-point press/release, so scrolling a mobile list is not expressible today.
+  Adding these is an additive, backward-compatible v1.1 change that every driver
+  then declares through `capabilities()`.
+- **A device is a second coordinate domain.** The section below states that the
+  supported space is the primary display; a phone's own resolution is a distinct
+  domain. Extending the coordinate model to cover it must be a deliberate,
+  versioned decision, not a silent widening.
+
+Text injection on Android also does not go through `SendKeys`-style paths:
+non-ASCII (e.g. Chinese) requires an IME such as ADBKeyboard or a
+clipboard-paste path, decided at driver-build time.
+
 ## Versioning and change policy
 
 `CONTRACT_VERSION` is currently `1.0.0`. Change a major version when a
@@ -150,6 +181,10 @@ behavior; driver authors should not rely on the core to negotiate versions yet.
 
 ## Changelog
 
+- **1.1.0 (planned)** — Adds an additive `swipe` / `long_press` primitive and a
+  deliberate second-coordinate-domain model, prerequisites for the planned
+  Android driver ([ADR-008](adr/008-android-device-driver-behind-driver-contract.md)).
+  No v1.0 signature changes; drivers declare support through `capabilities()`.
 - **1.0.0** — Defines the shared data model, the twelve desktop primitives,
   `capabilities()`, and the `activate_window(window_id)` action. The Windows
   implementation later reproduced an unresolved Windows foreground-activation
