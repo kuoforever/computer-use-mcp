@@ -150,8 +150,10 @@ choice validation from [Operator experience](OPERATOR_EXPERIENCE.md) are now
 implemented without an approval or dispatch port. An opt-in two-choice Win32
 card now connects exact-effect selection through the existing `ApprovalPort`;
 the Runner yields first and rechecks every Host digest before its unchanged
-dispatch boundary. Next retain native focus/timeout evidence, then add richer
-bounded business alternatives. Do not display
+dispatch boundary. Its focus, approval, timeout-denial, sole-dispatch, and
+foreground-restoration path now has [bounded on-device evidence](DECISION_CARD_WINDOW_EVIDENCE.md).
+Next add richer bounded business alternatives without widening approval or
+dispatch authority. Do not display
 active elapsed time, screenshot count, token coverage, or liveness as known
 until the checkpoint/campaign schemas expose those facts.
 

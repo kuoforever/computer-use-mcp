@@ -14,7 +14,9 @@
 > card requires explicit opt-in. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
 > has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
-> Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md).
+> Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md),
+> and the opt-in approval path has bounded native
+> [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md).
 
 ## Goal
 
@@ -274,7 +276,8 @@ There is no global "always allow" control in the first interactive version.
 5. Connect a focus-taking local Decision Card to the existing ApprovalPort
    without changing the ordinary Host/MCP dispatch boundary. **Implemented for
    exact one-action approval: the Runner yields first; close, timeout, error,
-   expiry, malformed selection, and Host binding drift deny.**
+   expiry, malformed selection, and Host binding drift deny. The native
+   focus/timeout and sole-dispatch path has retained on-device evidence.**
 6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
    and trade-off provenance.
 7. After the executable campaign worker exists, verify fake-host terminal and

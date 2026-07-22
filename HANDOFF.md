@@ -239,7 +239,9 @@ its UIA tree.
 - Keep Decision Card choices on the existing `ApprovalPort`: the opt-in
   focus-taking Win32 adapter yields authority first and only its fresh exact
   selection can become a request-bound `PolicyDecision`. Never add a second
-  dispatch path, global/batch allow, or model-selected approval.
+  dispatch path, global/batch allow, or model-selected approval. Its bounded
+  native focus/timeout result is retained in
+  [Decision Card evidence](docs/DECISION_CARD_WINDOW_EVIDENCE.md).
 - Retain standalone presence desktop results in
   [presence evidence](docs/PRESENCE_WINDOW_EVIDENCE.md). Ordinary `run`/`resume`
   now have default-off, fail-silent durable-phase wiring; do not infer planned,
