@@ -32,13 +32,20 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from .progress_view import ProgressProjection, RunProgressView, group_progress_views
+from .progress_view import (
+    CampaignProgressView,
+    ProgressProjection,
+    RunProgressView,
+    group_campaign_views,
+    group_progress_views,
+)
 
 # The passive window is a monitoring surface, not a console: it shows a bounded
 # newest slice rather than an unbounded scroll. The reducer already caps the
 # scan; this caps what is drawn so a large ``state_dir`` can never grow the
 # window without bound.
 MAX_DISPLAYED_RUNS = 20
+MAX_DISPLAYED_CAMPAIGNS = 10
 _MAX_LINE_CHARS = 120
 _MAX_LISTED_UNAVAILABLE = 5
 
@@ -100,6 +107,17 @@ def _run_lines(view: RunProgressView) -> tuple[str, ...]:
     return (_clip(head), _clip(calls), _clip(usage))
 
 
+def _campaign_lines(view: CampaignProgressView) -> tuple[str, ...]:
+    """Render only the bounded aggregate facts admitted by the campaign view."""
+
+    head = f"{view.campaign_id}  {view.display_state}"
+    counts = (
+        f"  items {view.completed_count}/{view.discovered_count} complete"
+        f"  retryable {view.retryable_count}  uncertain {view.uncertain_count}"
+    )
+    return (_clip(head), _clip(counts))
+
+
 def render_progress_lines(projection: ProgressProjection) -> tuple[str, ...]:
     """Project a bounded scan into the exact lines the passive window draws.
 
@@ -112,19 +130,62 @@ def render_progress_lines(projection: ProgressProjection) -> tuple[str, ...]:
 
     total = len(projection.views)
     shown = min(total, MAX_DISPLAYED_RUNS)
-    lines: list[str] = [_clip(f"Computer Use  runs {shown}/{total}")]
+    campaign_total = len(projection.campaigns)
+    campaign_shown = min(campaign_total, MAX_DISPLAYED_CAMPAIGNS)
+    if campaign_total or projection.unavailable_campaign_ids or projection.unavailable_campaign_unnamed:
+        header = (
+            f"Computer Use  campaigns {campaign_shown}/{campaign_total}"
+            f"  runs {shown}/{total}"
+        )
+    else:
+        header = f"Computer Use  runs {shown}/{total}"
+    lines: list[str] = [_clip(header)]
+
+    remaining_campaigns = MAX_DISPLAYED_CAMPAIGNS
+    for campaign_group in group_campaign_views(projection.campaigns):
+        if remaining_campaigns <= 0:
+            break
+        campaign_views = campaign_group.views[:remaining_campaigns]
+        group_total = len(campaign_group.views)
+        group_shown = len(campaign_views)
+        count = (
+            str(group_total)
+            if group_shown == group_total
+            else f"{group_shown}/{group_total}"
+        )
+        lines.append(_clip(f"{campaign_group.label}  {count}"))
+        for campaign_view in campaign_views:
+            lines.extend(_campaign_lines(campaign_view))
+        remaining_campaigns -= group_shown
+
+    if projection.unavailable_campaign_ids:
+        unavailable_campaigns = projection.unavailable_campaign_ids
+        listed = ", ".join(unavailable_campaigns[:_MAX_LISTED_UNAVAILABLE])
+        suffix = "" if len(unavailable_campaigns) <= _MAX_LISTED_UNAVAILABLE else ", …"
+        lines.append(
+            _clip(
+                f"campaigns unavailable ({len(unavailable_campaigns)}): {listed}{suffix}"
+            )
+        )
+    if projection.unavailable_campaign_unnamed:
+        lines.append(
+            _clip(
+                "hidden unsafe campaign records: "
+                f"{projection.unavailable_campaign_unnamed}"
+            )
+        )
 
     remaining = MAX_DISPLAYED_RUNS
-    for group in group_progress_views(projection.views):
+    for run_group in group_progress_views(projection.views):
         if remaining <= 0:
             break
-        group_views = group.views[:remaining]
-        group_total = len(group.views)
-        group_shown = len(group_views)
+        run_views = run_group.views[:remaining]
+        group_total = len(run_group.views)
+        group_shown = len(run_views)
         count = str(group_total) if group_shown == group_total else f"{group_shown}/{group_total}"
-        lines.append(_clip(f"{group.label}  {count}"))
-        for view in group_views:
-            lines.extend(_run_lines(view))
+        lines.append(_clip(f"{run_group.label}  {count}"))
+        for run_view in run_views:
+            lines.extend(_run_lines(run_view))
         remaining -= group_shown
 
     unavailable = projection.unavailable_run_ids
@@ -237,6 +298,7 @@ class PassiveProgressWindow:
 
 
 __all__ = [
+    "MAX_DISPLAYED_CAMPAIGNS",
     "MAX_DISPLAYED_RUNS",
     "PASSIVE_EX_STYLE",
     "PASSIVE_STYLE",

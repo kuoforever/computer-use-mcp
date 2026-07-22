@@ -92,7 +92,7 @@ src/computer_use_agent/
   planned_observation_runtime.py fixed observation-only CLI composition
   campaign*.py         offline campaign control state and preflights
   continuation*.py     private bounded crash evidence and recovery
-  progress_view.py     pure checkpoint reducer and independent-run grouping
+  progress_view.py     pure run/campaign reducer and fixed relevance grouping
 
 scripts/               on-device smoke and VMware helper
 tests/                 side-effect-free unit tests

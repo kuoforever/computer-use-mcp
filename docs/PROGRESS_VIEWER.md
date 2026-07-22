@@ -1,7 +1,7 @@
 # Operator progress viewer
 
-> **Status: reducer, passive window, live polling, and independent-run grouping
-> implemented (steps 1-4).**
+> **Status: reducer, passive window, live polling, independent-run grouping,
+> and campaign progress implemented (steps 1-5).**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -19,9 +19,10 @@
 > ([retained evidence](PROGRESS_POLLER_EVIDENCE.md), 2026-07-22). Independent
 > runs are now grouped into fixed Attention, In progress, and History sections,
 > with strict timestamp validation, deterministic newest-first ordering, and a
-> global display cap that prioritizes attention. Campaign grouping remains
-> planned. The projection stays read-only over validated checkpoints and future
-> campaign state.
+> global display cap that prioritizes attention. Campaigns are read through a
+> stable, lock-free snapshot of their validated control files and grouped into
+> Campaign attention, Active campaigns, and Campaign history without taking
+> execution authority. The projection remains strictly read-only.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -39,7 +40,7 @@ MVP reads only:
 
 ~~~text
 state_dir/runs/<run_id>/state.json
-state_dir/campaigns/<campaign_id>/manifest.json   # after campaigns exist
+state_dir/campaigns/<campaign_id>/{manifest,items,batches,heartbeat,handoff}
 ~~~
 
 Reuse the strict, path-safe checkpoint reader used by `agent report`. Do not
@@ -99,9 +100,9 @@ Use a fixed mapping:
 | `UNKNOWN_OUTCOME` | Uncertain; re-observe before retry |
 | `CANCELLED` | Cancelled |
 | Other checkpoint v1 phase | In progress at last checkpoint; liveness unknown |
-| Future fresh campaign heartbeat and valid lease | Running |
-| Future expired heartbeat or lease | Stale; inspect before reclaim |
-| Future `CHALLENGE` campaign state | Waiting for operator |
+| Fresh campaign heartbeat and consistent lease | Running |
+| Expired heartbeat or lease | Stale; inspect before reclaim |
+| `CHALLENGE` campaign state | Challenge; operator attention |
 
 ## Window behavior
 
@@ -153,12 +154,12 @@ model prose, arbitrary errors, credentials, or account identifiers.
   descending and use run ID as a stable tie-breaker.
 - Apply one global display cap and allocate it in group order so terminal
   history cannot hide a waiting or uncertain run.
-- Group by `campaign_id` only after campaign manifests are connected in step 5;
-  never infer campaign membership from a run ID or conversational context.
+- Group campaign control state only by its validated `campaign_id`; never infer
+  campaign membership from a run ID or conversational context.
 - Never merge conversational context from different Codex sessions.
 - Existing run IDs are immutable; duplicate or path-unsafe IDs fail closed.
-- Future campaign groups sort live/attention state first, then by validated
-  update timestamp.
+- Campaign groups allocate their independent cap to attention first, then active
+  work and history; each group sorts newest-first by validated control time.
 - Bound scanning to the same maximum used by `agent report`.
 - A corrupt record makes that record unavailable; it must not contaminate a
   valid record or produce a partially trusted view model.
@@ -167,8 +168,8 @@ model prose, arbitrary errors, credentials, or account identifiers.
 
 1. Opening, refreshing, moving, or changing topmost state does not alter the
    foreground HWND in passive mode.
-2. Two run IDs remain separate and correctly regroup under rapid atomic file
-   replacement. Two campaign IDs remain a step-5 acceptance check.
+2. Run and campaign IDs remain separate and correctly regroup under rapid
+   atomic file replacement.
 3. The reader returns the previous or next complete checkpoint, never a mixed
    record.
 4. Unknown versions, symlinks, malformed metrics, and unsafe paths fail closed.
@@ -222,7 +223,17 @@ model prose, arbitrary errors, credentials, or account identifiers.
    independent runs from In progress to History after a real terminal
    checkpoint while preserving foreground and 400/400 concurrent publishes
    ([retained evidence](PROGRESS_POLLER_EVIDENCE.md)).
-5. Campaign progress after the long-running task manifest is implemented.
+5. Campaign progress after the long-running task manifest. **Implemented** in
+   `computer_use_agent.campaign`, `campaign_host_status`, `progress_view`, and
+   `progress_window`: a bounded stable double-read snapshots validated campaign
+   control files without acquiring the global execution lock, refuses a
+   concurrently changing or malformed snapshot, and projects only campaign ID,
+   fixed status, aggregate item counts, and validated update time. Rendering
+   gives campaign attention priority under a separate 10-campaign cap. Tests
+   prove the reader does not block 150 consecutive atomic heartbeat publishes,
+   isolates one corrupt campaign, follows a live Running-to-Paused transition
+   while the writer lock remains held, and excludes campaign kind, policy and
+   schema digests, item keys, worker run IDs, and handoff content.
 6. Integrate shared presence and Decision Card state only through the pure
    operator view-model contracts; keep execution and approval out of the
    passive window.

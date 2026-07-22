@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -10,12 +12,14 @@ import pytest
 from computer_use_agent.campaign import (
     CAMPAIGN_VERSION,
     CampaignManifest,
+    CampaignHeartbeat,
     CampaignStore,
     CampaignStoreError,
     DiscoveryPass,
     ItemStatus,
     ItemTransition,
     campaign_dir,
+    read_campaign_control_snapshot,
     reduce_discovery_passes,
     reduce_item_ledger,
 )
@@ -129,6 +133,63 @@ def test_campaign_manifest_and_ledger_are_private_bounded_and_append_only(tmp_pa
         lock.release()
 
 
+def test_lock_free_snapshot_never_blocks_atomic_heartbeat_publish(tmp_path: Path) -> None:
+    store, lock = _store(tmp_path)
+    campaign_id = "campaign_1"
+    base = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
+    try:
+        store.create(_manifest())
+        first = CampaignHeartbeat(
+            campaign_id,
+            "run_1",
+            base.isoformat(),
+            base.isoformat(),
+            (base + timedelta(minutes=5)).isoformat(),
+        )
+        store.write_heartbeat(campaign_id, first)
+        allowed = {first.heartbeat_at}
+        publish_failures: list[Exception] = []
+
+        def writer() -> None:
+            for index in range(1, 151):
+                heartbeat_at = base + timedelta(seconds=index)
+                heartbeat = CampaignHeartbeat(
+                    campaign_id,
+                    "run_1",
+                    base.isoformat(),
+                    heartbeat_at.isoformat(),
+                    (heartbeat_at + timedelta(minutes=5)).isoformat(),
+                )
+                allowed.add(heartbeat.heartbeat_at)
+                try:
+                    store.write_heartbeat(campaign_id, heartbeat)
+                except Exception as exc:  # pragma: no cover - asserted below
+                    publish_failures.append(exc)
+                    return
+
+        thread = threading.Thread(target=writer, daemon=True)
+        thread.start()
+        observed: set[str] = set()
+        unstable = 0
+        for _ in range(300):
+            try:
+                snapshot = read_campaign_control_snapshot(store.state_dir, campaign_id)
+            except CampaignStoreError as exc:
+                assert str(exc) == "CAMPAIGN_SNAPSHOT_UNSTABLE"
+                unstable += 1
+                continue
+            assert snapshot.heartbeat is not None
+            observed.add(snapshot.heartbeat.heartbeat_at)
+            assert snapshot.heartbeat.heartbeat_at in allowed
+        thread.join(timeout=5)
+
+        assert publish_failures == []
+        assert observed
+        assert unstable < 300
+    finally:
+        lock.release()
+
+
 def test_campaign_reducer_rejects_duplicate_discovery_illegal_transition_and_attempt_drift() -> None:
     discovered = _transition(ItemStatus.DISCOVERED)
     duplicate = _transition(ItemStatus.DISCOVERED)
@@ -228,7 +289,7 @@ def test_failed_atomic_ledger_append_preserves_prior_state(
         def fail_replace(_source: object, _target: object) -> None:
             raise OSError("synthetic replace failure")
 
-        monkeypatch.setattr(os, "replace", fail_replace)
+        monkeypatch.setattr("computer_use_agent.campaign.publish_atomically", fail_replace)
         with pytest.raises(CampaignStoreError, match="CAMPAIGN_WRITE_FAILED"):
             store.append(
                 manifest.campaign_id,

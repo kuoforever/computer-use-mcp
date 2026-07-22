@@ -19,10 +19,22 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .campaign import (
+    CampaignStoreError,
+    campaign_dir,
+    campaign_path_is_unsafe,
+    read_campaign_control_snapshot,
+)
+from .campaign_host_status import (
+    HostStatusProjectionError,
+    HostTaskStatus,
+    project_campaign_control_snapshot,
+)
 from .trace import RunPhase, TraceError, read_run_checkpoint
 from .types import JSONValue
 
 MAX_PROGRESS_RUNS = 10_000
+MAX_PROGRESS_CAMPAIGNS = 10_000
 
 _RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _FAILURE_CODE = re.compile(r"[A-Z][A-Z0-9_]{0,127}\Z")
@@ -55,6 +67,27 @@ _METRIC_COUNTS = ("image_results", "tool_failures")
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 _ATTENTION_PHASES = frozenset({RunPhase.WAITING_APPROVAL, RunPhase.UNKNOWN_OUTCOME})
+
+_CAMPAIGN_DISPLAY_STATE: dict[HostTaskStatus, str] = {
+    HostTaskStatus.RUNNING: "Running",
+    HostTaskStatus.WAITING_APPROVAL: "Waiting approval",
+    HostTaskStatus.PAUSED: "Paused; operator attention",
+    HostTaskStatus.CHALLENGE: "Challenge; operator attention",
+    HostTaskStatus.COMPLETED: "Complete",
+    HostTaskStatus.FAILED: "Failed; inspect before resume",
+    HostTaskStatus.CANCELLED: "Cancelled",
+    HostTaskStatus.UNCERTAIN: "Uncertain; re-observe before retry",
+    HostTaskStatus.STALE: "Stale; inspect before reclaim",
+    HostTaskStatus.NEEDS_INSPECTION: "State invalid; inspect",
+}
+_CAMPAIGN_TERMINAL = frozenset(
+    {HostTaskStatus.COMPLETED, HostTaskStatus.FAILED, HostTaskStatus.CANCELLED}
+)
+_CAMPAIGN_ATTENTION = frozenset(
+    status
+    for status in HostTaskStatus
+    if status not in {HostTaskStatus.RUNNING, HostTaskStatus.COMPLETED}
+)
 
 
 class ProgressViewError(RuntimeError):
@@ -133,6 +166,9 @@ class ProgressProjection:
     views: tuple[RunProgressView, ...]
     unavailable_run_ids: tuple[str, ...]
     unavailable_unnamed: int
+    campaigns: tuple[CampaignProgressView, ...] = ()
+    unavailable_campaign_ids: tuple[str, ...] = ()
+    unavailable_campaign_unnamed: int = 0
 
 
 @dataclass(frozen=True)
@@ -142,6 +178,42 @@ class RunProgressGroup:
     key: str
     label: str
     views: tuple[RunProgressView, ...]
+
+
+@dataclass(frozen=True)
+class CampaignProgressView:
+    """Redaction-safe progress facts for one validated campaign snapshot."""
+
+    campaign_id: str
+    status: str
+    display_state: str
+    is_terminal: bool
+    needs_attention: bool
+    discovered_count: int
+    completed_count: int
+    retryable_count: int
+    uncertain_count: int
+    updated_at_us: int
+
+    def as_display_dict(self) -> dict[str, JSONValue]:
+        return {
+            "campaign_id": self.campaign_id,
+            "status": self.status,
+            "display_state": self.display_state,
+            "is_terminal": self.is_terminal,
+            "needs_attention": self.needs_attention,
+            "discovered_count": self.discovered_count,
+            "completed_count": self.completed_count,
+            "retryable_count": self.retryable_count,
+            "uncertain_count": self.uncertain_count,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignProgressGroup:
+    key: str
+    label: str
+    views: tuple[CampaignProgressView, ...]
 
 
 def _nonnegative_int(value: object) -> int:
@@ -158,7 +230,7 @@ def _call_budget(budgets: Mapping[str, object], kind: str) -> CallBudget:
     return CallBudget(used=used, limit=limit)
 
 
-def _updated_at_us(value: object) -> int:
+def validated_timestamp_us(value: object) -> int:
     """Validate one bounded timezone-aware timestamp and return a stable key."""
 
     if not isinstance(value, str) or not value or len(value) > 64:
@@ -227,6 +299,80 @@ def group_progress_views(views: tuple[RunProgressView, ...]) -> tuple[RunProgres
     return tuple(groups)
 
 
+def campaign_status_to_view(
+    status: object,
+) -> CampaignProgressView:
+    """Reduce the existing bounded host campaign status into viewer-safe facts."""
+
+    from .campaign_host_status import CampaignHostStatus
+
+    if not isinstance(status, CampaignHostStatus):
+        raise ProgressViewError("PROGRESS_VIEW_CAMPAIGN_INVALID")
+    timestamp = 0
+    if status.last_checkpoint_at is not None:
+        timestamp = validated_timestamp_us(status.last_checkpoint_at)
+    return CampaignProgressView(
+        campaign_id=status.campaign_id,
+        status=status.status.value,
+        display_state=_CAMPAIGN_DISPLAY_STATE[status.status],
+        is_terminal=status.status in _CAMPAIGN_TERMINAL,
+        needs_attention=status.status in _CAMPAIGN_ATTENTION,
+        discovered_count=_nonnegative_int(status.discovered_count),
+        completed_count=_nonnegative_int(status.completed_count),
+        retryable_count=_nonnegative_int(status.retryable_count),
+        uncertain_count=_nonnegative_int(status.uncertain_count),
+        updated_at_us=timestamp,
+    )
+
+
+def group_campaign_views(
+    views: tuple[CampaignProgressView, ...],
+) -> tuple[CampaignProgressGroup, ...]:
+    """Group campaigns by attention, active work, then completed history."""
+
+    buckets: dict[str, list[CampaignProgressView]] = {
+        "attention": [],
+        "active": [],
+        "history": [],
+    }
+    seen: set[str] = set()
+    for view in views:
+        if not isinstance(view, CampaignProgressView) or view.campaign_id in seen:
+            raise ProgressViewError("PROGRESS_VIEW_CAMPAIGN_INVALID")
+        seen.add(view.campaign_id)
+        try:
+            status = HostTaskStatus(view.status)
+        except ValueError as exc:
+            raise ProgressViewError("PROGRESS_VIEW_CAMPAIGN_INVALID") from exc
+        if (
+            view.is_terminal != (status in _CAMPAIGN_TERMINAL)
+            or view.needs_attention != (status in _CAMPAIGN_ATTENTION)
+            or isinstance(view.updated_at_us, bool)
+            or not isinstance(view.updated_at_us, int)
+            or view.updated_at_us < 0
+        ):
+            raise ProgressViewError("PROGRESS_VIEW_CAMPAIGN_INVALID")
+        if view.needs_attention:
+            buckets["attention"].append(view)
+        elif status is HostTaskStatus.RUNNING:
+            buckets["active"].append(view)
+        else:
+            buckets["history"].append(view)
+
+    groups: list[CampaignProgressGroup] = []
+    for key, label in (
+        ("attention", "Campaign attention"),
+        ("active", "Active campaigns"),
+        ("history", "Campaign history"),
+    ):
+        ordered = tuple(
+            sorted(buckets[key], key=lambda view: (-view.updated_at_us, view.campaign_id))
+        )
+        if ordered:
+            groups.append(CampaignProgressGroup(key, label, ordered))
+    return tuple(groups)
+
+
 def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
     """Reduce one validated checkpoint mapping to a redaction-safe view model.
 
@@ -289,11 +435,60 @@ def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
         elapsed_known=False,
         duration_ms=duration_ms,
         failure_code=failure_code if is_terminal else None,
-        updated_at_us=_updated_at_us(checkpoint.get("updated_at")),
+        updated_at_us=validated_timestamp_us(checkpoint.get("updated_at")),
     )
 
 
-def build_progress_projection(state_dir: Path) -> ProgressProjection:
+def _scan_campaigns(
+    state_dir: Path, *, now: datetime
+) -> tuple[tuple[CampaignProgressView, ...], tuple[str, ...], int]:
+    campaigns_dir = state_dir / "campaigns"
+    if not campaigns_dir.exists():
+        return (), (), 0
+    if campaign_path_is_unsafe(campaigns_dir) or not campaigns_dir.is_dir():
+        raise ProgressViewError("PROGRESS_VIEW_DIRECTORY_INVALID")
+    try:
+        entries = sorted(campaigns_dir.iterdir(), key=lambda path: path.name)
+    except OSError as exc:
+        raise ProgressViewError("PROGRESS_VIEW_DIRECTORY_INVALID") from exc
+    if len(entries) > MAX_PROGRESS_CAMPAIGNS:
+        raise ProgressViewError("PROGRESS_VIEW_LIMIT_EXCEEDED")
+
+    views: list[CampaignProgressView] = []
+    unavailable_ids: list[str] = []
+    unavailable_unnamed = 0
+    for entry in entries:
+        try:
+            campaign_dir(state_dir, entry.name)
+            safe_name = True
+        except (CampaignStoreError, TypeError, ValueError):
+            safe_name = False
+        if (
+            not safe_name
+            or campaign_path_is_unsafe(entry)
+            or not entry.is_dir()
+        ):
+            unavailable_unnamed += 1
+            continue
+        try:
+            snapshot = read_campaign_control_snapshot(state_dir, entry.name)
+            status = project_campaign_control_snapshot(snapshot, now=now)
+            views.append(campaign_status_to_view(status))
+        except (
+            CampaignStoreError,
+            HostStatusProjectionError,
+            OSError,
+            TypeError,
+            ValueError,
+            ProgressViewError,
+        ):
+            unavailable_ids.append(entry.name)
+    return tuple(views), tuple(unavailable_ids), unavailable_unnamed
+
+
+def build_progress_projection(
+    state_dir: Path, *, now: datetime | None = None
+) -> ProgressProjection:
     """Project every bounded run checkpoint under ``state_dir`` for the viewer.
 
     Directory-level tampering (a symlinked runs directory, an oversized scan)
@@ -303,46 +498,63 @@ def build_progress_projection(state_dir: Path) -> ProgressProjection:
 
     if not isinstance(state_dir, Path) or not state_dir.is_absolute():
         raise ValueError("state_dir must be an absolute Path")
-    runs_dir = state_dir / "runs"
-    if not runs_dir.exists():
-        return ProgressProjection(views=(), unavailable_run_ids=(), unavailable_unnamed=0)
-    if runs_dir.is_symlink() or not runs_dir.is_dir():
-        raise ProgressViewError("PROGRESS_VIEW_DIRECTORY_INVALID")
-    try:
-        entries = sorted(runs_dir.iterdir(), key=lambda path: path.name)
-    except OSError as exc:
-        raise ProgressViewError("PROGRESS_VIEW_DIRECTORY_INVALID") from exc
-    if len(entries) > MAX_PROGRESS_RUNS:
-        raise ProgressViewError("PROGRESS_VIEW_LIMIT_EXCEEDED")
+    observed_at = datetime.now(UTC) if now is None else now
+    if not isinstance(observed_at, datetime) or observed_at.tzinfo is None:
+        raise ValueError("now must be a timezone-aware datetime")
 
+    runs_dir = state_dir / "runs"
     views: list[RunProgressView] = []
     unavailable_run_ids: list[str] = []
     unavailable_unnamed = 0
-    for entry in entries:
-        if entry.is_symlink() or not entry.is_dir() or _RUN_ID.fullmatch(entry.name) is None:
-            # An unsafe or non-directory name is exactly what must not be shown.
-            unavailable_unnamed += 1
-            continue
+    if runs_dir.exists():
+        if runs_dir.is_symlink() or not runs_dir.is_dir():
+            raise ProgressViewError("PROGRESS_VIEW_DIRECTORY_INVALID")
         try:
-            checkpoint = read_run_checkpoint(state_dir, entry.name)
-            views.append(checkpoint_to_view(checkpoint))
-        except (OSError, TraceError, ValueError, ProgressViewError):
-            unavailable_run_ids.append(entry.name)
+            entries = sorted(runs_dir.iterdir(), key=lambda path: path.name)
+        except OSError as exc:
+            raise ProgressViewError("PROGRESS_VIEW_DIRECTORY_INVALID") from exc
+        if len(entries) > MAX_PROGRESS_RUNS:
+            raise ProgressViewError("PROGRESS_VIEW_LIMIT_EXCEEDED")
+
+        for entry in entries:
+            if entry.is_symlink() or not entry.is_dir() or _RUN_ID.fullmatch(entry.name) is None:
+                # An unsafe or non-directory name is exactly what must not be shown.
+                unavailable_unnamed += 1
+                continue
+            try:
+                checkpoint = read_run_checkpoint(state_dir, entry.name)
+                views.append(checkpoint_to_view(checkpoint))
+            except (OSError, TraceError, ValueError, ProgressViewError):
+                unavailable_run_ids.append(entry.name)
+
+    campaigns, unavailable_campaign_ids, unavailable_campaign_unnamed = _scan_campaigns(
+        state_dir,
+        now=observed_at,
+    )
 
     return ProgressProjection(
         views=tuple(views),
         unavailable_run_ids=tuple(unavailable_run_ids),
         unavailable_unnamed=unavailable_unnamed,
+        campaigns=campaigns,
+        unavailable_campaign_ids=unavailable_campaign_ids,
+        unavailable_campaign_unnamed=unavailable_campaign_unnamed,
     )
 
 
 __all__ = [
     "CallBudget",
+    "CampaignProgressGroup",
+    "CampaignProgressView",
+    "MAX_PROGRESS_CAMPAIGNS",
     "ProgressProjection",
     "RunProgressGroup",
     "ProgressViewError",
     "RunProgressView",
     "build_progress_projection",
     "checkpoint_to_view",
+    "campaign_status_to_view",
+    "group_campaign_views",
     "group_progress_views",
+    "validated_timestamp_us",
 ]

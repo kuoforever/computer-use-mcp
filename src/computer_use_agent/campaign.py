@@ -19,6 +19,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
+from .atomic_file import publish_atomically, read_shared_bytes
 from .run_lock import RunLock
 
 
@@ -33,6 +34,7 @@ MAX_CAMPAIGN_ITEMS = 10_000
 MAX_CAMPAIGN_DISCOVERY_PASSES = 100
 MAX_HEARTBEAT_FRESHNESS_SECONDS = 5 * 60
 MAX_ITEM_LEASE_SECONDS = 60 * 60
+CAMPAIGN_CONTROL_SNAPSHOT_ATTEMPTS = 3
 
 #: Bounded retry for the atomic rename. A real-time file scanner can hold a
 #: freshly written destination for a few milliseconds; five attempts with
@@ -211,6 +213,14 @@ def campaign_dir(state_dir: Path, campaign_id: str) -> Path:
     if not isinstance(state_dir, Path) or not state_dir.is_absolute():
         raise ValueError("state_dir must be an absolute Path")
     return state_dir / "campaigns" / _require_identifier(campaign_id)
+
+
+def campaign_path_is_unsafe(path: Path) -> bool:
+    """Expose the campaign store's symlink/reparse-point refusal to readers."""
+
+    if not isinstance(path, Path):
+        raise ValueError("path must be a Path")
+    return _is_unsafe_path(path)
 
 
 @dataclass(frozen=True)
@@ -758,6 +768,191 @@ def _decode_batch_transition(value: object) -> BatchTransition:
         raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID") from exc
 
 
+def _decode_handoff(
+    value: object,
+    *,
+    campaign_id: str,
+    manifest: CampaignManifest,
+    projection: CampaignProjection,
+) -> dict[str, object]:
+    if not isinstance(value, Mapping) or set(value) != _HANDOFF_FIELDS:
+        raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID")
+    try:
+        next_ordinal = _require_nonnegative_int(value.get("next_item_ordinal"))
+        completed_count = _require_nonnegative_int(value.get("completed_count"))
+        retryable_count = _require_nonnegative_int(value.get("retryable_count"))
+        uncertain_count = _require_nonnegative_int(value.get("uncertain_count"))
+        last_run_id = _require_identifier(value.get("last_run_id"))
+        updated_at = _require_timestamp(value.get("updated_at"))
+        next_action, required_observation = _HANDOFF_DIRECTIVES[manifest.status]
+    except (CampaignStoreError, KeyError) as exc:
+        raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID") from exc
+    if (
+        value.get("campaign_id") != campaign_id
+        or value.get("campaign_version") != CAMPAIGN_VERSION
+        or next_ordinal <= 0
+        or next_ordinal != projection.next_ordinal
+        or completed_count != projection.completed_count
+        or retryable_count != projection.retryable_count
+        or uncertain_count != projection.uncertain_count
+        or value.get("next_action") != next_action
+        or value.get("required_observation") != required_observation
+        or datetime.fromisoformat(updated_at) < datetime.fromisoformat(manifest.updated_at)
+    ):
+        raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID")
+    return {
+        "campaign_id": campaign_id,
+        "campaign_version": CAMPAIGN_VERSION,
+        "next_item_ordinal": next_ordinal,
+        "completed_count": completed_count,
+        "retryable_count": retryable_count,
+        "uncertain_count": uncertain_count,
+        "last_run_id": last_run_id,
+        "next_action": next_action,
+        "required_observation": required_observation,
+        "updated_at": updated_at,
+    }
+
+
+@dataclass(frozen=True)
+class CampaignControlSnapshot:
+    """One stable, fully decoded read-only campaign control snapshot."""
+
+    manifest: CampaignManifest
+    items: CampaignProjection
+    batches: BatchProjection
+    heartbeat: CampaignHeartbeat | None
+    handoff: Mapping[str, object] | None
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.manifest, CampaignManifest)
+            or not isinstance(self.items, CampaignProjection)
+            or not isinstance(self.batches, BatchProjection)
+            or (
+                self.heartbeat is not None
+                and not isinstance(self.heartbeat, CampaignHeartbeat)
+            )
+            or (self.handoff is not None and not isinstance(self.handoff, Mapping))
+        ):
+            raise CampaignStoreError("CAMPAIGN_SNAPSHOT_INVALID")
+        if self.handoff is not None:
+            object.__setattr__(self, "handoff", MappingProxyType(dict(self.handoff)))
+
+
+def _read_optional_control_file(path: Path, maximum: int) -> bytes | None:
+    try:
+        raw = read_shared_bytes(path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise CampaignStoreError("CAMPAIGN_SNAPSHOT_READ_FAILED") from exc
+    if len(raw) > maximum:
+        raise CampaignStoreError("CAMPAIGN_SNAPSHOT_READ_FAILED")
+    return raw
+
+
+def _read_control_files(directory: Path) -> tuple[bytes | None, ...]:
+    return (
+        _read_optional_control_file(directory / "manifest.json", MAX_CAMPAIGN_MANIFEST_BYTES),
+        _read_optional_control_file(directory / "items.jsonl", MAX_CAMPAIGN_LEDGER_BYTES),
+        _read_optional_control_file(
+            directory / "batches.jsonl", MAX_CAMPAIGN_BATCH_LEDGER_BYTES
+        ),
+        _read_optional_control_file(
+            directory / "heartbeat.json", MAX_CAMPAIGN_HEARTBEAT_BYTES
+        ),
+        _read_optional_control_file(directory / "handoff.json", MAX_CAMPAIGN_HANDOFF_BYTES),
+    )
+
+
+def _json_value(raw: bytes, code: str) -> object:
+    try:
+        return json.loads(raw)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise CampaignStoreError(code) from exc
+
+
+def _decode_ledger_bytes(raw: bytes | None) -> CampaignProjection:
+    if raw is None:
+        return CampaignProjection(transitions=(), items=MappingProxyType({}))
+    try:
+        lines = raw.decode("utf-8").splitlines()
+        transitions = tuple(_decode_transition(json.loads(line)) for line in lines if line)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise CampaignStoreError("CAMPAIGN_LEDGER_INVALID") from exc
+    return reduce_item_ledger(transitions)
+
+
+def _decode_batch_bytes(raw: bytes | None) -> BatchProjection:
+    if raw is None:
+        return BatchProjection((), None, 0)
+    try:
+        lines = raw.decode("utf-8").splitlines()
+        transitions = tuple(_decode_batch_transition(json.loads(line)) for line in lines if line)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise CampaignStoreError("CAMPAIGN_BATCH_LEDGER_INVALID") from exc
+    return reduce_batch_ledger(transitions)
+
+
+def read_campaign_control_snapshot(
+    state_dir: Path, campaign_id: str
+) -> CampaignControlSnapshot:
+    """Read one lock-free campaign snapshot without blocking atomic publishers.
+
+    Every control file is read twice through the shared-reader path. The view is
+    accepted only when the entire raw tuple is byte-identical, preventing a
+    passive observer from combining records across a concurrent transition.
+    """
+
+    directory = campaign_dir(state_dir, campaign_id)
+    if any(
+        _is_unsafe_path(path)
+        for path in (state_dir, state_dir / "campaigns", directory)
+    ) or not directory.is_dir():
+        raise CampaignStoreError("CAMPAIGN_UNSAFE_PATH")
+
+    previous = _read_control_files(directory)
+    stable: tuple[bytes | None, ...] | None = None
+    for _ in range(CAMPAIGN_CONTROL_SNAPSHOT_ATTEMPTS):
+        current = _read_control_files(directory)
+        if current == previous:
+            stable = current
+            break
+        previous = current
+    if stable is None:
+        raise CampaignStoreError("CAMPAIGN_SNAPSHOT_UNSTABLE")
+
+    manifest_raw, items_raw, batches_raw, heartbeat_raw, handoff_raw = stable
+    if manifest_raw is None or not manifest_raw:
+        raise CampaignStoreError("CAMPAIGN_MANIFEST_READ_FAILED")
+    manifest = _decode_manifest(
+        _json_value(manifest_raw, "CAMPAIGN_MANIFEST_INVALID"),
+        campaign_id=campaign_id,
+    )
+    items = _decode_ledger_bytes(items_raw)
+    batches = _decode_batch_bytes(batches_raw)
+    heartbeat = (
+        None
+        if heartbeat_raw is None
+        else _decode_heartbeat(
+            _json_value(heartbeat_raw, "CAMPAIGN_HEARTBEAT_INVALID"),
+            campaign_id=campaign_id,
+        )
+    )
+    handoff = (
+        None
+        if handoff_raw is None
+        else _decode_handoff(
+            _json_value(handoff_raw, "CAMPAIGN_HANDOFF_INVALID"),
+            campaign_id=campaign_id,
+            manifest=manifest,
+            projection=items,
+        )
+    )
+    return CampaignControlSnapshot(manifest, items, batches, heartbeat, handoff)
+
+
 class CampaignStore:
     """Run-lock-bound, append-only campaign manifest and item ledger storage."""
 
@@ -800,12 +995,12 @@ class CampaignStore:
         delay = _REPLACE_RETRY_BASE_SECONDS
         for _ in range(_REPLACE_RETRY_ATTEMPTS - 1):
             try:
-                os.replace(temporary, path)
+                publish_atomically(temporary, path)
                 return
             except PermissionError:
                 time.sleep(delay)
                 delay *= 2
-        os.replace(temporary, path)
+        publish_atomically(temporary, path)
 
     @staticmethod
     def _atomic_write(path: Path, data: bytes, *, create: bool, maximum: int) -> None:
@@ -866,7 +1061,7 @@ class CampaignStore:
         self._require_lock()
         path = self._path(campaign_id, "manifest.json")
         try:
-            raw = path.read_bytes()
+            raw = read_shared_bytes(path)
             value = json.loads(raw)
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise CampaignStoreError("CAMPAIGN_MANIFEST_READ_FAILED") from exc
@@ -958,7 +1153,7 @@ class CampaignStore:
         self.read_manifest(campaign_id)
         path = self._path(campaign_id, "heartbeat.json")
         try:
-            raw = path.read_bytes()
+            raw = read_shared_bytes(path)
         except FileNotFoundError:
             return None
         except OSError as exc:
@@ -1097,7 +1292,7 @@ class CampaignStore:
         self._require_lock()
         path = self._path(campaign_id, "items.jsonl")
         try:
-            raw = path.read_bytes()
+            raw = read_shared_bytes(path)
         except FileNotFoundError:
             return CampaignProjection(transitions=(), items=MappingProxyType({}))
         except OSError as exc:
@@ -1144,7 +1339,7 @@ class CampaignStore:
         self._require_lock()
         path = self._path(campaign_id, "batches.jsonl")
         try:
-            raw = path.read_bytes()
+            raw = read_shared_bytes(path)
         except FileNotFoundError:
             return BatchProjection((), None, 0)
         except OSError as exc:
@@ -1186,7 +1381,7 @@ class CampaignStore:
         self._require_lock()
         path = self._path(campaign_id, "discovery.jsonl")
         try:
-            raw = path.read_bytes()
+            raw = read_shared_bytes(path)
         except FileNotFoundError:
             return DiscoveryPassProjection(())
         except OSError as exc:
@@ -1265,7 +1460,7 @@ class CampaignStore:
         projection = self.read_ledger(campaign_id)
         path = self._path(campaign_id, "handoff.json")
         try:
-            raw = path.read_bytes()
+            raw = read_shared_bytes(path)
         except OSError as exc:
             raise CampaignStoreError("CAMPAIGN_HANDOFF_READ_FAILED") from exc
         if not raw or len(raw) > MAX_CAMPAIGN_HANDOFF_BYTES:
@@ -1274,47 +1469,17 @@ class CampaignStore:
             value = json.loads(raw)
         except (UnicodeError, json.JSONDecodeError) as exc:
             raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID") from exc
-        if not isinstance(value, Mapping) or set(value) != _HANDOFF_FIELDS:
-            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID")
-        try:
-            next_ordinal = _require_nonnegative_int(value.get("next_item_ordinal"))
-            completed_count = _require_nonnegative_int(value.get("completed_count"))
-            retryable_count = _require_nonnegative_int(value.get("retryable_count"))
-            uncertain_count = _require_nonnegative_int(value.get("uncertain_count"))
-            last_run_id = _require_identifier(value.get("last_run_id"))
-            updated_at = _require_timestamp(value.get("updated_at"))
-            next_action, required_observation = _HANDOFF_DIRECTIVES[manifest.status]
-        except (CampaignStoreError, KeyError) as exc:
-            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID") from exc
-        if (
-            value.get("campaign_id") != campaign_id
-            or value.get("campaign_version") != CAMPAIGN_VERSION
-            or next_ordinal <= 0
-            or next_ordinal != projection.next_ordinal
-            or completed_count != projection.completed_count
-            or retryable_count != projection.retryable_count
-            or uncertain_count != projection.uncertain_count
-            or value.get("next_action") != next_action
-            or value.get("required_observation") != required_observation
-            or datetime.fromisoformat(updated_at) < datetime.fromisoformat(manifest.updated_at)
-        ):
-            raise CampaignStoreError("CAMPAIGN_HANDOFF_INVALID")
-        return {
-            "campaign_id": campaign_id,
-            "campaign_version": CAMPAIGN_VERSION,
-            "next_item_ordinal": next_ordinal,
-            "completed_count": completed_count,
-            "retryable_count": retryable_count,
-            "uncertain_count": uncertain_count,
-            "last_run_id": last_run_id,
-            "next_action": next_action,
-            "required_observation": required_observation,
-            "updated_at": updated_at,
-        }
+        return _decode_handoff(
+            value,
+            campaign_id=campaign_id,
+            manifest=manifest,
+            projection=projection,
+        )
 
 
 __all__ = [
     "CAMPAIGN_VERSION",
+    "CAMPAIGN_CONTROL_SNAPSHOT_ATTEMPTS",
     "MAX_CAMPAIGN_BATCH_LEDGER_BYTES",
     "MAX_CAMPAIGN_DISCOVERY_LEDGER_BYTES",
     "MAX_CAMPAIGN_DISCOVERY_PASSES",
@@ -1328,6 +1493,7 @@ __all__ = [
     "BatchTransition",
     "CampaignManifest",
     "CampaignHeartbeat",
+    "CampaignControlSnapshot",
     "CampaignProjection",
     "CampaignStatus",
     "CampaignStore",
@@ -1337,7 +1503,9 @@ __all__ = [
     "ItemStatus",
     "ItemTransition",
     "campaign_dir",
+    "campaign_path_is_unsafe",
     "reduce_batch_ledger",
     "reduce_discovery_passes",
     "reduce_item_ledger",
+    "read_campaign_control_snapshot",
 ]

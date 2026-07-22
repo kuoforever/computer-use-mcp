@@ -15,6 +15,7 @@ from enum import Enum
 
 from .campaign import (
     CAMPAIGN_VERSION,
+    CampaignControlSnapshot,
     CampaignStatus,
     CampaignStore,
     CampaignStoreError,
@@ -23,7 +24,7 @@ from .campaign import (
 from .stale_run_inspection import (
     StaleRunInspectionError,
     StaleRunState,
-    inspect_stale_run,
+    inspect_stale_control_state,
 )
 
 
@@ -191,8 +192,39 @@ def project_campaign_host_status(
         manifest = store.read_manifest(campaign_id)
         items = store.read_ledger(campaign_id)
         batches = store.read_batches(campaign_id)
-        liveness = inspect_stale_run(store, campaign_id=campaign_id, now=now)
+        heartbeat = store.read_heartbeat(campaign_id)
+        handoff = (
+            store.read_handoff(campaign_id)
+            if manifest.status in {CampaignStatus.COMPLETED, CampaignStatus.FAILED}
+            else None
+        )
     except (CampaignStoreError, StaleRunInspectionError, TypeError, ValueError):
+        return _invalid_projection(campaign_id)
+    snapshot = CampaignControlSnapshot(manifest, items, batches, heartbeat, handoff)
+    return project_campaign_control_snapshot(snapshot, now=now)
+
+
+def project_campaign_control_snapshot(
+    snapshot: CampaignControlSnapshot, *, now: datetime
+) -> CampaignHostStatus:
+    """Project one stable decoded snapshot without acquiring execution authority."""
+
+    if not isinstance(snapshot, CampaignControlSnapshot):
+        raise HostStatusProjectionError("HOST_STATUS_SNAPSHOT_INVALID")
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise HostStatusProjectionError("HOST_STATUS_TIME_INVALID")
+    manifest = snapshot.manifest
+    items = snapshot.items
+    batches = snapshot.batches
+    campaign_id = manifest.campaign_id
+    try:
+        liveness = inspect_stale_control_state(
+            manifest,
+            snapshot.heartbeat,
+            items,
+            now=now,
+        )
+    except (StaleRunInspectionError, TypeError, ValueError):
         return _invalid_projection(campaign_id)
 
     checkpoint_times = [manifest.updated_at]
@@ -216,12 +248,10 @@ def project_campaign_host_status(
     elif manifest.status is CampaignStatus.CHALLENGE:
         status = HostTaskStatus.CHALLENGE
     elif manifest.status is CampaignStatus.COMPLETED:
-        try:
-            handoff = store.read_handoff(campaign_id)
-        except CampaignStoreError:
-            return _invalid_projection(campaign_id)
+        handoff = snapshot.handoff
         if (
-            batches.active is not None
+            handoff is None
+            or batches.active is not None
             or items.completed_count != items.discovered_count
             or handoff["next_action"] != "none_completed"
         ):
@@ -234,11 +264,12 @@ def project_campaign_host_status(
         )
         counts["last_checkpoint_at"] = last_checkpoint_at
     elif manifest.status is CampaignStatus.FAILED:
-        try:
-            handoff = store.read_handoff(campaign_id)
-        except CampaignStoreError:
-            return _invalid_projection(campaign_id)
-        if batches.active is not None or handoff["next_action"] != "human_review_failed":
+        handoff = snapshot.handoff
+        if (
+            handoff is None
+            or batches.active is not None
+            or handoff["next_action"] != "human_review_failed"
+        ):
             return _invalid_projection(campaign_id)
         status = HostTaskStatus.FAILED
     elif liveness.state is StaleRunState.FRESH_HEARTBEAT:
@@ -289,5 +320,6 @@ __all__ = [
     "HostStatusProjectionError",
     "HostTaskStatus",
     "evaluate_host_poll",
+    "project_campaign_control_snapshot",
     "project_campaign_host_status",
 ]

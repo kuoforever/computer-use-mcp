@@ -1,6 +1,7 @@
 """Combined read-only stale-run inspection for campaign control state.
 
-The caller must already hold the campaign store's OS run lock. A stale result
+Store-bound callers must already hold the OS run lock. Passive callers may
+instead supply an already validated stable control snapshot. A stale result
 only permits a separately reviewed recovery step; it never authorizes action
 replay or item execution.
 """
@@ -10,7 +11,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
-from .campaign import CampaignStatus, CampaignStore
+from .campaign import (
+    CampaignHeartbeat,
+    CampaignManifest,
+    CampaignProjection,
+    CampaignStatus,
+    CampaignStore,
+)
 from .heartbeat_inspection import (
     HeartbeatFreshness,
     HeartbeatInspection,
@@ -56,9 +63,32 @@ def inspect_stale_run(
 
     if not isinstance(store, CampaignStore):
         raise StaleRunInspectionError("store must be a CampaignStore")
-    manifest = store.read_manifest(campaign_id)
-    heartbeat_record = store.read_heartbeat(campaign_id)
-    projection = store.read_ledger(campaign_id)
+    return inspect_stale_control_state(
+        store.read_manifest(campaign_id),
+        store.read_heartbeat(campaign_id),
+        store.read_ledger(campaign_id),
+        now=now,
+    )
+
+
+def inspect_stale_control_state(
+    manifest: CampaignManifest,
+    heartbeat_record: CampaignHeartbeat | None,
+    projection: CampaignProjection,
+    *,
+    now: datetime,
+) -> StaleRunInspection:
+    """Inspect already validated control records without requiring a store lock."""
+
+    if (
+        not isinstance(manifest, CampaignManifest)
+        or not isinstance(projection, CampaignProjection)
+        or (
+            heartbeat_record is not None
+            and not isinstance(heartbeat_record, CampaignHeartbeat)
+        )
+    ):
+        raise StaleRunInspectionError("STALE_RUN_INSPECTION_INVALID")
     try:
         heartbeat = inspect_heartbeat(heartbeat_record, now=now)
         leases = inspect_claim_leases(projection, now=now)
@@ -92,5 +122,6 @@ __all__ = [
     "StaleRunInspection",
     "StaleRunInspectionError",
     "StaleRunState",
+    "inspect_stale_control_state",
     "inspect_stale_run",
 ]
