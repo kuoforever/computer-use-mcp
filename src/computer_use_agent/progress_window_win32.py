@@ -120,6 +120,15 @@ class Win32ProgressWindowApi:
         # not flicker and never touch activation.
         self._user32.InvalidateRect(wintypes.HWND(hwnd), None, True)
 
+    def lines(self, hwnd: int) -> tuple[str, ...]:
+        """Return the lines currently held for ``hwnd``, for a smoke assertion.
+
+        Read-only: this is what the window paints, so a probe can check that a
+        real state change actually reached the drawn surface.
+        """
+
+        return self._lines.get(int(hwnd), ())
+
     def show_noactivate(self, hwnd: int) -> None:
         self._user32.ShowWindow(wintypes.HWND(hwnd), _SW_SHOWNOACTIVATE)
 

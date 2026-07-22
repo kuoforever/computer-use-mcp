@@ -12,8 +12,11 @@
 > 2026-07-22). Atomic live checkpoint polling (delivery step 3) is implemented
 > and offline tested in `computer_use_agent.progress_poller`, including the
 > `computer_use_agent.atomic_file` publish/read contract it required
-> ([measurements](CHECKPOINT_PUBLISH_EVIDENCE.md)); it has no on-device result
-> yet. Multi-run grouping and campaign state remain planned. The projection
+> ([measurements](CHECKPOINT_PUBLISH_EVIDENCE.md)); it followed a real
+> `RunRecorder` transition to the drawn window on a live desktop with the
+> foreground unchanged and every concurrent publish succeeding
+> ([retained evidence](PROGRESS_POLLER_EVIDENCE.md), 2026-07-22). Multi-run
+> grouping and campaign state remain planned. The projection
 > stays read-only over validated checkpoints and future campaign state.
 
 This passive projection is one surface of the planned
@@ -189,6 +192,10 @@ model prose, arbitrary errors, credentials, or account identifiers.
    surfaced a Windows hazard — a reader blocked the checkpoint publish and could
    fail a run — now removed by the `computer_use_agent.atomic_file` contract and
    measured in [checkpoint publish evidence](CHECKPOINT_PUBLISH_EVIDENCE.md).
+   The live path is confirmed on-device by the operator-approved
+   `scripts/smoke_progress_poller.py`, which drives real checkpoints into the
+   real window while publishing concurrently
+   ([retained evidence](PROGRESS_POLLER_EVIDENCE.md)).
 4. Multi-run grouping.
 5. Campaign progress after the long-running task manifest is implemented.
 6. Integrate shared presence and Decision Card state only through the pure
