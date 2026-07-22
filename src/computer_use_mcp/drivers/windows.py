@@ -27,6 +27,8 @@ from ..contract import (
     OUT_OF_BOUNDS,
     STALE_ELEMENT,
     Display,
+    DocumentTextBlock,
+    DocumentTextResult,
     Driver,
     DriverError,
     Image,
@@ -43,6 +45,13 @@ from ..dpi import enable_dpi_awareness
 # Traversal backstops so a pathological tree can't hang the snapshot.
 _MAX_VISIT = 8000
 _MAX_DEPTH = 40
+
+# Document-text traversal caps. A TextPattern DocumentRange already covers its
+# subtree, so the walk stops descending once it reads one, which keeps the block
+# count and visit count far below the interactive-tree limits.
+_MAX_DOC_VISIT = 4000
+_MAX_DOC_BLOCKS = 200
+_DOC_RANGE_CHARS = 20_000
 
 # Patterns probed per node (the ones the action model actually uses in v0.1+).
 _PATTERN_PROBES = (
@@ -173,6 +182,7 @@ class WindowsDriver(Driver):
                 "foreground_owner_chain",
                 "get_tree",
                 "find",
+                "get_document_text",
                 "invoke",
                 "set_value",
                 "select",
@@ -419,6 +429,57 @@ class WindowsDriver(Driver):
         q = query.lower()
         matched = [n for n in tree.nodes if q in n.name.lower() or q in n.role.lower()]
         return TreeResult(nodes=matched, truncated=tree.truncated)
+
+    def get_document_text(self, opts: PruneOpts) -> DocumentTextResult:
+        """Read semantic text through UIA TextPattern, not the interactive tree.
+
+        A control's TextPattern ``DocumentRange`` already covers its whole
+        subtree, so the walk reads one range and stops descending into it. That
+        keeps browser and editor page text as a small number of ordered blocks
+        rather than a per-node dump, and password subtrees are skipped entirely.
+        """
+        root = self._root_for_scope(opts)
+        blocks: list[DocumentTextBlock] = []
+        truncated = 0
+        complete = True
+        visited = 0
+        stack: list[object] = [root]
+        while stack:
+            ctrl = stack.pop()
+            visited += 1
+            if visited > _MAX_DOC_VISIT:
+                complete = False
+                break
+            if opts.redact_password and self._safe(lambda: bool(ctrl.IsPassword), False):
+                continue  # never surface a password subtree as document text
+            pattern = self._safe(
+                lambda: ctrl.GetPattern(auto.PatternId.TextPattern), None
+            )
+            if pattern is not None:
+                text = self._safe(
+                    lambda: pattern.DocumentRange.GetText(_DOC_RANGE_CHARS), ""
+                )
+                if isinstance(text, str) and text.strip():
+                    if len(blocks) >= _MAX_DOC_BLOCKS:
+                        truncated += 1
+                    else:
+                        blocks.append(
+                            DocumentTextBlock(
+                                text=text[:_DOC_RANGE_CHARS],
+                                bbox=self._rect_of(ctrl),
+                                order=len(blocks),
+                            )
+                        )
+                # The range already captured this subtree; do not descend.
+                continue
+            for child in reversed(self._children(ctrl)):
+                stack.append(child)
+        return DocumentTextResult(
+            blocks=blocks,
+            truncated_blocks=truncated,
+            source="uia_text_pattern",
+            complete=complete,
+        )
 
     # --- node construction ---------------------------------------------------
 

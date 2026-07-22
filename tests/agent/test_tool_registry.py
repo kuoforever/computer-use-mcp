@@ -53,7 +53,7 @@ def _png(width: int = 1, height: int = 1) -> bytes:
     )
 
 
-def test_registry_contains_the_exact_ten_reviewed_mcp_tools() -> None:
+def test_registry_contains_the_exact_eleven_reviewed_mcp_tools() -> None:
     assert EXPECTED_TOOL_NAMES == {
         "ui_snapshot",
         "find",
@@ -61,17 +61,18 @@ def test_registry_contains_the_exact_ten_reviewed_mcp_tools() -> None:
         "screenshot",
         "capture_region",
         "ocr",
+        "document_text",
         "activate_window",
         "click",
         "type",
         "key",
     }
-    assert len(REVIEWED_TOOLS) == 10
+    assert len(REVIEWED_TOOLS) == 11
     assert all(tool.input_schema["additionalProperties"] is False for tool in REVIEWED_TOOLS)
     assert get_tool_spec("screenshot").result_sensitivity is ResultSensitivity.SENSITIVE
     assert (
         reviewed_registry_digest()
-        == "2f1e3d9e9c0aea90b35c413a40f194115c6f99c2631cfc72a6f072445a96b1eb"
+        == "7903433fba37f590817fc6756ab0eea7ba2c7b5213815a12cff54604ef90f26f"
     )
 
 

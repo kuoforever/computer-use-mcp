@@ -146,6 +146,21 @@ class TreeResult:
 
 
 @dataclass
+class DocumentTextBlock:
+    text: str                      # semantic text of one document region
+    bbox: Rect | None              # bounding box when the channel exposes one
+    order: int                     # stable local reading order within the scope
+
+
+@dataclass
+class DocumentTextResult:
+    blocks: list[DocumentTextBlock]
+    truncated_blocks: int          # qualifying blocks dropped by a driver-side cap
+    source: str                    # semantic channel, e.g. "uia_text_pattern"
+    complete: bool                 # driver's honest completeness signal for the scope
+
+
+@dataclass
 class Result:
     ok: bool
     code: str | None = None
@@ -185,6 +200,15 @@ class Driver(abc.ABC):
 
     @abc.abstractmethod
     def find(self, opts: PruneOpts, query: str) -> TreeResult: ...
+
+    def get_document_text(self, opts: PruneOpts) -> DocumentTextResult:
+        """Read bounded semantic document text for ``opts.scope``.
+
+        The default rejects the request: a backend without a real document-text
+        channel must fail closed rather than let the tool fall back to dumping
+        the accessibility tree or hidden application state as document text.
+        """
+        raise DriverError(DRIVER_ERROR, "document text is not supported by this backend")
 
     # --- actions (implemented from v0.1 onward) ---
 

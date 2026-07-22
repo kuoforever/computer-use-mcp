@@ -12,6 +12,15 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **`document_text` observation tool.** An eleventh reviewed MCP tool reads
+  bounded semantic document text for a scope through a real UIA `TextPattern`
+  channel — the ladder rung between the interactive `ui_snapshot` and `ocr`. A
+  control's text range covers its subtree, so page text returns as a small
+  number of ordered blocks with optional boxes, a content digest, and explicit
+  truncation metadata (≤200 blocks, ≤20,000 characters). Password subtrees are
+  skipped, and a backend without a semantic text channel fails closed rather
+  than dumping the accessibility tree. Offline evidence only; no on-device
+  result yet.
 - **Operator progress reducer.** A pure checkpoint-to-view-model reducer
   (`computer_use_agent.progress_view`) projects a validated run checkpoint into
   the small, honest field set a passive viewer may show. It reads only the
