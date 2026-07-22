@@ -130,13 +130,16 @@ docs/                  canonical English documentation
     the isolated E4 evidence.** The driver now attaches the required
     input queues, restores minimized targets, releases attachments in `finally`,
     and verifies the foreground HWND. Treat the retained E4 result as scoped to
-    the reviewed VM and exact repair tree. A later bounded on-device BOSS home
-    observation passed through the project stdio path; the next perception gate
-    is a bounded static-content source before a separate interested-jobs result.
+    the reviewed VM and exact repair tree. Later bounded on-device BOSS home,
+    OCR, and UIA document-text observations passed through the project stdio
+    path; these remain narrow observation results rather than application
+    acceptance.
 11. **Interactive UIA is not document text.** The BOSS probe exposed useful
-    controls while static job-description content was absent. Use the planned
-    observation ladder rather than assuming a full UIA snapshot contains page
-    content.
+    controls while static job-description content was absent. A later bounded
+    on-device stdio probe retained a real `uia_text_pattern` result: one ordered
+    10,189-character block versus 68 structured `ui_snapshot` lines from the
+    same foreground window, with no page prose retained. Use the observation
+    ladder rather than assuming a full UIA snapshot contains page content.
 
 ## Starting a fresh maintenance session
 
