@@ -237,8 +237,10 @@ its UIA tree.
   [progress viewer](docs/PROGRESS_VIEWER.md), and
   [approved actions](docs/APPROVALS.md).
 - Keep Decision Card choices on the existing `ApprovalPort`: the opt-in
-  focus-taking Win32 adapter yields authority first and only its fresh exact
-  selection can become a request-bound `PolicyDecision`. Never add a second
+  focus-taking Win32 adapter yields authority first, exposes only digest-bound
+  evidence, and only its fresh exact-effect selection can become an allowing
+  request-bound `PolicyDecision`; handoff and denial remain zero-dispatch
+  denials. Never add a second
   dispatch path, global/batch allow, or model-selected approval. Its bounded
   native focus/timeout result is retained in
   [Decision Card evidence](docs/DECISION_CARD_WINDOW_EVIDENCE.md).

@@ -8,7 +8,7 @@
 > it from durable phases in ordinary Agent `run` and `resume` lifecycles when
 > explicitly enabled. Planned/campaign/recovery runtimes, multi-monitor support,
 > and abrupt-process teardown remain separate gates. Decision Card compilation,
-> choice validation, and an opt-in two-choice focus-taking Win32 adapter are
+> choice validation, and an opt-in three-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
 > remains one exact action at a time; console confirmation is default and the
 > card requires explicit opt-in. The standalone native surface has retained
@@ -279,7 +279,11 @@ There is no global "always allow" control in the first interactive version.
    expiry, malformed selection, and Host binding drift deny. The native
    focus/timeout and sole-dispatch path has retained on-device evidence.**
 6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
-   and trade-off provenance.
+   and trade-off provenance. **Partially implemented for ordinary approved
+   actions: exact-effect approval, human takeover, and denial are native custom
+   choices; the expandable section shows digest-only Host evidence and existing
+   fixed trade-off provenance. Campaign/chapter facts and persisted re-observe
+   or defer semantics remain.**
 7. After the executable campaign worker exists, verify fake-host terminal and
    attention events from the same redacted status projection without adding a
    second execution path.

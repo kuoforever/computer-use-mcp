@@ -141,6 +141,7 @@ class DecisionCardApprovalPort:
                     unknown_facts=(UnknownFact.COMPLETION_OUTCOME,),
                     option_kinds=(
                         DecisionOptionKind.APPROVE_EXACT_EFFECT,
+                        DecisionOptionKind.HUMAN_TAKEOVER,
                         DecisionOptionKind.DENY,
                     ),
                 ),
