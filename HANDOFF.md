@@ -140,6 +140,11 @@ docs/                  canonical English documentation
     10,189-character block versus 68 structured `ui_snapshot` lines from the
     same foreground window, with no page prose retained. Use the observation
     ladder rather than assuming a full UIA snapshot contains page content.
+12. **A bounded crop must prove both pixels and grounding.** The retained
+    on-device region-capture smoke draws only the project's synthetic passive
+    window, captures its exact Win32 rectangle through stdio MCP, verifies the
+    returned PNG dimensions/byte count/digest against the envelope, and then
+    discards the pixels without changing foreground.
 
 ## Starting a fresh maintenance session
 
