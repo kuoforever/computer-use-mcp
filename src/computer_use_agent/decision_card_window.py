@@ -28,6 +28,7 @@ class DecisionCardWindowApi(Protocol):
         title: str,
         instruction: str,
         content: str,
+        expanded_information: str,
         buttons: tuple[DecisionCardButton, ...],
         timeout_seconds: int,
     ) -> str | None: ...
@@ -60,6 +61,7 @@ class DecisionCardWindow:
                     title="Decision required",
                     instruction="Choose one bounded option",
                     content=content,
+                    expanded_information=self._evidence_content(card),
                     buttons=buttons,
                     timeout_seconds=timeout_seconds,
                 )
@@ -115,6 +117,35 @@ class DecisionCardWindow:
                 ]
             )
         lines.append("Close or timeout denies this request.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _evidence_content(card: DecisionCard) -> str:
+        binding = card.binding
+        lines = [
+            "Evidence references (SHA-256 digests only):",
+            *(
+                f"- {reference.kind.value}: {reference.digest}"
+                for reference in card.evidence
+            ),
+            "",
+            "Unknown facts:",
+            *(
+                f"- {fact.value}" for fact in card.unknown_facts
+            ),
+            "",
+            "Host binding digests:",
+            f"- state: {binding.state_digest}",
+            f"- policy: {binding.policy_digest}",
+            f"- task: {binding.task_digest}",
+            f"- registry: {binding.registry_digest}",
+            f"- object: {binding.object_digest}",
+            f"- evidence: {binding.evidence_digest}",
+            f"- card: {card.card_digest}",
+            f"- expires: {card.expires_at.isoformat()}",
+            "",
+            "These digests are correlation evidence, not execution authority.",
+        ]
         return "\n".join(lines)
 
 

@@ -39,7 +39,11 @@ def _card():
             RecipientScope.NONE,
             (EvidenceReference(EvidenceKind.OBSERVATION, "7" * 64),),
             (UnknownFact.COMPLETION_OUTCOME,),
-            (DecisionOptionKind.APPROVE_EXACT_EFFECT, DecisionOptionKind.DENY),
+            (
+                DecisionOptionKind.APPROVE_EXACT_EFFECT,
+                DecisionOptionKind.HUMAN_TAKEOVER,
+                DecisionOptionKind.DENY,
+            ),
         ),
         now=NOW,
     )
@@ -70,6 +74,7 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     assert call["timeout_seconds"] == 30
     assert [button.option_id for button in call["buttons"]] == [
         "option_approve_exact_effect",
+        "option_human_takeover",
         "option_deny",
     ]
     assert "Recommendation is advisory and grants no authority" in call["content"]
@@ -78,6 +83,18 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     assert "Confidence:" in call["content"]
     assert "Fallback:" in call["content"]
     assert "Close or timeout denies" in call["content"]
+    evidence = call["expanded_information"]
+    assert "Evidence references (SHA-256 digests only)" in evidence
+    assert "observation: " + "7" * 64 in evidence
+    assert "completion_outcome" in evidence
+    assert "state: " + "1" * 64 in evidence
+    assert "policy: " + "2" * 64 in evidence
+    assert "task: " + "3" * 64 in evidence
+    assert "registry: " + "4" * 64 in evidence
+    assert "object: " + "5" * 64 in evidence
+    assert "evidence: " + "6" * 64 in evidence
+    assert card.card_digest in evidence
+    assert "not execution authority" in evidence
 
 
 @pytest.mark.parametrize("result", [None, "option_missing"])

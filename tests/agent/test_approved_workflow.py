@@ -204,6 +204,52 @@ def test_focus_taking_card_yields_before_choice_and_uses_sole_dispatch_boundary(
     assert outcome.text == "verified"
     assert events == ["yield", "card", "dispatch"]
     assert surface.cards[0].binding.object_digest == action.digest
+    assert [option.option_id for option in surface.cards[0].options] == [
+        "option_approve_exact_effect",
+        "option_human_takeover",
+        "option_deny",
+    ]
+
+
+def test_decision_card_handoff_stops_before_side_effect_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_card_handoff"
+    observe = _call(run_id, 1, "call_1", "list_windows", {})
+    action = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque([_result(observe, text='* 42 | app.exe | "App"')])
+    )
+
+    class HandoffSurface:
+        async def choose(self, card, *, timeout_seconds: int):  # noqa: ANN001
+            del timeout_seconds
+            return DecisionSelection(
+                card.decision_id, card.card_digest, "option_human_takeover"
+            )
+
+    approvals = DecisionCardApprovalPort(
+        HandoffSurface(), clock=lambda: datetime(2026, 7, 22, tzinfo=UTC)
+    )
+
+    with pytest.raises(RunFailure, match="APPROVAL_DENIED") as failure:
+        asyncio.run(
+            AgentRunner(
+                _config(tmp_path, monkeypatch), RunnerPorts(provider, desktop, approvals)
+            ).run("Yield to operator", run_id=run_id)
+        )
+
+    assert [call.name for call in desktop.tool_calls] == ["list_windows"]
+    decisions = [
+        event.policy_decision
+        for event in failure.value.state.event_log
+        if event.kind is LedgerEventKind.POLICY_DECISION
+    ]
+    assert decisions[-1] is not None
+    assert decisions[-1].reason == "decision_card_handoff"
 
 
 def test_host_binding_drift_during_card_blocks_dispatch(

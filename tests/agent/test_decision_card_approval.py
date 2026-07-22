@@ -75,6 +75,7 @@ def test_exact_effect_choice_returns_only_one_digest_bound_allow() -> None:
     assert card.recommended_option_id is None
     assert [option.option_id for option in card.options] == [
         "option_approve_exact_effect",
+        "option_human_takeover",
         "option_deny",
     ]
 
@@ -83,10 +84,11 @@ def test_exact_effect_choice_returns_only_one_digest_bound_allow() -> None:
     ("option_id", "reason"),
     [
         ("option_deny", "decision_card_denied"),
+        ("option_human_takeover", "decision_card_handoff"),
         (None, "decision_card_no_selection"),
     ],
 )
-def test_close_deny_and_handoff_all_return_bound_denial(
+def test_safe_alternatives_and_close_return_distinct_bound_denials(
     option_id: str | None, reason: str
 ) -> None:
     request = _request()

@@ -11,6 +11,8 @@ from collections import deque
 from ctypes import wintypes
 from pathlib import Path
 
+import uiautomation as auto
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 for stream in (sys.stdout, sys.stderr):
@@ -50,8 +52,8 @@ from computer_use_agent.types import (  # noqa: E402
     ToolResultStatus,
 )
 
-_WM_COMMAND = 0x0111
-_IDYES = 6
+_TDM_CLICK_BUTTON = 0x0400 + 102
+_FIRST_BUTTON_ID = 1001
 
 
 class Presence:
@@ -140,20 +142,32 @@ def _workflow(run_id: str, *, complete: bool) -> tuple[FakeModelProvider, FakeDe
     return FakeModelProvider(turns=deque(turns)), FakeDesktopMCP(results=deque(results))
 
 
-def _choose_first_button(observed: dict[str, int]) -> None:
+def _choose_first_button(observed: dict[str, int], controls: list[str]) -> None:
     user32 = ctypes.windll.user32
     user32.FindWindowW.restype = wintypes.HWND
     user32.GetForegroundWindow.restype = wintypes.HWND
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        hwnd = int(user32.FindWindowW(None, "Decision required") or 0)
-        if hwnd:
-            observed["hwnd"] = hwnd
-            if int(user32.GetForegroundWindow() or 0) == hwnd:
-                observed["foreground"] = hwnd
-                user32.SendMessageW(wintypes.HWND(hwnd), _WM_COMMAND, _IDYES, 0)
-                return
-        time.sleep(0.05)
+
+    def collect(control, depth: int = 0) -> None:  # noqa: ANN001
+        if control.Name:
+            controls.append(control.Name)
+        if depth < 4:
+            for child in control.GetChildren():
+                collect(child, depth + 1)
+
+    with auto.UIAutomationInitializerInThread():
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            hwnd = int(user32.FindWindowW(None, "Decision required") or 0)
+            if hwnd:
+                observed["hwnd"] = hwnd
+                if int(user32.GetForegroundWindow() or 0) == hwnd:
+                    observed["foreground"] = hwnd
+                    collect(auto.ControlFromHandle(hwnd))
+                    user32.SendMessageW(
+                        wintypes.HWND(hwnd), _TDM_CLICK_BUTTON, _FIRST_BUTTON_ID, 0
+                    )
+                    return
+            time.sleep(0.05)
 
 
 async def _approved_run(state_dir: Path, observed: dict[str, int]):
@@ -162,13 +176,16 @@ async def _approved_run(state_dir: Path, observed: dict[str, int]):
     card = DecisionCardApprovalPort(
         DecisionCardWindow(Win32DecisionCardWindowApi()), timeout_seconds=10
     )
-    clicker = threading.Thread(target=_choose_first_button, args=(observed,))
+    controls: list[str] = []
+    clicker = threading.Thread(
+        target=_choose_first_button, args=(observed, controls)
+    )
     clicker.start()
     outcome = await AgentRunner(
         _config(state_dir), RunnerPorts(provider, desktop, card, presence=presence)
     ).run("Exercise one synthetic approved action", run_id="card_live_allow")
     clicker.join(timeout=5)
-    return outcome, desktop, presence
+    return outcome, desktop, presence, controls
 
 
 async def _timeout_run(state_dir: Path):
@@ -195,7 +212,7 @@ def main() -> int:
     root = default_state_dir()
     root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="decision-card-", dir=root) as raw:
-        outcome, approved_desktop, presence = asyncio.run(
+        outcome, approved_desktop, presence, controls = asyncio.run(
             _approved_run(Path(raw), observed)
         )
         timeout_code, timeout_desktop = asyncio.run(_timeout_run(Path(raw)))
@@ -212,6 +229,19 @@ def main() -> int:
         problems.append("Agent authority was not yielded exactly once before the card")
     if observed.get("hwnd", 0) == 0 or observed.get("foreground") != observed.get("hwnd"):
         problems.append("native Decision Card did not become the foreground window")
+    expected_controls = {
+        "Request approval for one exact effect",
+        "Hand control to the operator",
+        "Deny or cancel the proposed effect",
+        "Show bounded evidence",
+    }
+    if not expected_controls.issubset(controls):
+        missing = sorted(expected_controls.difference(controls))
+        problems.append(
+            "native Decision Card omitted bounded controls: "
+            + ", ".join(missing)
+            + f"; observed={controls!r}"
+        )
     if timeout_code != "APPROVAL_DENIED":
         problems.append(f"timeout did not fail closed ({timeout_code})")
     if [call.name for call in timeout_desktop.tool_calls] != ["list_windows"]:
@@ -228,8 +258,9 @@ def main() -> int:
         return 1
     print(
         f"RESULT: PASS (card foreground {observed['hwnd']:#x}; authority yielded; "
-        "approved choice used ordinary dispatch and verification; five-second "
-        "timeout denied with zero side-effect dispatch; prior foreground restored)"
+        "three bounded options and evidence affordance rendered; approved choice "
+        "used ordinary dispatch and verification; five-second timeout denied with "
+        "zero side-effect dispatch; prior foreground restored)"
     )
     return 0
 
