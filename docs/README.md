@@ -94,7 +94,7 @@ not a line-by-line mirror of every reference page.
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
-| Operator experience | Implemented passive progress plus an opt-in primary-display presence surface wired to durable ordinary `run`/`resume` phases; broader runtime wiring, Decision Cards, trade-off provenance, and host-owned mobile notification semantics remain planned |
+| Operator experience | Implemented passive progress, opt-in durable ordinary-run presence, and fake-only digest-bound Decision Card models with fixed trade-off provenance; interactive cards, broader runtime wiring, and host-owned mobile notification remain planned |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |

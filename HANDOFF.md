@@ -236,6 +236,9 @@ its UIA tree.
   boundaries synchronized across [operator experience](docs/OPERATOR_EXPERIENCE.md),
   [progress viewer](docs/PROGRESS_VIEWER.md), and
   [approved actions](docs/APPROVALS.md).
+- Keep Decision Card compilation fake-only until a focus-taking surface can
+  yield desktop authority first and return choices through the existing
+  `ApprovalPort`; a compiled or selected option is never a `PolicyDecision`.
 - Retain standalone presence desktop results in
   [presence evidence](docs/PRESENCE_WINDOW_EVIDENCE.md). Ordinary `run`/`resume`
   now have default-off, fail-silent durable-phase wiring; do not infer planned,
