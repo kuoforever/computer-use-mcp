@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Mapping
 
+from .atomic_file import publish_atomically, read_shared_bytes
 from .continuation import delete_continuation
 from .types import JSONValue, LedgerEvent, LedgerEventKind, RunState, to_json_value
 
@@ -308,7 +309,8 @@ def _atomic_json(path: Path, payload: Mapping[str, JSONValue]) -> None:
             file.write(encoded)
             file.flush()
             os.fsync(file.fileno())
-        os.replace(temporary, path)
+        # Readers may hold this checkpoint open; a plain rename would fail.
+        publish_atomically(temporary, path)
         temporary = None
     except OSError as exc:
         raise TraceError("CHECKPOINT_WRITE_FAILED") from exc
@@ -522,7 +524,10 @@ def cancel_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
 
 def _read_json(path: Path, maximum: int, error_code: str) -> object:
     try:
-        data = path.read_bytes()
+        # Share-delete read with bounded retry: must never block a concurrent
+        # publish of this path, and must tolerate the brief window ReplaceFileW
+        # opens. See atomic_file for the measured hazard this avoids.
+        data = read_shared_bytes(path)
     except OSError as exc:
         raise TraceError(error_code) from exc
     if not data or len(data) > maximum:
