@@ -143,14 +143,16 @@ def _workflow(run_id: str, *, complete: bool) -> tuple[FakeModelProvider, FakeDe
 def _choose_first_button(observed: dict[str, int]) -> None:
     user32 = ctypes.windll.user32
     user32.FindWindowW.restype = wintypes.HWND
+    user32.GetForegroundWindow.restype = wintypes.HWND
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         hwnd = int(user32.FindWindowW(None, "Decision required") or 0)
         if hwnd:
             observed["hwnd"] = hwnd
-            observed["foreground"] = int(user32.GetForegroundWindow() or 0)
-            user32.SendMessageW(wintypes.HWND(hwnd), _WM_COMMAND, _IDYES, 0)
-            return
+            if int(user32.GetForegroundWindow() or 0) == hwnd:
+                observed["foreground"] = hwnd
+                user32.SendMessageW(wintypes.HWND(hwnd), _WM_COMMAND, _IDYES, 0)
+                return
         time.sleep(0.05)
 
 
@@ -186,6 +188,7 @@ async def _timeout_run(state_dir: Path):
 
 def main() -> int:
     user32 = ctypes.windll.user32
+    user32.GetForegroundWindow.restype = wintypes.HWND
     foreground_before = int(user32.GetForegroundWindow() or 0)
     problems: list[str] = []
     observed: dict[str, int] = {}

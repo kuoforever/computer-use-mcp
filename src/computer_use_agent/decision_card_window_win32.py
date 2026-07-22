@@ -27,6 +27,11 @@ class Win32DecisionCardWindowApi:
     def __init__(self) -> None:
         enable_dpi_awareness()
         self._user32 = ctypes.windll.user32
+        self._user32.GetForegroundWindow.restype = wintypes.HWND
+        self._user32.IsWindow.argtypes = [wintypes.HWND]
+        self._user32.IsWindow.restype = wintypes.BOOL
+        self._user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+        self._user32.SetForegroundWindow.restype = wintypes.BOOL
 
     def choose(
         self,
@@ -57,19 +62,24 @@ class Win32DecisionCardWindowApi:
             wintypes.WORD,
             wintypes.DWORD,
         ]
-        selected = int(
-            message_box_timeout(
-                None,
-                message,
-                title,
-                _MB_YESNOCANCEL
-                | _MB_ICONWARNING
-                | _MB_SETFOREGROUND
-                | _MB_TOPMOST,
-                0,
-                timeout_seconds * 1000,
+        foreground_before = self._user32.GetForegroundWindow()
+        try:
+            selected = int(
+                message_box_timeout(
+                    foreground_before,
+                    message,
+                    title,
+                    _MB_YESNOCANCEL
+                    | _MB_ICONWARNING
+                    | _MB_SETFOREGROUND
+                    | _MB_TOPMOST,
+                    0,
+                    timeout_seconds * 1000,
+                )
             )
-        )
+        finally:
+            if foreground_before and self._user32.IsWindow(foreground_before):
+                self._user32.SetForegroundWindow(foreground_before)
         if selected == _IDYES:
             return buttons[0].option_id
         if selected == _IDNO:
