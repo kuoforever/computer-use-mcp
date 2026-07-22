@@ -10,7 +10,8 @@
 > and abrupt-process teardown remain separate gates. No interactive Decision Card is implemented. The current
 > approved-action flow remains an interactive console confirmation for one
 > action at a time. The standalone native surface has retained
-> [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md).
+> [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
+> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md).
 
 ## Goal
 
