@@ -43,9 +43,9 @@ For each requested action, the Host performs these checks in order:
 The console defaults to deny on empty input, EOF, interruption, or any answer
 other than explicit yes. It never prints raw typed text.
 
-## Planned Decision Card extension
+## Fake-only Decision Card foundation
 
-The complete operator experience may present two or three bounded alternatives
+The pure Host model can compile two or three bounded alternatives
 with benefits, costs, risks, reversibility, authority scope, fallback, and
 provenance for time/token/confidence estimates. See
 [Operator experience](OPERATOR_EXPERIENCE.md).
@@ -56,8 +56,11 @@ bound Host decision; any resulting side effect still passes the existing
 grounding, budget, approval, MCP safety, and post-action verification path.
 Evidence or object-version drift invalidates the card before dispatch.
 
-The planned graphical card does not change the current implementation boundary:
-today the interactive console accepts only an explicit approval or denial for
+The compiler and deterministic choice validator have no provider, approval,
+desktop, or dispatch port. A choice of `approve_exact_effect` returns only a
+fixed `requires_separate_approval` fact; it does not create a `PolicyDecision`.
+The planned graphical card does not change the current runtime boundary: today
+the interactive console still accepts only an explicit approval or denial for
 one exact request and offers no alternatives or trade-off UI.
 
 ## Grounding rules

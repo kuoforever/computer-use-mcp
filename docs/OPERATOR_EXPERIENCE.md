@@ -7,11 +7,14 @@
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
 > it from durable phases in ordinary Agent `run` and `resume` lifecycles when
 > explicitly enabled. Planned/campaign/recovery runtimes, multi-monitor support,
-> and abrupt-process teardown remain separate gates. No interactive Decision Card is implemented. The current
+> and abrupt-process teardown remain separate gates. Pure fake-only Decision
+> Card compilation and choice validation are implemented, but no interactive
+> card is connected. The current
 > approved-action flow remains an interactive console confirmation for one
 > action at a time. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
-> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md).
+> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
+> Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md).
 
 ## Goal
 
@@ -257,14 +260,17 @@ There is no global "always allow" control in the first interactive version.
 ## Delivery sequence
 
 1. Define pure presence, progress, option, trade-off, and Decision Card view
-   models with redaction and stale-state tests. **Presence and progress models
-   implemented; option/trade-off/Decision Card models remain planned.**
+   models with redaction and stale-state tests. **Implemented: card inputs accept
+   only fixed Host classifications, safe IDs, bounded timestamps, and digests;
+   all display prose and trade-offs come from fixed mappings.**
 2. Implement the passive non-activating progress window from synthetic records.
 3. Implement the click-through presence indicator, capture filtering, reduced
    motion, DPI handling, and E-stop/authority-release teardown. **Implemented
    for one primary display over an injected controller and ctypes backend;
    automatic Agent lifecycle wiring and multi-monitor selection remain.**
 4. Add a fake-only Decision Card compiler and deterministic choice tests.
+   **Implemented: expiry plus state, policy, task, registry, object, and evidence
+   drift all fail closed; recommendation never selects an option.**
 5. Connect a focus-taking local Decision Card to the existing ApprovalPort
    without changing the ordinary Host/MCP dispatch boundary.
 6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
