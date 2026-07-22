@@ -8,7 +8,7 @@
 > it from durable phases in ordinary Agent `run` and `resume` lifecycles when
 > explicitly enabled. Planned/campaign/recovery runtimes, multi-monitor support,
 > and abrupt-process teardown remain separate gates. Decision Card compilation,
-> choice validation, and an opt-in three-choice focus-taking Win32 adapter are
+> choice validation, and an opt-in four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
 > remains one exact action at a time; console confirmation is default and the
 > card requires explicit opt-in. The standalone native surface has retained
@@ -161,7 +161,7 @@ Each card contains:
   bounded, privacy-safe form;
 - the intended business effect and recipient/tenant/scope where applicable;
 - bounded evidence references and which facts remain unknown;
-- two or three mutually exclusive options, including a safe cancel, defer, or
+- two to four mutually exclusive options, including a safe cancel, defer, or
   handoff path;
 - a clearly labeled Agent recommendation when one exists;
 - an explicit statement that the recommendation is advisory and grants no
@@ -280,10 +280,11 @@ There is no global "always allow" control in the first interactive version.
    focus/timeout and sole-dispatch path has retained on-device evidence.**
 6. Add campaign/chapter progress, bounded alternatives, evidence inspection,
    and trade-off provenance. **Partially implemented for ordinary approved
-   actions: exact-effect approval, human takeover, and denial are native custom
-   choices; the expandable section shows digest-only Host evidence and existing
-   fixed trade-off provenance. Campaign/chapter facts and persisted re-observe
-   or defer semantics remain.**
+   actions: exact-effect approval, re-observe, durable defer, and denial are
+   native custom choices; the expandable section shows digest-only Host evidence
+   and existing fixed trade-off provenance. Re-observe abandons the stale turn
+   and requires fresh evidence. Defer persists a non-resumable paused checkpoint.
+   Campaign/chapter facts remain.**
 7. After the executable campaign worker exists, verify fake-host terminal and
    attention events from the same redacted status projection without adding a
    second execution path.

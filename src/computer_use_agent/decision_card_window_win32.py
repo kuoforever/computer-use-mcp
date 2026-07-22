@@ -203,7 +203,7 @@ class Win32DecisionCardWindowApi:
         buttons: tuple[DecisionCardButton, ...],
         timeout_seconds: int,
     ) -> str | None:
-        if not 2 <= len(buttons) <= 3:
+        if not 2 <= len(buttons) <= 4:
             raise OSError("DECISION_CARD_NATIVE_REQUIRES_TWO_OR_THREE_OPTIONS")
         foreground_before = self._user32.GetForegroundWindow()
         foreground_process = wintypes.DWORD()

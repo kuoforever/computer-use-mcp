@@ -79,6 +79,18 @@ class RunFailure(RunnerError):
         self.state = state
 
 
+class RunDeferred(RunnerError):
+    """A reviewed operator defer plus the canonical paused state."""
+
+    code = "APPROVAL_DEFERRED"
+
+    def __init__(self, state: RunState) -> None:
+        if not isinstance(state, RunState):
+            raise ValueError("state must be a RunState")
+        super().__init__(self.code)
+        self.state = state
+
+
 @dataclass(frozen=True)
 class RunOutcome:
     """Completed run output and its final in-memory audit state."""
@@ -94,6 +106,7 @@ class _CallBoundaryOutcome:
     state: RunState
     grounding: GroundingState
     result: ToolResult
+    abandon_remaining_calls: bool = False
 
 
 @dataclass(frozen=True)
@@ -579,6 +592,8 @@ class AgentRunner:
             if not request.matches(decision) or decision.kind not in {
                 PolicyDecisionKind.ALLOW,
                 PolicyDecisionKind.DENY,
+                PolicyDecisionKind.REOBSERVE,
+                PolicyDecisionKind.DEFER,
             }:
                 denied = ToolResult(
                     identity=call.identity,
@@ -611,6 +626,39 @@ class AgentRunner:
                 )
                 state = self._record_result(state, denied, effect=spec.effect)
                 raise RunFailure("APPROVAL_DENIED", state)
+            if decision.kind is PolicyDecisionKind.REOBSERVE:
+                rejected = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="APPROVAL_REOBSERVE_REQUIRED",
+                )
+                state = self._record_result(state, rejected, effect=spec.effect)
+                state = replace(
+                    state,
+                    verified_observation_epoch=None,
+                    recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+                )
+                grounding = grounding.invalidate()
+                recorder.record(state, RunPhase.PLANNING)
+                return _CallBoundaryOutcome(
+                    state=state,
+                    grounding=grounding,
+                    result=rejected,
+                    abandon_remaining_calls=True,
+                )
+            if decision.kind is PolicyDecisionKind.DEFER:
+                rejected = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="APPROVAL_DEFERRED",
+                )
+                state = self._record_result(state, rejected, effect=spec.effect)
+                state = replace(state, recovery_status=RecoveryStatus.STOPPED)
+                raise RunDeferred(state)
             state = self._consume_side_effect(state)
 
         recorder.record(state, RunPhase.EXECUTING)
@@ -905,6 +953,8 @@ class AgentRunner:
                             span.set_attributes({"result.code": outcome.result.code})
                     state = outcome.state
                     grounding = outcome.grounding
+                    if outcome.abandon_remaining_calls:
+                        break
         except asyncio.CancelledError:
             if recorder_started:
                 recorder.record(
@@ -926,6 +976,16 @@ class AgentRunner:
                     terminal,
                     failure_code=failure.code,
                     run_duration_ms=max(0, (perf_counter_ns() - run_started_ns) // 1_000_000),
+                )
+            raise
+        except RunDeferred as deferred:
+            if recorder_started:
+                recorder.record(
+                    deferred.state,
+                    RunPhase.PAUSED,
+                    run_duration_ms=max(
+                        0, (perf_counter_ns() - run_started_ns) // 1_000_000
+                    ),
                 )
             raise
         except TraceError:

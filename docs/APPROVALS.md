@@ -34,9 +34,9 @@ For each requested action, the Host performs these checks in order:
 4. The side-effect budget has remaining capacity.
 5. The default console displays a non-sensitive argument summary and SHA-256
    call digest. With explicit Decision Card opt-in, the Runner first yields
-   desktop authority and opens a three-choice native card. Only the explicit
-   exact-effect choice approves that one request; handoff and denial stop before
-   dispatch.
+   desktop authority and opens a four-choice native card. Only the explicit
+   exact-effect choice approves that one request; re-observe, defer, and denial
+   cause zero side-effect dispatch.
 6. The returned decision must match request ID, run/turn/call identity, and
    digest. A stale or mismatched decision is rejected.
 7. The call is marked Host-authorized and dispatched through the serialized
@@ -48,7 +48,7 @@ other than explicit yes. It never prints raw typed text.
 
 ## Decision Card approval adapter
 
-The pure Host model can compile two or three bounded alternatives
+The pure Host model can compile two to four bounded alternatives
 with benefits, costs, risks, reversibility, authority scope, fallback, and
 provenance for time/token/confidence estimates. See
 [Operator experience](OPERATOR_EXPERIENCE.md).
@@ -66,12 +66,17 @@ the existing `ApprovalPort`: it converts only a fresh, correlated
 `PolicyDecision`. The Runner recomputes state, policy, task, registry, object,
 and grounding-evidence digests after the interaction before dispatch.
 
-The Win32 adapter uses a timed Common Controls v6 Task Dialog with three custom
-choices: request approval for the exact effect, hand control to the operator,
-or deny. It shows fixed trade-offs and an expandable evidence section containing
+The Win32 adapter uses a timed Common Controls v6 Task Dialog with four custom
+choices: request approval for the exact effect, re-observe, defer, or deny. It
+shows fixed trade-offs and an expandable evidence section containing
 only evidence kinds, unknown-fact enums, expiry, and SHA-256 Host/card digests.
-Handoff and denial both produce distinct request-bound denials with zero
-side-effect dispatch. Cancel/close/timeout return no selection and deny. Native
+Re-observe records a fixed rejected/not-dispatched result, invalidates grounding,
+abandons remaining calls from that provider turn, and requires a successful
+reviewed observation before another action or final answer. Defer records a
+fixed rejected/not-dispatched result and a durable `PAUSED` checkpoint with
+`recovery_status=stopped`; it is intentionally not same-run resumable, so recovery
+requires trace inspection and a fresh run. Denial stops the run. All three paths
+consume zero side-effect budget. Cancel/close/timeout return no selection and deny. Native
 errors, malformed choices, missing context, and expiry also deny. This creates
 no alternate MCP call site, global allow control, batch approval, model
 approval, or automatic recommendation selection. The console remains the
@@ -114,6 +119,10 @@ Offline tests prove allow/deny/mismatch binding, grounding freshness, MCP
 generation drift, bounds, side-effect accounting, serialization, mandatory
 re-observation, typed-text denial, unknown outcomes, redacted approvals, and
 terminal trace state.
+
+The re-observe/defer extension is offline verified only. The retained native
+desktop record still covers the earlier three-choice card; a four-choice
+human-operated desktop rerun remains required before widening that evidence claim.
 
 No real approved action should be treated as release-qualified until E4 runs
 against disposable Notepad or a VM with a narrow allowlist and operator review.

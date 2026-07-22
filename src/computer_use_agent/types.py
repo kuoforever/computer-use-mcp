@@ -31,6 +31,8 @@ REVIEWED_RESULT_CODES = frozenset(
     {
         "ABORTED",
         "APPROVAL_DENIED",
+        "APPROVAL_DEFERRED",
+        "APPROVAL_REOBSERVE_REQUIRED",
         "BUDGET_EXHAUSTED",
         "DENIED_BY_GATE",
         "DENIED_BY_USER",
@@ -117,6 +119,8 @@ class PolicyDecisionKind(str, Enum):
     ALLOW = "allow"
     DENY = "deny"
     APPROVAL_REQUIRED = "approval_required"
+    REOBSERVE = "reobserve"
+    DEFER = "defer"
 
 
 class LedgerEventKind(str, Enum):

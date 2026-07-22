@@ -59,6 +59,8 @@ def classify_run_recovery(
         return RecoveryDecision("none", "RUN_SUCCEEDED")
     if phase is RunPhase.UNKNOWN_OUTCOME:
         return RecoveryDecision("human_reobserve", "UNKNOWN_OUTCOME")
+    if phase is RunPhase.PAUSED:
+        return RecoveryDecision("start_new_run", "OPERATOR_DEFERRED")
     if phase in {RunPhase.FAILED, RunPhase.CANCELLED}:
         return RecoveryDecision("start_new_run", "RUN_TERMINAL")
     budgets = checkpoint.get("budgets")
@@ -94,6 +96,7 @@ class RunPhase(str, Enum):
     OBSERVING = "OBSERVING"
     PLANNING = "PLANNING"
     WAITING_APPROVAL = "WAITING_APPROVAL"
+    PAUSED = "PAUSED"
     EXECUTING = "EXECUTING"
     VERIFYING = "VERIFYING"
     SUCCESS = "SUCCESS"
@@ -121,10 +124,13 @@ _TRANSITIONS = {
         RunPhase.CANCELLED,
     },
     RunPhase.WAITING_APPROVAL: {
+        RunPhase.PLANNING,
         RunPhase.EXECUTING,
+        RunPhase.PAUSED,
         RunPhase.FAILED,
         RunPhase.CANCELLED,
     },
+    RunPhase.PAUSED: {RunPhase.CANCELLED},
     RunPhase.EXECUTING: {
         RunPhase.OBSERVING,
         RunPhase.PLANNING,
@@ -252,6 +258,9 @@ def _checkpoint(
     elif phase is RunPhase.UNKNOWN_OUTCOME:
         payload["resume_allowed"] = False
         payload["recovery_action"] = "human_reobserve_then_start_new_run"
+    elif phase is RunPhase.PAUSED:
+        payload["resume_allowed"] = False
+        payload["recovery_action"] = "inspect_trace_then_start_new_run"
     else:
         payload["resume_allowed"] = False
         payload["recovery_action"] = "inspect_trace_then_start_new_run"

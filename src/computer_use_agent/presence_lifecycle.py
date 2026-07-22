@@ -74,6 +74,10 @@ class RunPresenceCoordinator:
         if phase is RunPhase.CREATED:
             self._close()
             return
+        if phase is RunPhase.PAUSED:
+            self._suppressed = True
+            self._close()
+            return
         if phase in _TERMINAL_PHASES:
             self._suppressed = True
             self._close()

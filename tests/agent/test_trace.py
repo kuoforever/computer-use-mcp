@@ -174,6 +174,7 @@ def test_initial_record_can_attach_but_progressed_record_cannot_resume(tmp_path:
     [
         ("PLANNING", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
         ("WAITING_APPROVAL", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
+        ("PAUSED", "start_new_run", "OPERATOR_DEFERRED"),
         ("EXECUTING", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
         ("VERIFYING", "start_new_run", "PROVIDER_OR_TOOL_PROGRESS"),
         ("FAILED", "start_new_run", "RUN_TERMINAL"),
