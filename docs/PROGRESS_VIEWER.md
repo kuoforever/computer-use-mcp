@@ -218,8 +218,10 @@ model prose, arbitrary errors, credentials, or account identifiers.
    one 20-run cap in group order, so Attention cannot be displaced by newer
    History. Reducer/window/poller tests cover grouping, regrouping after a live
    phase transition, equal timestamps, corrupt timestamps, duplicate IDs, and
-   rapid atomic replacement. This step has offline evidence only; the retained
-   live poller result predates grouping.
+   rapid atomic replacement. The updated live poller smoke moved one of two
+   independent runs from In progress to History after a real terminal
+   checkpoint while preserving foreground and 400/400 concurrent publishes
+   ([retained evidence](PROGRESS_POLLER_EVIDENCE.md)).
 5. Campaign progress after the long-running task manifest is implemented.
 6. Integrate shared presence and Decision Card state only through the pure
    operator view-model contracts; keep execution and approval out of the

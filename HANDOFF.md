@@ -92,7 +92,7 @@ src/computer_use_agent/
   planned_observation_runtime.py fixed observation-only CLI composition
   campaign*.py         offline campaign control state and preflights
   continuation*.py     private bounded crash evidence and recovery
-  progress_view.py     pure checkpoint-to-view-model reducer for the operator viewer
+  progress_view.py     pure checkpoint reducer and independent-run grouping
 
 scripts/               on-device smoke and VMware helper
 tests/                 side-effect-free unit tests
@@ -145,6 +145,12 @@ docs/                  canonical English documentation
     window, captures its exact Win32 rectangle through stdio MCP, verifies the
     returned PNG dimensions/byte count/digest against the envelope, and then
     discards the pixels without changing foreground.
+13. **Progress grouping describes checkpoints, not liveness.** Independent runs
+    are grouped as Attention, In progress, or History using only validated
+    phase and `updated_at`; the In progress label still says liveness unknown.
+    Attention consumes the bounded display budget first, duplicate IDs fail
+    closed, and a retained live poller run proves one terminal transition moved
+    exactly one of two runs into History without changing foreground.
 
 ## Starting a fresh maintenance session
 
