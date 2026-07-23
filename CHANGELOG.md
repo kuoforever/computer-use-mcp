@@ -12,6 +12,22 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Bounded BOSS batch-start boundary.** A fixed
+  `campaign start-boss-batch` command validates the complete current BOSS
+  discovery ledger, requires at least two discovery passes, opens only the
+  coordinator-selected first read-only batch (maximum 20 items), creates a
+  five-minute heartbeat, and claims only ordinal 1. It accepts no item, URL,
+  page, scope, campaign-kind, or batch selector and opens no provider or MCP
+  port.
+- **Single-item BOSS commit and restart boundary.** Fixed
+  `campaign run-claimed-boss` verifies only the exact claimed public identity
+  in one foreground `ui_snapshot`, commits a canonical identity-presence
+  digest, finishes at the single-call batch limit, and writes handoff. Fixed
+  `campaign resume-boss-batch` reconstructs the finished session from durable
+  state, transfers heartbeat ownership to a fresh run, opens the exact resumed
+  plan, and claims its first item without provider, MCP, or caller-selected
+  item input. Both paths are offline verified; semantic job extraction,
+  automatic navigation, and the 100-item application gate remain open.
 - **`document_text` observation tool.** An eleventh reviewed MCP tool reads
   bounded semantic document text for a scope through a real UIA `TextPattern`
   channel — the ladder rung between the interactive `ui_snapshot` and `ocr`. A

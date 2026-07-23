@@ -32,6 +32,25 @@ needed to reproduce a finding.
 | 2026-07-18 | `boss-mcp-post-repair-01` | Agent bounded stdio bridge, project MCP, Chrome | Read-only post-repair BOSS home observation | Activation and bounded UIA observation passed; human-active gate stopped further navigation |
 | 2026-07-18 | `synthetic-campaign-device-01` | Fixed campaign CLI, Runner, project MCP | Three-command synthetic `list_windows` campaign | Commit, handoff, and fresh-run exhausted resume passed with zero provider calls |
 | 2026-07-19 | `boss-campaign-page-01` | Fixed campaign CLI, Runner, project MCP, Chrome | One-page read-only BOSS identity discovery | Seven stable identities retained; zero provider and side-effect calls |
+| 2026-07-23 | `boss-campaign-multipass-01` | Fixed campaign CLI, Runner, project MCP, Chrome | Current-contract two-pass BOSS identity discovery | Twelve stable identities retained across distinct source digests; zero provider and side-effect calls |
+| 2026-07-23 | `boss-item-restart-diagnostic-01` | Fixed campaign CLI, Runner, project MCP, Chrome | Three read-only identity commits and stale-owner restart diagnostic | Three commits retained; two integration defects found and fixed; clean post-fix stale recovery; not acceptance evidence |
+
+## 2026-07-23: current-contract BOSS multi-pass discovery
+
+- The first attempt observed a BOSS city-recruitment page, failed closed with
+  `BOSS_DISCOVERY_NO_IDENTITIES`, and left both campaign ledgers empty.
+- Operator-controlled project MCP navigation used the unique BOSS Chrome
+  window, bounded OCR, and one `End` key to select and progress the
+  interested-jobs surface outside the fixed campaign command.
+- Two fixed `campaign observe-boss-page` runs each dispatched one foreground
+  `ui_snapshot` through Runner and the project MCP.
+- The passes retained eight and four new identities respectively, with zero
+  duplicates and distinct source digests. The final item ledger contains twelve
+  stable keys.
+- The campaign files and redacted traces contain no full URL, `securityId`,
+  source marker, page text, or credential. No provider or side-effect call ran.
+
+See [the retained multi-pass evidence](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md).
 
 ## 2026-07-15: Chrome and BOSS live probe
 

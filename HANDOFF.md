@@ -49,10 +49,23 @@ discovery record, heartbeat, batch, and claim without opening provider or MCP
 ports. BOSS discovery now accumulates identities across repeated observations
 through a durable append-only discovery-pass ledger that stores only counts and
 a source digest, refuses an unchanged source, bounds the pass count, fails
-closed when a pass claims unpersisted items, and is reconstructed by a fresh run
-from durable records; the operator still causes progression by moving the
-observed foreground, because no command accepts a page, URL, or selector. No general campaign worker or complete application workflow is
-connected. The broader universal GUI,
+closed when a pass claims unpersisted items, and is reconstructed by a fresh
+run. A current-contract
+[two-pass on-device result](docs/BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) retained
+twelve stable identities with distinct source digests and externally controlled
+project-MCP progression; no command accepts a page, URL, or selector. No
+general campaign worker or complete application workflow is connected. A fixed
+zero-port `start-boss-batch` boundary now validates the complete discovery
+ledger, opens the first coordinator-selected maximum-20-item batch, creates its
+bounded heartbeat, and claims only ordinal 1. Fixed `run-claimed-boss` then
+uses one project-MCP foreground snapshot to verify only that claimed public
+identity, persists a canonical presence digest through `COMMITTED`, finishes at
+`TOOL_CALL_LIMIT`, and writes handoff. Fixed `resume-boss-batch` reconstructs
+that finished session in a fresh zero-port run, transfers heartbeat ownership,
+opens the coordinator-selected resumed plan, and claims its first item. These
+worker paths are offline verified only; they do not perform semantic job
+extraction, automatic navigation, provider execution, or the 100-item
+application gate. The broader universal GUI,
 operator UI, cross-application demo, continual-learning, and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))

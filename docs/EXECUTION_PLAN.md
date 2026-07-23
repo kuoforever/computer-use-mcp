@@ -83,9 +83,12 @@ result must contain bounded complete link values on the reviewed BOSS
 interested-jobs source; URL query data is stripped, stable public job keys are
 persisted idempotently, and discovery is refused after batch execution begins.
 The commands accept no task, URL, page, scope, item selector, provider, or
-navigation authority. The fixed path now has
-[one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) with
-seven stable public job keys and no provider or side effect.
+navigation authority. The superseded contract retains
+[one historical on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md)
+with seven stable public job keys. The current discovery-pass contract now also
+has a [two-pass on-device result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) with
+twelve stable public job keys, distinct source digests, and no provider or side
+effect.
 
 Repeated observation is now bounded by the durable discovery-pass ledger
 described in [Long-running tasks](LONG_RUNNING_TASKS.md). The observation
@@ -94,14 +97,36 @@ because the operator moved the observed foreground, and the boundary records
 that a distinct source was observed, refuses an unchanged source, bounds the
 campaign to twenty passes, and fails closed when a pass claims items that were
 never persisted. A fresh run reconstructs pass count and last source digest
-from durable records alone. This is offline evidence only; the BOSS discovery
-policy and schema digests were advanced for the change, so the earlier retained
-one-page result does not transfer to the new contract.
+from durable records alone. The current policy and schema digests now have
+two-pass on-device evidence; progression was operator-controlled outside the
+fixed command and does not imply navigation authority or a general worker.
 
-Next run a multi-page on-device discovery sequence against the reviewed BOSS
-source and retain its progression evidence, then the first 100-item read-only
-BOSS campaign across multiple provider contexts and at least one forced
-restart. Retain committed-item, token, retry, recovery, and takeover evidence.
+Next run the first 100-item read-only BOSS campaign across multiple provider
+contexts and at least one forced restart. Retain committed-item, token, retry,
+recovery, takeover, and cost evidence.
+
+The first worker-side increment is now offline verified: fixed
+`campaign start-boss-batch` accepts only config, campaign ID, and run ID,
+validates at least two complete current-contract discovery passes, derives a
+maximum-20-item plan through the existing `BatchCoordinator`, creates one
+bounded heartbeat, and claims only the exact first planned item. It opens no
+provider or MCP port and accepts no item, URL, page, scope, batch, or campaign
+kind selector.
+
+The next two control increments are also offline verified. Fixed
+`campaign run-claimed-boss` reconstructs that exact claim, uses one foreground
+project-MCP snapshot to verify only public-identity presence, advances it
+through a canonical digest-backed `COMMITTED`, finishes at the single-call limit,
+and writes deterministic handoff with the provider forbidden. Fixed
+`campaign resume-boss-batch` uses a fresh zero-port run to reconstruct the
+finished session, transfer heartbeat ownership, open the exact coordinator
+resume plan, and claim its first item. Neither accepts an item selector or
+performs automatic navigation or semantic job extraction. Next retain this
+commit/restart sequence on-device, then expand it to the 100-item evaluation.
+A partial [three-item diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md)
+now retains two discovered-and-fixed integration defects plus one clean
+post-fix stale-owner recovery. It is not clean acceptance evidence; the next
+run must repeat the bounded sequence without local correction.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);

@@ -8,8 +8,9 @@
 >
 > The discovery-pass ledger change advanced the BOSS policy and schema digests
 > after this run, so the measurement below describes the earlier contract. A
-> campaign created under it is no longer accepted, and the multi-page on-device
-> result remains an open gate.
+> campaign created under it is no longer accepted. The separate
+> [current-contract two-pass result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) now
+> closes the later discovery gate.
 
 ## Reviewed boundary
 
@@ -77,8 +78,9 @@ credential is retained in the repository.
 
 This closes only the one-page on-device BOSS campaign discovery gate, under the
 contract that the discovery-pass ledger has since replaced. The bounded
-page-progression mechanism is now implemented and offline verified; it needs a
-separate multi-page on-device result before any progression claim. After that,
-run the first 100-item read-only campaign with a forced restart and retained
-committed-item, retry, recovery, takeover, and cost evidence. Do not infer general worker,
-provider, extraction, item commit, or side-effect authority from this result.
+page-progression mechanism now has a separate
+[current-contract two-pass result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md). The
+next gate is the first 100-item read-only campaign with a forced restart and
+retained committed-item, retry, recovery, takeover, and cost evidence. Do not
+infer general worker, provider, extraction, item commit, or side-effect
+authority from this historical result.
