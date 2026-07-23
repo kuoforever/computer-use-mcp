@@ -296,9 +296,27 @@ runtime now sends one foreground `ui_snapshot` through the same Runner/project
 MCP boundary used elsewhere and passes only a correlated successful result to
 the parser. The `prepare-boss-discovery` and `observe-boss-page` campaign
 commands accept no task, URL, page, scope, or item selector. The path has
-[one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) with
-seven identities; page progression and the 100-item application gate remain
-unfilled.
+a [current-contract two-pass on-device result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md)
+with twelve identities and distinct source digests. Progression remained
+externally controlled; automatic navigation and the 100-item application gate
+remain unfilled.
+
+`boss_campaign_batch_runtime.py` adds one zero-port worker-side boundary.
+`campaign start-boss-batch` validates at least two complete current-contract
+discovery passes, asks the existing `BatchCoordinator` for a stable-ordinal
+maximum-20-item plan, creates one bounded heartbeat, and claims only ordinal 1.
+It accepts no item, URL, page, scope, batch, campaign-kind, provider, or desktop
+input. `boss_campaign_item_runtime.py` adds a single-call identity-presence slice:
+fixed `campaign run-claimed-boss` reconstructs the exact active claim, executes
+one foreground `ui_snapshot` through Runner/project MCP with provider access
+forbidden, requires that exact public job key, persists only source and
+canonical presence digests through `COMMITTED`, finishes at
+`TOOL_CALL_LIMIT`, and writes handoff. `boss_campaign_restart_runtime.py` adds
+fixed `campaign resume-boss-batch`; a fresh zero-port run reconstructs the
+finished session, transfers heartbeat ownership, opens the exact resumed plan,
+and claims its first item. These paths are offline verified and accept no item
+selector. They do not navigate automatically, extract job semantics, or fill
+the 100-item application gate.
 
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final

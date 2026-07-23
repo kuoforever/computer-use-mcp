@@ -38,13 +38,13 @@ desktop execution authority, and durable evidence that outlives a crash.
 | Windows activation repair: a five-case regression passed in an isolated VM | [E4 evidence](docs/E4_EVIDENCE.md) |
 | Bounded OCR recovered a static tab that UIA omitted, matched to one UIA card | [OCR evidence](docs/BOSS_OCR_EVIDENCE.md) |
 | One real BOSS page: 7 stable public job keys, 0 duplicates, 0 retries, 0 tokens — **measured under a contract the discovery-pass ledger has since replaced** | [Discovery evidence](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
+| Current BOSS discovery contract: 2 distinct on-device passes, 12 stable public job keys, 0 duplicates, 0 provider calls, 0 side effects | [Multi-pass discovery evidence](docs/BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) |
+| Partial BOSS item/restart diagnostic: 3 identity commits, clean post-fix stale-owner recovery, 0 provider calls, with two discovered defects explicitly retained | [Item/restart diagnostic evidence](docs/BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 
 Each record supports **only its own scope**. None is application acceptance, and
-none makes this a general-purpose worker. The last row is listed last on
-purpose: its numbers are real and unaltered, but the policy and schema digests
-moved after that run, so it no longer describes the current contract. Bounded
-page progression is implemented and offline-verified; the multi-page on-device
-result is still an open gate.
+none makes this a general-purpose worker. The superseded one-page row remains
+for history; the current-contract row proves externally progressed discovery
+only, not item processing, provider execution, or restart recovery.
 
 The [capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
 designed, implemented, offline-verified, provider-verified, desktop-verified,

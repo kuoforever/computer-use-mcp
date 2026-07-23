@@ -4,7 +4,7 @@
 > fixed observation-through-restart/resume seam connected.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
-> provider, general worker, timer, side-effect, or campaign creation CLI
+> provider, general worker, timer, side-effect, or free-form campaign-creation
 > authority. One
 > exact claimed synthetic item can execute `list_windows` through the existing
 > Runner authority, persist correlated `OBSERVED`, extract only a bounded
@@ -273,9 +273,35 @@ state fails closed. A fixed runtime now dispatches exactly one foreground
 correlated successful text into this identity boundary. `campaign
 prepare-boss-discovery` and `campaign observe-boss-page` expose that narrow
 seam without task, URL, page, scope, item, provider, or navigation inputs. The
-path has [one retained on-device page result](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md)
-with seven identities; it still has no automatic activation, page progression,
-provider, extraction, commit, or restart execution path.
+path has a
+[current-contract two-pass on-device result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md)
+with twelve identities and distinct source digests; it still has no automatic
+activation or navigation, provider, or semantic job extraction.
+
+`boss_campaign_batch_runtime.py` adds the first worker-side connection without
+opening a provider or desktop port. Fixed `campaign start-boss-batch` requires
+the current BOSS manifest and at least two complete discovery passes, rejects a
+torn ledger, existing heartbeat, handoff, or batch, asks the existing
+`BatchCoordinator` for its stable-ordinal plan, caps that plan at twenty items,
+creates a five-minute heartbeat, and claims only ordinal 1. It accepts no item,
+URL, page, scope, batch, campaign kind, or policy selector. It does not observe,
+extract, commit, finish, hand off, resume, or navigate.
+
+`boss_campaign_item_runtime.py` and
+`boss_campaign_restart_runtime.py` complete the first bounded processing seam.
+Fixed `campaign run-claimed-boss` reconstructs the exact active claim, sends
+one foreground `ui_snapshot` through the sole Runner/project-MCP boundary with
+provider access forbidden, and requires that the claimed public identity is
+present. It persists only the bounded source digest and a canonical
+identity-presence digest through `OBSERVED -> EXTRACTED -> COMMITTED`, closes
+the batch at the fixed single-call limit, and writes deterministic handoff. Fixed
+`campaign resume-boss-batch` accepts only config, campaign ID, and a fresh run
+ID; without external ports it reconstructs the exact finished session,
+transfers fresh ownership or recovers a proven-stale owner with no item claim,
+opens the coordinator-selected resumed plan, and claims its first item. Both
+boundaries fail closed on ownership, plan,
+handoff, or identity drift. They are offline verified only and do not navigate
+or extract role, company, compensation, or other job semantics.
 
 
 A future worker must close the current run cleanly at a batch boundary, write
@@ -541,18 +567,34 @@ takeover are durable transitions, not informal chat instructions.
 9. **Implemented and offline verified:** fixed bounded BOSS public-job identity
    discovery into the existing ledger, with query-token removal and idempotent
    multi-page ingestion before batch execution.
-10. **Implemented and on-device verified for one page:** two fixed CLI commands
-    create the BOSS discovery manifest and run one foreground page observation
-    through the sole Runner/project-MCP path with the provider forbidden; seven
-    stable identities were retained without URL query data.
-11. **Next:** add reviewed page progression and run the BOSS read-only 100-item
-    evaluation with a forced restart.
-12. Run Google Docs 50-section and WeChat draft-only evaluations.
-13. Run the cross-application campaign with a fresh-session boundary.
-14. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-15. Only then consider resumable side-effect campaigns and higher-complexity
+10. **Implemented and on-device verified for two passes:** two fixed CLI
+    commands create the BOSS discovery manifest and run foreground observations
+    through the sole Runner/project-MCP path with the provider forbidden;
+    twelve stable identities were retained under the current contract.
+11. **Implemented and offline verified:** a third fixed BOSS command validates
+    the complete discovery ledger, opens the exact first maximum-20-item batch,
+    creates its bounded heartbeat, and claims only ordinal 1 with no provider,
+    MCP, navigation, or selector.
+12. **Implemented and offline verified:** a fourth fixed BOSS command verifies
+    the exact claimed public identity through one Runner/project-MCP snapshot,
+    commits only canonical identity-presence evidence, finishes at the
+    single-call boundary, and writes deterministic handoff with no provider.
+13. **Implemented and offline verified:** a fifth fixed BOSS command transfers
+    the finished session to a fresh zero-port run, opens the exact resumed
+    batch, and claims the next coordinator-selected item.
+14. **Partial on-device diagnostic retained:** three identity-only commits and
+    one clean post-fix stale-owner recovery passed, while two integration
+    defects were preserved and fixed; see
+    [diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md).
+15. **Next:** repeat the bounded multi-item sequence without local correction,
+    then add semantic extraction only under a separately reviewed schema and
+    run the 100-item evaluation.
+16. Run Google Docs 50-section and WeChat draft-only evaluations.
+17. Run the cross-application campaign with a fresh-session boundary.
+18. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+19. Only then consider resumable side-effect campaigns and higher-complexity
     remote-desktop or modal-tool workloads.
-16. Define object-scoped enterprise authority, data classification, transaction
+20. Define object-scoped enterprise authority, data classification, transaction
     reconciliation, SLA ownership, and human takeover before Wave 4.
-17. Run the synthetic read-only IT incident campaign, then add approved ticket
+21. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

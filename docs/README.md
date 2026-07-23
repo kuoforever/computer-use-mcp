@@ -43,6 +43,7 @@ not a line-by-line mirror of every reference page.
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | I need accurate Codex/Claude completion polling before a host sends a mobile notification | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) and [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
 | I need real-application and enterprise workflow cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| I need the latest partial BOSS item/restart diagnostic | [BOSS item/restart diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 | I need the one-campaign complete-product showcase and evidence plan | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | I am adding OCR, document text, image, or delta observations | [Observation contract](OBSERVATION_CONTRACT.md) |
@@ -54,6 +55,7 @@ not a line-by-line mirror of every reference page.
 | I need the retained on-device UIA semantic-text result | [Document-text evidence](DOCUMENT_TEXT_EVIDENCE.md) |
 | I need the retained on-device bounded region-capture result | [Region-capture evidence](CAPTURE_REGION_EVIDENCE.md) |
 | I need the retained one-page BOSS campaign discovery result | [BOSS campaign discovery evidence](BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
+| I need the retained current-contract multi-pass BOSS discovery result | [BOSS multi-pass discovery evidence](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) |
 | I need the retained on-device synthetic campaign result | [Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md) |
 | I need the 100-item forced-restart reliability result | [Reliability benchmark evidence](benchmark/README.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |

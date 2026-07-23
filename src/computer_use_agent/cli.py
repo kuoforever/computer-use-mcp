@@ -226,6 +226,27 @@ def build_parser() -> argparse.ArgumentParser:
     campaign_observe_boss.add_argument("--config", required=True, type=Path)
     campaign_observe_boss.add_argument("--campaign-id", required=True)
     campaign_observe_boss.add_argument("--run-id", required=True)
+    campaign_start_boss = campaign_commands.add_parser(
+        "start-boss-batch",
+        help="Start only the fixed first read-only BOSS batch and claim.",
+    )
+    campaign_start_boss.add_argument("--config", required=True, type=Path)
+    campaign_start_boss.add_argument("--campaign-id", required=True)
+    campaign_start_boss.add_argument("--run-id", required=True)
+    campaign_run_boss = campaign_commands.add_parser(
+        "run-claimed-boss",
+        help="Verify and commit only the exact claimed BOSS identity, then hand off.",
+    )
+    campaign_run_boss.add_argument("--config", required=True, type=Path)
+    campaign_run_boss.add_argument("--campaign-id", required=True)
+    campaign_run_boss.add_argument("--run-id", required=True)
+    campaign_resume_boss = campaign_commands.add_parser(
+        "resume-boss-batch",
+        help="Transfer a finished BOSS batch and claim its exact next item.",
+    )
+    campaign_resume_boss.add_argument("--config", required=True, type=Path)
+    campaign_resume_boss.add_argument("--campaign-id", required=True)
+    campaign_resume_boss.add_argument("--run-id", required=True)
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -633,6 +654,112 @@ def _observe_boss_discovery_page(path: Path, campaign_id: str, run_id: str) -> i
     return asyncio.run(_observe_boss_discovery_page_async(path, campaign_id, run_id))
 
 
+def _start_boss_read_only_batch(path: Path, campaign_id: str, run_id: str) -> int:
+    from .boss_campaign_batch_runtime import start_boss_read_only_batch
+
+    config = load_agent_config(path)
+    outcome = start_boss_read_only_batch(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "batch_id": outcome.batch_id,
+            "campaign_id": outcome.campaign_id,
+            "claimed_item_ordinal": outcome.claimed_item_ordinal,
+            "discovered_count": outcome.discovered_count,
+            "discovery_pass_count": outcome.discovery_pass_count,
+            "lease_expires_at": outcome.lease_expires_at,
+            "planned_item_count": outcome.planned_item_count,
+            "run_id": outcome.run_id,
+        }
+    )
+    return 0
+
+
+async def _run_claimed_boss_identity_async(
+    path: Path,
+    campaign_id: str,
+    run_id: str,
+) -> int:
+    from .approvals import ReadOnlyApprovalPort
+    from .boss_campaign_item_runtime import (
+        execute_claimed_boss_identity_through_handoff,
+    )
+    from .desktop_mcp import StdioDesktopMCP
+
+    config = load_agent_config(path)
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            provider=_ForbiddenCampaignProvider(),
+            desktop=StdioDesktopMCP(config.mcp),
+            approvals=ReadOnlyApprovalPort(),
+        ),
+    )
+    outcome = await execute_claimed_boss_identity_through_handoff(
+        runner,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_id": campaign_id,
+            "claimed_item_ordinal": outcome.claimed_item_ordinal,
+            "content_digest": outcome.content_digest,
+            "next_item_ordinal": outcome.handoff["next_item_ordinal"],
+            "run_id": outcome.state.run_id,
+            "stop_code": outcome.stop_code,
+            "usage": {
+                "elapsed_seconds": outcome.usage.elapsed_seconds,
+                "input_tokens": outcome.usage.input_tokens,
+                "provider_turns": outcome.usage.provider_turns,
+                "tool_calls": outcome.usage.tool_calls,
+            },
+        }
+    )
+    return 0
+
+
+def _run_claimed_boss_identity(path: Path, campaign_id: str, run_id: str) -> int:
+    return asyncio.run(
+        _run_claimed_boss_identity_async(path, campaign_id, run_id)
+    )
+
+
+def _resume_finished_boss_batch(
+    path: Path,
+    campaign_id: str,
+    replacement_run_id: str,
+) -> int:
+    from .boss_campaign_restart_runtime import (
+        resume_finished_boss_batch_after_restart,
+    )
+
+    config = load_agent_config(path)
+    outcome = resume_finished_boss_batch_after_restart(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        replacement_run_id=replacement_run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "batch_id": outcome.batch_id,
+            "campaign_id": outcome.campaign_id,
+            "claimed_item_ordinal": outcome.claimed_item_ordinal,
+            "lease_expires_at": outcome.lease_expires_at,
+            "planned_item_count": outcome.planned_item_count,
+            "prior_run_id": outcome.prior_run_id,
+            "run_id": outcome.replacement_run_id,
+        }
+    )
+    return 0
+
+
 def _cancel(path: Path, run_id: str) -> int:
     from .run_lock import RunLock
     from .trace import cancel_run_record
@@ -1025,6 +1152,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "campaign" and args.campaign_command == "observe-boss-page":
             return _observe_boss_discovery_page(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "start-boss-batch":
+            return _start_boss_read_only_batch(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "run-claimed-boss":
+            return _run_claimed_boss_identity(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "resume-boss-batch":
+            return _resume_finished_boss_batch(
                 args.config,
                 args.campaign_id,
                 args.run_id,

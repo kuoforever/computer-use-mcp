@@ -32,11 +32,12 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 | 强制崩溃的 campaign：中途杀掉、新进程恢复，每个故障点都是 **0 重复副作用** | [可靠性 demo](docs/demo/README.md) |
 | 可靠性基准：**30 次运行 × 100 item**，在每个命名故障点注入崩溃，**0 重复副作用**，每个 item 要么提交要么停下等人 | [基准证据](docs/benchmark/README.md) |
 | 一页真实 BOSS 页面：7 个稳定公开 job key、0 重复、0 重试、0 token —— **该测量所依据的契约已被 discovery-pass ledger 取代** | [发现证据](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
+| 当前 BOSS 发现契约：2 次不同的 on-device pass、12 个稳定公开 job key、0 重复、0 provider 调用、0 副作用 | [多 pass 发现证据](docs/BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) |
+| BOSS item/restart 部分诊断：3 条身份提交、修复后 stale-owner 恢复成功、0 provider 调用，且明确保留两项现场缺陷 | [item/restart 诊断证据](docs/BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 
 每条记录**只支持它自己的范围**：这些都不是 application acceptance，也不表示
-本项目是通用 worker。最后一行的数字真实且未被改动，但那次运行之后 policy 和
-schema digest 已经变更，因此它不再描述当前契约；多页 on-device 结果仍是未完成
-的门禁。
+本项目是通用 worker。旧的一页结果保留作历史记录；当前契约的两次 pass 只证明
+外部控制翻页后的身份累积，不证明 item 处理、provider 执行或重启恢复。
 
 ## 安全提示
 

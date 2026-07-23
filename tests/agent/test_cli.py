@@ -56,6 +56,9 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["campaign", "run-claimed-synthetic", "--help"],
         ["campaign", "prepare-boss-discovery", "--help"],
         ["campaign", "observe-boss-page", "--help"],
+        ["campaign", "start-boss-batch", "--help"],
+        ["campaign", "run-claimed-boss", "--help"],
+        ["campaign", "resume-boss-batch", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -639,6 +642,166 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
         "pass_added_nothing": False,
         "run_id": "run_1",
         "tool_calls": 1,
+    }
+
+
+def test_boss_batch_start_cli_has_no_item_selector_or_external_ports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 23, 14, 0, tzinfo=timezone.utc)
+
+    def fake_start(
+        runner: object,
+        *,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, run_id, now))
+        return SimpleNamespace(
+            batch_id="boss_batch_0123456789abcdef",
+            campaign_id=campaign_id,
+            claimed_item_ordinal=1,
+            discovered_count=25,
+            discovery_pass_count=2,
+            lease_expires_at="2026-07-23T14:05:00+00:00",
+            planned_item_count=20,
+            run_id=run_id,
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.boss_campaign_batch_runtime.start_boss_read_only_batch",
+        fake_start,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "start-boss-batch",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "boss_run_1",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in (
+        "task",
+        "item_key",
+        "url",
+        "page",
+        "scope",
+        "campaign_kind",
+        "batch_id",
+    ):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+    runner, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is None
+    assert (campaign_id, run_id, captured_now) == ("campaign_1", "boss_run_1", now)
+    assert json.loads(capsys.readouterr().out) == {
+        "batch_id": "boss_batch_0123456789abcdef",
+        "campaign_id": "campaign_1",
+        "claimed_item_ordinal": 1,
+        "discovered_count": 25,
+        "discovery_pass_count": 2,
+        "lease_expires_at": "2026-07-23T14:05:00+00:00",
+        "planned_item_count": 20,
+        "run_id": "boss_run_1",
+    }
+
+
+def test_boss_batch_resume_cli_has_no_item_selector_or_external_ports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 23, 14, 5, tzinfo=timezone.utc)
+
+    def fake_resume(
+        runner: object,
+        *,
+        campaign_id: str,
+        replacement_run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, replacement_run_id, now))
+        return SimpleNamespace(
+            batch_id="boss_resume_0123456789abcdef",
+            campaign_id=campaign_id,
+            claimed_item_ordinal=2,
+            lease_expires_at="2026-07-23T14:10:00+00:00",
+            planned_item_count=19,
+            prior_run_id="boss_run_1",
+            replacement_run_id=replacement_run_id,
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.boss_campaign_restart_runtime."
+        "resume_finished_boss_batch_after_restart",
+        fake_resume,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "resume-boss-batch",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "boss_run_2",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in (
+        "task",
+        "item_key",
+        "url",
+        "page",
+        "scope",
+        "campaign_kind",
+        "batch_id",
+        "prior_run_id",
+    ):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+    runner, campaign_id, replacement_run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is None
+    assert (campaign_id, replacement_run_id, captured_now) == (
+        "campaign_1",
+        "boss_run_2",
+        now,
+    )
+    assert json.loads(capsys.readouterr().out) == {
+        "batch_id": "boss_resume_0123456789abcdef",
+        "campaign_id": "campaign_1",
+        "claimed_item_ordinal": 2,
+        "lease_expires_at": "2026-07-23T14:10:00+00:00",
+        "planned_item_count": 19,
+        "prior_run_id": "boss_run_1",
+        "run_id": "boss_run_2",
     }
 
 
