@@ -43,6 +43,7 @@ not a line-by-line mirror of every reference page.
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | I need accurate Codex/Claude completion polling before a host sends a mobile notification | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) and [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
 | I need real-application and enterprise workflow cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| I need the clean fixed-code BOSS multi-item restart result | [BOSS clean item/restart evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) |
 | I need the latest partial BOSS item/restart diagnostic | [BOSS item/restart diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 | I need the one-campaign complete-product showcase and evidence plan | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
