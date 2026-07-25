@@ -300,8 +300,9 @@ ID; without external ports it reconstructs the exact finished session,
 transfers fresh ownership or recovers a proven-stale owner with no item claim,
 opens the coordinator-selected resumed plan, and claims its first item. Both
 boundaries fail closed on ownership, plan,
-handoff, or identity drift. They are offline verified only and do not navigate
-or extract role, company, compensation, or other job semantics.
+handoff, or identity drift. They are offline verified and have a bounded
+[clean three-item on-device result](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md), but
+do not navigate or extract role, company, compensation, or other job semantics.
 
 
 A future worker must close the current run cleanly at a batch boundary, write
@@ -586,15 +587,18 @@ takeover are durable transitions, not informal chat instructions.
     one clean post-fix stale-owner recovery passed, while two integration
     defects were preserved and fixed; see
     [diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md).
-15. **Next:** repeat the bounded multi-item sequence without local correction,
-    then add semantic extraction only under a separately reviewed schema and
-    run the 100-item evaluation.
-16. Run Google Docs 50-section and WeChat draft-only evaluations.
-17. Run the cross-application campaign with a fresh-session boundary.
-18. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-19. Only then consider resumable side-effect campaigns and higher-complexity
+15. **Clean on-device gate retained:** two discovery passes retained twelve
+    identities and three consecutive fresh-run commits without local state
+    correction, provider calls, tokens, retryable items, or uncertain items;
+    see [clean evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md).
+16. **Next:** add semantic extraction only under a separately reviewed bounded
+    schema and observation ladder, then run the 100-item evaluation.
+17. Run Google Docs 50-section and WeChat draft-only evaluations.
+18. Run the cross-application campaign with a fresh-session boundary.
+19. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+20. Only then consider resumable side-effect campaigns and higher-complexity
     remote-desktop or modal-tool workloads.
-20. Define object-scoped enterprise authority, data classification, transaction
+21. Define object-scoped enterprise authority, data classification, transaction
     reconciliation, SLA ownership, and human takeover before Wave 4.
-21. Run the synthetic read-only IT incident campaign, then add approved ticket
+22. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

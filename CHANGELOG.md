@@ -10,6 +10,14 @@ a version number states what is packaged, never what has been verified.
 
 ## [Unreleased]
 
+### Evidence
+
+- **Clean BOSS item/restart sequence.** Retained a fixed-code on-device result
+  with two discovery passes, twelve stable identities, and three consecutive
+  fresh-run identity commits without local state correction. All accepted runs
+  used one tool call, zero provider calls, and zero tokens; final handoff points
+  to ordinal 4 with no retryable or uncertain items.
+
 ### Added
 
 - **Bounded BOSS batch-start boundary.** A fixed

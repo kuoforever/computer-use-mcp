@@ -63,7 +63,10 @@ identity, persists a canonical presence digest through `COMMITTED`, finishes at
 `TOOL_CALL_LIMIT`, and writes handoff. Fixed `resume-boss-batch` reconstructs
 that finished session in a fresh zero-port run, transfers heartbeat ownership,
 opens the coordinator-selected resumed plan, and claims its first item. These
-worker paths are offline verified only; they do not perform semantic job
+boundaries are offline verified, and a
+[clean three-item on-device sequence](docs/BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md)
+retained twelve discovered identities plus three consecutive fresh-run commits
+without local state correction. They still do not perform semantic job
 extraction, automatic navigation, provider execution, or the 100-item
 application gate. The broader universal GUI,
 operator UI, cross-application demo, continual-learning, and additional

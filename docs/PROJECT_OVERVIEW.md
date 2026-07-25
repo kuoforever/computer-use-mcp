@@ -211,7 +211,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Deterministic handoff/completion | Implemented/internal | Fixed-schema handoff and terminal campaign projection derived from durable state | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Fixed synthetic execution seam | Implemented/internal product boundary | Three CLI commands prepare one fixed claim, execute one `list_windows` observation through Runner handoff, and reconstruct fresh-run resume | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | BOSS identity discovery | Implemented/internal fixed runtime | Two fixed CLI commands create the reviewed manifest and dispatch one foreground `ui_snapshot` through Runner/project MCP; bounded complete link values produce idempotent public job keys with query data discarded. A [current-contract two-pass result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) retained twelve identities with externally controlled progression; no automatic navigation, worker, restart, or application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
-| BOSS bounded item/restart seam | Implemented/internal fixed runtime | Three fixed CLIs start the first coordinator-selected batch, verify one exact claimed public identity through one Runner/project-MCP snapshot and digest-backed commit/handoff, then transfer a fresh or proven-stale finished owner to a zero-port run and claim the exact next item. A partial [on-device diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) retained three commits and two corrected defects; no item selector, provider execution, automatic navigation, semantic job extraction, or clean application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
+| BOSS bounded item/restart seam | Implemented/internal fixed runtime | Three fixed CLIs start the first coordinator-selected batch, verify one exact claimed public identity through one Runner/project-MCP snapshot and digest-backed commit/handoff, then transfer a fresh or proven-stale finished owner to a zero-port run and claim the exact next item. A [clean on-device sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) retained twelve identities and three consecutive fresh-run commits without local state correction; the earlier [diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) preserves two corrected defects. There is no item selector, provider execution, automatic navigation, semantic job extraction, or complete application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | General campaign worker | Not implemented | No free-form item/campaign selector, provider turn, side effect, or complete application orchestration | [Roadmap](EXECUTION_PLAN.md) |
 | Host completion polling | Implemented/internal contract | Bounded read-only projection and deduplicated fake-host terminal/attention decisions; no public status tool or mobile bridge | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) |
 
@@ -367,8 +367,8 @@ In priority order:
 
 1. Use the retained isolated Windows evidence only for the repaired activation
    path and reviewed VM/model scope.
-2. Reuse the retained bounded OCR slice across a multi-item BOSS run with
-   durable identities and restart evidence; add another source only on a
+2. Add a separately reviewed bounded semantic extraction schema and exercise
+   the observation ladder per claimed BOSS item; add another source only on a
    demonstrated gap.
 3. Apply completed-final reconciliation and expose the smallest observation-only
    Planner/Executor CLI path.
