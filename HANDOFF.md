@@ -53,8 +53,15 @@ closed when a pass claims unpersisted items, and is reconstructed by a fresh
 run. A current-contract
 [two-pass on-device result](docs/BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) retained
 twelve stable identities with distinct source digests and externally controlled
-project-MCP progression; no command accepts a page, URL, or selector. No
-general campaign worker or complete application workflow is connected. A fixed
+project-MCP progression; no command accepts a page, URL, or selector. A
+separate composable adapter layer now generalizes only that identity step for
+other reviewed scenarios: `campaign prepare-discovery` creates the empty
+reviewed campaign for one registered kind and `campaign observe-discovery-page`
+records one operator-driven pass from one foreground `ui_snapshot`, binding the
+adapter through the durable manifest rather than a caller argument. Its
+campaigns carry the ordinary worker digests and enter `campaign start`
+unchanged; it is offline verified only. No complete application workflow is
+connected. A fixed
 zero-port `start-boss-batch` boundary now validates the complete discovery
 ledger, opens the first coordinator-selected maximum-20-item batch, creates its
 bounded heartbeat, and claims only ordinal 1. Fixed `run-claimed-boss` then
@@ -104,6 +111,8 @@ src/computer_use_agent/
   executor*.py         internal observation/final runtime and local reconciliation
   planned_observation_runtime.py fixed observation-only CLI composition
   campaign*.py         offline campaign control state and preflights
+  discovery_adapters.py declarative bounded stable-identity extraction rules
+  application_*discovery*.py generic durable discovery ledger and one-pass runtime
   continuation*.py     private bounded crash evidence and recovery
   progress_view.py     pure run/campaign reducer and fixed relevance grouping
   presence*.py         pure presence state plus passive primary-display halo

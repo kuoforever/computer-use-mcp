@@ -328,10 +328,36 @@ rotate provider context through deterministic handoff.
 All nineteen application-matrix examples and one non-matrix custom composition
 are offline tested at this shared boundary. They demonstrate extensibility,
 not an exhaustive scenario list, and do not mean the applications have passed:
-application-specific discovery, locator/recovery tuning, fixture accounts,
-desktop evidence, and acceptance evidence remain independent gates. BOSS is
-still the only application with a dedicated discovery adapter and retained
-on-device campaign observations.
+locator/recovery tuning, fixture accounts, desktop evidence, and acceptance
+evidence remain independent gates.
+
+`discovery_adapters.py`, `application_campaign_discovery.py`, and
+`application_discovery_runtime.py` generalize the identity half of that gate.
+An adapter is reviewed data: a campaign kind, one identity dimension of its
+scenario, an extraction mode, an item-key prefix, an identity pattern, a source
+marker, and an exact role set. `link_url` accepts only `https` targets on an
+allowlisted host with no credentials and a non-default port refused, keeps only
+the path identifier, and discards scheme, host, query, and fragment.
+`control_name` accepts only control names for the declared roles. Both refuse a
+truncated or incomplete observation, require the same-observation source marker,
+and cap snapshot size, snapshot lines, identities per pass, campaign items, and
+discovery passes. `campaign prepare-discovery` creates only the empty reviewed
+campaign for one registered kind, and `campaign observe-discovery-page`
+dispatches exactly one foreground `ui_snapshot` through the sole Runner and
+project-MCP boundary with the provider forbidden. The observing command takes
+no kind: the durable manifest selects the adapter, so an operator cannot
+reinterpret a campaign after it exists. Progression stays operator-driven
+through the same discovery-pass ledger, an unchanged source digest is refused,
+and a pass ledger claiming unpersisted items fails closed.
+
+The campaign these commands create is an ordinary reviewed application campaign
+carrying the same worker policy and schema digests, so discovery flows straight
+into `campaign start`, `run-claimed`, and `resume` without a second manifest
+shape. Two adapters are registered as reviewed examples — BOSS saved-job links
+and a synthetic incident queue — and another can be registered without touching
+the Runner, the campaign runtime, or the MCP surface. BOSS keeps its own fixed
+discovery module, contract digests, and the only retained on-device campaign
+observations; every generic adapter is offline verified only.
 
 
 A future worker must close the current run cleanly at a batch boundary, write
