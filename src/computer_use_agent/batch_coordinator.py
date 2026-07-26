@@ -1248,6 +1248,37 @@ class BatchCoordinator:
             required_retirement="remove_completed_campaign_heartbeat",
         )
 
+    def remove_completed_campaign_heartbeat(
+        self,
+        session: BatchSession,
+        *,
+        replacement_run_id: str,
+    ) -> CampaignHeartbeat | None:
+        """Retire the exact terminal owner after terminal handoff is durable."""
+
+        preflight = self.inspect_completed_campaign_heartbeat_retirement(
+            session,
+            replacement_run_id=replacement_run_id,
+        )
+        if preflight.state is BatchCompletedHeartbeatState.HEARTBEAT_MISSING:
+            return self.store.remove_completed_heartbeat(
+                session.campaign_id,
+                run_id=replacement_run_id,
+            )
+        if not preflight.ready:
+            raise BatchCoordinatorError(
+                f"BATCH_COMPLETED_HEARTBEAT_BLOCKED_{preflight.state.value}"
+            )
+        try:
+            return self.store.remove_completed_heartbeat(
+                session.campaign_id,
+                run_id=replacement_run_id,
+            )
+        except CampaignStoreError as exc:
+            raise BatchCoordinatorError(
+                "BATCH_COMPLETED_HEARTBEAT_RETIREMENT_FAILED"
+            ) from exc
+
     def open_transferred_resumed_batch(
         self,
         session: BatchSession,

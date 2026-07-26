@@ -12,6 +12,12 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Automatic application-campaign terminalization.** A fresh generic
+  application-campaign resume that finds no eligible items now completes the
+  exhausted manifest, writes the deterministic terminal handoff, and retires
+  the exact finalizer-owned heartbeat. Retirement fails closed unless every
+  item is committed and the completed manifest, handoff, and heartbeat owner
+  agree; repeating it after the heartbeat is absent is idempotent.
 - **Composable application campaign workers.** New `campaign
   prepare-application`, `campaign start`, `campaign run-claimed`, and `campaign
   resume` commands run capability-composed scenario contracts through one

@@ -203,8 +203,8 @@ The implemented offline control plane provides:
 - batch finish and deterministic handoff preflights;
 - fresh-owner run transfer, resumed batch progression, exhausted-campaign
   completion, and byte-stable terminal handoff;
-- terminal heartbeat-retirement readiness that validates the completed handoff
-  and owner but does not remove the heartbeat;
+- terminal heartbeat-retirement readiness plus exact, idempotent removal that
+  validates the completed manifest, committed items, handoff, and owner;
 - pause, heartbeat, stale-state inspection, and locked lease/owner recovery; and
 - rejection of free-form item substitution, usage drift, plan drift, repeated
   writes, and in-flight resume.
@@ -235,6 +235,13 @@ execution, and fresh-run resume; provider access is forbidden and only bounded
 control/result metadata is printed. Expiry
 can release a stale read-only claim to `RETRYABLE`; it
 cannot claim the item for another run or authorize action replay.
+
+The generic application-campaign runtime closes the terminal gap left
+intentionally open by the fixed synthetic seam. After a fresh-owner resume
+returns `NO_ELIGIBLE_ITEMS`, it completes the exhausted manifest, rewrites the
+handoff as `none_completed` / `none`, and removes only the heartbeat owned by
+that finalizer run. A missing heartbeat is an idempotent success only after the
+same completed-state checks pass.
 
 The incremental implementation sequence is retained in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md).

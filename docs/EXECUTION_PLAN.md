@@ -46,7 +46,8 @@ restart evidence.
 > offline verified. It has strict manifests, item and batch ledgers, leases,
 > heartbeats, pause/stale inspection, deterministic handoff, bounded resume,
 > read-only item progression, run transfer, campaign completion, and a
-> read-only terminal heartbeat-retirement preflight. One internal fixed
+> terminal heartbeat-retirement preflight plus an exact idempotent removal
+> mutation. One internal fixed
 > synthetic item now binds an existing claim/session to one `list_windows`
 > observation through the sole Runner dispatch boundary, persists a correlated
 > `OBSERVED` transition, reduces the bounded text to a non-sensitive window
@@ -61,6 +62,11 @@ restart evidence.
 > fresh-run resume half. Preparation opens no external port or trace; execution
 > uses the configured MCP child with a fail-closed provider guard. None accepts
 > task text, item selection, campaign-kind selection, or action authority.
+
+> The separate generic application-campaign worker now consumes the terminal
+> preflight: an exhausted fresh resume completes the manifest, writes the
+> terminal handoff, and retires the finalizer-owned heartbeat. This does not
+> broaden the fixed synthetic runtime or establish live-application evidence.
 
 The complete three-command sequence is offline verified without private fixture
 setup and has [retained on-device state, redacted trace, and cost evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md).

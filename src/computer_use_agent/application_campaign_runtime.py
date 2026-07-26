@@ -97,13 +97,15 @@ class ApplicationCampaignResumeOutcome:
     scenario_id: str
     replacement_run_id: str
     prior_run_id: str
-    batch_id: str
-    claimed_item_ordinal: int
+    batch_id: str | None
+    claimed_item_ordinal: int | None
     planned_item_count: int
-    lease_expires_at: str
-    heartbeat: CampaignHeartbeat
+    lease_expires_at: str | None
+    heartbeat: CampaignHeartbeat | None
     resume: BatchTransferredResumePreflight
     prior_handoff: Mapping[str, object]
+    completed: bool = False
+    terminal_handoff: Mapping[str, object] | None = None
 
 
 def _require_now(now: datetime) -> datetime:
@@ -716,6 +718,50 @@ def resume_application_campaign_batch(
             now=timestamp,
             policy=APPLICATION_BATCH_POLICY,
         )
+        if resume.state is BatchTransferredResumeState.NO_ELIGIBLE_ITEMS:
+            completed = coordinator.complete_exhausted_campaign(
+                session,
+                replacement_run_id=replacement_run_id,
+                now=timestamp,
+                policy=APPLICATION_BATCH_POLICY,
+            )
+            terminal_handoff = coordinator.write_completed_campaign_handoff(
+                session,
+                replacement_run_id=replacement_run_id,
+                now=timestamp,
+            )
+            retired = coordinator.remove_completed_campaign_heartbeat(
+                session,
+                replacement_run_id=replacement_run_id,
+            )
+            if (
+                completed.status is not CampaignStatus.COMPLETED
+                or terminal_handoff.get("campaign_id") != campaign_id
+                or terminal_handoff.get("last_run_id") != replacement_run_id
+                or terminal_handoff.get("next_action") != "none_completed"
+                or terminal_handoff.get("required_observation") != "none"
+                or retired != replacement
+                or coordinator.store.read_heartbeat(campaign_id) is not None
+            ):
+                raise ApplicationCampaignRuntimeError(
+                    "APPLICATION_CAMPAIGN_COMPLETION_EVIDENCE_INVALID"
+                )
+            return ApplicationCampaignResumeOutcome(
+                campaign_id=campaign_id,
+                campaign_kind=spec.kind,
+                scenario_id=spec.scenario_id,
+                replacement_run_id=replacement_run_id,
+                prior_run_id=session.run_id,
+                batch_id=None,
+                claimed_item_ordinal=None,
+                planned_item_count=0,
+                lease_expires_at=None,
+                heartbeat=None,
+                resume=resume,
+                prior_handoff=handoff,
+                completed=True,
+                terminal_handoff=terminal_handoff,
+            )
         if (
             heartbeat != replacement
             or resume.state is not BatchTransferredResumeState.READY
@@ -760,6 +806,8 @@ def resume_application_campaign_batch(
             heartbeat=heartbeat,
             resume=resume,
             prior_handoff=handoff,
+            completed=False,
+            terminal_handoff=None,
         )
     except ApplicationCampaignRuntimeError:
         raise

@@ -346,3 +346,125 @@ def test_provider_cannot_claim_observation_evidence_it_did_not_execute(
                 now=NOW,
             )
         )
+
+
+def test_last_item_resume_completes_campaign_and_retires_heartbeat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    spec = APPLICATION_WORKER_SPECS[0]
+    item_key = "boss:job:publicjob001"
+    prepare_application_campaign(
+        AgentRunner(config),
+        spec=spec,
+        campaign_id="campaign_terminal",
+        run_id="prepare_terminal",
+        item_keys=(item_key,),
+        now=NOW,
+    )
+    start_application_campaign_batch(
+        AgentRunner(config),
+        spec=spec,
+        campaign_id="campaign_terminal",
+        run_id="worker_terminal",
+        now=NOW,
+    )
+    call = ToolCall(
+        CallIdentity("worker_terminal", "turn_1", "call_1"),
+        "ui_snapshot",
+        {"scope": "foreground"},
+    )
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    "worker_terminal",
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (call,),
+                ),
+                ModelTurn(
+                    "worker_terminal",
+                    "turn_2",
+                    "response_2",
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "scenario_id": "A1",
+                            "item_key": item_key,
+                            "outcome": "EXTRACTED",
+                            "identity": {
+                                "account": "test",
+                                "public_job_id": "publicjob001",
+                            },
+                            "result": {
+                                field: "fixture"
+                                for field in spec.result_fields
+                            },
+                            "evidence": {
+                                "observation_tools": ["ui_snapshot"],
+                                "application_state_verified": True,
+                                "item_identity_verified": True,
+                            },
+                            "stop_code": None,
+                        }
+                    ),
+                ),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    call.identity,
+                    "ui_snapshot",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="bounded fixture observation",
+                )
+            ]
+        )
+    )
+    asyncio.run(
+        execute_claimed_application_item(
+            AgentRunner(
+                config,
+                RunnerPorts(provider, desktop, FakeApprovalPort()),
+            ),
+            spec=spec,
+            campaign_id="campaign_terminal",
+            run_id="worker_terminal",
+            now=NOW,
+        )
+    )
+
+    completed = resume_application_campaign_batch(
+        AgentRunner(config),
+        spec=spec,
+        campaign_id="campaign_terminal",
+        replacement_run_id="worker_terminal_finalize",
+        now=NOW,
+    )
+
+    assert completed.completed
+    assert completed.claimed_item_ordinal is None
+    assert completed.batch_id is None
+    assert completed.planned_item_count == 0
+    assert completed.heartbeat is None
+    assert completed.terminal_handoff is not None
+    assert completed.terminal_handoff["next_action"] == "none_completed"
+    assert completed.terminal_handoff["required_observation"] == "none"
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        store = CampaignStore(config.state_dir, lock)
+        assert (
+            store.read_manifest("campaign_terminal").status.value
+            == "COMPLETED"
+        )
+        assert store.read_heartbeat("campaign_terminal") is None
+        assert store.read_handoff("campaign_terminal") == completed.terminal_handoff
+    finally:
+        lock.release()
