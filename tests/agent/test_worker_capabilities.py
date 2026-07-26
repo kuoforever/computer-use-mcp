@@ -51,13 +51,16 @@ def test_capability_composition_derives_tools_without_new_dispatch_surface() -> 
             "document_text",
             "ocr",
             "capture_region",
+            "screenshot",
             "activate_window",
             "click",
+            "scroll",
             "key",
         }
     )
     assert "type" in tools_for_scenario("A3")
     assert "screenshot" in tools_for_scenario("A9")
+    assert "drag" in tools_for_scenario("A6")
 
 
 def test_external_capability_without_approval_is_invalid() -> None:

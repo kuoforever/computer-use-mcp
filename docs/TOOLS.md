@@ -1,6 +1,6 @@
 # MCP tool reference
 
-> **Status: implemented on Windows.** These are the eleven tools currently
+> **Status: implemented on Windows.** These are the thirteen tools currently
 > exposed by the stdio MCP server.
 
 ## Read tools
@@ -47,10 +47,12 @@ incomplete.
 | --- | --- | --- |
 | `activate_window` | `window_id` | Attempts to restore and activate a listed window. It returns success only after the driver verifies the target is foreground. In safe mode it is e-stop/human-activity guarded and audited, but not foreground-allowlist gated. |
 | `click` | `ref` **or** `x, y` | Invokes an accessible control by ref, or clicks a primary-display coordinate. Supply one form only. |
+| `scroll` | `x, y, delta_x=0, delta_y=0` | Sends bounded horizontal or vertical wheel movement at a screenshot-grounded primary-display coordinate. At least one delta must be non-zero. |
+| `drag` | `x, y, to_x, to_y, duration_ms=250` | Holds the left mouse button along one bounded path between two screenshot-grounded primary-display coordinates. Both endpoints must differ and remain in the current screenshot. |
 | `type` | `text, ref=None` | With a ref, prefers UIA ValuePattern; without one, types into the current focus. |
 | `key` | `combo` | Sends a key chord such as `Ctrl+S` to the foreground window. |
 
-In `safe_local`, `click`, `type`, and `key` require an allowlisted
+In `safe_local`, `click`, `scroll`, `drag`, `type`, and `key` require an allowlisted
 foreground process ancestry. See [Configuration and safety](CONFIGURATION.md)
 for the complete guard behavior.
 
@@ -68,8 +70,9 @@ Prefer refs whenever possible:
 ui_snapshot() -> choose ref_12 -> click(ref="ref_12")
 ~~~
 
-A coordinate click is necessary for canvas/game-style surfaces that UIA cannot
-expose, but it moves the physical pointer and has all normal foreground risks.
+Coordinate click, scroll, and drag are necessary for canvas/game-style surfaces
+that UIA cannot expose, but they move the physical pointer and have all normal
+foreground risks.
 
 ## Result and error behavior
 

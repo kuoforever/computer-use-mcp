@@ -98,6 +98,16 @@ def click(ref: str | None = None, x: int | None = None, y: int | None = None) ->
     return "ok"
 
 
+@mcp.tool()
+def scroll(x: int, y: int, delta_x: int = 0, delta_y: int = 0) -> str:
+    return "ok"
+
+
+@mcp.tool()
+def drag(x: int, y: int, to_x: int, to_y: int, duration_ms: int = 250) -> str:
+    return "ok"
+
+
 @mcp.tool(name="type")
 def type_text(text: str, ref: str | None = None) -> str:
     return "ok"

@@ -22,6 +22,8 @@ _REVIEWED_TOOLS = frozenset(
         "ocr",
         "activate_window",
         "click",
+        "scroll",
+        "drag",
         "type",
         "key",
     }
@@ -165,6 +167,26 @@ WORKER_CAPABILITIES = (
         invalidates=True,
     ),
     _cap(
+        "viewport_navigation",
+        "navigation",
+        ("screenshot", "scroll"),
+        pre=("primary_display_coordinates_grounded", "item_identity_verified"),
+        post=("viewport_state_reobserved",),
+        stops=("VIEWPORT_DRIFT", "MODE_DRIFT"),
+        approval=True,
+        invalidates=True,
+    ),
+    _cap(
+        "canvas_manipulation",
+        "navigation",
+        ("screenshot", "drag"),
+        pre=("drag_endpoints_grounded", "item_identity_verified"),
+        post=("canvas_state_reobserved",),
+        stops=("OBJECT_IDENTITY_DRIFT", "VIEWPORT_DRIFT", "UNKNOWN_OUTCOME"),
+        approval=True,
+        invalidates=True,
+    ),
+    _cap(
         "keyboard_navigation",
         "navigation",
         ("ui_snapshot", "key"),
@@ -240,7 +262,12 @@ _DOCUMENT = _BASE_REVIEW + (
     "bounded_ocr_fallback",
 )
 _VISUAL = _BASE_REVIEW + ("bounded_ocr_fallback", "visual_state")
-_NAVIGATION = ("window_activation", "pointer_navigation", "keyboard_navigation")
+_NAVIGATION = (
+    "window_activation",
+    "pointer_navigation",
+    "viewport_navigation",
+    "keyboard_navigation",
+)
 _DRAFT = _NAVIGATION + ("bounded_text_entry",)
 
 SCENARIO_CAPABILITY_COMPOSITIONS: Mapping[str, tuple[str, ...]] = MappingProxyType(
@@ -248,15 +275,19 @@ SCENARIO_CAPABILITY_COMPOSITIONS: Mapping[str, tuple[str, ...]] = MappingProxyTy
         "A1": _DOCUMENT + _NAVIGATION,
         "A2": _DOCUMENT + _DRAFT,
         "A3": _VISUAL + _DRAFT + ("external_commit",),
-        "A4": _DOCUMENT + _DRAFT,
+        "A4": _DOCUMENT + _DRAFT + ("canvas_manipulation",),
         "A5": _DOCUMENT + ("visual_state",) + _NAVIGATION,
-        "A6": _VISUAL + _DRAFT + ("mode_recovery",),
+        "A6": _VISUAL + _DRAFT + ("canvas_manipulation", "mode_recovery"),
         "A7": _DOCUMENT + _DRAFT + ("external_commit",),
-        "A8": _VISUAL + _DRAFT + ("mode_recovery", "external_commit"),
-        "A9": _VISUAL + _DRAFT + ("mode_recovery",),
+        "A8": _VISUAL + _DRAFT + (
+            "canvas_manipulation",
+            "mode_recovery",
+            "external_commit",
+        ),
+        "A9": _VISUAL + _DRAFT + ("canvas_manipulation", "mode_recovery"),
         "A10": _DOCUMENT + _DRAFT + ("mode_recovery",),
         "A11": _VISUAL + _DRAFT + ("mode_recovery",),
-        "A12": _VISUAL + _DRAFT + ("mode_recovery",),
+        "A12": _VISUAL + _DRAFT + ("canvas_manipulation", "mode_recovery"),
         "A13": _VISUAL + _DRAFT + ("critical_commit",),
         "A14": _DOCUMENT + _DRAFT + ("external_commit",),
         "A15": _DOCUMENT + _DRAFT + ("external_commit",),

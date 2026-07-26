@@ -29,6 +29,8 @@ class AuditDriver:
         self.foreground_name = foreground_name
         self.echo_typed_text_on_error = echo_typed_text_on_error
         self.type_calls: list[str] = []
+        self.scroll_calls: list[tuple[int, int, int, int]] = []
+        self.drag_calls: list[tuple[int, int, int, int, int]] = []
 
     def last_input_idle_seconds(self) -> float:
         return self.idle_seconds
@@ -43,6 +45,16 @@ class AuditDriver:
         self.type_calls.append(text)
         if self.echo_typed_text_on_error:
             return Result.fail("DRIVER_ERROR", f"driver echoed {text}")
+        return Result.success()
+
+    def scroll(self, x: int, y: int, delta_x: int, delta_y: int) -> Result:
+        self.scroll_calls.append((x, y, delta_x, delta_y))
+        return Result.success()
+
+    def drag(
+        self, x: int, y: int, to_x: int, to_y: int, duration_ms: int
+    ) -> Result:
+        self.drag_calls.append((x, y, to_x, to_y, duration_ms))
         return Result.success()
 
 
@@ -174,3 +186,75 @@ def test_server_never_writes_typed_text_for_any_type_audit_path(
     assert isinstance(record["result"]["length"], int)
     assert len(driver.type_calls) == type_calls
     _assert_secret_absent(raw, SECRET)
+
+
+def test_scroll_and_drag_share_the_guard_and_audit_action_boundary(
+    tmp_path: Path,
+) -> None:
+    audit_path = tmp_path / "actions.jsonl"
+    driver = AuditDriver()
+    server = build_server(
+        driver=driver,
+        start_estop=False,
+        audit_path=str(audit_path),
+        control_mode="full_control_local",
+    )
+
+    assert "ok" in tool_text(
+        asyncio.run(
+            server.call_tool(
+                "scroll",
+                {"x": 10, "y": 20, "delta_x": 0, "delta_y": -120},
+            )
+        )
+    )
+    assert "ok" in tool_text(
+        asyncio.run(
+            server.call_tool(
+                "drag",
+                {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": 0},
+            )
+        )
+    )
+
+    records = [
+        json.loads(line)
+        for line in audit_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert driver.scroll_calls == [(10, 20, 0, -120)]
+    assert driver.drag_calls == [(10, 20, 30, 40, 0)]
+    assert [record["tool"] for record in records] == ["scroll", "drag"]
+    assert all(record["decision"] == "ok" for record in records)
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("scroll", {"x": 1, "y": 2, "delta_x": 0, "delta_y": 0}),
+        ("scroll", {"x": 1, "y": 2, "delta_x": 0, "delta_y": 2401}),
+        (
+            "drag",
+            {"x": 1, "y": 2, "to_x": 1, "to_y": 2, "duration_ms": 250},
+        ),
+        (
+            "drag",
+            {"x": 1, "y": 2, "to_x": 3, "to_y": 4, "duration_ms": 5001},
+        ),
+    ],
+)
+def test_server_rejects_unbounded_or_noop_motion_before_driver(
+    tmp_path: Path, tool: str, arguments: dict[str, int]
+) -> None:
+    driver = AuditDriver()
+    server = build_server(
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+        control_mode="full_control_local",
+    )
+
+    result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
+
+    assert "ERROR DRIVER_ERROR" in result
+    assert driver.scroll_calls == []
+    assert driver.drag_calls == []

@@ -16,9 +16,9 @@ desktop execution authority, and durable evidence that outlives a crash.
 
 ## What this proves
 
-- **11 reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
+- **13 reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
   `screenshot`, `capture_region`, `ocr`, `document_text`, `activate_window`,
-  `click`, `type`, and `key` — with
+  `click`, `scroll`, `drag`, `type`, and `key` — with
   fixed schemas, argument validation, and discovery-mismatch checks.
 - **Two provider paths** (OpenAI and Claude) behind one provider-neutral tool
   contract, with [retained dual-provider evidence](docs/E3_EVIDENCE.md).

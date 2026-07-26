@@ -53,7 +53,7 @@ def _png(width: int = 1, height: int = 1) -> bytes:
     )
 
 
-def test_registry_contains_the_exact_eleven_reviewed_mcp_tools() -> None:
+def test_registry_contains_the_exact_thirteen_reviewed_mcp_tools() -> None:
     assert EXPECTED_TOOL_NAMES == {
         "ui_snapshot",
         "find",
@@ -64,22 +64,31 @@ def test_registry_contains_the_exact_eleven_reviewed_mcp_tools() -> None:
         "document_text",
         "activate_window",
         "click",
+        "scroll",
+        "drag",
         "type",
         "key",
     }
-    assert len(REVIEWED_TOOLS) == 11
+    assert len(REVIEWED_TOOLS) == 13
     assert all(tool.input_schema["additionalProperties"] is False for tool in REVIEWED_TOOLS)
     assert get_tool_spec("screenshot").result_sensitivity is ResultSensitivity.SENSITIVE
     assert (
         reviewed_registry_digest()
-        == "7903433fba37f590817fc6756ab0eea7ba2c7b5213815a12cff54604ef90f26f"
+        == "63bb30e074ef4213923ddf2a4b5b8118160c23ccf8ac5414f6d381b50a6e693b"
     )
 
 
 def test_every_side_effect_requires_approval_and_invalidates_observation() -> None:
     actions = [tool for tool in REVIEWED_TOOLS if tool.effect is ToolEffect.SIDE_EFFECT]
 
-    assert {tool.name for tool in actions} == {"activate_window", "click", "type", "key"}
+    assert {tool.name for tool in actions} == {
+        "activate_window",
+        "click",
+        "scroll",
+        "drag",
+        "type",
+        "key",
+    }
     assert all(tool.requires_host_approval for tool in actions)
     assert all(tool.invalidates_observation for tool in actions)
 
@@ -170,6 +179,34 @@ def test_click_provider_schema_excludes_the_other_target_form_in_each_oneof_bran
 def test_click_accepts_exactly_one_valid_target_form() -> None:
     assert validate_tool_arguments("click", {"ref": "ref_1"}) == {"ref": "ref_1"}
     assert validate_tool_arguments("click", {"x": 10, "y": 20}) == {"x": 10, "y": 20}
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments"),
+    [
+        ("scroll", {"x": 10, "y": 20}),
+        ("scroll", {"x": 10, "y": 20, "delta_x": 2401}),
+        ("scroll", {"x": 10, "y": 20, "delta_y": -2401}),
+        ("drag", {"x": 10, "y": 20, "to_x": 10, "to_y": 20}),
+        (
+            "drag",
+            {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": 5001},
+        ),
+    ],
+)
+def test_scroll_and_drag_reject_unbounded_or_noop_input(
+    name: str, arguments: dict[str, object]
+) -> None:
+    with pytest.raises(ToolValidationError):
+        validate_tool_arguments(name, arguments)
+
+
+def test_scroll_and_drag_accept_bounded_grounded_coordinates() -> None:
+    scroll = {"x": 10, "y": 20, "delta_y": -120}
+    drag = {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": 250}
+
+    assert validate_tool_arguments("scroll", scroll) == scroll
+    assert validate_tool_arguments("drag", drag) == drag
 
 
 @pytest.mark.parametrize(

@@ -82,6 +82,16 @@ class GroundingState:
             width, height = self.screenshot_size
             if not 0 <= x < width or not 0 <= y < height:
                 raise GroundingError("GROUNDING_REQUIRED")
+            if call.name == "drag":
+                to_x = call.arguments.get("to_x")
+                to_y = call.arguments.get("to_y")
+                if (
+                    not isinstance(to_x, int)
+                    or not isinstance(to_y, int)
+                    or not 0 <= to_x < width
+                    or not 0 <= to_y < height
+                ):
+                    raise GroundingError("GROUNDING_REQUIRED")
             return
         raise GroundingError("GROUNDING_REQUIRED")
 

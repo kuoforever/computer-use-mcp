@@ -26,7 +26,9 @@ _OBSERVATION_TOOLS = frozenset(
         "screenshot",
     }
 )
-_ACTION_TOOLS = frozenset({"activate_window", "click", "type", "key"})
+_ACTION_TOOLS = frozenset(
+    {"activate_window", "click", "scroll", "drag", "type", "key"}
+)
 _RISK_TIERS = frozenset({"read_only", "draft", "reversible", "external", "critical"})
 _SCENARIO_ID = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 _KIND = re.compile(r"[a-z][a-z0-9_]{0,79}\Z")
@@ -108,7 +110,7 @@ def _spec(
     identities: tuple[str, ...],
     fields: tuple[str, ...],
     observations: tuple[str, ...],
-    navigation: tuple[str, ...] = ("activate_window", "click", "key"),
+    navigation: tuple[str, ...] = ("activate_window", "click", "scroll", "key"),
     effects: tuple[str, ...] = (),
     risk: str = "read_only",
     stops: tuple[str, ...] = COMMON_STOP_STATES,
@@ -153,7 +155,7 @@ APPLICATION_WORKER_SPECS = (
         ("account", "conversation_alias"),
         ("conversation_title", "draft_digest", "draft_verified"),
         ("list_windows", "ui_snapshot", "ocr", "capture_region"),
-        navigation=("activate_window", "click", "type", "key"),
+        navigation=("activate_window", "click", "scroll", "type", "key"),
         effects=("key",),
         risk="external",
         stops=COMMON_STOP_STATES + ("LOGIN_REQUIRED", "RECIPIENT_AMBIGUOUS"),
@@ -165,7 +167,7 @@ APPLICATION_WORKER_SPECS = (
         ("workbook_id", "sheet_name", "a1_range"),
         ("displayed_value", "formula", "format", "filter_state"),
         ("list_windows", "ui_snapshot", "document_text", "ocr", "capture_region"),
-        navigation=("activate_window", "click", "type", "key"),
+        navigation=("activate_window", "click", "scroll", "drag", "type", "key"),
         effects=("type",),
         risk="reversible",
     ),
@@ -184,6 +186,7 @@ APPLICATION_WORKER_SPECS = (
         ("document_id", "frame_name", "object_path"),
         ("object_type", "bounds", "text", "selection_state", "viewport"),
         ("ui_snapshot", "ocr", "capture_region", "screenshot"),
+        navigation=("activate_window", "click", "scroll", "drag", "type", "key"),
         effects=("click", "type", "key"),
         risk="reversible",
     ),
@@ -205,6 +208,7 @@ APPLICATION_WORKER_SPECS = (
         ("account", "video_id", "media_timestamp"),
         ("caption", "transcript", "playback_state", "account_identity", "content_digest"),
         ("list_windows", "ui_snapshot", "ocr", "capture_region", "screenshot"),
+        navigation=("activate_window", "click", "scroll", "drag", "type", "key"),
         effects=("click", "type", "key"),
         risk="external",
         stops=COMMON_STOP_STATES
@@ -217,6 +221,7 @@ APPLICATION_WORKER_SPECS = (
         ("host_window", "guest_identity", "guest_viewport"),
         ("frame_digest", "resolution", "latency_state", "guest_state"),
         ("list_windows", "ocr", "capture_region", "screenshot"),
+        navigation=("activate_window", "click", "scroll", "drag", "type", "key"),
         effects=("click", "type", "key"),
         risk="reversible",
         stops=COMMON_STOP_STATES + ("RECONNECTED", "RESOLUTION_DRIFT"),
@@ -248,6 +253,7 @@ APPLICATION_WORKER_SPECS = (
         ("project_id", "workspace", "editor", "object_id", "mode"),
         ("selection", "active_tool", "change_digest", "visual_digest"),
         ("list_windows", "ui_snapshot", "ocr", "capture_region", "screenshot"),
+        navigation=("activate_window", "click", "scroll", "drag", "type", "key"),
         effects=("click", "type", "key"),
         risk="reversible",
     ),

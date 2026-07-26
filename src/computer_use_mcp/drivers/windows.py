@@ -13,6 +13,7 @@ start (the constructor calls it too, as a backstop).
 from __future__ import annotations
 
 import ctypes
+import time
 from ctypes import wintypes
 
 import mss
@@ -721,4 +722,43 @@ class WindowsDriver(Driver):
                 user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0)
             return Result.success()
         except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
+
+    def scroll(self, x: int, y: int, delta_x: int, delta_y: int) -> Result:
+        """Inject bounded horizontal and vertical wheel movement at one point."""
+
+        user32 = ctypes.windll.user32
+        try:
+            user32.SetCursorPos(int(x), int(y))
+            if delta_y:
+                user32.mouse_event(0x0800, 0, 0, int(delta_y), 0)
+            if delta_x:
+                user32.mouse_event(0x1000, 0, 0, int(delta_x), 0)
+            return Result.success()
+        except Exception as exc:
+            return Result.fail(DRIVER_ERROR, str(exc))
+
+    def drag(
+        self, x: int, y: int, to_x: int, to_y: int, duration_ms: int = 250
+    ) -> Result:
+        """Inject one left-button drag with a bounded interpolated path."""
+
+        user32 = ctypes.windll.user32
+        steps = max(1, min(60, int(duration_ms) // 16 or 1))
+        try:
+            user32.SetCursorPos(int(x), int(y))
+            user32.mouse_event(0x0002, 0, 0, 0, 0)
+            for step in range(1, steps + 1):
+                next_x = int(x + (to_x - x) * step / steps)
+                next_y = int(y + (to_y - y) * step / steps)
+                user32.SetCursorPos(next_x, next_y)
+                if duration_ms:
+                    time.sleep(duration_ms / steps / 1000)
+            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            return Result.success()
+        except Exception as exc:
+            try:
+                user32.mouse_event(0x0004, 0, 0, 0, 0)
+            except Exception:
+                pass
             return Result.fail(DRIVER_ERROR, str(exc))
