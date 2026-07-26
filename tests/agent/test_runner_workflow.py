@@ -268,17 +268,26 @@ def test_runner_projects_durable_phases_and_releases_presence(
             self.events.append("release")
 
     presence = Presence()
+    progress = Presence()
     outcome = asyncio.run(AgentRunner(
         _config(tmp_path, monkeypatch),
-        RunnerPorts(provider, desktop, FakeApprovalPort(), presence=presence),
+        RunnerPorts(
+            provider,
+            desktop,
+            FakeApprovalPort(),
+            presence=presence,
+            progress=progress,
+        ),
     ).run("Inspect", run_id="run_presence"))
 
     assert outcome.text == "Done"
-    assert presence.events == [
+    expected_events = [
         RunPhase.CREATED, RunPhase.OBSERVING, RunPhase.PLANNING,
         RunPhase.PLANNING, RunPhase.EXECUTING, RunPhase.OBSERVING,
         RunPhase.PLANNING, RunPhase.PLANNING, RunPhase.SUCCESS, "release",
     ]
+    assert presence.events == expected_events
+    assert progress.events == expected_events
 
 
 @pytest.mark.parametrize(
@@ -314,11 +323,19 @@ def test_runner_latches_presence_off_on_mcp_authority_boundary(
             self.events.append("release")
 
     presence = Presence()
+    progress = Presence()
     asyncio.run(AgentRunner(
         _config(tmp_path, monkeypatch),
-        RunnerPorts(provider, desktop, FakeApprovalPort(), presence=presence),
+        RunnerPorts(
+            provider,
+            desktop,
+            FakeApprovalPort(),
+            presence=presence,
+            progress=progress,
+        ),
     ).run("Inspect", run_id="run_boundary"))
     assert presence.events[-1] == boundary
+    assert progress.events[-1] == ("estop" if code == "ABORTED" else "release")
 
 
 def test_presence_failure_cannot_change_successful_run(
@@ -347,6 +364,34 @@ def test_presence_failure_cannot_change_successful_run(
     ).run("Answer", run_id="run_broken"))
     assert outcome.text == "OK"
     assert presence.calls == 1
+
+
+def test_progress_failure_cannot_change_successful_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class BrokenProgress:
+        calls = 0
+
+        def on_phase(self, _phase: RunPhase) -> None:
+            self.calls += 1
+            raise RuntimeError("surface unavailable")
+
+        def estop(self) -> None:
+            raise RuntimeError("surface unavailable")
+
+        def release(self) -> None:
+            raise RuntimeError("surface unavailable")
+
+    progress = BrokenProgress()
+    provider = FakeModelProvider(turns=deque([
+        ModelTurn("run_broken_progress", "turn_1", "response_1", "OK")
+    ]))
+    outcome = asyncio.run(AgentRunner(
+        _config(tmp_path, monkeypatch),
+        RunnerPorts(provider, FakeDesktopMCP(), FakeApprovalPort(), progress=progress),
+    ).run("Answer", run_id="run_broken_progress"))
+    assert outcome.text == "OK"
+    assert progress.calls == 1
 
 
 def test_runner_pseudonymizes_provider_and_ledger_text_then_restores_local_output(

@@ -12,6 +12,10 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Opt-in progress lifecycle.** Ordinary `run` and `resume` can now drive the
+  passive progress window from durable checkpoints on a dedicated Win32 UI
+  thread. The feature defaults off, remains read-only, survives human takeover,
+  closes on E-stop/final cleanup, and fails silently without affecting the run.
 - **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
   compact, configurable-corner normal Windows window that can be dragged,
   resized, minimized, maximized, and covered by other applications. Decision

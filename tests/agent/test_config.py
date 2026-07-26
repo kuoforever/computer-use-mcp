@@ -221,6 +221,26 @@ def test_operator_presence_rejects_non_boolean_and_unknown_settings(
         load_agent_config(path)
 
 
+def test_operator_progress_is_disabled_by_default_and_strictly_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path) + "\n[operator]\nprogress_enabled = true\n",
+        encoding="utf-8",
+    )
+
+    assert load_agent_config(path).operator == OperatorConfig(progress_enabled=True)
+
+    path.write_text(
+        _config_text(tmp_path) + '\n[operator]\nprogress_enabled = "yes"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="progress_enabled.*boolean"):
+        load_agent_config(path)
+
+
 def test_decision_cards_are_default_off_and_timeout_is_bounded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

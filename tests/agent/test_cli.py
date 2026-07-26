@@ -1557,6 +1557,7 @@ def test_live_cli_passes_configured_request_budget_to_provider(
     )
     from computer_use_agent.fakes import FakeDesktopMCP
     from computer_use_agent.providers.openai import OpenAIResponsesProvider
+    from computer_use_agent.trace import RunPhase
     from computer_use_agent.types import ModelTurn
 
     local = tmp_path / "LocalAppData"
@@ -1569,6 +1570,21 @@ def test_live_cli_passes_configured_request_budget_to_provider(
         policy=PolicyConfig(),
     )
     captured: dict[str, object] = {}
+
+    class Progress:
+        def __init__(self) -> None:
+            self.events: list[RunPhase | str] = []
+
+        def on_phase(self, phase: RunPhase) -> None:
+            self.events.append(phase)
+
+        def estop(self) -> None:
+            self.events.append("estop")
+
+        def release(self) -> None:
+            self.events.append("release")
+
+    progress = Progress()
 
     class FinalProvider:
         name = "openai"
@@ -1590,6 +1606,7 @@ def test_live_cli_passes_configured_request_budget_to_provider(
     monkeypatch.setattr(
         "computer_use_agent.desktop_mcp.StdioDesktopMCP", lambda _launch: FakeDesktopMCP()
     )
+    monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
 
     assert asyncio.run(agent_cli._run_live_async(tmp_path / "agent.toml", "Inspect")) == 0
 
@@ -1598,6 +1615,8 @@ def test_live_cli_passes_configured_request_budget_to_provider(
     assert captured["context_window_tokens"] == 128_000
     assert captured["output_token_reserve"] == 1_024
     assert json.loads(capsys.readouterr().out)["text"] == "done"
+    assert progress.events[0] is RunPhase.CREATED
+    assert progress.events[-1] == "release"
 
 
 def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
@@ -1642,3 +1661,102 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
     assert isinstance(port, DecisionCardApprovalPort)
     assert port._timeout_seconds == 45
     assert port._surface.api == (native, "top_left")
+
+
+def test_cli_builds_progress_lifecycle_only_for_explicit_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from computer_use_agent.config import (
+        AgentConfig,
+        MCPLaunchConfig,
+        OperatorConfig,
+        PolicyConfig,
+        ProviderConfig,
+    )
+    from computer_use_agent.fakes import FakeProgressWindowApi
+    from computer_use_agent.progress_lifecycle import RunProgressCoordinator
+    from computer_use_agent import progress_window_win32
+
+    local = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    base = {
+        "state_dir": local / "computer-use-agent" / "progress-cli-test",
+        "policy_version": "test",
+        "provider": ProviderConfig("openai", "test-model"),
+        "mcp": MCPLaunchConfig(
+            tmp_path / "mcp.exe",
+            (),
+            tmp_path,
+            {"CUMCP_ALLOWLIST": "notepad.exe"},
+        ),
+        "policy": PolicyConfig(),
+    }
+    constructed = 0
+
+    def native_api() -> FakeProgressWindowApi:
+        nonlocal constructed
+        constructed += 1
+        api = FakeProgressWindowApi()
+        api.pump = lambda: None  # type: ignore[attr-defined]
+        return api
+
+    monkeypatch.setattr(
+        progress_window_win32,
+        "Win32ProgressWindowApi",
+        native_api,
+    )
+
+    assert agent_cli._progress_lifecycle(AgentConfig(**base)) is None
+    assert constructed == 0
+
+    lifecycle = agent_cli._progress_lifecycle(
+        AgentConfig(
+            **base,
+            operator=OperatorConfig(progress_enabled=True),
+        )
+    )
+
+    assert isinstance(lifecycle, RunProgressCoordinator)
+    assert lifecycle.poller.state_dir == base["state_dir"]
+    assert constructed == 1
+    lifecycle.release()
+
+
+def test_progress_native_construction_failure_is_fail_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from computer_use_agent.config import (
+        AgentConfig,
+        MCPLaunchConfig,
+        OperatorConfig,
+        PolicyConfig,
+        ProviderConfig,
+    )
+    from computer_use_agent import progress_window_win32
+
+    local = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    config = AgentConfig(
+        state_dir=local / "computer-use-agent" / "progress-cli-failure",
+        policy_version="test",
+        provider=ProviderConfig("openai", "test-model"),
+        mcp=MCPLaunchConfig(
+            tmp_path / "mcp.exe",
+            (),
+            tmp_path,
+            {"CUMCP_ALLOWLIST": "notepad.exe"},
+        ),
+        policy=PolicyConfig(),
+        operator=OperatorConfig(progress_enabled=True),
+    )
+
+    def fail_native() -> None:
+        raise OSError("native unavailable")
+
+    monkeypatch.setattr(
+        progress_window_win32,
+        "Win32ProgressWindowApi",
+        fail_native,
+    )
+
+    assert agent_cli._progress_lifecycle(config) is None

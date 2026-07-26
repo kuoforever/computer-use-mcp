@@ -123,6 +123,27 @@ fail-silent and cannot fail, approve, or advance the run. This integration does
 not yet cover `plan`, campaign, or recovery runtimes and remains
 primary-display-only.
 
+## Passive progress lifecycle
+
+The ordinary Agent `run` and `resume` paths can also own the read-only progress
+window for the duration of one CLI process:
+
+~~~toml
+[operator]
+progress_enabled = true
+~~~
+
+`progress_enabled` is a strict boolean and defaults to `false`. When enabled, a
+dedicated background UI thread reads only validated local state and pumps the
+native Win32 window; durable phase notifications wake that reader after each
+checkpoint. The window receives no provider, MCP, desktop, approval, or replay
+authority. Human activity and a focus-taking Decision Card do not close it,
+because progress remains useful while the Agent has yielded. E-stop and final
+run cleanup close it and join the UI thread. Construction, polling, rendering,
+and native-window failures are fail-silent and cannot fail or advance the run.
+This lifecycle currently covers ordinary `run` and `resume`, not `plan`,
+campaign, or recovery runtimes.
+
 The approved-actions path can replace its one-action console prompt with the
 focus-taking local Decision Card:
 
