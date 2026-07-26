@@ -25,6 +25,41 @@ class PresenceLifecyclePort(Protocol):
     def release(self) -> None: ...
 
 
+class FailSilentLifecycle:
+    """Latch a failed passive lifecycle surface outside Agent authority."""
+
+    __slots__ = ("_port", "_suppressed")
+
+    def __init__(self, port: PresenceLifecyclePort | None) -> None:
+        self._port = port
+        self._suppressed = False
+
+    def on_phase(self, phase: RunPhase) -> None:
+        if self._port is None or self._suppressed:
+            return
+        try:
+            self._port.on_phase(phase)
+        except Exception:
+            self._suppressed = True
+
+    def estop(self) -> None:
+        self._suppress("estop")
+
+    def release(self) -> None:
+        self._suppress("release")
+
+    def _suppress(self, method: str) -> None:
+        if self._suppressed:
+            return
+        self._suppressed = True
+        if self._port is None:
+            return
+        try:
+            getattr(self._port, method)()
+        except Exception:
+            pass
+
+
 class PresenceSurface(Protocol):
     def sync(self, snapshot: PresenceSnapshot) -> object: ...
 
@@ -126,4 +161,8 @@ class RunPresenceCoordinator:
             pass
 
 
-__all__ = ["PresenceLifecyclePort", "RunPresenceCoordinator"]
+__all__ = [
+    "FailSilentLifecycle",
+    "PresenceLifecyclePort",
+    "RunPresenceCoordinator",
+]

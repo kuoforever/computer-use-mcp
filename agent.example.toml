@@ -79,7 +79,7 @@ image_redaction = true
 # It accepts only fixed Host phases, never task or target content, and cannot
 # approve or execute work. E-stop, human activity, and terminal states remove it.
 presence_enabled = false
-# Passive read-only progress window for ordinary `run`/`resume` workflows.
+# Passive read-only progress window for `run`, `resume`, and bounded `plan run`.
 # It is owned by a background UI thread and cannot approve or execute work.
 progress_enabled = false
 reduced_motion = false

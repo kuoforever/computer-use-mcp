@@ -125,8 +125,8 @@ primary-display-only.
 
 ## Passive progress lifecycle
 
-The ordinary Agent `run` and `resume` paths can also own the read-only progress
-window for the duration of one CLI process:
+The Agent `run`, `resume`, and bounded observation-only `plan run` paths can
+also own the read-only progress window for the duration of one CLI process:
 
 ~~~toml
 [operator]
@@ -141,8 +141,8 @@ authority. Human activity and a focus-taking Decision Card do not close it,
 because progress remains useful while the Agent has yielded. E-stop and final
 run cleanup close it and join the UI thread. Construction, polling, rendering,
 and native-window failures are fail-silent and cannot fail or advance the run.
-This lifecycle currently covers ordinary `run` and `resume`, not `plan`,
-campaign, or recovery runtimes.
+This lifecycle currently covers ordinary `run`/`resume` and `plan run`, not
+campaign or recovery runtimes.
 
 The approved-actions path can replace its one-action console prompt with the
 focus-taking local Decision Card:
