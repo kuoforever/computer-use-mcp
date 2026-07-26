@@ -1,7 +1,8 @@
 # Operator experience
 
-> **Status: passive progress and an opt-in bounded primary-display presence
-> surface are implemented; complete-product integration remains planned.** The presence
+> **Status: passive progress plus opt-in ordinary-run progress and bounded
+> primary-display presence lifecycles are implemented; complete-product
+> integration remains planned.** The presence
 > surface has a pure Host-state projection, click-through/non-activating Win32
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
@@ -16,7 +17,9 @@
 > has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
 > Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md),
 > and the opt-in approval path has bounded native
-> [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md).
+> [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md). The separate
+> progress lifecycle has retained
+> [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md).
 
 ## Goal
 
@@ -120,6 +123,14 @@ The detailed projection, privacy constraints, multi-run grouping, and
 non-activating behavior live in [Operator progress viewer](PROGRESS_VIEWER.md).
 The complete window adds chapter and work-item progress for the universal GUI
 campaign while retaining the existing passive default.
+
+When explicitly enabled, ordinary Agent `run` and `resume` now start a separate
+fail-silent progress coordinator. Its dedicated UI thread reads validated local
+state, pumps the native window, and wakes after durable phase publication. It
+has no provider, MCP, desktop, approval, or replay port. Unlike presence, it
+stays available during human activity and a focus-taking Decision Card; E-stop
+and final cleanup close it and join the thread. Plan, campaign, and recovery
+lifecycle wiring remains separate work.
 
 The compact summary may show:
 
@@ -280,10 +291,14 @@ There is no global "always allow" control in the first interactive version.
    only fixed Host classifications, safe IDs, bounded timestamps, and digests;
    all display prose and trade-offs come from fixed mappings.**
 2. Implement the passive non-activating progress window from synthetic records.
+   **Implemented, including an explicitly enabled ordinary `run`/`resume`
+   lifecycle on a dedicated UI thread; E-stop/final cleanup and fail-silent
+   isolation are tested. Plan, campaign, and recovery wiring remain.**
 3. Implement the click-through presence indicator, capture filtering, reduced
    motion, DPI handling, and E-stop/authority-release teardown. **Implemented
    for one primary display over an injected controller and ctypes backend;
-   automatic Agent lifecycle wiring and multi-monitor selection remain.**
+   opt-in ordinary `run`/`resume` lifecycle wiring is implemented, while
+   multi-monitor selection remains.**
 4. Add a fake-only Decision Card compiler and deterministic choice tests.
    **Implemented: expiry plus state, policy, task, registry, object, and evidence
    drift all fail closed; recommendation never selects an option.**

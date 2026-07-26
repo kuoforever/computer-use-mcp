@@ -1,7 +1,8 @@
 # Operator progress viewer
 
 > **Status: reducer, passive window, live polling, independent-run grouping,
-> campaign progress, and honest checkpoint telemetry implemented.**
+> campaign progress, honest checkpoint telemetry, and opt-in ordinary-run
+> lifecycle wiring implemented.**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -23,6 +24,10 @@
 > stable, lock-free snapshot of their validated control files and grouped into
 > Campaign attention, Active campaigns, and Campaign history without taking
 > execution authority. The projection remains strictly read-only.
+> Ordinary Agent `run` and `resume` can now opt into a dedicated background UI
+> thread that wakes after durable checkpoints and closes on E-stop/final
+> cleanup. Native lifecycle evidence is
+> [retained here](PROGRESS_LIFECYCLE_EVIDENCE.md).
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -243,5 +248,7 @@ model prose, arbitrary errors, credentials, or account identifiers.
    timestamps, and legacy missing fields remain explicitly unavailable.
 6. Integrate shared presence and Decision Card state only through pure operator
    view-model contracts; keep execution and approval out of the passive window.
-   **The separate primary-display presence model/controller/backend now exists;
-   automatic Host lifecycle wiring and Decision Cards remain.**
+   **The separate primary-display presence and Decision Card surfaces now
+   exist. Ordinary `run`/`resume` progress lifecycle wiring is implemented
+   through an independent fail-silent Runner port and background UI thread;
+   plan, campaign, recovery, and broader cross-surface integration remain.**

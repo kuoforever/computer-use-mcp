@@ -39,6 +39,27 @@ def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
     )
 
 
+def _progress_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
+    """Create the passive progress worker only for explicit operator opt-in."""
+
+    if not config.operator.progress_enabled:
+        return None
+    try:
+        from .progress_lifecycle import RunProgressCoordinator
+        from .progress_poller import ProgressPoller
+        from .progress_window import PassiveProgressWindow
+        from .progress_window_win32 import Win32ProgressWindowApi
+
+        api = Win32ProgressWindowApi()
+        window = PassiveProgressWindow(api)
+        poller = ProgressPoller(config.state_dir, window)
+        return RunProgressCoordinator(poller, pump=api.pump)
+    except Exception:
+        # This surface is observational only. Native construction, imports, or
+        # thread setup must never stop an otherwise valid Agent run.
+        return None
+
+
 def _approval_port(config: AgentConfig) -> ApprovalPort:
     """Build the configured local approval surface without eager native imports."""
 
@@ -366,6 +387,7 @@ async def _run_live_async(
         raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
     desktop = StdioDesktopMCP(config.mcp)
     presence = _presence_lifecycle(config)
+    progress = _progress_lifecycle(config)
     approvals = _approval_port(config)
     runner = AgentRunner(
         config,
@@ -379,6 +401,7 @@ async def _run_live_async(
                 else None
             ),
             presence=presence,
+            progress=progress,
         ),
     )
     outcome = await runner.run(

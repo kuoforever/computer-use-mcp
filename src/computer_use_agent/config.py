@@ -354,6 +354,7 @@ class OperatorConfig:
     """Local operator-interface preferences."""
 
     presence_enabled: bool = False
+    progress_enabled: bool = False
     reduced_motion: bool = False
     high_contrast: bool = False
     decision_cards_enabled: bool = False
@@ -365,6 +366,7 @@ class OperatorConfig:
             isinstance(value, bool)
             for value in (
                 self.presence_enabled,
+                self.progress_enabled,
                 self.reduced_motion,
                 self.high_contrast,
                 self.decision_cards_enabled,
@@ -497,6 +499,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         operator,
         {
             "presence_enabled",
+            "progress_enabled",
             "reduced_motion",
             "high_contrast",
             "decision_cards_enabled",
@@ -596,6 +599,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     operator_values: dict[str, bool] = {}
     for key in (
         "presence_enabled",
+        "progress_enabled",
         "reduced_motion",
         "high_contrast",
         "decision_cards_enabled",

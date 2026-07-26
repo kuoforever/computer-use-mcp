@@ -119,6 +119,7 @@ class RunnerPorts:
     image_redactor: PrivacyImageRedactionPort | None = None
     telemetry: TelemetryPort | None = None
     presence: PresenceLifecyclePort | None = None
+    progress: PresenceLifecyclePort | None = None
 
 
 class _SafePresenceLifecycle:
@@ -496,6 +497,7 @@ class AgentRunner:
         recorder: RunRecorder,
         continuation: RuntimeContinuationRecorder | None,
         presence: _SafePresenceLifecycle | None = None,
+        progress: _SafePresenceLifecycle | None = None,
         privacy: PrivacySession | None = None,
     ) -> _CallBoundaryOutcome:
         """Run one fresh requested call through every ordinary host boundary.
@@ -509,6 +511,7 @@ class AgentRunner:
         if self.ports is None:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
         safe_presence = presence or _SafePresenceLifecycle(None)
+        safe_progress = progress or _SafePresenceLifecycle(None)
         try:
             if privacy is not None:
                 privacy.validate_tool_call(call)
@@ -705,6 +708,7 @@ class AgentRunner:
         )
         if result.code == "ABORTED":
             safe_presence.estop()
+            safe_progress.estop()
         elif result.code == "HUMAN_ACTIVE":
             safe_presence.release()
         if continuation is not None:
@@ -787,8 +791,16 @@ class AgentRunner:
         )
         grounding = GroundingState()
         presence = _SafePresenceLifecycle(self.ports.presence)
+        progress = _SafePresenceLifecycle(self.ports.progress)
+
+        def publish_operator_phase(phase: RunPhase) -> None:
+            presence.on_phase(phase)
+            progress.on_phase(phase)
+
         recorder = RunRecorder(
-            self.config.state_dir, state.run_id, phase_observer=presence.on_phase
+            self.config.state_dir,
+            state.run_id,
+            phase_observer=publish_operator_phase,
         )
         run_started_ns = perf_counter_ns()
         recorder_started = False
@@ -927,6 +939,7 @@ class AgentRunner:
                                 recorder=recorder,
                                 continuation=continuation,
                                 presence=presence,
+                                progress=progress,
                                 privacy=privacy,
                             )
                         except RunFailure as failure:
@@ -1011,6 +1024,7 @@ class AgentRunner:
             )
             run_span.end()
             presence.release()
+            progress.release()
             prepared.close()
             if continuation is not None:
                 try:
