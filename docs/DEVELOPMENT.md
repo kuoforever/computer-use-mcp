@@ -20,7 +20,7 @@ emit non-ASCII text.
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m pytest tests\agent\test_openai_replay_evaluation.py -q
 .\.venv\Scripts\ruff.exe check src tests scripts
-.\.venv\Scripts\computer-use-agent.exe eval --cases evals\cases --report out\e1-e2.json
+.\.venv\Scripts\guarded-desktop-agent.exe eval --cases evals\cases --report out\e1-e2.json
 .\.venv\Scripts\python.exe -m build --wheel
 git diff --check
 ~~~
@@ -33,7 +33,7 @@ GitHub Actions repeats the offline suite on Windows/Python 3.11-3.13 and runs a
 clean wheel-install smoke. It never enables live provider or desktop tests.
 See [Release checklist](RELEASE.md).
 
-For a clean release-candidate checkout, `computer-use-agent release preflight`
+For a clean release-candidate checkout, `guarded-desktop-agent release preflight`
 composes the same local checks and writes sanitized evidence plus retained
 E1/E2 and wheel hashes under `out/`. It deliberately uses `build
 --no-isolation` and `pip install --no-deps`; install the `dev` extra before

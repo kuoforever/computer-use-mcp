@@ -14,7 +14,7 @@ contract.
 The codebase has two executable surfaces. The public baseline is an
 experimental Windows-only MCP server with thirteen tools, a typed Driver Contract
 v1.0.0, and one in-process Windows implementation. The second is an
-experimental `computer-use-agent` Host with a dual-provider read-only loop,
+experimental `guarded-desktop-agent` Host with a dual-provider read-only loop,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. [Dual-provider E3 evidence](docs/E3_EVIDENCE.md) is retained for both
 bounded fake-MCP cases with one reviewed model per provider. [Isolated desktop

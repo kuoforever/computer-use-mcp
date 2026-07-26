@@ -54,7 +54,7 @@ max_side_effects = 1
 Validate every scenario-specific config before starting the Agent:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe config validate --config <config>
+.\.venv\Scripts\guarded-desktop-agent.exe config validate --config <config>
 ~~~
 
 ## Acceptance matrix
@@ -96,14 +96,14 @@ For each matrix cell:
 2. Record the revision, provider, reviewed model ID, VM/snapshot identifier,
    config fingerprint, UTC start time, and scenario ID outside the Agent trace.
    Do not record credentials, task prose, UI text, or screenshots.
-3. Start `computer-use-agent run` with the scenario config and bounded task.
+3. Start `guarded-desktop-agent run` with the scenario config and bounded task.
 4. For an action case, inspect the console's safe argument summary and call
    digest. Approve only the single expected `activate_window` request. Deny any
    other action or any second approval request.
 5. Stop immediately if the environment is no longer isolated, unexpected UI
    appears, the allowlist is broader than Notepad, or the provider requests an
    unplanned action. Use the e-stop when an action may still be pending.
-6. Inspect the run with `computer-use-agent trace <run_id> --config <config>`.
+6. Inspect the run with `guarded-desktop-agent trace <run_id> --config <config>`.
 7. Mark the cell pass or fail using the criteria below. Revert the environment
    before the next cell.
 

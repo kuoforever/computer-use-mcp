@@ -8,7 +8,8 @@
 
 ## One-minute summary
 
-`computer-use-mcp` is evolving from a model-agnostic Windows desktop MCP server
+Guarded Desktop Agent (formerly `computer-use-mcp`) is evolving from a
+model-agnostic Windows desktop MCP server
 into a locally governed universal GUI Agent system. The project currently has
 four distinct maturity layers:
 
@@ -82,13 +83,13 @@ evidence.
 operator / Codex / Claude Code / another MCP client
   |
   +-- direct MCP path ---------------------------------------------+
-  |    stdio -> computer-use-mcp server                            |
+  |    stdio -> guarded-desktop-mcp server                         |
   |             -> session refs / snapshot serialization           |
   |             -> e-stop / human activity / allowlist / approval  |
   |             -> Windows UIA + Win32 + capture                    |
   |                                                                |
   +-- Agent Host path ---------------------------------------------+
-       computer-use-agent CLI                                      |
+       guarded-desktop-agent CLI                                   |
          -> OpenAI Responses or Claude Messages adapter             |
          -> policy / grounding / budgets / approval                 |
          -> redacted trace / explicit memory / recovery             |
@@ -114,8 +115,8 @@ must not create a second native-action path.
 
 | Surface | Entry point | Current purpose | Boundary |
 | --- | --- | --- | --- |
-| Desktop MCP server | `computer-use-mcp` | Expose eight Windows GUI tools over stdio | Implemented Windows runtime |
-| Agent Host | `computer-use-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
+| Desktop MCP server | `guarded-desktop-mcp` | Expose eleven Windows GUI tools over stdio | Implemented Windows runtime |
+| Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
 | Agent config | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
 | Evaluation | `eval` | Run deterministic frozen E1/E2 cases | Implemented offline |

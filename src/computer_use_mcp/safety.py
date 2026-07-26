@@ -32,7 +32,7 @@ def message_box_confirm(prompt: str) -> bool:
     that blocking IS the safety property. Returns True only on Yes."""
     MB_YESNO, MB_ICONWARNING, MB_SETFOREGROUND, MB_TOPMOST, IDYES = 0x4, 0x30, 0x10000, 0x40000, 6
     res = ctypes.windll.user32.MessageBoxW(
-        0, prompt, "computer-use-mcp — 危险动作确认",
+        0, prompt, "Guarded Desktop Agent — 危险动作确认",
         MB_YESNO | MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST,
     )
     return res == IDYES

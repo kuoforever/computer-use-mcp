@@ -9,7 +9,7 @@ body:
         pages, or page text. Redacted excerpts and error codes are enough.
 
         For a guard bypass or a credential leak, use private reporting instead —
-        see [SECURITY.md](https://github.com/kuoforever/computer-use-mcp/blob/main/SECURITY.md).
+        see [SECURITY.md](https://github.com/kuoforever/guarded-desktop-agent/blob/main/SECURITY.md).
   - type: input
     id: version
     attributes:
@@ -22,8 +22,8 @@ body:
     attributes:
       label: Which surface
       options:
-        - MCP server (computer-use-mcp)
-        - Agent Host (computer-use-agent)
+        - MCP server (guarded-desktop-mcp)
+        - Agent Host (guarded-desktop-agent)
         - Campaign / recovery
         - Packaging or install
         - Documentation

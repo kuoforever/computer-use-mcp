@@ -24,9 +24,9 @@ output_token_reserve = 1024
 
 [mcp]
 # The bridge executes this absolute program directly without a shell.
-executable = "C:/Users/your-user/computer-use-mcp/.venv/Scripts/computer-use-mcp.exe"
+executable = "C:/Users/your-user/guarded-desktop-agent/.venv/Scripts/guarded-desktop-mcp.exe"
 args = []
-cwd = "C:/Users/your-user/computer-use-mcp"
+cwd = "C:/Users/your-user/guarded-desktop-agent"
 # This is a reviewed server-environment override, not arbitrary host inheritance.
 # The host adds safe_local mode, enabled confirmation, a 2.5-second human-idle
 # threshold, and its fixed e-stop. Only the documented safe CUMCP controls are

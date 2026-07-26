@@ -48,7 +48,7 @@ MCP server with either OpenAI or Anthropic Claude. The MVP includes:
 - Sanitized run traces, deterministic offline evaluation, isolated desktop
   smoke tests, and CI gates.
 
-The existing `computer-use-mcp` server remains the only desktop execution
+The existing `guarded-desktop-mcp` server remains the only desktop execution
 authority. The Agent Host must use it over local stdio; it must not import its
 `Session`, Windows driver, or native control code directly.
 
@@ -60,7 +60,7 @@ CLI
       -> OpenAI Responses adapter
       -> Claude Messages adapter
       -> local stdio MCP bridge
-          -> computer-use-mcp
+          -> guarded-desktop-mcp
               -> Gate / human activity / confirmation / E-stop / audit
               -> Windows UI Automation and Win32 driver
 ~~~

@@ -131,7 +131,7 @@ every attribute strictly, which is what makes the privacy assertions meaningful.
 ## Enabling the adapter
 
 ```powershell
-pip install "computer-use-mcp[observability]"
+pip install "guarded-desktop-agent[observability]"
 ```
 
 ```python

@@ -64,4 +64,4 @@ The claim-active predicate is centralized as `_CLAIM_ACTIVE_STATUSES` in
 Related: [ADR-001](001-uncertain-dispatch-is-never-auto-replayed.md),
 [DESIGN.md](../DESIGN.md).
 
-[#174]: https://github.com/kuoforever/computer-use-mcp/pull/174
+[#174]: https://github.com/kuoforever/guarded-desktop-agent/pull/174

@@ -79,7 +79,7 @@ def require_temporalio() -> None:
     except ImportError as exc:  # pragma: no cover - exercised by absence
         raise RuntimeError(
             "temporalio is not installed; "
-            'install the optional extra: pip install "computer-use-mcp[temporal]"'
+            'install the optional extra: pip install "guarded-desktop-agent[temporal]"'
         ) from exc
 
 

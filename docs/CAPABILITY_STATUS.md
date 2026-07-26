@@ -36,7 +36,7 @@ test was attempted and failed unless a linked evidence record says so.
 The following read-only checks are the offline gate for this repository. Every
 pull request and every push to `main` runs them on Windows across Python 3.11,
 3.12, and 3.13; see the [CI workflow](../.github/workflows/ci.yml) and the
-[latest runs](https://github.com/kuoforever/computer-use-mcp/actions/workflows/ci.yml)
+[latest runs](https://github.com/kuoforever/guarded-desktop-agent/actions/workflows/ci.yml)
 for the exact per-run totals.
 
 ~~~text

@@ -36,7 +36,7 @@ from computer_use_mcp.drivers.windows import WindowsDriver  # noqa: E402
 import psutil  # noqa: E402
 import uiautomation as auto  # noqa: E402
 
-CONTENT = "v0.2 — saved by computer-use-mcp via ref invoke 你好"
+CONTENT = "v0.2 — saved by Guarded Desktop Agent via ref invoke 你好"
 TARGET = ROOT / "out" / "v02_saved.txt"
 
 

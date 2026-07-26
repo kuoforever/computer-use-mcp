@@ -149,8 +149,8 @@ class _ForbiddenPlannedProvider:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="computer-use-agent",
-        description="Safe local Agent Host foundation with a reviewed desktop MCP bridge.",
+        prog="guarded-desktop-agent",
+        description="Guarded Desktop Agent with a reviewed local MCP bridge.",
     )
     parser.add_argument("--version", action="version", version=AGENT_CONTRACT_VERSION)
     commands = parser.add_subparsers(dest="command")
