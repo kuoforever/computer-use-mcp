@@ -8,7 +8,7 @@
 Run the matching local preflight from a clean candidate checkout:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe release preflight `
+.\.venv\Scripts\guarded-desktop-agent.exe release preflight `
   --root . `
   --artifacts out\release-preflight `
   --report out\release-preflight.json
@@ -96,15 +96,15 @@ Install a specific version into a clean environment:
 ~~~powershell
 py -3 -m venv .release-venv
 .\.release-venv\Scripts\python.exe -m pip install `
-  --disable-pip-version-check computer_use_mcp-<version>-py3-none-any.whl
-.\.release-venv\Scripts\python.exe -c "import importlib.metadata as m; print(m.version('computer-use-mcp'))"
+  --disable-pip-version-check guarded_desktop_agent-<version>-py3-none-any.whl
+.\.release-venv\Scripts\python.exe -c "import importlib.metadata as m; print(m.version('guarded-desktop-agent'))"
 ~~~
 
 Verify the artifact before installing it. The preflight report records the
 wheel filename and its SHA-256; compare against the file you received:
 
 ~~~powershell
-(Get-FileHash computer_use_mcp-<version>-py3-none-any.whl -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash guarded_desktop_agent-<version>-py3-none-any.whl -Algorithm SHA256).Hash.ToLower()
 ~~~
 
 Roll back by installing the previous wheel over the current one, or by deleting
@@ -112,7 +112,7 @@ the environment and recreating it. Removing the package leaves user data in
 place:
 
 ~~~powershell
-.\.release-venv\Scripts\python.exe -m pip uninstall -y computer-use-mcp
+.\.release-venv\Scripts\python.exe -m pip uninstall -y guarded-desktop-agent
 ~~~
 
 State, memory, traces, checkpoints, and campaign ledgers live under the

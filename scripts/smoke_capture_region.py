@@ -113,7 +113,7 @@ def _capture_call(region: tuple[int, int, int, int]) -> ToolCall:
 
 async def _capture(region: tuple[int, int, int, int]):  # noqa: ANN202
     launch = MCPLaunchConfig(
-        executable=(ROOT / ".venv" / "Scripts" / "computer-use-mcp.exe").resolve(),
+        executable=(ROOT / ".venv" / "Scripts" / "guarded-desktop-mcp.exe").resolve(),
         args=(),
         cwd=ROOT,
         environment={"CUMCP_ALLOWLIST": "python.exe"},

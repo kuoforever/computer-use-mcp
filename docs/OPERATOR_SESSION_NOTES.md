@@ -34,6 +34,26 @@ needed to reproduce a finding.
 | 2026-07-19 | `boss-campaign-page-01` | Fixed campaign CLI, Runner, project MCP, Chrome | One-page read-only BOSS identity discovery | Seven stable identities retained; zero provider and side-effect calls |
 | 2026-07-23 | `boss-campaign-multipass-01` | Fixed campaign CLI, Runner, project MCP, Chrome | Current-contract two-pass BOSS identity discovery | Twelve stable identities retained across distinct source digests; zero provider and side-effect calls |
 | 2026-07-23 | `boss-item-restart-diagnostic-01` | Fixed campaign CLI, Runner, project MCP, Chrome | Three read-only identity commits and stale-owner restart diagnostic | Three commits retained; two integration defects found and fixed; clean post-fix stale recovery; not acceptance evidence |
+| 2026-07-25 | `boss-item-restart-clean-01` | Fixed campaign CLI, Runner, project MCP, Chrome | Clean bounded identity/restart sequence on fixed code | Twelve discovered identities and three consecutive fresh-run commits; zero correction, provider calls, tokens, retryable items, or uncertain items |
+
+## 2026-07-25: clean BOSS item/restart sequence
+
+- One initial wrong-foreground discovery attempt failed closed and added no
+  pass or item. Accepted foreground activation and the fixed discovery command
+  were then co-located in one local orchestration process; no campaign file was
+  edited.
+- Two accepted discovery passes retained eight and four new identities with
+  distinct source digests.
+- Three fixed item runs each used one project-MCP snapshot, committed the exact
+  claimed identity, stopped at `TOOL_CALL_LIMIT`, and handed off to a fresh
+  zero-port run.
+- Final handoff reports three completed items, ordinal 4 next, and zero
+  retryable or uncertain items. Every accepted run used zero provider calls and
+  zero tokens.
+- Campaign artifacts and redacted traces contained no full URL, `securityId`,
+  source marker, or raw job key in traces.
+
+See [the retained clean evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md).
 
 ## 2026-07-23: current-contract BOSS multi-pass discovery
 

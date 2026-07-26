@@ -69,7 +69,9 @@ def _install_fake_commands(
         if "build" in command:
             output = Path(command[command.index("--outdir") + 1])
             output.mkdir(parents=True)
-            (output / "computer_use_mcp-0.1.0-py3-none-any.whl").write_bytes(b"wheel")
+            (output / "guarded_desktop_agent-0.1.0-py3-none-any.whl").write_bytes(
+                b"wheel"
+            )
             return release._Command(0)
         if "eval" in command:
             report_path = Path(command[command.index("--report") + 1])

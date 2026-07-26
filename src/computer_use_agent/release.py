@@ -458,7 +458,7 @@ def run_release_preflight(
                     [
                         str(wheel_python),
                         "-c",
-                        "import importlib.metadata; print(importlib.metadata.version('computer-use-mcp'))",
+                        "import importlib.metadata; print(importlib.metadata.version('guarded-desktop-agent'))",
                     ],
                     cwd=root,
                     environment=environment,

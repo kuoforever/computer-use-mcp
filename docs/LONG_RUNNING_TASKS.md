@@ -307,8 +307,9 @@ ID; without external ports it reconstructs the exact finished session,
 transfers fresh ownership or recovers a proven-stale owner with no item claim,
 opens the coordinator-selected resumed plan, and claims its first item. Both
 boundaries fail closed on ownership, plan,
-handoff, or identity drift. They are offline verified only and do not navigate
-or extract role, company, compensation, or other job semantics.
+handoff, or identity drift. They are offline verified and have a bounded
+[clean three-item on-device result](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md), but
+do not navigate or extract role, company, compensation, or other job semantics.
 
 `campaign_worker.py`, `application_campaign_runtime.py`, and
 `worker_capabilities.py` now supply the application-neutral execution layer.
@@ -358,6 +359,18 @@ and a synthetic incident queue — and another can be registered without touchin
 the Runner, the campaign runtime, or the MCP surface. BOSS keeps its own fixed
 discovery module, contract digests, and the only retained on-device campaign
 observations; every generic adapter is offline verified only.
+
+The separate [bounded semantic runtime](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md)
+uses three additional fixed commands. It opens one-item batches with at most
+five provider turns/tool attempts and zero side effects, re-establishes the
+exact claimed key through Runner UIA, permits strict document-text escalation,
+and commits only a locally revalidated schema/policy/source-bound digest. A
+successful batch transfers to a fresh run and claims the next exact item. If
+document text is insufficient, the currently unmet OCR Host safety baseline is
+preserved: Runner denies the call, no OCR MCP dispatch occurs, and the runtime
+writes a retryable `CONTENT_UNAVAILABLE` failure-limit handoff. The fixed
+no-preference classification is `INSUFFICIENT_EVIDENCE`; there is no automatic
+navigation or on-device semantic evidence.
 
 
 A future worker must close the current run cleanly at a batch boundary, write
@@ -642,15 +655,27 @@ takeover are durable transitions, not informal chat instructions.
     one clean post-fix stale-owner recovery passed, while two integration
     defects were preserved and fixed; see
     [diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md).
-15. **Next:** repeat the bounded multi-item sequence without local correction,
-    then add semantic extraction only under a separately reviewed schema and
-    run the 100-item evaluation.
-16. Run Google Docs 50-section and WeChat draft-only evaluations.
-17. Run the cross-application campaign with a fresh-session boundary.
-18. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-19. Only then consider resumable side-effect campaigns and higher-complexity
+15. **Clean on-device gate retained:** two discovery passes retained twelve
+    identities and three consecutive fresh-run commits without local state
+    correction, provider calls, tokens, retryable items, or uncertain items;
+    see [clean evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md).
+16. **Implemented and offline verified:** the
+    [bounded semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) fixes the
+    compact result, classification-policy binding, canonical digest, and
+    fail-closed UIA-to-screenshot ladder.
+17. **Implemented and offline verified:** a separate fixed semantic CLI seam
+    opens one-item batches, connects UIA/document text and strict provider JSON
+    through Runner, commits canonical results, writes zero-OCR-dispatch handoff
+    when the OCR safety baseline remains denied, and transfers a successful
+    batch to a fresh run.
+18. **Next:** retain one on-device UIA/document-text semantic item, then review
+    the OCR Host baseline separately before the 100-item evaluation.
+19. Run Google Docs 50-section and WeChat draft-only evaluations.
+20. Run the cross-application campaign with a fresh-session boundary.
+21. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+22. Only then consider resumable side-effect campaigns and higher-complexity
     remote-desktop or modal-tool workloads.
-20. Define object-scoped enterprise authority, data classification, transaction
+23. Define object-scoped enterprise authority, data classification, transaction
     reconciliation, SLA ownership, and human takeover before Wave 4.
-21. Run the synthetic read-only IT incident campaign, then add approved ticket
+24. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

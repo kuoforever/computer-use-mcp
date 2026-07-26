@@ -20,10 +20,11 @@ from .batch_coordinator import (
     BatchTransferredResumePreflight,
     BatchTransferredResumeState,
 )
-from .batching import BatchPlan, BatchUsage
+from .batching import BatchPlan, BatchPolicy, BatchUsage, batch_stop_reason
 from .boss_campaign_batch_runtime import (
     BOSS_BATCH_LEASE_SECONDS,
     BOSS_BATCH_POLICY,
+    BOSS_SEMANTIC_BATCH_POLICY,
 )
 from .boss_campaign_discovery import (
     BOSS_CAMPAIGN_KIND,
@@ -44,6 +45,9 @@ from .stale_run_inspection import StaleRunState, inspect_stale_run
 
 
 BOSS_RESTART_TASK = "Resume one finished BOSS read-only batch from durable state"
+BOSS_SEMANTIC_RESTART_TASK = (
+    "Resume one finished BOSS semantic read-only batch from durable state"
+)
 
 
 class BossCampaignRestartRuntimeError(RuntimeError):
@@ -89,6 +93,8 @@ def _finished_boss_session(
     coordinator: BatchCoordinator,
     *,
     campaign_id: str,
+    policy: BatchPolicy,
+    semantic: bool,
 ) -> tuple[BatchSession, BatchUsage, Mapping[str, object], int]:
     store = coordinator.store
     manifest = store.read_manifest(campaign_id)
@@ -133,7 +139,11 @@ def _finished_boss_session(
                 )
             ),
             key=lambda item: (item.ordinal, item.item_key),
-        )[: BOSS_BATCH_POLICY.max_items]
+        )[: policy.max_items]
+    )
+    usage = None if finished is None else _usage_from_finished(finished)
+    measured_stop = (
+        None if usage is None else batch_stop_reason(policy, usage)
     )
     if (
         manifest.kind != BOSS_CAMPAIGN_KIND
@@ -147,10 +157,23 @@ def _finished_boss_session(
         or finished.status is not BatchStatus.FINISHED
         or (started.batch_id, started.run_id)
         != (finished.batch_id, finished.run_id)
-        or finished.stop_code != "TOOL_CALL_LIMIT"
+        or usage is None
+        or measured_stop is None
+        or finished.stop_code != measured_stop.value
         or finished.items_completed != 1
-        or finished.tool_calls != 1
-        or finished.provider_turns != 0
+        or (
+            not semantic
+            and (finished.tool_calls != 1 or finished.provider_turns != 0)
+        )
+        or (
+            semantic
+            and (
+                not 1 <= finished.tool_calls <= policy.max_tool_calls
+                or not 1 <= finished.provider_turns <= policy.max_provider_turns
+                or finished.screenshots > policy.max_screenshots
+                or finished.ocr_regions > policy.max_ocr_regions
+            )
+        )
         or selected is None
         or not tail
         or tail[0] != selected
@@ -169,27 +192,28 @@ def _finished_boss_session(
             campaign_id=campaign_id,
             batch_id=finished.batch_id,
             run_id=finished.run_id,
-            policy=BOSS_BATCH_POLICY,
+            policy=policy,
             plan=BatchPlan(
                 item_keys=tuple(item.item_key for item in tail),
                 stop_reason=None,
             ),
         ),
-        _usage_from_finished(finished),
+        usage,
         handoff,
         projection.next_ordinal,
     )
 
 
-def resume_finished_boss_batch_after_restart(
+def _resume_finished_boss_batch_after_restart(
     runner: AgentRunner,
     *,
     campaign_id: str,
     replacement_run_id: str,
     now: datetime,
+    task: str,
+    policy: BatchPolicy,
+    semantic: bool,
 ) -> BossCampaignRestartOutcome:
-    """Transfer a finished batch and claim its exact next eligible item."""
-
     if (
         not isinstance(runner, AgentRunner)
         or runner.ports is not None
@@ -205,7 +229,7 @@ def resume_finished_boss_batch_after_restart(
     ):
         raise BossCampaignRestartRuntimeError("BOSS_RESTART_INPUT_INVALID")
     try:
-        prepared = runner.prepare(BOSS_RESTART_TASK, run_id=replacement_run_id)
+        prepared = runner.prepare(task, run_id=replacement_run_id)
     except (OSError, ValueError) as exc:
         raise BossCampaignRestartRuntimeError("BOSS_RESTART_PREPARE_FAILED") from exc
     try:
@@ -215,6 +239,8 @@ def resume_finished_boss_batch_after_restart(
         session, usage, handoff, expected_ordinal = _finished_boss_session(
             coordinator,
             campaign_id=campaign_id,
+            policy=policy,
+            semantic=semantic,
         )
         replacement = CampaignHeartbeat(
             campaign_id=campaign_id,
@@ -252,7 +278,7 @@ def resume_finished_boss_batch_after_restart(
             session,
             replacement_run_id=replacement_run_id,
             now=now,
-            policy=BOSS_BATCH_POLICY,
+            policy=policy,
         )
         if (
             heartbeat != replacement
@@ -270,7 +296,7 @@ def resume_finished_boss_batch_after_restart(
             batch_id=batch_id,
             replacement_run_id=replacement_run_id,
             now=now,
-            policy=BOSS_BATCH_POLICY,
+            policy=policy,
         )
         claimed = coordinator.claim_next_item(
             opened,
@@ -310,9 +336,62 @@ def resume_finished_boss_batch_after_restart(
         prepared.close()
 
 
+def resume_finished_boss_batch_after_restart(
+    runner: AgentRunner,
+    *,
+    campaign_id: str,
+    replacement_run_id: str,
+    now: datetime,
+) -> BossCampaignRestartOutcome:
+    """Transfer the retained one-call identity batch to a fresh run."""
+
+    return _resume_finished_boss_batch_after_restart(
+        runner,
+        campaign_id=campaign_id,
+        replacement_run_id=replacement_run_id,
+        now=now,
+        task=BOSS_RESTART_TASK,
+        policy=BOSS_BATCH_POLICY,
+        semantic=False,
+    )
+
+
+def resume_finished_boss_semantic_batch_after_restart(
+    runner: AgentRunner,
+    *,
+    campaign_id: str,
+    replacement_run_id: str,
+    now: datetime,
+) -> BossCampaignRestartOutcome:
+    """Transfer one successfully committed semantic batch to a fresh run."""
+
+    if (
+        not isinstance(runner, AgentRunner)
+        or runner.config.policy.max_side_effects != 0
+        or runner.config.policy.max_model_turns
+        < BOSS_SEMANTIC_BATCH_POLICY.max_provider_turns
+        or runner.config.policy.max_tool_calls
+        < BOSS_SEMANTIC_BATCH_POLICY.max_tool_calls
+    ):
+        raise BossCampaignRestartRuntimeError(
+            "BOSS_RESTART_SEMANTIC_POLICY_INVALID"
+        )
+    return _resume_finished_boss_batch_after_restart(
+        runner,
+        campaign_id=campaign_id,
+        replacement_run_id=replacement_run_id,
+        now=now,
+        task=BOSS_SEMANTIC_RESTART_TASK,
+        policy=BOSS_SEMANTIC_BATCH_POLICY,
+        semantic=True,
+    )
+
+
 __all__ = [
     "BOSS_RESTART_TASK",
+    "BOSS_SEMANTIC_RESTART_TASK",
     "BossCampaignRestartOutcome",
     "BossCampaignRestartRuntimeError",
     "resume_finished_boss_batch_after_restart",
+    "resume_finished_boss_semantic_batch_after_restart",
 ]

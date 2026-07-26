@@ -8,7 +8,8 @@
 
 ## One-minute summary
 
-`computer-use-mcp` is evolving from a model-agnostic Windows desktop MCP server
+Guarded Desktop Agent (formerly `computer-use-mcp`) is evolving from a
+model-agnostic Windows desktop MCP server
 into a locally governed universal GUI Agent system. The project currently has
 four distinct maturity layers:
 
@@ -82,13 +83,13 @@ evidence.
 operator / Codex / Claude Code / another MCP client
   |
   +-- direct MCP path ---------------------------------------------+
-  |    stdio -> computer-use-mcp server                            |
+  |    stdio -> guarded-desktop-mcp server                         |
   |             -> session refs / snapshot serialization           |
   |             -> e-stop / human activity / allowlist / approval  |
   |             -> Windows UIA + Win32 + capture                    |
   |                                                                |
   +-- Agent Host path ---------------------------------------------+
-       computer-use-agent CLI                                      |
+       guarded-desktop-agent CLI                                   |
          -> OpenAI Responses or Claude Messages adapter             |
          -> policy / grounding / budgets / approval                 |
          -> redacted trace / explicit memory / recovery             |
@@ -114,8 +115,8 @@ must not create a second native-action path.
 
 | Surface | Entry point | Current purpose | Boundary |
 | --- | --- | --- | --- |
-| Desktop MCP server | `computer-use-mcp` | Expose eight Windows GUI tools over stdio | Implemented Windows runtime |
-| Agent Host | `computer-use-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
+| Desktop MCP server | `guarded-desktop-mcp` | Expose eleven Windows GUI tools over stdio | Implemented Windows runtime |
+| Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
 | Agent config | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
 | Evaluation | `eval` | Run deterministic frozen E1/E2 cases | Implemented offline |
@@ -211,7 +212,8 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Deterministic handoff/completion | Implemented/internal | Fixed-schema handoff and terminal campaign projection derived from durable state | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Fixed synthetic execution seam | Implemented/internal product boundary | Three CLI commands prepare one fixed claim, execute one `list_windows` observation through Runner handoff, and reconstruct fresh-run resume | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | BOSS identity discovery | Implemented/internal fixed runtime | Two fixed CLI commands create the reviewed manifest and dispatch one foreground `ui_snapshot` through Runner/project MCP; bounded complete link values produce idempotent public job keys with query data discarded. A [current-contract two-pass result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) retained twelve identities with externally controlled progression; no automatic navigation, worker, restart, or application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
-| BOSS bounded item/restart seam | Implemented/internal fixed runtime | Three fixed CLIs start the first coordinator-selected batch, verify one exact claimed public identity through one Runner/project-MCP snapshot and digest-backed commit/handoff, then transfer a fresh or proven-stale finished owner to a zero-port run and claim the exact next item. A partial [on-device diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) retained three commits and two corrected defects; no item selector, provider execution, automatic navigation, semantic job extraction, or clean application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
+| BOSS bounded item/restart seam | Implemented/internal fixed runtime | Three fixed CLIs start the first coordinator-selected batch, verify one exact claimed public identity through one Runner/project-MCP snapshot and digest-backed commit/handoff, then transfer a fresh or proven-stale finished owner to a zero-port run and claim the exact next item. A [clean on-device sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) retained twelve identities and three consecutive fresh-run commits without local state correction, and the earlier [diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) preserves two corrected defects; no item selector, provider execution, automatic navigation, semantic job extraction, or clean application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
+| BOSS semantic extraction seam | Implemented/offline-only runtime | Three fixed no-selector CLIs open a one-item/five-call/zero-side-effect batch, re-establish the exact claim through Runner UIA, permit strict escalation to document text, commit only a schema/policy/source-digest-bound provider result, hand off without OCR dispatch when its Host safety baseline remains denied, and transfer a successful batch to a fresh run. The pure contract retains the full OCR/crop/screenshot ladder; there is no on-device semantic result or automatic navigation | [Semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) |
 | General campaign worker | Implemented/internal, offline only | Manifest-routed capability-composed scenario registry with A1-A19 as built-in examples rather than a closed list; validated new specs register without Runner changes. Includes explicit stable-item preparation, provider execution through the sole Runner boundary, strict semantic result schema, digest commit, one-item handoff, fresh-run resume, and automatic exhausted-manifest completion with exact terminal heartbeat retirement. No generic real-application acceptance claim | [Roadmap](EXECUTION_PLAN.md) |
 | Composable discovery adapters | Implemented/internal, offline only | Declarative `link_url`/`control_name` adapters bound to a campaign kind derive stable public item keys from one bounded foreground `ui_snapshot`; two CLI commands create the reviewed campaign and record one operator-driven pass with the provider forbidden and no page, URL, scope, or item selector. The campaign carries the ordinary worker digests, so discovery enters `campaign start` unchanged. Only BOSS has retained on-device discovery evidence, under its own separate fixed contract | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Host completion polling | Implemented/internal contract | Bounded read-only projection and deduplicated fake-host terminal/attention decisions; no public status tool or mobile bridge | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) |
@@ -368,9 +370,9 @@ In priority order:
 
 1. Use the retained isolated Windows evidence only for the repaired activation
    path and reviewed VM/model scope.
-2. Reuse the retained bounded OCR slice across a multi-item BOSS run with
-   durable identities and restart evidence; add another source only on a
-   demonstrated gap.
+2. Retain one on-device UIA/document-text semantic item through the new bounded
+   runtime; review the OCR Host safety baseline separately and add another
+   source only on a demonstrated gap.
 3. Apply completed-final reconciliation and expose the smallest observation-only
    Planner/Executor CLI path.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)

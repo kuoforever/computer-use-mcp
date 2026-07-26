@@ -24,7 +24,7 @@ CLI / local operator
   -> Agent Host (policy, ledger, memory, trace)
       -> provider adapter
       -> local stdio MCP bridge
-          -> computer-use-mcp server
+          -> guarded-desktop-mcp server
               -> gate, human activity, confirmation, e-stop, audit
               -> Windows UI Automation / Win32
 ~~~
@@ -34,7 +34,7 @@ allowlist, human-activity check, confirmation, e-stop, or audit behavior.
 
 ## Current CLI behavior
 
-The `computer-use-agent` entry point and `python -m computer_use_agent` expose
+The `guarded-desktop-agent` entry point and `python -m computer_use_agent` expose
 the following commands:
 
 - `config validate --config PATH` parses and validates TOML without creating
@@ -333,6 +333,20 @@ through the same Runner/project-MCP boundary with the provider forbidden. The
 created campaign carries the ordinary worker policy and schema digests, so it
 enters `campaign start` unchanged. These paths are offline verified only.
 
+`boss_semantic_item_runtime.py` adds a separate one-item semantic policy
+without changing that retained identity seam. Fixed
+`start-boss-semantic-batch` permits one item, at most five provider turns and
+five tool attempts, and zero side effects. Fixed
+`run-claimed-boss-semantic` re-establishes the exact public identity through
+Runner UIA, discloses only the exact next observation tool, accepts only strict
+assessment/result JSON, and commits only a schema-, source-, and fixed
+no-preference-policy-bound digest. UIA and document text are connected; the
+still-gated OCR Host baseline produces a zero-OCR-dispatch
+`CONTENT_UNAVAILABLE` handoff. Fixed `resume-boss-semantic-batch` transfers a
+successful batch to a fresh zero-port run and claims the exact next item. These
+paths are offline verified, have no free-form task or item selector, and have
+no on-device semantic result.
+
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.
@@ -408,8 +422,8 @@ Install and run the experimental slice with:
 ~~~powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
 $env:OPENAI_API_KEY = "..."
-.\.venv\Scripts\computer-use-agent.exe config validate --config agent.toml
-.\.venv\Scripts\computer-use-agent.exe run --config agent.toml --task "List the open windows"
+.\.venv\Scripts\guarded-desktop-agent.exe config validate --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe run --config agent.toml --task "List the open windows"
 ~~~
 
 For Claude, install `.[agent-anthropic]`, set `ANTHROPIC_API_KEY`, and use

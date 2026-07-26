@@ -14,7 +14,7 @@ contract.
 The codebase has two executable surfaces. The public baseline is an
 experimental Windows-only MCP server with thirteen tools, a typed Driver Contract
 v1.0.0, and one in-process Windows implementation. The second is an
-experimental `computer-use-agent` Host with a dual-provider read-only loop,
+experimental `guarded-desktop-agent` Host with a dual-provider read-only loop,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. [Dual-provider E3 evidence](docs/E3_EVIDENCE.md) is retained for both
 bounded fake-MCP cases with one reviewed model per provider. [Isolated desktop
@@ -70,10 +70,22 @@ identity, persists a canonical presence digest through `COMMITTED`, finishes at
 `TOOL_CALL_LIMIT`, and writes handoff. Fixed `resume-boss-batch` reconstructs
 that finished session in a fresh zero-port run, transfers heartbeat ownership,
 opens the coordinator-selected resumed plan, and claims its first item. These
-worker paths are offline verified only; they do not perform semantic job
+boundaries are offline verified, and a
+[clean three-item on-device sequence](docs/BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md)
+retained twelve discovered identities plus three consecutive fresh-run commits
+without local state correction. They still do not perform semantic job
 extraction, automatic navigation, provider execution, or the 100-item
-application gate. The broader universal GUI,
-operator UI, cross-application demo, continual-learning, and additional
+application gate. A separate
+[bounded semantic contract](docs/BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) now
+offline-verifies the exact compact result, classification-policy binding,
+canonical digest, and fail-closed UIA-to-screenshot observation ladder. A
+separate one-item semantic CLI seam now connects UIA and document text through
+Runner, commits only strict provider JSON under a fixed no-preference
+classification policy, writes failure handoff when the still-gated OCR rung is
+denied without dispatch, and transfers a successful batch to a fresh run. It
+does not alter the retained one-call identity runtime and has no on-device
+semantic evidence. The broader
+universal GUI, operator UI, cross-application demo, continual-learning, and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
 remain planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and

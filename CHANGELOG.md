@@ -10,8 +10,22 @@ a version number states what is packaged, never what has been verified.
 
 ## [Unreleased]
 
+### Evidence
+
+- **Clean BOSS item/restart sequence.** Retained a fixed-code on-device result
+  with two discovery passes, twelve stable identities, and three consecutive
+  fresh-run identity commits without local state correction. All accepted runs
+  used one tool call, zero provider calls, and zero tokens; final handoff points
+  to ordinal 4 with no retryable or uncertain items.
+
 ### Added
 
+- **Guarded Desktop Agent project identity.** Renamed the repository,
+  distribution, product, and MCP service to distinguish the project-local
+  runtime from platform Computer Use plugins. Added canonical
+  `guarded-desktop-agent` and `guarded-desktop-mcp` commands while retaining
+  legacy import paths, console aliases, environment variables, durable state
+  paths, and historical evidence.
 - **Composable application discovery adapters.** A declarative adapter states
   how one bounded foreground observation yields stable public item identities
   for a reviewed scenario: `link_url` reads identifiers out of hyperlink
@@ -97,6 +111,16 @@ a version number states what is packaged, never what has been verified.
   distinguish successful screenshots from other image-bearing tool results.
   The passive progress view reports elapsed time and exact screenshots only
   when those facts are present; legacy checkpoints remain explicitly unknown.
+- **Bounded BOSS semantic extraction seam.** Added a strict compact result with
+  classification-policy binding, canonical digest, and deterministic
+  UIA-to-screenshot ladder plus three fixed no-selector CLIs. The separate
+  one-item/five-call/zero-side-effect runtime re-establishes the claim through
+  Runner, supports UIA/document-text extraction, accepts only strict provider
+  JSON, commits canonical digests, and transfers successful handoff to a fresh
+  run. Authentication/challenge states hand off, and the still-gated OCR Host
+  baseline produces a retryable `CONTENT_UNAVAILABLE` handoff with zero OCR
+  MCP dispatch. The initial policy permits only `INSUFFICIENT_EVIDENCE`
+  because no user job preference is configured.
 - **Bounded BOSS batch-start boundary.** A fixed
   `campaign start-boss-batch` command validates the complete current BOSS
   discovery ledger, requires at least two discovery passes, opens only the
@@ -189,4 +213,4 @@ promote any capability evidence level.
 - Live provider and isolated desktop validation remain explicit human gates and
   are deliberately absent from default CI.
 
-[Unreleased]: https://github.com/kuoforever/computer-use-mcp/compare/main...HEAD
+[Unreleased]: https://github.com/kuoforever/guarded-desktop-agent/compare/main...HEAD

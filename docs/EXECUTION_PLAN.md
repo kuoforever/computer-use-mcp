@@ -127,8 +127,7 @@ and writes deterministic handoff with the provider forbidden. Fixed
 `campaign resume-boss-batch` uses a fresh zero-port run to reconstruct the
 finished session, transfer heartbeat ownership, open the exact coordinator
 resume plan, and claim its first item. Neither accepts an item selector or
-performs automatic navigation or semantic job extraction. Next retain this
-commit/restart sequence on-device, then expand it to the 100-item evaluation.
+performs automatic navigation or semantic job extraction.
 A manifest-routed worker runtime now exposes explicit stable-item preparation
 and generic `campaign start`, `campaign run-claimed`, and `campaign resume`
 commands for capability-composed scenario contracts. A1-A19 are built-in
@@ -160,9 +159,20 @@ fail closed. BOSS keeps its own fixed discovery contract and its retained
 on-device evidence; the generic path is offline verified only, so the next gate
 is one retained on-device adapter pass followed by the 100-item evaluation.
 A partial [three-item diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md)
-now retains two discovered-and-fixed integration defects plus one clean
-post-fix stale-owner recovery. It is not clean acceptance evidence; the next
-run must repeat the bounded sequence without local correction.
+retains two discovered-and-fixed integration defects plus one clean post-fix
+stale-owner recovery. The later
+[clean three-item sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) retained two
+discovery passes, twelve stable identities, and three consecutive fresh-run
+commits without local state correction. The separately
+[reviewed bounded semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) is
+now connected to a separately bounded offline-verified runtime. Three fixed
+no-selector commands open a one-item/five-call/zero-side-effect batch,
+re-establish the exact claim through Runner UIA, permit document-text
+escalation, validate strict provider JSON, commit only canonical
+policy/source-bound results, and transfer successful handoff to a fresh run.
+The runtime performs no OCR dispatch while that rung retains an unmet Host
+safety baseline. Next retain one on-device UIA/document-text semantic item,
+review pixel escalation separately, then expand to the 100-item evaluation.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);

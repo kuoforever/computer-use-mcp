@@ -82,7 +82,7 @@ the host has no reviewed, versioned provider pricing input.
 Inspect one record without starting a provider or MCP child:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe trace <run_id> --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe trace <run_id> --config agent.toml
 ~~~
 
 The command emits the validated checkpoint, aggregate metrics, and events as JSON. It does not
@@ -91,7 +91,7 @@ repair, mutate, resume, or delete the record.
 Classify recovery without starting external ports or mutating the record:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe recovery <run_id> --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe recovery <run_id> --config agent.toml
 ~~~
 
 The output contains only run ID, phase, fixed action/reason, resume eligibility,
@@ -102,7 +102,7 @@ When opt-in continuation persistence is enabled, execute one reviewed read-only
 recovery boundary by default with an explicit confirmation flag:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe recover <run_id> `
+.\.venv\Scripts\guarded-desktop-agent.exe recover <run_id> `
   --config agent.toml --task "<original task>" --execute-read-only
 ~~~
 
@@ -130,7 +130,7 @@ call count, and exits nonzero. Multiple calls grant no additional authority.
 Aggregate all local checkpoints without opening JSONL traces:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe report --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe report --config agent.toml
 ~~~
 
 The report includes phase counts, terminal success rate, fixed failure-code
@@ -147,7 +147,7 @@ version must match. The command may reclaim only a well-formed OS-unlocked
 crash lease, then restarts discovery without replaying provider or tool work:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe resume <run_id> `
+.\.venv\Scripts\guarded-desktop-agent.exe resume <run_id> `
   --config agent.toml --task "<original task>"
 ~~~
 
@@ -155,7 +155,7 @@ Any later phase fails closed as `RUN_NOT_RESUMABLE`. Close a non-terminal crash
 record explicitly with:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe cancel <run_id> --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe cancel <run_id> --config agent.toml
 ~~~
 
 Recovery remains deliberately conservative:

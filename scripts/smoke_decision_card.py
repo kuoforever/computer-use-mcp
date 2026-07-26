@@ -85,7 +85,7 @@ def _config(state_dir: Path) -> AgentConfig:
         policy_version="decision-card-live-v1",
         provider=ProviderConfig("openai", "fake-live"),
         mcp=MCPLaunchConfig(
-            executable=ROOT / ".venv" / "Scripts" / "computer-use-mcp.exe",
+            executable=ROOT / ".venv" / "Scripts" / "guarded-desktop-mcp.exe",
             args=(),
             cwd=ROOT,
             environment={"CUMCP_ALLOWLIST": "notepad.exe"},

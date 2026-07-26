@@ -90,4 +90,7 @@ stale finished owner in a fresh run and complete the next exact read-only
 identity commit without provider or selector authority. Because run 2 required
 local evidence-preserving correction while the defects were being fixed, this
 sequence must not be promoted to clean application acceptance. The next gate is
-a fresh, uncorrected multi-item run on the fixed code.
+a fresh, uncorrected multi-item run on the fixed code. That later gate is now
+retained separately in
+[clean item/restart evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md); this record
+remains the historical defect diagnostic.

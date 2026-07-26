@@ -1,6 +1,10 @@
-# computer-use-mcp（中文快速开始）
+# Guarded Desktop Agent（中文快速开始）
 
 **面向 Windows 的、可恢复且受安全策略约束的 computer-use 运行时。**
+
+本项目原名 `computer-use-mcp`。新名称用于明确区分项目自带的 MCP 服务与平台
+提供的 Computer Use 插件；旧 Python 导入路径、状态目录、环境变量及命令在兼容
+期内继续可用。
 
 [English README](README.md) | [完整项目总览（英文）](docs/PROJECT_OVERVIEW.md) | [文档索引（英文）](docs/README.md)
 
@@ -56,7 +60,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 
 $env:CUMCP_ALLOWLIST = "notepad.exe"
-.\.venv\Scripts\computer-use-mcp.exe
+.\.venv\Scripts\guarded-desktop-mcp.exe
 ~~~
 
 在 MCP 客户端的 stdio server 配置中，推荐填写虚拟环境内可执行文件的绝对
@@ -64,7 +68,7 @@ $env:CUMCP_ALLOWLIST = "notepad.exe"
 
 ~~~json
 {
-  "command": "C:\\absolute\\path\\to\\computer-use-mcp\\.venv\\Scripts\\computer-use-mcp.exe",
+  "command": "C:\\absolute\\path\\to\\guarded-desktop-agent\\.venv\\Scripts\\guarded-desktop-mcp.exe",
   "env": {
     "CUMCP_ALLOWLIST": "notepad.exe"
   }
@@ -72,6 +76,8 @@ $env:CUMCP_ALLOWLIST = "notepad.exe"
 ~~~
 
 不同 MCP 客户端的外层配置格式不同；上面的 command 和 env 内容可通用。
+旧的 `computer-use-mcp` 与 `computer-use-agent` 命令仍作为兼容别名保留；
+新配置应使用 `guarded-desktop-mcp` 与 `guarded-desktop-agent`。
 
 ## 推荐操作流程
 

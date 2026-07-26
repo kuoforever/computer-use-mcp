@@ -113,7 +113,7 @@ structurally validated.
 Add a confirmed preference:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe remember add `
+.\.venv\Scripts\guarded-desktop-agent.exe remember add `
   --config agent.toml `
   --kind preference `
   --content "Prefer concise status summaries." `
@@ -125,10 +125,10 @@ Add a confirmed preference:
 List or delete records:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe remember list --config agent.toml
-.\.venv\Scripts\computer-use-agent.exe remember list `
+.\.venv\Scripts\guarded-desktop-agent.exe remember list --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe remember list `
   --config agent.toml --scope app:notepad --include-expired
-.\.venv\Scripts\computer-use-agent.exe remember delete <memory_id> `
+.\.venv\Scripts\guarded-desktop-agent.exe remember delete <memory_id> `
   --config agent.toml
 ~~~
 
@@ -136,7 +136,7 @@ Explicitly disclose active records from one exact scope to the configured
 provider for a single non-dry run:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe run `
+.\.venv\Scripts\guarded-desktop-agent.exe run `
   --config agent.toml `
   --task "Inspect the test application" `
   --memory-scope app:notepad

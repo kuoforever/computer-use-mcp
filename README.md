@@ -1,6 +1,11 @@
-# computer-use-mcp
+# Guarded Desktop Agent
 
 **A durable, safety-governed computer-use runtime for Windows.**
+
+Formerly `computer-use-mcp`. The new name distinguishes this repository and
+its project-local MCP server from platform-provided computer-use plugins.
+Legacy Python import paths, state directories, environment variables, and
+console commands remain supported during the compatibility window.
 
 [中文快速开始](README.zh-CN.md) · [Architecture](#architecture) · [Reliability demo](#try-the-reliability-demo) · [Evidence dashboard](docs/CAPABILITY_STATUS.md) · [Documentation](docs/README.md)
 
@@ -27,7 +32,7 @@ desktop execution authority, and durable evidence that outlives a crash.
   with no correlated completion stops for a human instead of guessing.
 - **Offline CI** on Windows across Python 3.11–3.13, plus a wheel clean-install
   smoke ([workflow](.github/workflows/ci.yml) ·
-  [runs](https://github.com/kuoforever/computer-use-mcp/actions/workflows/ci.yml)).
+  [runs](https://github.com/kuoforever/guarded-desktop-agent/actions/workflows/ci.yml)).
 
 ## Measured results
 
@@ -39,12 +44,15 @@ desktop execution authority, and durable evidence that outlives a crash.
 | Bounded OCR recovered a static tab that UIA omitted, matched to one UIA card | [OCR evidence](docs/BOSS_OCR_EVIDENCE.md) |
 | One real BOSS page: 7 stable public job keys, 0 duplicates, 0 retries, 0 tokens — **measured under a contract the discovery-pass ledger has since replaced** | [Discovery evidence](docs/BOSS_CAMPAIGN_DISCOVERY_EVIDENCE.md) |
 | Current BOSS discovery contract: 2 distinct on-device passes, 12 stable public job keys, 0 duplicates, 0 provider calls, 0 side effects | [Multi-pass discovery evidence](docs/BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) |
+| Clean BOSS item/restart gate: 12 discovered identities, 3 consecutive fresh-run commits, 0 local correction, provider calls, tokens, retryable items, or uncertain items | [Clean item/restart evidence](docs/BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) |
 | Partial BOSS item/restart diagnostic: 3 identity commits, clean post-fix stale-owner recovery, 0 provider calls, with two discovered defects explicitly retained | [Item/restart diagnostic evidence](docs/BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 
 Each record supports **only its own scope**. None is application acceptance, and
 none makes this a general-purpose worker. The superseded one-page row remains
 for history; the current-contract row proves externally progressed discovery
-only, not item processing, provider execution, or restart recovery.
+only. The clean item/restart row proves public-identity processing and fresh-run
+handoff, not semantic extraction, provider execution, automatic navigation, or
+complete application acceptance.
 
 The [capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
 designed, implemented, offline-verified, provider-verified, desktop-verified,
@@ -127,7 +135,7 @@ to Notepad:
 
 ~~~powershell
 $env:CUMCP_ALLOWLIST = "notepad.exe"
-.\.venv\Scripts\computer-use-mcp.exe
+.\.venv\Scripts\guarded-desktop-mcp.exe
 ~~~
 
 Register the executable with an MCP client using that client's stdio-server
@@ -136,7 +144,7 @@ on an activated virtual environment:
 
 ~~~json
 {
-  "command": "C:\\absolute\\path\\to\\computer-use-mcp\\.venv\\Scripts\\computer-use-mcp.exe",
+  "command": "C:\\absolute\\path\\to\\guarded-desktop-agent\\.venv\\Scripts\\guarded-desktop-mcp.exe",
   "env": {
     "CUMCP_ALLOWLIST": "notepad.exe"
   }
@@ -145,6 +153,10 @@ on an activated virtual environment:
 
 The exact configuration wrapper varies by MCP client; the command and
 environment values above are the portable part.
+
+The legacy `computer-use-mcp` and `computer-use-agent` entry points remain
+aliases for existing integrations. New configurations should use
+`guarded-desktop-mcp` and `guarded-desktop-agent`.
 
 ## Typical workflow
 
