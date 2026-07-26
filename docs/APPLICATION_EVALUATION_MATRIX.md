@@ -1,8 +1,11 @@
 # Application evaluation matrix
 
-> **Status: planned real-application evaluation.** These cases complement the
-> isolated Notepad E4 smoke. They are not default CI tests and must use dedicated
-> test data or accounts appropriate to the application.
+> **Status: planned real-application evaluation; A1-A19 are built-in examples
+> for the shared capability-composed worker runtime, not an exhaustive product
+> list.** The manifest-routed runtime and
+> composable capability layer do not constitute application evidence. These
+> cases complement the isolated Notepad E4 smoke. They are not default CI tests
+> and must use dedicated test data or accounts appropriate to the application.
 
 ## Purpose
 

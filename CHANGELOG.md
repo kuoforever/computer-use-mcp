@@ -12,6 +12,23 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Composable application campaign workers.** New `campaign
+  prepare-application`, `campaign start`, `campaign run-claimed`, and `campaign
+  resume` commands run capability-composed scenario contracts through one
+  manifest-routed runtime. The nineteen A1-A19 matrix cases are built-in
+  examples, not the product boundary: callers can construct another validated
+  `ApplicationWorkerSpec`, compose reviewed capabilities, and register it
+  without changing the Runner or campaign runtime. Fifteen reviewed capabilities
+  compose stable identity revalidation, observation ladders, navigation, text
+  entry, mode recovery, challenge detection, post-action verification, and
+  approval-bound external/critical commits without adding another MCP dispatch
+  site. The Runner advertises only the composed reviewed tool subset. Provider
+  output must return an exact bounded scenario/item/schema result, claim only
+  observation tools actually executed, and pass digest-backed campaign commit
+  and one-item fresh-context handoff. Unsupported kinds, tools, effects, result
+  fields, identities, and stop codes fail closed. Existing fixed BOSS commands
+  remain compatible. This is offline contract/runtime coverage, not retained
+  real-application acceptance for the built-in examples or new scenarios.
 - **Opt-in progress lifecycle.** Ordinary `run`, `resume`, bounded
   observation-only `plan run`, and explicit read-only crash recovery can now
   drive the passive progress window from durable checkpoints on a dedicated

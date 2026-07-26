@@ -109,6 +109,58 @@ def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> N
     assert "RunPhase.VERIFYING" in boundary_source
 
 
+def test_runner_advertises_only_the_caller_bounded_reviewed_tool_subset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn("run_subset", "turn_1", "response_1", "done")])
+    )
+    desktop = FakeDesktopMCP()
+
+    outcome = asyncio.run(
+        _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
+            "Observe one bounded item",
+            run_id="run_subset",
+            allowed_tool_names=frozenset({"ui_snapshot", "document_text"}),
+        )
+    )
+
+    assert outcome.text == "done"
+    assert {
+        tool.name for tool in provider.calls[0]["tools"]
+    } == {"ui_snapshot", "document_text"}
+    assert desktop.tool_calls == []
+
+
+def test_runner_rejects_unreviewed_or_mutable_tool_subset_before_opening_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _runner(
+        _config(tmp_path, monkeypatch),
+        FakeModelProvider(),
+        FakeDesktopMCP(),
+    )
+
+    with pytest.raises(ValueError, match="allowed_tool_names"):
+        asyncio.run(
+            runner.run(
+                "Invalid tool scope",
+                run_id="run_invalid_subset",
+                allowed_tool_names=frozenset({"browser_eval"}),
+            )
+        )
+    with pytest.raises(ValueError, match="allowed_tool_names"):
+        asyncio.run(
+            runner.run(
+                "Mutable tool scope",
+                run_id="run_mutable_subset",
+                allowed_tool_names={"ui_snapshot"},  # type: ignore[arg-type]
+            )
+        )
+
+    assert not runner.config.state_dir.exists()
+
+
 def test_uncorrelated_result_fails_closed_with_post_request_ledger_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
