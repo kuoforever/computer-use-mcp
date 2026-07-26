@@ -26,7 +26,8 @@ a version number states what is packaged, never what has been verified.
   follows durable phases for bounded observation-only `plan run` sessions as
   well as ordinary `run`/`resume`. It shares the Executor's fail-silent
   lifecycle, receives immediate E-stop/human-yield teardown, and cannot affect
-  plan success or desktop authority.
+  plan success or desktop authority. One provider-free bounded plan has
+  retained native halo lifecycle evidence.
 - **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
   compact, configurable-corner normal Windows window that can be dragged,
   resized, minimized, maximized, and covered by other applications. Decision
