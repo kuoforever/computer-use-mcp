@@ -24,6 +24,9 @@ _METRIC_FIELDS = (
     "retry_count",
     "run_duration_ms",
 )
+_OPTIONAL_CHECKPOINT_METRIC_FIELDS = frozenset(
+    {"screenshot_results", "provider_usage_report_count"}
+)
 
 
 class RunReportError(RuntimeError):
@@ -58,7 +61,10 @@ def _validated_checkpoint(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
         if not isinstance(metrics, dict):
             raise RunReportError("RUN_REPORT_CHECKPOINT_INVALID")
         for name, value in metrics.items():
-            if name not in _METRIC_FIELDS or not _nonnegative_int(value):
+            if (
+                name not in _METRIC_FIELDS
+                and name not in _OPTIONAL_CHECKPOINT_METRIC_FIELDS
+            ) or not _nonnegative_int(value):
                 raise RunReportError("RUN_REPORT_CHECKPOINT_INVALID")
         required = set(_METRIC_FIELDS) - {"run_duration_ms"}
         if not required.issubset(metrics):

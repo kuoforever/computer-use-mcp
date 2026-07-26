@@ -17,6 +17,11 @@ a version number states what is packaged, never what has been verified.
   resized, minimized, maximized, and covered by other applications. Decision
   and digest-only evidence panes scroll independently, buttons reflow for
   narrow widths, and close/timeout semantics still deny before dispatch.
+- **Honest progress telemetry.** Backward-compatible run checkpoints now retain
+  the run creation time, count model turns with complete provider usage, and
+  distinguish successful screenshots from other image-bearing tool results.
+  The passive progress view reports elapsed time and exact screenshots only
+  when those facts are present; legacy checkpoints remain explicitly unknown.
 - **Bounded BOSS batch-start boundary.** A fixed
   `campaign start-boss-batch` command validates the complete current BOSS
   discovery ledger, requires at least two discovery passes, opens only the

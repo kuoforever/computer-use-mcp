@@ -152,6 +152,8 @@ def test_openai_runner_returns_screenshot_as_multimodal_function_output(
         "tool_latency_ms": record["state"]["metrics"]["tool_latency_ms"],
         "tool_failures": 0,
         "image_results": 1,
+        "screenshot_results": 1,
+        "provider_usage_report_count": 2,
         "retry_count": 0,
         "run_duration_ms": record["state"]["metrics"]["run_duration_ms"],
     }

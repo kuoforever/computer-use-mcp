@@ -144,6 +144,23 @@ def test_report_counts_legacy_checkpoint_without_inventing_metrics(tmp_path: Pat
     assert report["totals"]["input_tokens"] == 0
 
 
+def test_report_accepts_legacy_metrics_without_new_coverage_fields(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path.resolve()
+    recorder = _record(state_dir, "run_legacy_metrics", RunPhase.SUCCESS)
+    checkpoint = json.loads(recorder.checkpoint_path.read_text(encoding="utf-8"))
+    checkpoint["metrics"].pop("provider_usage_report_count")
+    checkpoint["metrics"].pop("screenshot_results")
+    recorder.checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+
+    report = build_run_report(state_dir)
+
+    assert report["metrics_run_count"] == 1
+    assert "provider_usage_report_count" not in report["totals"]
+    assert "screenshot_results" not in report["totals"]
+
+
 def test_report_fails_closed_on_corrupt_checkpoint(tmp_path: Path) -> None:
     state_dir = tmp_path.resolve()
     recorder = _record(state_dir, "run_corrupt", RunPhase.SUCCESS)

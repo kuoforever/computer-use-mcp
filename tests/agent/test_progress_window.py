@@ -102,6 +102,8 @@ def _view(run_id: str, *, phase: str = "PLANNING", **over) -> RunProgressView:
         output_tokens=5,
         token_coverage_known=False,
         image_results=0,
+        screenshot_results=0,
+        screenshot_count_known=False,
         tool_failures=0,
         elapsed_known=False,
         duration_ms=None,
@@ -248,9 +250,32 @@ def test_rendered_lines_exclude_forbidden_content() -> None:
 def test_unknown_facts_are_labelled_not_faked() -> None:
     lines = "\n".join(render_progress_lines(_projection(_view("run_mid"))))
     assert "coverage unknown" in lines
+    assert "screenshots unavailable" in lines
     assert "liveness unknown" in lines
     # A nonterminal run is never labelled running.
     assert "running" not in lines.lower()
+
+
+def test_known_usage_screenshots_and_checkpoint_elapsed_are_rendered() -> None:
+    lines = "\n".join(
+        render_progress_lines(
+            _projection(
+                _view(
+                    "run_known",
+                    token_coverage_known=True,
+                    screenshot_results=2,
+                    screenshot_count_known=True,
+                    elapsed_known=True,
+                    duration_ms=321,
+                )
+            )
+        )
+    )
+
+    assert "(known)" in lines
+    assert "screenshots 2" in lines
+    assert "elapsed 321ms at checkpoint" in lines
+    assert "liveness unknown" in lines
 
 
 def test_reobserve_is_marked_and_never_a_retry_button() -> None:

@@ -49,8 +49,10 @@ Neither checkpoint nor JSONL trace stores:
 - typed values, passwords, API keys, or arbitrary tool error text.
 
 The checkpoint stores lengths, policy/recovery versions, phase, observation
-epochs, event count, budgets, terminal code, update time, and bounded aggregate
-metrics. A successful run stores final-text length only.
+epochs, event count, budgets, terminal code, creation/update times, and bounded
+aggregate metrics. A successful run stores final-text length only. Older v1
+checkpoints without the backward-compatible creation and coverage fields remain
+readable.
 
 Trace events store reviewed semantic metadata. Tool results retain status,
 dispatch certainty, fixed code, text length, and image count, not their
@@ -62,11 +64,14 @@ by presence and length plus whether a ref was supplied.
 Each model-turn trace event records integer provider latency and normalized
 input/output token counts. Each dispatched tool-result event records integer
 tool latency. The checkpoint aggregates model/tool call counts, token totals,
-provider/tool latency, non-success tool results, image-result count, and
-terminal wall-clock run duration. Missing provider token usage is counted as
-zero in checkpoint v1, so a viewer cannot distinguish missing usage from a
-reported zero without a future coverage field. `retry_count` is currently zero because the host never automatically
-retries provider calls or desktop actions.
+provider/tool latency, non-success tool results, image-result count, successful
+`screenshot` result count, complete provider-usage report count, and terminal
+wall-clock run duration. Token totals still treat missing provider usage as
+zero, but `provider_usage_report_count` makes coverage explicit: the viewer
+calls token coverage known only when every consumed model turn supplied both
+input and output usage. `screenshot_results` counts the reviewed screenshot tool
+rather than every image-bearing result. `retry_count` is currently zero because
+the host never automatically retries provider calls or desktop actions.
 
 Metrics contain no task, model response, observation, image, typed value,
 provider identifier, or raw error content. Cost is deliberately not estimated:

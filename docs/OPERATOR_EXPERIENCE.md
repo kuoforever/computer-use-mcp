@@ -130,6 +130,11 @@ The compact summary may show:
   terminal states;
 - last validated checkpoint time and whether liveness is known or unknown.
 
+New run checkpoints now preserve creation time and separately count complete
+provider-usage reports and successful `screenshot` results. The passive viewer
+therefore labels token coverage, screenshots, and elapsed-at-checkpoint time as
+known only when those fields are present; older checkpoints remain unavailable.
+
 It must not show raw task text, model prose, screenshots, page or message
 content, typed values, credentials, account names, arbitrary errors, or hidden
 reasoning. Unknown values remain unavailable rather than becoming zero.

@@ -161,6 +161,23 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _checkpoint_created_at(checkpoint: Mapping[str, JSONValue]) -> str | None:
+    """Read the optional backward-compatible run timestamp fail-closed."""
+
+    value = checkpoint.get("created_at")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value or len(value) > 64:
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise TraceError("CHECKPOINT_READ_FAILED") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise TraceError("CHECKPOINT_READ_FAILED")
+    return value
+
+
 def _safe_event(event: LedgerEvent, sequence: int, run_id: str) -> dict[str, JSONValue]:
     item: dict[str, JSONValue] = {
         "trace_version": TRACE_VERSION,
@@ -206,6 +223,7 @@ def _checkpoint(
     phase: RunPhase,
     *,
     checkpoint_sequence: int,
+    created_at: str | None = None,
     failure_code: str | None = None,
     final_text_length: int | None = None,
     run_duration_ms: int | None = None,
@@ -235,6 +253,8 @@ def _checkpoint(
         "updated_at": _now(),
         "metrics": _metrics(state, run_duration_ms=run_duration_ms),
     }
+    if created_at is not None:
+        payload["created_at"] = created_at
     if failure_code is not None:
         payload["failure_code"] = failure_code
     if final_text_length is not None:
@@ -274,15 +294,22 @@ def _metrics(state: RunState, *, run_duration_ms: int | None) -> dict[str, JSONV
     tool_latency_ms = 0
     tool_failures = 0
     image_results = 0
+    screenshot_results = 0
+    provider_usage_report_count = 0
     for event in state.event_log:
         if event.kind is LedgerEventKind.MODEL_TURN:
             input_tokens += _metric_int(event.payload.get("input_tokens"))
             output_tokens += _metric_int(event.payload.get("output_tokens"))
             provider_latency_ms += _metric_int(event.payload.get("latency_ms"))
+            if _has_reported_usage(event):
+                provider_usage_report_count += 1
         elif event.kind is LedgerEventKind.TOOL_RESULT and event.tool_result is not None:
             tool_latency_ms += _metric_int(event.payload.get("latency_ms"))
             tool_failures += int(not event.tool_result.ok)
             image_results += len(event.tool_result.images)
+            screenshot_results += int(
+                event.tool_result.ok and event.tool_result.tool_name == "screenshot"
+            )
     metrics: dict[str, JSONValue] = {
         "model_calls": state.budgets.model_turns_used,
         "tool_calls": state.budgets.tool_calls_used,
@@ -292,6 +319,8 @@ def _metrics(state: RunState, *, run_duration_ms: int | None) -> dict[str, JSONV
         "tool_latency_ms": tool_latency_ms,
         "tool_failures": tool_failures,
         "image_results": image_results,
+        "screenshot_results": screenshot_results,
+        "provider_usage_report_count": provider_usage_report_count,
         "retry_count": 0,
     }
     if run_duration_ms is not None:
@@ -303,6 +332,14 @@ def _metric_int(value: JSONValue | None) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         return 0
     return value
+
+
+def _has_reported_usage(event: LedgerEvent) -> bool:
+    for field_name in ("input_tokens", "output_tokens"):
+        value = event.payload.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return False
+    return True
 
 
 def _atomic_json(path: Path, payload: Mapping[str, JSONValue]) -> None:
@@ -340,6 +377,7 @@ class RunRecorder:
     phase: RunPhase = RunPhase.CREATED
     _event_count: int = 0
     _checkpoint_sequence: int = 0
+    _created_at: str | None = field(default=None, init=False, repr=False)
     phase_observer: Callable[[RunPhase], None] | None = field(
         default=None, repr=False, kw_only=True
     )
@@ -371,6 +409,7 @@ class RunRecorder:
     def start(self, state: RunState) -> None:
         if self.checkpoint_path.exists() or self.trace_path.exists():
             raise TraceError("RUN_RECORD_ALREADY_EXISTS")
+        self._created_at = _now()
         self.record(state, RunPhase.CREATED)
 
     def attach_initial(self, state: RunState) -> None:
@@ -388,6 +427,8 @@ class RunRecorder:
         if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
             raise TraceError("CHECKPOINT_READ_FAILED")
         self._checkpoint_sequence = sequence
+        self._created_at = _checkpoint_created_at(checkpoint)
+
     def record(
         self,
         state: RunState,
@@ -433,6 +474,7 @@ class RunRecorder:
                 state,
                 phase,
                 checkpoint_sequence=next_sequence,
+                created_at=self._created_at,
                 failure_code=failure_code,
                 final_text_length=final_text_length,
                 run_duration_ms=run_duration_ms,
@@ -507,6 +549,7 @@ class RunRecorder:
         self.phase = RunPhase.SUCCESS
         self._event_count = expected_event_count
         self._checkpoint_sequence = expected_checkpoint_sequence
+        self._created_at = _checkpoint_created_at(checkpoint)
         self.record(
             state,
             RunPhase.SUCCESS,
