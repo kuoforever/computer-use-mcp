@@ -1288,6 +1288,52 @@ class CampaignStore:
         )
         return replacement
 
+    def remove_completed_heartbeat(
+        self,
+        campaign_id: str,
+        *,
+        run_id: str,
+    ) -> CampaignHeartbeat | None:
+        """Remove only an exact terminal heartbeat; repeat removal is a no-op."""
+
+        self._require_lock()
+        try:
+            _require_identifier(run_id)
+            manifest = self.read_manifest(campaign_id)
+            projection = self.read_ledger(campaign_id)
+            handoff = self.read_handoff(campaign_id)
+            heartbeat = self.read_heartbeat(campaign_id)
+        except CampaignStoreError as exc:
+            raise CampaignStoreError(
+                "CAMPAIGN_HEARTBEAT_RETIREMENT_INVALID"
+            ) from exc
+        if (
+            manifest.status is not CampaignStatus.COMPLETED
+            or not projection.items
+            or any(
+                item.status is not ItemStatus.COMMITTED
+                for item in projection.items.values()
+            )
+            or handoff.get("last_run_id") != run_id
+            or handoff.get("next_action") != "none_completed"
+            or handoff.get("required_observation") != "none"
+        ):
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RETIREMENT_BLOCKED")
+        if heartbeat is None:
+            return None
+        if heartbeat.run_id != run_id:
+            raise CampaignStoreError("CAMPAIGN_HEARTBEAT_RETIREMENT_CONFLICT")
+        path = self._path(campaign_id, "heartbeat.json")
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise CampaignStoreError(
+                "CAMPAIGN_HEARTBEAT_RETIREMENT_FAILED"
+            ) from exc
+        return heartbeat
+
     def read_ledger(self, campaign_id: str) -> CampaignProjection:
         self._require_lock()
         path = self._path(campaign_id, "items.jsonl")

@@ -397,11 +397,17 @@ def application_campaign_worker(spec: ApplicationWorkerSpec) -> CampaignWorker:
             "batch_id": value.batch_id,
             "campaign_id": value.campaign_id,
             "claimed_item_ordinal": value.claimed_item_ordinal,
+            "completed": value.completed,
             "lease_expires_at": value.lease_expires_at,
             "planned_item_count": value.planned_item_count,
             "prior_run_id": value.prior_run_id,
             "run_id": value.replacement_run_id,
             "scenario_id": value.scenario_id,
+            "terminal_next_action": (
+                None
+                if value.terminal_handoff is None
+                else value.terminal_handoff["next_action"]
+            ),
         }
 
     return CampaignWorker(

@@ -22,6 +22,7 @@ from computer_use_agent.campaign import (
     BatchStatus,
     CampaignHeartbeat,
     CampaignManifest,
+    CampaignStatus,
     CampaignStore,
     ItemStatus,
     ItemTransition,
@@ -4482,6 +4483,83 @@ def test_completed_campaign_heartbeat_is_ready_for_retirement(tmp_path: Path) ->
         assert store.read_batches("campaign_1") == batches_before
         assert store.read_heartbeat("campaign_1") == heartbeat_before
         assert store.read_handoff("campaign_1") == handoff_before
+    finally:
+        lock.release()
+
+
+def test_completed_campaign_heartbeat_retirement_is_exact_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        replacement = _replacement_heartbeat()
+        coordinator.replace_finished_run_heartbeat_owner(
+            session,
+            usage=usage,
+            now=NOW,
+            replacement=replacement,
+        )
+        coordinator.complete_exhausted_campaign(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+            policy=BatchPolicy(),
+        )
+        coordinator.write_completed_campaign_handoff(
+            session,
+            replacement_run_id="run_2",
+            now=NOW,
+        )
+
+        removed = coordinator.remove_completed_campaign_heartbeat(
+            session,
+            replacement_run_id="run_2",
+        )
+        repeated = coordinator.remove_completed_campaign_heartbeat(
+            session,
+            replacement_run_id="run_2",
+        )
+
+        assert removed == replacement
+        assert repeated is None
+        assert store.read_heartbeat("campaign_1") is None
+        assert store.read_manifest("campaign_1").status is CampaignStatus.COMPLETED
+        assert store.read_handoff("campaign_1")["next_action"] == "none_completed"
+    finally:
+        lock.release()
+
+
+def test_heartbeat_retirement_refuses_running_campaign(
+    tmp_path: Path,
+) -> None:
+    store, lock, coordinator, session = _committed_prefix_store(
+        tmp_path,
+        ordinals=(1,),
+        max_items=1,
+    )
+    try:
+        usage = BatchUsage(items_completed=1)
+        coordinator.finish_continued_batch(session, usage=usage, now=NOW)
+        coordinator.write_finished_handoff(session, usage=usage, now=NOW)
+        heartbeat_before = store.read_heartbeat("campaign_1")
+
+        with pytest.raises(
+            BatchCoordinatorError,
+            match="BATCH_COMPLETED_HEARTBEAT_BLOCKED_CAMPAIGN_NOT_COMPLETED",
+        ):
+            coordinator.remove_completed_campaign_heartbeat(
+                session,
+                replacement_run_id="run_1",
+            )
+
+        assert store.read_heartbeat("campaign_1") == heartbeat_before
     finally:
         lock.release()
 
