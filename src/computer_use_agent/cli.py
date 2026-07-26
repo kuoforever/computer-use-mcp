@@ -490,6 +490,7 @@ async def _run_planned_observation_async(path: Path, task: str) -> int:
             provider=_ForbiddenPlannedProvider(),
             desktop=StdioDesktopMCP(config.mcp),
             approvals=ReadOnlyApprovalPort(),
+            presence=_presence_lifecycle(config),
             progress=_progress_lifecycle(config),
         ),
     )
