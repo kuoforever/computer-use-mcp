@@ -28,6 +28,11 @@ a version number states what is packaged, never what has been verified.
   lifecycle, receives immediate E-stop/human-yield teardown, and cannot affect
   plan success or desktop authority. One provider-free bounded plan has
   retained native halo lifecycle evidence.
+- **Read-only recovery presence lifecycle.** Explicit `recover
+  --execute-read-only` now projects only validated persisted phases through the
+  same opt-in halo. Recovery CAS writes notify presence and progress together;
+  `ABORTED`/`HUMAN_ACTIVE` close the halo before another recovery step, and
+  independent teardown remains fail-silent.
 - **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
   compact, configurable-corner normal Windows window that can be dragged,
   resized, minimized, maximized, and covered by other applications. Decision
