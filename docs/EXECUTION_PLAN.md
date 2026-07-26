@@ -175,7 +175,10 @@ follows ordinary `run`/`resume`, bounded observation-only `plan run`, and
 explicit read-only recovery; recovery wakes occur only after the existing
 durable CAS. The three fixed MCP-backed campaign execution commands start the
 same poller without inventing a run phase, while zero-port control commands
-remain window-free. Fake-only, digest-bound Decision Card models and
+remain window-free. The fixed synthetic command has
+[retained native evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); BOSS
+campaign lifecycle wiring remains offline-only. Fake-only, digest-bound
+Decision Card models and
 choice validation from [Operator experience](OPERATOR_EXPERIENCE.md) are now
 implemented without an approval or dispatch port. An opt-in four-choice Win32
 card now connects exact-effect selection, re-observe, durable defer, and denial through the existing `ApprovalPort`;
