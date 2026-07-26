@@ -19,6 +19,7 @@ from computer_use_agent.trace import (
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
+    ImageContent,
     LedgerEvent,
     LedgerEventKind,
     RunBudget,
@@ -76,6 +77,9 @@ def test_recorder_writes_atomic_checkpoint_and_redacted_trace(tmp_path: Path) ->
     recorder = RunRecorder(tmp_path.resolve(), state.run_id)
 
     recorder.start(state)
+    created_at = json.loads(recorder.checkpoint_path.read_text(encoding="utf-8"))[
+        "created_at"
+    ]
     recorder.record(state, RunPhase.OBSERVING)
     recorder.record(state, RunPhase.FAILED, failure_code="POLICY_DENIED")
     record = read_run_record(tmp_path.resolve(), state.run_id)
@@ -84,6 +88,9 @@ def test_recorder_writes_atomic_checkpoint_and_redacted_trace(tmp_path: Path) ->
     assert record["state"]["failure_code"] == "POLICY_DENIED"
     assert record["state"]["resume_allowed"] is False
     assert record["state"]["event_count"] == 3
+    assert record["state"]["created_at"] == created_at
+    assert record["state"]["metrics"]["provider_usage_report_count"] == 0
+    assert record["state"]["metrics"]["screenshot_results"] == 0
     assert record["events"][1]["arguments"] == {
         "text_present": True,
         "text_length": len("TRACE_TYPED_SECRET"),
@@ -93,6 +100,88 @@ def test_recorder_writes_atomic_checkpoint_and_redacted_trace(tmp_path: Path) ->
     assert "TASK_SECRET" not in serialized
     assert "TRACE_TYPED_SECRET" not in serialized
     assert not list(recorder.run_dir.glob("*.tmp"))
+
+
+def test_checkpoint_distinguishes_usage_coverage_and_screenshots(
+    tmp_path: Path,
+) -> None:
+    screenshot_identity = CallIdentity("run_metrics", "turn_1", "call_1")
+    screenshot_call = ToolCall(
+        identity=screenshot_identity,
+        name="screenshot",
+        arguments={},
+    )
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR"
+        b"\x00\x00\x00\x01\x00\x00\x00\x01"
+    )
+    screenshot_result = ToolResult(
+        identity=screenshot_identity,
+        tool_name="screenshot",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(ImageContent("image/png", png, 1, 1),),
+    )
+    state = RunState(
+        run_id="run_metrics",
+        task="metrics",
+        policy_version="trace-v1",
+        observation_epoch=0,
+        budgets=RunBudget(2, 1, 0, model_turns_used=2, tool_calls_used=1),
+        event_log=(
+            LedgerEvent(
+                event_id="event_1",
+                kind=LedgerEventKind.USER_TASK,
+                payload={"task_length": 7},
+            ),
+            LedgerEvent(
+                event_id="event_2",
+                kind=LedgerEventKind.MODEL_TURN,
+                payload={
+                    "text_length": 0,
+                    "tool_call_count": 0,
+                    "input_tokens": 3,
+                    "output_tokens": 2,
+                },
+            ),
+            LedgerEvent(
+                event_id="event_3",
+                kind=LedgerEventKind.MODEL_TURN,
+                payload={
+                    "text_length": 0,
+                    "tool_call_count": 1,
+                    "input_tokens": None,
+                    "output_tokens": None,
+                },
+            ),
+            LedgerEvent(
+                event_id="event_4",
+                kind=LedgerEventKind.TOOL_CALL,
+                identity=screenshot_identity,
+                safe_argument_summary=SafeArgumentSummary.from_tool_call(
+                    screenshot_call,
+                    sensitive_arguments=(),
+                ),
+            ),
+            LedgerEvent(
+                event_id="event_5",
+                kind=LedgerEventKind.TOOL_RESULT,
+                identity=screenshot_identity,
+                tool_result=screenshot_result,
+            ),
+        ),
+    )
+    recorder = RunRecorder(tmp_path.resolve(), state.run_id)
+
+    recorder.start(state)
+    checkpoint = json.loads(recorder.checkpoint_path.read_text(encoding="utf-8"))
+
+    assert checkpoint["metrics"]["provider_usage_report_count"] == 1
+    assert checkpoint["metrics"]["input_tokens"] == 3
+    assert checkpoint["metrics"]["output_tokens"] == 2
+    assert checkpoint["metrics"]["image_results"] == 1
+    assert checkpoint["metrics"]["screenshot_results"] == 1
 
 
 def test_phase_observer_runs_only_after_durable_checkpoint(

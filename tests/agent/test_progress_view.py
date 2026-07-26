@@ -138,16 +138,28 @@ def test_success_view_reports_terminal_facts(tmp_path: Path) -> None:
     assert view.model_calls.used == 1 and view.model_calls.limit == 3
     assert view.tool_calls.used == 2 and view.tool_calls.limit == 4
     assert view.input_tokens == 11 and view.output_tokens == 5
+    assert view.token_coverage_known is True
+    assert view.screenshot_results == 0
+    assert view.screenshot_count_known is True
+    assert view.elapsed_known is True
     assert view.duration_ms == 20
     assert view.failure_code is None
 
 
-def test_v1_never_claims_token_coverage_or_elapsed_time(tmp_path: Path) -> None:
-    view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_ok", RunPhase.SUCCESS))
+def test_legacy_checkpoint_keeps_new_progress_facts_unknown(tmp_path: Path) -> None:
+    checkpoint = _checkpoint(tmp_path.resolve(), "run_mid", RunPhase.PLANNING)
+    checkpoint.pop("created_at")
+    checkpoint["metrics"].pop("provider_usage_report_count")
+    checkpoint["metrics"].pop("screenshot_results")
 
-    # Acceptance check 6: unknown coverage and liveness are never shown as facts.
+    view = checkpoint_to_view(checkpoint)
+
+    # Acceptance check 6: a legacy checkpoint never turns missing facts into zero.
     assert view.token_coverage_known is False
     assert view.elapsed_known is False
+    assert view.duration_ms is None
+    assert view.screenshot_count_known is False
+    assert view.screenshot_results == 0
 
 
 def test_nonterminal_phase_is_not_reported_as_running(tmp_path: Path) -> None:
@@ -156,7 +168,8 @@ def test_nonterminal_phase_is_not_reported_as_running(tmp_path: Path) -> None:
     assert view.display_state == "In progress at last checkpoint; liveness unknown"
     assert view.is_terminal is False
     assert view.liveness_known is False
-    assert view.duration_ms is None
+    assert view.elapsed_known is True
+    assert view.duration_ms is not None and view.duration_ms >= 0
 
 
 def test_waiting_approval_has_a_definite_but_nonterminal_label(tmp_path: Path) -> None:
@@ -198,6 +211,8 @@ def test_unknown_outcome_is_distinct_and_flags_reobservation(tmp_path: Path) -> 
         "output_tokens",
         "token_coverage_known",
         "image_results",
+        "screenshot_results",
+        "screenshot_count_known",
         "tool_failures",
         "elapsed_known",
         "duration_ms",
@@ -272,7 +287,11 @@ def test_display_dict_excludes_forbidden_checkpoint_content(tmp_path: Path) -> N
         lambda c: c.pop("metrics"),
         lambda c: c["metrics"].__setitem__("input_tokens", -1),
         lambda c: c["budgets"].__setitem__("tool_calls_used", 99),
+        lambda c: c["metrics"].__setitem__("provider_usage_report_count", 99),
+        lambda c: c["metrics"].__setitem__("screenshot_results", 1),
         lambda c: c.__setitem__("failure_code", "lowercase bad"),
+        lambda c: c.__setitem__("created_at", "not-a-timestamp"),
+        lambda c: c.__setitem__("created_at", "9999-01-01T00:00:00+00:00"),
         lambda c: c.__setitem__("updated_at", "not-a-timestamp"),
         lambda c: c.__setitem__("updated_at", "2026-07-22T09:00:00"),
     ],

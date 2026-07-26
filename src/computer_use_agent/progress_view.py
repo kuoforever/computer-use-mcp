@@ -5,7 +5,7 @@ This implements delivery steps 1 and 4 of the
 of validated run checkpoints into the small, honest set of facts and fixed
 multi-run groups a passive window may show. It reads nothing but checkpoints
 the `agent report` reader already trusts, copies only a fixed allowlist of
-scalar fields, and never infers liveness a checkpoint-v1 record cannot prove.
+scalar fields, and never infers liveness a checkpoint record cannot prove.
 
 The reducer is the only place that decides what a viewer is allowed to display,
 so redaction is structural: forbidden content (task text, titles, model prose,
@@ -49,7 +49,7 @@ _TERMINAL_PHASES = frozenset(
 )
 
 # The fixed, honest projection from a source phase to an operator-facing label.
-# A nonterminal phase never maps to "running" or "blocked": a checkpoint-v1
+# A nonterminal phase never maps to "running" or "blocked": a checkpoint
 # record cannot prove whether that run is alive, waiting, or crashed.
 _DISPLAY_STATE: dict[RunPhase, str] = {
     RunPhase.WAITING_APPROVAL: "Waiting approval",
@@ -110,7 +110,7 @@ class RunProgressView:
     """The complete set of facts a passive viewer may show for one run.
 
     Every field is either a fixed enum/label or a bounded non-negative integer.
-    ``*_known`` flags record where checkpoint v1 cannot supply a fact, so the
+    ``*_known`` flags record where an older checkpoint cannot supply a fact, so the
     window can render "unknown" instead of a misleading zero or "running".
     """
 
@@ -126,6 +126,8 @@ class RunProgressView:
     output_tokens: int
     token_coverage_known: bool
     image_results: int
+    screenshot_results: int
+    screenshot_count_known: bool
     tool_failures: int
     elapsed_known: bool
     duration_ms: int | None
@@ -150,6 +152,8 @@ class RunProgressView:
             "output_tokens": self.output_tokens,
             "token_coverage_known": self.token_coverage_known,
             "image_results": self.image_results,
+            "screenshot_results": self.screenshot_results,
+            "screenshot_count_known": self.screenshot_count_known,
             "tool_failures": self.tool_failures,
             "elapsed_known": self.elapsed_known,
             "duration_ms": self.duration_ms,
@@ -413,8 +417,41 @@ def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
         ):
             raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
 
+    model_calls = _call_budget(budgets, "model_calls")
+    tool_calls = _call_budget(budgets, "tool_calls")
+    updated_at_us = validated_timestamp_us(checkpoint.get("updated_at"))
+
+    created_at = checkpoint.get("created_at")
+    created_at_us = None if created_at is None else validated_timestamp_us(created_at)
+    if created_at_us is not None and created_at_us > updated_at_us:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+
     duration = metrics.get("run_duration_ms")
+    if duration is not None and not is_terminal:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
     duration_ms = None if duration is None else _nonnegative_int(duration)
+    if duration_ms is None and created_at_us is not None:
+        duration_ms = (updated_at_us - created_at_us) // 1_000
+
+    usage_report_count = metrics.get("provider_usage_report_count")
+    if usage_report_count is None:
+        token_coverage_known = False
+    else:
+        validated_usage_report_count = _nonnegative_int(usage_report_count)
+        if validated_usage_report_count > model_calls.used:
+            raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
+        token_coverage_known = validated_usage_report_count == model_calls.used
+
+    screenshot_result_count = metrics.get("screenshot_results")
+    screenshot_count_known = screenshot_result_count is not None
+    screenshot_results = (
+        0
+        if screenshot_result_count is None
+        else _nonnegative_int(screenshot_result_count)
+    )
+    image_results = _nonnegative_int(metrics.get(_METRIC_COUNTS[0]))
+    if screenshot_count_known and screenshot_results > image_results:
+        raise ProgressViewError("PROGRESS_VIEW_CHECKPOINT_INVALID")
 
     return RunProgressView(
         run_id=run_id,
@@ -425,20 +462,19 @@ def checkpoint_to_view(checkpoint: Mapping[str, object]) -> RunProgressView:
         # last-known intent that may already be dead.
         liveness_known=is_terminal or phase is RunPhase.PAUSED,
         needs_reobserve=phase is RunPhase.UNKNOWN_OUTCOME,
-        model_calls=_call_budget(budgets, "model_calls"),
-        tool_calls=_call_budget(budgets, "tool_calls"),
+        model_calls=model_calls,
+        tool_calls=tool_calls,
         input_tokens=_nonnegative_int(metrics.get(_METRIC_TOKENS[0])),
         output_tokens=_nonnegative_int(metrics.get(_METRIC_TOKENS[1])),
-        # Checkpoint v1 has no provider-usage report count, so a zero token
-        # total is indistinguishable from missing provider usage.
-        token_coverage_known=False,
-        image_results=_nonnegative_int(metrics.get(_METRIC_COUNTS[0])),
+        token_coverage_known=token_coverage_known,
+        image_results=image_results,
+        screenshot_results=screenshot_results,
+        screenshot_count_known=screenshot_count_known,
         tool_failures=_nonnegative_int(metrics.get(_METRIC_COUNTS[1])),
-        # Checkpoint v1 has no created_at, so active elapsed time is unknowable.
-        elapsed_known=False,
+        elapsed_known=duration_ms is not None,
         duration_ms=duration_ms,
         failure_code=failure_code if is_terminal else None,
-        updated_at_us=validated_timestamp_us(checkpoint.get("updated_at")),
+        updated_at_us=updated_at_us,
     )
 
 

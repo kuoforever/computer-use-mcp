@@ -92,16 +92,23 @@ def _run_lines(view: RunProgressView) -> tuple[str, ...]:
     )
 
     token_note = "known" if view.token_coverage_known else "coverage unknown"
+    screenshot_note = (
+        str(view.screenshot_results)
+        if view.screenshot_count_known
+        else "unavailable"
+    )
     usage = (
         f"  tokens in {view.input_tokens} out {view.output_tokens} ({token_note})"
-        f"  images {view.image_results}  fails {view.tool_failures}"
+        f"  screenshots {screenshot_note}  fails {view.tool_failures}"
     )
 
     if view.is_terminal:
         if view.duration_ms is not None:
             usage += f"  ran {view.duration_ms}ms"
     else:
-        # Checkpoint v1 cannot prove a nonterminal run is still alive.
+        if view.elapsed_known and view.duration_ms is not None:
+            usage += f"  elapsed {view.duration_ms}ms at checkpoint"
+        # A checkpoint cannot prove a nonterminal run is still alive.
         usage += "  liveness unknown"
 
     return (_clip(head), _clip(calls), _clip(usage))

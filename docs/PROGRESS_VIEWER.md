@@ -1,7 +1,7 @@
 # Operator progress viewer
 
 > **Status: reducer, passive window, live polling, independent-run grouping,
-> and campaign progress implemented (steps 1-5).**
+> campaign progress, and honest checkpoint telemetry implemented.**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -47,32 +47,32 @@ Reuse the strict, path-safe checkpoint reader used by `agent report`. Do not
 read trace JSONL, continuation artifacts, screenshots, task text, page text, or
 provider messages.
 
-## Checkpoint v1 limitations
+## Checkpoint compatibility and telemetry
 
-The current checkpoint can display:
+Every newly written v1 checkpoint can display:
 
 - run ID;
 - phase and fixed terminal failure code;
 - last update time;
+- creation time and elapsed time at the last checkpoint;
 - model/tool calls;
 - provider/tool latency totals;
-- aggregate input/output token numbers;
-- image-result and tool-failure counts.
+- aggregate input/output token numbers plus whether every model turn reported
+  both values;
+- successful screenshot count, generic image-result count, and tool-failure
+  count.
 
-It cannot reliably display:
+Older v1 checkpoints may omit `created_at`,
+`metrics.provider_usage_report_count`, and `metrics.screenshot_results`. The
+reader keeps those facts unavailable rather than interpreting their absence as
+zero. No checkpoint can reliably display:
 
-- active elapsed time, because `created_at` is absent and `run_duration_ms`
-  exists only for terminal runs;
-- screenshot count, because `image_results` counts all returned images;
-- whether zero tokens means reported zero or missing provider usage;
 - whether a nonterminal run is alive, blocked, or crashed.
 
 The MVP must label these honestly. Do not infer `RUNNING` or `BLOCKED` from a
 nonterminal phase alone.
 
-## Planned checkpoint additions
-
-A backward-compatible checkpoint revision or new version should add:
+The backward-compatible fields are:
 
 ~~~json
 {
@@ -84,9 +84,12 @@ A backward-compatible checkpoint revision or new version should add:
 }
 ~~~
 
-Campaign workers additionally provide a coarse heartbeat and lease state in
-the campaign manifest. Older checkpoint versions remain readable with unknown
-fields displayed as unavailable.
+`provider_usage_report_count` advances only when both provider token values are
+non-negative integers. Coverage is known only when it equals the consumed model
+turn count. `screenshot_results` advances only for a successful result from the
+reviewed `screenshot` tool, never for an arbitrary image-bearing result.
+Campaign workers separately provide a coarse heartbeat and lease state in the
+campaign manifest.
 
 ## Status projection
 
@@ -99,7 +102,7 @@ Use a fixed mapping:
 | `FAILED` | Failed |
 | `UNKNOWN_OUTCOME` | Uncertain; re-observe before retry |
 | `CANCELLED` | Cancelled |
-| Other checkpoint v1 phase | In progress at last checkpoint; liveness unknown |
+| Other nonterminal run phase | In progress at last checkpoint; liveness unknown |
 | Fresh campaign heartbeat and consistent lease | Running |
 | Expired heartbeat or lease | Stale; inspect before reclaim |
 | `CHALLENGE` campaign state | Challenge; operator attention |
@@ -174,8 +177,8 @@ model prose, arbitrary errors, credentials, or account identifiers.
    record.
 4. Unknown versions, symlinks, malformed metrics, and unsafe paths fail closed.
 5. Redaction tests prove forbidden fields cannot enter the view model.
-6. Checkpoint v1 unknown token coverage and liveness are not displayed as zero
-   or running facts.
+6. Legacy unknown token coverage, screenshot count, elapsed time, and
+   nonterminal liveness are not displayed as zero or running facts.
 7. `UNKNOWN_OUTCOME` is visually distinct and never presents a retry button.
 
 ## Delivery sequence
@@ -234,6 +237,10 @@ model prose, arbitrary errors, credentials, or account identifiers.
    isolates one corrupt campaign, follows a live Running-to-Paused transition
    while the writer lock remains held, and excludes campaign kind, policy and
    schema digests, item keys, worker run IDs, and handoff content.
+   **Checkpoint telemetry refinement is also implemented:** creation time is
+   preserved across updates, provider-usage coverage and successful screenshots
+   are counted independently, elapsed time is derived only from validated
+   timestamps, and legacy missing fields remain explicitly unavailable.
 6. Integrate shared presence and Decision Card state only through pure operator
    view-model contracts; keep execution and approval out of the passive window.
    **The separate primary-display presence model/controller/backend now exists;
