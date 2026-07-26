@@ -163,9 +163,13 @@ retains two discovered-and-fixed integration defects plus one clean post-fix
 stale-owner recovery. The later
 [clean three-item sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) retained two
 discovery passes, twelve stable identities, and three consecutive fresh-run
-commits without local state correction. Next add a separately reviewed bounded
-semantic extraction schema and observation ladder, then expand to the 100-item
-evaluation.
+commits without local state correction. The separately
+[reviewed bounded semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) is
+now offline verified: it fixes the compact result, classification-policy
+binding, canonical digest, and fail-closed UIA-to-screenshot ladder without
+provider, MCP, or campaign writes. Next connect that contract to a newly
+reviewed multi-call claimed-item runtime through Runner, retain one on-device
+semantic item, then expand to the 100-item evaluation.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);

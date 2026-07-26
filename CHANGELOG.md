@@ -105,6 +105,13 @@ a version number states what is packaged, never what has been verified.
   distinguish successful screenshots from other image-bearing tool results.
   The passive progress view reports elapsed time and exact screenshots only
   when those facts are present; legacy checkpoints remain explicitly unknown.
+- **Bounded BOSS semantic extraction contract.** Added an offline-only strict
+  compact result with classification-policy binding, canonical digest, and a
+  deterministic UIA-to-screenshot ladder. Escalation requires explicit
+  incomplete evidence; authentication, challenge, rate-limit, site-blocked,
+  unavailable-content, and exhausted-ladder states hand off without retry.
+  This contract opens no provider/MCP port and is not connected to the retained
+  one-call BOSS item runtime.
 - **Bounded BOSS batch-start boundary.** A fixed
   `campaign start-boss-batch` command validates the complete current BOSS
   discovery ledger, requires at least two discovery passes, opens only the

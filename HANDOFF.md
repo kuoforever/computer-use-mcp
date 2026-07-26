@@ -75,8 +75,12 @@ boundaries are offline verified, and a
 retained twelve discovered identities plus three consecutive fresh-run commits
 without local state correction. They still do not perform semantic job
 extraction, automatic navigation, provider execution, or the 100-item
-application gate. The broader universal GUI,
-operator UI, cross-application demo, continual-learning, and additional
+application gate. A separate
+[bounded semantic contract](docs/BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) now
+offline-verifies the exact compact result, classification-policy binding,
+canonical digest, and fail-closed UIA-to-screenshot observation ladder. It is
+pure and is not connected to the retained one-call item runtime. The broader
+universal GUI, operator UI, cross-application demo, continual-learning, and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
 remain planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and
