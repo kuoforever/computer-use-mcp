@@ -18,6 +18,7 @@ from typing import Mapping, Sequence
 
 
 BOSS_SEMANTIC_SCHEMA_VERSION = "boss_job_semantics_v1"
+BOSS_INITIAL_CLASSIFICATION_POLICY_VERSION = "boss_no_preference_policy_v1"
 MAX_BOSS_SEMANTIC_TEXT_CHARS = 160
 _ITEM_KEY = re.compile(r"boss:job:[A-Za-z0-9_-]{8,128}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -317,6 +318,24 @@ def boss_semantic_schema_digest() -> str:
     return sha256(encoded).hexdigest()
 
 
+def boss_initial_classification_policy_digest() -> str:
+    """Bind the first runtime to a truthful no-user-preference classification."""
+
+    encoded = json.dumps(
+        {
+            "allowed_classification": [
+                BossSemanticClassification.INSUFFICIENT_EVIDENCE.value
+            ],
+            "required_reasons": [BossSemanticReason.INSUFFICIENT_EVIDENCE.value],
+            "version": BOSS_INITIAL_CLASSIFICATION_POLICY_VERSION,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return sha256(encoded).hexdigest()
+
+
 @dataclass(frozen=True)
 class BossObservationAttempt:
     source: BossObservationSource
@@ -398,6 +417,7 @@ def decide_next_boss_observation(
 
 __all__ = [
     "BOSS_OBSERVATION_LADDER",
+    "BOSS_INITIAL_CLASSIFICATION_POLICY_VERSION",
     "BOSS_SEMANTIC_SCHEMA_VERSION",
     "MAX_BOSS_SEMANTIC_TEXT_CHARS",
     "BossIncompleteReason",
@@ -412,6 +432,7 @@ __all__ = [
     "BossSemanticResult",
     "boss_semantic_result_schema",
     "boss_semantic_schema_digest",
+    "boss_initial_classification_policy_digest",
     "decide_next_boss_observation",
     "parse_boss_semantic_result",
 ]

@@ -360,6 +360,18 @@ the Runner, the campaign runtime, or the MCP surface. BOSS keeps its own fixed
 discovery module, contract digests, and the only retained on-device campaign
 observations; every generic adapter is offline verified only.
 
+The separate [bounded semantic runtime](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md)
+uses three additional fixed commands. It opens one-item batches with at most
+five provider turns/tool attempts and zero side effects, re-establishes the
+exact claimed key through Runner UIA, permits strict document-text escalation,
+and commits only a locally revalidated schema/policy/source-bound digest. A
+successful batch transfers to a fresh run and claims the next exact item. If
+document text is insufficient, the currently unmet OCR Host safety baseline is
+preserved: Runner denies the call, no OCR MCP dispatch occurs, and the runtime
+writes a retryable `CONTENT_UNAVAILABLE` failure-limit handoff. The fixed
+no-preference classification is `INSUFFICIENT_EVIDENCE`; there is no automatic
+navigation or on-device semantic evidence.
+
 
 A future worker must close the current run cleanly at a batch boundary, write
 `handoff.json`, and start a fresh provider context. A replacement session must
@@ -650,17 +662,20 @@ takeover are durable transitions, not informal chat instructions.
 16. **Implemented and offline verified:** the
     [bounded semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) fixes the
     compact result, classification-policy binding, canonical digest, and
-    fail-closed UIA-to-screenshot ladder without provider, MCP, or campaign
-    writes.
-17. **Next:** connect that pure contract to a separately reviewed multi-call
-    claimed-item runtime through the sole Runner boundary, then retain one
-    on-device semantic item before the 100-item evaluation.
-18. Run Google Docs 50-section and WeChat draft-only evaluations.
-19. Run the cross-application campaign with a fresh-session boundary.
-20. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-21. Only then consider resumable side-effect campaigns and higher-complexity
+    fail-closed UIA-to-screenshot ladder.
+17. **Implemented and offline verified:** a separate fixed semantic CLI seam
+    opens one-item batches, connects UIA/document text and strict provider JSON
+    through Runner, commits canonical results, writes zero-OCR-dispatch handoff
+    when the OCR safety baseline remains denied, and transfers a successful
+    batch to a fresh run.
+18. **Next:** retain one on-device UIA/document-text semantic item, then review
+    the OCR Host baseline separately before the 100-item evaluation.
+19. Run Google Docs 50-section and WeChat draft-only evaluations.
+20. Run the cross-application campaign with a fresh-session boundary.
+21. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+22. Only then consider resumable side-effect campaigns and higher-complexity
     remote-desktop or modal-tool workloads.
-22. Define object-scoped enterprise authority, data classification, transaction
+23. Define object-scoped enterprise authority, data classification, transaction
     reconciliation, SLA ownership, and human takeover before Wave 4.
-23. Run the synthetic read-only IT incident campaign, then add approved ticket
+24. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

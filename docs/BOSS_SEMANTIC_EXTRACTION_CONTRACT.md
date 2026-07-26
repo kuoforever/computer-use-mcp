@@ -1,9 +1,9 @@
 # Bounded BOSS semantic extraction contract
 
-> **Status: implemented and offline verified contract only.** The strict result
-> schema and deterministic observation-ladder reducer are implemented. They are
-> not connected to the BOSS item runtime, do not call a provider or MCP, and
-> have no automatic navigation or application evidence.
+> **Status: implemented and offline verified bounded runtime.** The strict
+> result schema, deterministic observation-ladder reducer, one-item runtime,
+> fixed CLI seam, and successful fresh-run transfer are implemented. There is
+> no on-device semantic result, automatic navigation, or application evidence.
 
 ## Boundary
 
@@ -64,11 +64,46 @@ The focused test matrix proves:
 - refusal of skips, retries, continuation after terminal state, or malformed
   incomplete reasons.
 
+## Runtime connection
+
+Three fixed commands preserve the no-selector campaign boundary:
+
+- `start-boss-semantic-batch` opens one one-item batch with at most five
+  provider turns, five tool-call attempts, two image observations, one OCR
+  region, one consecutive failure, and zero side effects;
+- `run-claimed-boss-semantic` re-establishes the exact durable public identity
+  with a Runner-dispatched foreground UIA snapshot, exposes only the exact next
+  reviewed observation tool, accepts only strict assessment/result JSON, and
+  commits only a locally revalidated canonical result; and
+- `resume-boss-semantic-batch` reconstructs one successful semantic batch,
+  transfers heartbeat ownership to a fresh zero-port run, and claims the exact
+  next coordinator-selected item.
+
+The semantic run command requires `read_only` mode,
+`max_side_effects = 0`, and configured Host budgets of at least five model
+turns and five tool calls. A looser or action-capable configuration fails
+before provider/MCP work.
+
+The initial classification policy is intentionally fixed: without a reviewed
+user job preference, the only permitted classification and reason are
+`INSUFFICIENT_EVIDENCE`. The exact policy digest is bound into every result.
+This proves semantic field extraction without inventing a recommendation.
+
+UIA and bounded document text are connected through the sole Runner dispatch
+boundary. OCR remains marked by the Agent Host as requiring a separately
+approved safety baseline. If document text is incomplete and the provider
+requests OCR, Runner records `POLICY_DENIED`, performs no OCR MCP dispatch, and
+the semantic runtime writes a retryable `CONTENT_UNAVAILABLE` failure-limit
+handoff. It does not bypass the baseline to reach crop or screenshot.
+
+The CLI prints only fixed control metadata, source, counts, and digests; it
+does not print company, role, location, compensation, or experience.
+
 ## Remaining gate
 
 The current `run-claimed-boss` command intentionally keeps its retained
-one-snapshot/one-tool-call identity contract. The next implementation must
-review a new item-worker budget and connect this pure contract through the sole
-Runner dispatch boundary, while re-establishing the claimed identity before
-extraction. Only then should an on-device semantic item result and the 100-item
-evaluation be attempted.
+one-snapshot/one-tool-call identity contract; the new semantic commands are a
+separate policy and do not alter that evidence path. Next retain one on-device
+UIA or document-text semantic item with a reviewed provider. Pixel escalation
+requires a separate Host safety-baseline review. Only after those gates should
+the 100-item evaluation be attempted.

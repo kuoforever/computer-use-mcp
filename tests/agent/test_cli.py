@@ -125,6 +125,9 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["campaign", "start-boss-batch", "--help"],
         ["campaign", "run-claimed-boss", "--help"],
         ["campaign", "resume-boss-batch", "--help"],
+        ["campaign", "start-boss-semantic-batch", "--help"],
+        ["campaign", "run-claimed-boss-semantic", "--help"],
+        ["campaign", "resume-boss-semantic-batch", "--help"],
         ["campaign", "start", "--help"],
         ["campaign", "run-claimed", "--help"],
         ["campaign", "resume", "--help"],
@@ -680,6 +683,45 @@ def test_boss_discovery_prepare_cli_has_no_selector_or_external_ports(
         "discovered_count": 0,
         "run_id": "prepare_1",
     }
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "start-boss-semantic-batch",
+        "run-claimed-boss-semantic",
+        "resume-boss-semantic-batch",
+    ],
+)
+def test_boss_semantic_cli_has_no_free_form_or_item_selector(
+    command: str,
+    tmp_path: Path,
+) -> None:
+    parsed = agent_cli.build_parser().parse_args(
+        [
+            "campaign",
+            command,
+            "--config",
+            str(tmp_path / "agent.toml"),
+            "--campaign-id",
+            "campaign_1",
+            "--run-id",
+            "semantic_run_1",
+        ]
+    )
+
+    for forbidden in (
+        "task",
+        "item_key",
+        "url",
+        "page",
+        "scope",
+        "campaign_kind",
+        "batch_id",
+        "classification",
+        "classification_policy",
+    ):
+        assert not hasattr(parsed, forbidden)
 
 
 def test_discovery_prepare_cli_accepts_only_a_registered_kind(

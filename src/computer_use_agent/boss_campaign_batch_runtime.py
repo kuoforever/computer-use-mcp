@@ -35,6 +35,17 @@ from .trace import RunRecorder
 
 BOSS_BATCH_TASK = "Start one fixed BOSS read-only batch from durable discovery"
 BOSS_BATCH_POLICY = BatchPolicy(max_items=20, max_tool_calls=1)
+BOSS_SEMANTIC_BATCH_TASK = (
+    "Start one fixed BOSS semantic read-only batch from durable discovery"
+)
+BOSS_SEMANTIC_BATCH_POLICY = BatchPolicy(
+    max_items=1,
+    max_provider_turns=5,
+    max_tool_calls=5,
+    max_screenshots=2,
+    max_ocr_regions=1,
+    max_consecutive_failures=1,
+)
 BOSS_BATCH_LEASE_SECONDS = 5 * 60
 MIN_BOSS_BATCH_DISCOVERY_PASSES = 2
 
@@ -73,15 +84,15 @@ def _batch_id(run_id: str) -> str:
     return f"boss_batch_{suffix}"
 
 
-def start_boss_read_only_batch(
+def _start_boss_batch(
     runner: AgentRunner,
     *,
     campaign_id: str,
     run_id: str,
     now: datetime,
+    task: str,
+    policy: BatchPolicy,
 ) -> BossCampaignBatchStartOutcome:
-    """Open and claim only the first coordinator-selected BOSS batch item."""
-
     if (
         not isinstance(runner, AgentRunner)
         or runner.ports is not None
@@ -96,7 +107,7 @@ def start_boss_read_only_batch(
         raise BossCampaignBatchRuntimeError("BOSS_BATCH_READ_ONLY_REQUIRED")
 
     try:
-        prepared = runner.prepare(BOSS_BATCH_TASK, run_id=run_id)
+        prepared = runner.prepare(task, run_id=run_id)
     except (OSError, ValueError) as exc:
         raise BossCampaignBatchRuntimeError("BOSS_BATCH_PREPARE_FAILED") from exc
     recorder = RunRecorder(runner.config.state_dir, prepared.state.run_id)
@@ -151,7 +162,7 @@ def start_boss_read_only_batch(
             campaign_id=campaign_id,
             batch_id=batch_id,
             run_id=run_id,
-            policy=BOSS_BATCH_POLICY,
+            policy=policy,
         )
         if not isinstance(opened, BatchSession):
             if isinstance(opened, BatchPlan):
@@ -193,12 +204,64 @@ def start_boss_read_only_batch(
         prepared.close()
 
 
+def start_boss_read_only_batch(
+    runner: AgentRunner,
+    *,
+    campaign_id: str,
+    run_id: str,
+    now: datetime,
+) -> BossCampaignBatchStartOutcome:
+    """Open the retained one-call identity batch and claim only its first item."""
+
+    return _start_boss_batch(
+        runner,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=now,
+        task=BOSS_BATCH_TASK,
+        policy=BOSS_BATCH_POLICY,
+    )
+
+
+def start_boss_semantic_batch(
+    runner: AgentRunner,
+    *,
+    campaign_id: str,
+    run_id: str,
+    now: datetime,
+) -> BossCampaignBatchStartOutcome:
+    """Open one separately bounded semantic batch without external ports."""
+
+    if (
+        not isinstance(runner, AgentRunner)
+        or runner.config.policy.max_side_effects != 0
+        or runner.config.policy.max_model_turns
+        < BOSS_SEMANTIC_BATCH_POLICY.max_provider_turns
+        or runner.config.policy.max_tool_calls
+        < BOSS_SEMANTIC_BATCH_POLICY.max_tool_calls
+    ):
+        raise BossCampaignBatchRuntimeError(
+            "BOSS_BATCH_SEMANTIC_POLICY_INVALID"
+        )
+    return _start_boss_batch(
+        runner,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=now,
+        task=BOSS_SEMANTIC_BATCH_TASK,
+        policy=BOSS_SEMANTIC_BATCH_POLICY,
+    )
+
+
 __all__ = [
     "BOSS_BATCH_LEASE_SECONDS",
     "BOSS_BATCH_POLICY",
     "BOSS_BATCH_TASK",
+    "BOSS_SEMANTIC_BATCH_POLICY",
+    "BOSS_SEMANTIC_BATCH_TASK",
     "MIN_BOSS_BATCH_DISCOVERY_PASSES",
     "BossCampaignBatchRuntimeError",
     "BossCampaignBatchStartOutcome",
     "start_boss_read_only_batch",
+    "start_boss_semantic_batch",
 ]
