@@ -79,7 +79,7 @@ image_redaction = true
 # It accepts only fixed Host phases, never task or target content, and cannot
 # approve or execute work. E-stop, human activity, and terminal states remove it.
 presence_enabled = false
-# Passive progress for `run`, `resume`, bounded `plan run`, and read-only recovery.
+# Passive progress for run/plan/recovery and fixed MCP-backed campaign execution.
 # It is owned by a background UI thread and cannot approve or execute work.
 progress_enabled = false
 reduced_motion = false

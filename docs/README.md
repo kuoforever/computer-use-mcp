@@ -96,7 +96,7 @@ not a line-by-line mirror of every reference page.
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
-| Operator experience | Implemented passive progress with opt-in ordinary-run, bounded-plan, and read-only recovery lifecycle wiring, opt-in durable ordinary-run presence, and an opt-in focus-taking four-choice Win32 Decision Card with expandable digest evidence through the existing ApprovalPort; same-run re-observe and durable non-resumable defer are offline verified, while campaign UI wiring and host-owned mobile notification remain planned |
+| Operator experience | Implemented passive progress with opt-in ordinary-run, bounded-plan, read-only recovery, and fixed MCP-backed campaign execution lifecycle wiring; zero-port campaign control remains window-free. Opt-in durable ordinary-run presence and a focus-taking four-choice Win32 Decision Card with expandable digest evidence also exist; same-run re-observe and durable non-resumable defer are offline verified, while integrated campaign desktop evidence and host-owned mobile notification remain planned |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |

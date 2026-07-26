@@ -17,7 +17,9 @@ a version number states what is packaged, never what has been verified.
   drive the passive progress window from durable checkpoints on a dedicated
   Win32 UI thread. The feature defaults off, remains read-only, survives human
   takeover, closes on E-stop/final cleanup, and fails silently without
-  affecting the run.
+  affecting the run. The three fixed MCP-backed campaign execution commands
+  also own the same poller for their bounded process lifetime; zero-port
+  prepare/start/resume commands remain window-free.
 - **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
   compact, configurable-corner normal Windows window that can be dragged,
   resized, minimized, maximized, and covered by other applications. Decision

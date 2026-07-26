@@ -71,6 +71,18 @@ def test_phase_notifications_drive_one_ui_thread_and_release_closes(
     assert all(thread_id != caller_thread for thread_id in pump_threads)
 
 
+def test_campaign_wake_starts_without_inventing_a_run_phase(tmp_path: Path) -> None:
+    coordinator, api = _coordinator(tmp_path.resolve())
+
+    coordinator.wake()
+    assert _wait_until(lambda: "create" in api.kinds())
+    coordinator.release()
+
+    assert api.kinds().count("create") == 1
+    assert api.kinds().count("destroy") == 1
+    assert coordinator.running is False
+
+
 def test_release_is_idempotent_and_prevents_reopening(tmp_path: Path) -> None:
     coordinator, api = _coordinator(tmp_path.resolve())
 

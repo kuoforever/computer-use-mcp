@@ -1,8 +1,8 @@
 # Operator experience
 
 > **Status: passive progress plus opt-in ordinary-run/bounded-plan/read-only
-> recovery progress and bounded primary-display presence lifecycles are
-> implemented; complete-product
+> recovery/fixed-campaign progress and bounded primary-display presence
+> lifecycles are implemented; complete-product
 > integration remains planned.** The presence
 > surface has a pure Host-state projection, click-through/non-activating Win32
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
@@ -10,8 +10,10 @@
 > it from durable phases in ordinary Agent `run` and `resume` lifecycles when
 > explicitly enabled. The same progress coordinator, but not presence, now
 > follows the bounded observation-only `plan run` Executor and explicit
-> read-only recovery after durable recovery CAS writes. Campaign runtimes,
-> multi-monitor support, and abrupt-process teardown remain separate gates.
+> read-only recovery after durable recovery CAS writes. The fixed MCP-backed
+> campaign execution commands start the same campaign-state poller without a
+> synthetic run phase; zero-port campaign control remains window-free.
+> Multi-monitor support and abrupt-process teardown remain separate gates.
 > Decision Card compilation,
 > choice validation, and an opt-in four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
@@ -135,8 +137,10 @@ pumps the native window, and wakes after durable phase publication. Recovery
 wakes occur only after the existing checkpoint/continuation CAS. The surface
 has no provider, MCP, desktop, approval, or replay port. Unlike presence, it
 stays available during human activity and a focus-taking Decision Card; E-stop
-and final cleanup close it and join the thread. Campaign lifecycle wiring
-remains separate work.
+and final cleanup close it and join the thread. Fixed MCP-backed campaign
+execution starts the same poller directly over validated campaign state and
+releases it at command cleanup; zero-port campaign control commands do not open
+the window.
 
 The compact summary may show:
 
@@ -298,9 +302,9 @@ There is no global "always allow" control in the first interactive version.
    all display prose and trade-offs come from fixed mappings.**
 2. Implement the passive non-activating progress window from synthetic records.
    **Implemented, including explicitly enabled ordinary `run`/`resume`,
-   bounded `plan run`, and read-only recovery lifecycles on a dedicated UI
-   thread; E-stop/final cleanup and fail-silent isolation are tested. Campaign
-   wiring remains.**
+   bounded `plan run`, read-only recovery, and fixed MCP-backed campaign
+   execution lifecycles on a dedicated UI thread; E-stop/final cleanup,
+   fail-silent isolation, and phase-free campaign wake are tested.**
 3. Implement the click-through presence indicator, capture filtering, reduced
    motion, DPI handling, and E-stop/authority-release teardown. **Implemented
    for one primary display over an injected controller and ctypes backend;

@@ -144,8 +144,11 @@ run cleanup close it and join the UI thread. Construction, polling, rendering,
 and native-window failures are fail-silent and cannot fail or advance the run.
 Recovery notifications occur only after the existing checkpoint/continuation
 CAS has completed and cannot authorize or replay work. This lifecycle currently
-covers ordinary `run`/`resume`, `plan run`, and explicit read-only recovery, not
-campaign runtimes.
+covers ordinary `run`/`resume`, `plan run`, explicit read-only recovery, and
+the fixed MCP-backed `run-claimed-synthetic`, `observe-boss-page`, and
+`run-claimed-boss` campaign commands. Campaign progress is read from validated
+campaign state by the existing poller; the zero-port prepare/start/resume
+commands deliberately do not flash a window.
 
 The approved-actions path can replace its one-action console prompt with the
 focus-taking local Decision Card:

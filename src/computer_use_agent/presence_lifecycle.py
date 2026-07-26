@@ -25,6 +25,13 @@ class PresenceLifecyclePort(Protocol):
     def release(self) -> None: ...
 
 
+@runtime_checkable
+class ProgressLifecyclePort(PresenceLifecyclePort, Protocol):
+    """Passive progress lifecycle that may start without a run phase."""
+
+    def wake(self) -> None: ...
+
+
 class FailSilentLifecycle:
     """Latch a failed passive lifecycle surface outside Agent authority."""
 
@@ -44,6 +51,18 @@ class FailSilentLifecycle:
 
     def estop(self) -> None:
         self._suppress("estop")
+
+    def wake(self) -> None:
+        if self._port is None or self._suppressed:
+            return
+        method = getattr(self._port, "wake", None)
+        if not callable(method):
+            self._suppressed = True
+            return
+        try:
+            method()
+        except Exception:
+            self._suppressed = True
 
     def release(self) -> None:
         self._suppress("release")
@@ -164,5 +183,6 @@ class RunPresenceCoordinator:
 __all__ = [
     "FailSilentLifecycle",
     "PresenceLifecyclePort",
+    "ProgressLifecyclePort",
     "RunPresenceCoordinator",
 ]
