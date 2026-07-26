@@ -33,6 +33,11 @@ a version number states what is packaged, never what has been verified.
   same opt-in halo. Recovery CAS writes notify presence and progress together;
   `ABORTED`/`HUMAN_ACTIVE` close the halo before another recovery step, and
   independent teardown remains fail-silent.
+- **Fixed-campaign presence lifecycle.** The three fixed MCP-backed campaign
+  execution commands now project their durable run phases through the same
+  opt-in fail-silent halo. MCP E-stop or human activity closes presence at the
+  authoritative tool boundary, while zero-port prepare/start/resume commands
+  remain window-free.
 - **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
   compact, configurable-corner normal Windows window that can be dragged,
   resized, minimized, maximized, and covered by other applications. Decision

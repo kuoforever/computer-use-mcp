@@ -20,7 +20,7 @@ from computer_use_agent.config import AgentConfig, MCPLaunchConfig, PolicyConfig
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, RunnerPorts
-from computer_use_agent.trace import read_run_record
+from computer_use_agent.trace import RunPhase, read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -32,6 +32,20 @@ from computer_use_agent.types import (
 
 
 NOW = datetime(2026, 7, 19, 4, 0, tzinfo=timezone.utc)
+
+
+class _RecordingLifecycle:
+    def __init__(self) -> None:
+        self.events: list[RunPhase | str] = []
+
+    def on_phase(self, phase: RunPhase) -> None:
+        self.events.append(phase)
+
+    def estop(self) -> None:
+        self.events.append("estop")
+
+    def release(self) -> None:
+        self.events.append("release")
 
 
 def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
@@ -108,9 +122,15 @@ def test_fixed_page_observation_dispatches_once_and_persists_only_public_keys(
     )
     provider = FakeModelProvider(turns=deque())
     approvals = FakeApprovalPort()
+    presence = _RecordingLifecycle()
     runner = AgentRunner(
         config,
-        RunnerPorts(provider=provider, desktop=desktop, approvals=approvals),
+        RunnerPorts(
+            provider=provider,
+            desktop=desktop,
+            approvals=approvals,
+            presence=presence,
+        ),
     )
 
     outcome = asyncio.run(
@@ -143,6 +163,16 @@ def test_fixed_page_observation_dispatches_once_and_persists_only_public_keys(
     assert "https://" not in persisted
     record = read_run_record(config.state_dir, "run_1")
     assert record["state"]["phase"] == "SUCCESS"
+    assert presence.events == [
+        RunPhase.CREATED,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.EXECUTING,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.SUCCESS,
+        "release",
+    ]
     assert record["state"]["metrics"]["model_calls"] == 0
     assert record["state"]["metrics"]["tool_calls"] == 1
 
@@ -241,6 +271,64 @@ def test_failed_snapshot_result_is_terminal_and_does_not_parse_or_write(
     record = read_run_record(config.state_dir, "run_1")
     assert record["state"]["phase"] == "FAILED"
     assert record["state"]["failure_code"] == "BOSS_OBSERVATION_TOOL_FAILED"
+
+
+@pytest.mark.parametrize(
+    ("code", "teardown"),
+    [("ABORTED", "estop"), ("HUMAN_ACTIVE", "release")],
+)
+def test_desktop_authority_loss_closes_campaign_presence_immediately(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    code: str,
+    teardown: str,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    prepare_boss_discovery_campaign(
+        AgentRunner(config), campaign_id="campaign_1", run_id="prepare_1", now=NOW
+    )
+    result = ToolResult(
+        identity=CallIdentity(
+            "run_1",
+            BOSS_DISCOVERY_TURN_ID,
+            BOSS_DISCOVERY_CALL_ID,
+        ),
+        tool_name=BOSS_DISCOVERY_TOOL,
+        status=ToolResultStatus.REJECTED,
+        dispatch=DispatchCertainty.NOT_DISPATCHED,
+        code=code,
+    )
+    presence = _RecordingLifecycle()
+    runner = AgentRunner(
+        config,
+        RunnerPorts(
+            FakeModelProvider(turns=deque()),
+            FakeDesktopMCP(results=deque([result])),
+            FakeApprovalPort(),
+            presence=presence,
+        ),
+    )
+
+    with pytest.raises(
+        BossCampaignObservationRuntimeError,
+        match="^BOSS_OBSERVATION_TOOL_FAILED$",
+    ):
+        asyncio.run(
+            execute_boss_discovery_page(
+                runner,
+                campaign_id="campaign_1",
+                run_id="run_1",
+                now=NOW,
+            )
+        )
+
+    assert presence.events == [
+        RunPhase.CREATED,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.EXECUTING,
+        teardown,
+    ]
 
 
 def test_invalid_campaign_state_stops_before_mcp_discovery(

@@ -29,6 +29,7 @@ from .boss_campaign_discovery import (
 )
 from .campaign import BatchStatus, CampaignStatus, ItemStatus
 from .grounding import GroundingState
+from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, PreparedRun, RunFailure
 from .tool_registry import verify_discovered_tools
 from .trace import RunPhase, RunRecorder
@@ -208,6 +209,8 @@ async def _execute_prepared_claimed_boss_identity(
         prepared.close()
         raise BossCampaignItemRuntimeError("BOSS_ITEM_PORTS_REQUIRED")
     state = prepared.state
+    presence = FailSilentLifecycle(runner.ports.presence)
+    recorder.phase_observer = presence.on_phase
     recorder_started = False
     started_ns = perf_counter_ns()
     try:
@@ -251,6 +254,7 @@ async def _execute_prepared_claimed_boss_identity(
                 grounding=GroundingState(),
                 recorder=recorder,
                 continuation=None,
+                presence=presence,
             )
         except RunFailure as exc:
             state = exc.state
@@ -395,9 +399,12 @@ async def _execute_prepared_claimed_boss_identity(
         raise BossCampaignItemRuntimeError("BOSS_ITEM_UNCERTAIN") from exc
     finally:
         try:
-            await runner.ports.desktop.close()
+            presence.release()
         finally:
-            prepared.close()
+            try:
+                await runner.ports.desktop.close()
+            finally:
+                prepared.close()
 
 
 __all__ = [

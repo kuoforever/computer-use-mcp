@@ -35,6 +35,7 @@ from .campaign import (
     ItemTransition,
 )
 from .grounding import GroundingState
+from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, PreparedRun, RunFailure
 from .tool_registry import reviewed_registry_digest, verify_discovered_tools
 from .trace import RunPhase, RunRecorder
@@ -420,7 +421,12 @@ async def _execute_claimed_synthetic_observation(
         raise CampaignObservationRuntimeError("CAMPAIGN_OBSERVATION_RUNNER_MISMATCH")
 
     state = prepared_run.state
-    recorder = RunRecorder(runner.config.state_dir, state.run_id)
+    presence = FailSilentLifecycle(runner.ports.presence)
+    recorder = RunRecorder(
+        runner.config.state_dir,
+        state.run_id,
+        phase_observer=presence.on_phase,
+    )
     recorder_started = False
     started_ns = perf_counter_ns()
     store = prepared_run.campaign_store(runner.config.state_dir)
@@ -469,6 +475,7 @@ async def _execute_claimed_synthetic_observation(
                 grounding=GroundingState(),
                 recorder=recorder,
                 continuation=None,
+                presence=presence,
             )
         except RunFailure as exc:
             state = exc.state
@@ -710,9 +717,12 @@ async def _execute_claimed_synthetic_observation(
         ) from exc
     finally:
         try:
-            await runner.ports.desktop.close()
+            presence.release()
         finally:
-            prepared_run.close()
+            try:
+                await runner.ports.desktop.close()
+            finally:
+                prepared_run.close()
 
 
 async def execute_claimed_synthetic_observation(

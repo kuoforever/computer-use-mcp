@@ -619,6 +619,7 @@ async def _run_claimed_synthetic_campaign_async(
                 provider=_ForbiddenCampaignProvider(),
                 desktop=StdioDesktopMCP(config.mcp),
                 approvals=ReadOnlyApprovalPort(),
+                presence=_presence_lifecycle(config),
             ),
         )
         outcome = await execute_persisted_claimed_synthetic_item_through_handoff(
@@ -693,6 +694,7 @@ async def _observe_boss_discovery_page_async(path: Path, campaign_id: str, run_i
                 provider=_ForbiddenCampaignProvider(),
                 desktop=StdioDesktopMCP(config.mcp),
                 approvals=ReadOnlyApprovalPort(),
+                presence=_presence_lifecycle(config),
             ),
         )
         outcome = await execute_boss_discovery_page(
@@ -767,6 +769,7 @@ async def _run_claimed_boss_identity_async(
                 provider=_ForbiddenCampaignProvider(),
                 desktop=StdioDesktopMCP(config.mcp),
                 approvals=ReadOnlyApprovalPort(),
+                presence=_presence_lifecycle(config),
             ),
         )
         outcome = await execute_claimed_boss_identity_through_handoff(

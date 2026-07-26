@@ -29,7 +29,7 @@ from computer_use_agent.config import AgentConfig, MCPLaunchConfig, PolicyConfig
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, RunnerPorts
-from computer_use_agent.trace import read_run_record
+from computer_use_agent.trace import RunPhase, read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -41,6 +41,20 @@ from computer_use_agent.types import (
 
 
 NOW = datetime(2026, 7, 23, 15, 0, tzinfo=timezone.utc)
+
+
+class _RecordingLifecycle:
+    def __init__(self) -> None:
+        self.events: list[RunPhase | str] = []
+
+    def on_phase(self, phase: RunPhase) -> None:
+        self.events.append(phase)
+
+    def estop(self) -> None:
+        self.events.append("estop")
+
+    def release(self) -> None:
+        self.events.append("release")
 
 
 def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
@@ -158,12 +172,13 @@ def test_exact_claimed_identity_commits_and_finishes_one_tool_batch(
     desktop = FakeDesktopMCP(results=deque([_result(snapshot)]))
     provider = FakeModelProvider(turns=deque())
     approvals = FakeApprovalPort()
+    presence = _RecordingLifecycle()
 
     outcome = asyncio.run(
         execute_claimed_boss_identity_through_handoff(
             AgentRunner(
                 config,
-                RunnerPorts(provider, desktop, approvals),
+                RunnerPorts(provider, desktop, approvals, presence=presence),
             ),
             campaign_id="campaign_1",
             run_id="boss_run_1",
@@ -219,6 +234,16 @@ def test_exact_claimed_identity_commits_and_finishes_one_tool_batch(
     assert "https://" not in trace
     record = read_run_record(config.state_dir, "boss_run_1")
     assert record["state"]["phase"] == "SUCCESS"
+    assert presence.events == [
+        RunPhase.CREATED,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.EXECUTING,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.SUCCESS,
+        "release",
+    ]
 
 
 def test_wrong_visible_identity_fails_closed_and_leaves_claim_active(

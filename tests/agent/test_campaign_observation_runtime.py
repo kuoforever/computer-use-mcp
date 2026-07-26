@@ -50,7 +50,7 @@ from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModel
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, PreparedRun, RunnerPorts
 from computer_use_agent.tool_registry import reviewed_registry_digest
-from computer_use_agent.trace import read_run_record
+from computer_use_agent.trace import RunPhase, read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -63,6 +63,20 @@ from computer_use_agent.types import (
 
 DIGEST = "a" * 64
 NOW = datetime(2026, 7, 17, 0, 10, tzinfo=timezone.utc)
+
+
+class _RecordingLifecycle:
+    def __init__(self) -> None:
+        self.events: list[RunPhase | str] = []
+
+    def on_phase(self, phase: RunPhase) -> None:
+        self.events.append(phase)
+
+    def estop(self) -> None:
+        self.events.append("estop")
+
+    def release(self) -> None:
+        self.events.append("release")
 
 
 def _assert_single_item_usage(usage: BatchUsage) -> None:
@@ -496,12 +510,14 @@ def test_persisted_claim_executes_without_prior_batch_session_object(
     prepared.close()
     desktop = FakeDesktopMCP(results=deque([result]))
     provider = FakeModelProvider(turns=deque())
+    presence = _RecordingLifecycle()
     runner = AgentRunner(
         config,
         RunnerPorts(
             provider=provider,
             desktop=desktop,
             approvals=FakeApprovalPort(),
+            presence=presence,
         ),
     )
 
@@ -524,6 +540,16 @@ def test_persisted_claim_executes_without_prior_batch_session_object(
     assert desktop.close_calls == 1
     assert original_desktop.discovery_calls == 0
     assert original_desktop.tool_calls == []
+    assert presence.events == [
+        RunPhase.CREATED,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.EXECUTING,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.SUCCESS,
+        "release",
+    ]
 
 
 def test_persisted_claim_drift_fails_before_desktop_discovery_and_releases_lock(

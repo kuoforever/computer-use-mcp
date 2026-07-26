@@ -15,6 +15,7 @@ from .boss_campaign_discovery import (
     record_boss_snapshot_discoveries,
 )
 from .grounding import GroundingState
+from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, RunFailure
 from .tool_registry import verify_discovered_tools
 from .trace import RunPhase, RunRecorder
@@ -96,7 +97,12 @@ async def execute_boss_discovery_page(
         await runner.ports.desktop.close()
         raise
     state = prepared.state
-    recorder = RunRecorder(runner.config.state_dir, state.run_id)
+    presence = FailSilentLifecycle(runner.ports.presence)
+    recorder = RunRecorder(
+        runner.config.state_dir,
+        state.run_id,
+        phase_observer=presence.on_phase,
+    )
     recorder_started = False
     started_ns = perf_counter_ns()
     store = prepared.campaign_store(runner.config.state_dir)
@@ -124,6 +130,7 @@ async def execute_boss_discovery_page(
                 grounding=GroundingState(),
                 recorder=recorder,
                 continuation=None,
+                presence=presence,
             )
         except RunFailure as exc:
             state = exc.state
@@ -196,9 +203,12 @@ async def execute_boss_discovery_page(
         raise BossCampaignObservationRuntimeError("BOSS_OBSERVATION_UNCERTAIN") from exc
     finally:
         try:
-            await runner.ports.desktop.close()
+            presence.release()
         finally:
-            prepared.close()
+            try:
+                await runner.ports.desktop.close()
+            finally:
+                prepared.close()
 
 
 __all__ = [
