@@ -21,7 +21,9 @@
 > remains one exact action at a time; console confirmation is default and the
 > card requires explicit opt-in. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
-> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
+> has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). One fixed
+> provider-free bounded plan has separate native
+> [presence lifecycle evidence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
 > Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md),
 > and the opt-in approval path has bounded native
 > [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md). The separate
