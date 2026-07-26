@@ -891,19 +891,26 @@ async def _recover_live_async(
         execute_read_only_recovery_step,
         plan_read_only_recovery,
     )
+    from .presence_lifecycle import FailSilentLifecycle
     from .run_lock import RunLock
     from .tool_registry import verify_discovered_tools
-    from .trace import read_run_checkpoint
+    from .trace import RunPhase, read_run_checkpoint
 
     config = load_agent_config(path)
     if not config.continuation.enabled:
         raise RunnerError("CONTINUATION_DISABLED")
     if stateless_replay and config.provider.name != "openai":
         raise RunnerError("STATELESS_REPLAY_OPENAI_ONLY")
+    progress = FailSilentLifecycle(_progress_lifecycle(config))
     lock = RunLock(config.application_state_dir)
-    lock.acquire(recover_stale=True)
+    try:
+        lock.acquire(recover_stale=True)
+    except BaseException:
+        progress.release()
+        raise
     desktop = None
     provider = None
+    progress_started = False
     try:
         step_outputs: list[dict[str, object]] = []
         terminal_failure = False
@@ -911,6 +918,12 @@ async def _recover_live_async(
             checkpoint = read_run_checkpoint(config.state_dir, run_id)
             envelope = read_continuation(config.state_dir, run_id)
             plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
+            if not progress_started:
+                progress_started = True
+                try:
+                    progress.on_phase(RunPhase(str(checkpoint["phase"])))
+                except (KeyError, ValueError):
+                    pass
             blocked_call_count: int | None = None
             if (
                 stateless_replay
@@ -965,6 +978,7 @@ async def _recover_live_async(
                 config=config,
                 task=task,
                 lock=lock,
+                phase_observer=progress.on_phase,
             )
             if plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
                 sequence = envelope.payload["checkpoint_sequence"]
@@ -1059,13 +1073,16 @@ async def _recover_live_async(
         return 1 if terminal_failure else 0
     finally:
         active_error = sys.exc_info()[0] is not None
-        if desktop is not None:
-            try:
-                await desktop.close()
-            except Exception:
-                if not active_error:
-                    raise
-        lock.release()
+        try:
+            if desktop is not None:
+                try:
+                    await desktop.close()
+                except Exception:
+                    if not active_error:
+                        raise
+        finally:
+            progress.release()
+            lock.release()
 
 
 def _recover_live(

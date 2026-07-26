@@ -605,6 +605,7 @@ class LockedRecoveryPersistence:
         config: AgentConfig,
         task: str,
         lock: RunLock,
+        phase_observer: Callable[[RunPhase], None] | None = None,
     ) -> None:
         if (
             not lock.acquired
@@ -622,6 +623,9 @@ class LockedRecoveryPersistence:
         self.plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
         self._envelope = envelope
         self._intent_operation_id: str | None = None
+        if phase_observer is not None and not callable(phase_observer):
+            raise ValueError("phase_observer must be callable")
+        self._phase_observer = phase_observer
 
     @staticmethod
     def _copy_payload(envelope: ContinuationEnvelope) -> dict[str, object]:
@@ -634,6 +638,14 @@ class LockedRecoveryPersistence:
     def _assert_locked(self) -> None:
         if not self.lock.acquired:
             raise RecoveryExecutionError("RECOVERY_RUN_LOCK_REQUIRED")
+
+    def _notify_phase(self, phase: RunPhase) -> None:
+        if self._phase_observer is None:
+            return
+        try:
+            self._phase_observer(phase)
+        except Exception:
+            pass
 
     def _current(self, expected_sequence: int) -> tuple[dict[str, JSONValue], ContinuationEnvelope]:
         self._assert_locked()
@@ -682,6 +694,7 @@ class LockedRecoveryPersistence:
             recovery_status=recovery_status,
         )
         self._envelope = written
+        self._notify_phase(phase)
 
     def commit_intent(
         self, sequence: int, operation_id: str, action: ReconstructionAction
@@ -929,6 +942,7 @@ class LockedRecoveryPersistence:
             expected_sequence=sequence,
             final_text_length=len(plan.final_text),
         )
+        self._notify_phase(RunPhase.SUCCESS)
         return plan.final_text, completed
 
     def finalize_blocked_action(
@@ -950,6 +964,7 @@ class LockedRecoveryPersistence:
             self.run_id,
             expected_sequence=sequence,
         )
+        self._notify_phase(RunPhase.FAILED)
         return plan.blocked_call_count, completed
 
 

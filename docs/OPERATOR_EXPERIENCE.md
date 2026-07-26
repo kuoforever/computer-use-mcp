@@ -1,16 +1,18 @@
 # Operator experience
 
-> **Status: passive progress plus opt-in ordinary-run/bounded-plan progress and
-> bounded primary-display presence lifecycles are implemented; complete-product
+> **Status: passive progress plus opt-in ordinary-run/bounded-plan/read-only
+> recovery progress and bounded primary-display presence lifecycles are
+> implemented; complete-product
 > integration remains planned.** The presence
 > surface has a pure Host-state projection, click-through/non-activating Win32
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
 > it from durable phases in ordinary Agent `run` and `resume` lifecycles when
 > explicitly enabled. The same progress coordinator, but not presence, now
-> follows the bounded observation-only `plan run` Executor. Campaign/recovery
-> runtimes, multi-monitor support, and abrupt-process teardown remain separate
-> gates. Decision Card compilation,
+> follows the bounded observation-only `plan run` Executor and explicit
+> read-only recovery after durable recovery CAS writes. Campaign runtimes,
+> multi-monitor support, and abrupt-process teardown remain separate gates.
+> Decision Card compilation,
 > choice validation, and an opt-in four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
 > remains one exact action at a time; console confirmation is default and the
@@ -126,13 +128,15 @@ non-activating behavior live in [Operator progress viewer](PROGRESS_VIEWER.md).
 The complete window adds chapter and work-item progress for the universal GUI
 campaign while retaining the existing passive default.
 
-When explicitly enabled, Agent `run`, `resume`, and bounded observation-only
-`plan run` now start a separate fail-silent progress coordinator. Its dedicated
-UI thread reads validated local state, pumps the native window, and wakes after
-durable phase publication. It has no provider, MCP, desktop, approval, or
-replay port. Unlike presence, it stays available during human activity and a
-focus-taking Decision Card; E-stop and final cleanup close it and join the
-thread. Campaign and recovery lifecycle wiring remains separate work.
+When explicitly enabled, Agent `run`, `resume`, bounded observation-only
+`plan run`, and explicit read-only recovery now start a separate fail-silent
+progress coordinator. Its dedicated UI thread reads validated local state,
+pumps the native window, and wakes after durable phase publication. Recovery
+wakes occur only after the existing checkpoint/continuation CAS. The surface
+has no provider, MCP, desktop, approval, or replay port. Unlike presence, it
+stays available during human activity and a focus-taking Decision Card; E-stop
+and final cleanup close it and join the thread. Campaign lifecycle wiring
+remains separate work.
 
 The compact summary may show:
 
@@ -293,9 +297,10 @@ There is no global "always allow" control in the first interactive version.
    only fixed Host classifications, safe IDs, bounded timestamps, and digests;
    all display prose and trade-offs come from fixed mappings.**
 2. Implement the passive non-activating progress window from synthetic records.
-   **Implemented, including an explicitly enabled ordinary `run`/`resume`
-   lifecycle on a dedicated UI thread; E-stop/final cleanup and fail-silent
-   isolation are tested. Plan, campaign, and recovery wiring remain.**
+   **Implemented, including explicitly enabled ordinary `run`/`resume`,
+   bounded `plan run`, and read-only recovery lifecycles on a dedicated UI
+   thread; E-stop/final cleanup and fail-silent isolation are tested. Campaign
+   wiring remains.**
 3. Implement the click-through presence indicator, capture filtering, reduced
    motion, DPI handling, and E-stop/authority-release teardown. **Implemented
    for one primary display over an injected controller and ctypes backend;
