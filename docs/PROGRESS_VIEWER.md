@@ -2,7 +2,8 @@
 
 > **Status: reducer, passive window, live polling, independent-run grouping,
 > campaign progress, honest checkpoint telemetry, and opt-in ordinary-run,
-> bounded plan-run, plus read-only recovery lifecycle wiring implemented.**
+> bounded plan-run, read-only recovery, plus fixed campaign execution lifecycle
+> wiring implemented.**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -29,6 +30,9 @@
 > wakes after durable checkpoints and closes on E-stop/final cleanup. Native
 > ordinary-run lifecycle evidence is
 > [retained here](PROGRESS_LIFECYCLE_EVIDENCE.md).
+> The three fixed MCP-backed campaign execution commands start the same poller
+> over validated campaign state; zero-port campaign control commands remain
+> window-free. Campaign lifecycle wiring is offline verified only.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
@@ -253,5 +257,7 @@ model prose, arbitrary errors, credentials, or account identifiers.
    exist. Ordinary `run`/`resume`, bounded `plan run`, and explicit read-only
    recovery progress lifecycle wiring is implemented through an independent
    fail-silent port and background UI thread. Recovery notifications follow
-   the existing durable CAS and cannot authorize replay; campaign and broader
-   cross-surface integration remain.**
+   the existing durable CAS and cannot authorize replay. The three fixed
+   MCP-backed campaign execution commands start the same poller without
+   inventing a run phase; zero-port control commands remain window-free.
+   Broader cross-surface integration remains.**

@@ -35,6 +35,23 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
     return text, state_dir
 
 
+class RecordingProgress:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def wake(self) -> None:
+        self.events.append("wake")
+
+    def on_phase(self, phase: object) -> None:
+        self.events.append(phase)
+
+    def estop(self) -> None:
+        self.events.append("estop")
+
+    def release(self) -> None:
+        self.events.append("release")
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -458,6 +475,8 @@ def test_claimed_synthetic_campaign_cli_uses_desktop_with_provider_forbidden(
         "execute_persisted_claimed_synthetic_item_through_handoff",
         fake_execute,
     )
+    progress = RecordingProgress()
+    monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
     monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
     arguments = [
         "campaign",
@@ -484,6 +503,7 @@ def test_claimed_synthetic_campaign_cli_uses_desktop_with_provider_forbidden(
     assert campaign_id == "campaign_1"
     assert run_id == "run_1"
     assert captured_now == now
+    assert progress.events == ["wake", "release"]
     assert json.loads(capsys.readouterr().out) == {
         "campaign_id": "campaign_1",
         "content_digest": "a" * 64,
@@ -611,6 +631,8 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
         "computer_use_agent.boss_campaign_observation_runtime.execute_boss_discovery_page",
         fake_execute,
     )
+    progress = RecordingProgress()
+    monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
     monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
     arguments = [
         "campaign",
@@ -633,6 +655,7 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
     assert runner.ports.desktop is desktop
     assert isinstance(runner.ports.provider, agent_cli._ForbiddenCampaignProvider)
     assert (campaign_id, run_id, captured_now) == ("campaign_1", "run_1", now)
+    assert progress.events == ["wake", "release"]
     assert json.loads(capsys.readouterr().out) == {
         "campaign_id": "campaign_1",
         "discovered_count": 2,

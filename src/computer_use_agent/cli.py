@@ -12,7 +12,11 @@ from typing import Sequence
 from uuid import uuid4
 
 from .config import APPROVED_ACTIONS_MODE, AgentConfig, ConfigError, load_agent_config
-from .presence_lifecycle import PresenceLifecyclePort
+from .presence_lifecycle import (
+    FailSilentLifecycle,
+    PresenceLifecyclePort,
+    ProgressLifecyclePort,
+)
 from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
 from .types import AGENT_CONTRACT_VERSION, ApprovalPort, ProviderContinuationStrategy
@@ -39,7 +43,7 @@ def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
     )
 
 
-def _progress_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
+def _progress_lifecycle(config: AgentConfig) -> ProgressLifecyclePort | None:
     """Create the passive progress worker only for explicit operator opt-in."""
 
     if not config.operator.progress_enabled:
@@ -58,6 +62,14 @@ def _progress_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
         # This surface is observational only. Native construction, imports, or
         # thread setup must never stop an otherwise valid Agent run.
         return None
+
+
+def _active_progress_lifecycle(config: AgentConfig) -> FailSilentLifecycle:
+    """Start the passive poller for one bounded non-run CLI lifecycle."""
+
+    progress = FailSilentLifecycle(_progress_lifecycle(config))
+    progress.wake()
+    return progress
 
 
 def _approval_port(config: AgentConfig) -> ApprovalPort:
@@ -579,39 +591,43 @@ async def _run_claimed_synthetic_campaign_async(
     from .desktop_mcp import StdioDesktopMCP
 
     config = load_agent_config(path)
-    runner = AgentRunner(
-        config,
-        RunnerPorts(
-            provider=_ForbiddenCampaignProvider(),
-            desktop=StdioDesktopMCP(config.mcp),
-            approvals=ReadOnlyApprovalPort(),
-        ),
-    )
-    outcome = await execute_persisted_claimed_synthetic_item_through_handoff(
-        runner,
-        campaign_id=campaign_id,
-        run_id=run_id,
-        now=_campaign_now(),
-    )
-    _print_json(
-        {
-            "campaign_id": campaign_id,
-            "content_digest": outcome.content_digest,
-            "item_key": outcome.committed.item_key,
-            "item_status": outcome.committed.status.value,
-            "next_item_ordinal": outcome.handoff["next_item_ordinal"],
-            "run_id": outcome.state.run_id,
-            "stop_code": outcome.stop_code,
-            "usage": {
-                "elapsed_seconds": outcome.usage.elapsed_seconds,
-                "input_tokens": outcome.usage.input_tokens,
-                "provider_turns": outcome.usage.provider_turns,
-                "tool_calls": outcome.usage.tool_calls,
-            },
-            "window_count": outcome.window_count,
-        }
-    )
-    return 0
+    progress = _active_progress_lifecycle(config)
+    try:
+        runner = AgentRunner(
+            config,
+            RunnerPorts(
+                provider=_ForbiddenCampaignProvider(),
+                desktop=StdioDesktopMCP(config.mcp),
+                approvals=ReadOnlyApprovalPort(),
+            ),
+        )
+        outcome = await execute_persisted_claimed_synthetic_item_through_handoff(
+            runner,
+            campaign_id=campaign_id,
+            run_id=run_id,
+            now=_campaign_now(),
+        )
+        _print_json(
+            {
+                "campaign_id": campaign_id,
+                "content_digest": outcome.content_digest,
+                "item_key": outcome.committed.item_key,
+                "item_status": outcome.committed.status.value,
+                "next_item_ordinal": outcome.handoff["next_item_ordinal"],
+                "run_id": outcome.state.run_id,
+                "stop_code": outcome.stop_code,
+                "usage": {
+                    "elapsed_seconds": outcome.usage.elapsed_seconds,
+                    "input_tokens": outcome.usage.input_tokens,
+                    "provider_turns": outcome.usage.provider_turns,
+                    "tool_calls": outcome.usage.tool_calls,
+                },
+                "window_count": outcome.window_count,
+            }
+        )
+        return 0
+    finally:
+        progress.release()
 
 
 def _run_claimed_synthetic_campaign(
@@ -649,33 +665,37 @@ async def _observe_boss_discovery_page_async(path: Path, campaign_id: str, run_i
     from .desktop_mcp import StdioDesktopMCP
 
     config = load_agent_config(path)
-    runner = AgentRunner(
-        config,
-        RunnerPorts(
-            provider=_ForbiddenCampaignProvider(),
-            desktop=StdioDesktopMCP(config.mcp),
-            approvals=ReadOnlyApprovalPort(),
-        ),
-    )
-    outcome = await execute_boss_discovery_page(
-        runner,
-        campaign_id=campaign_id,
-        run_id=run_id,
-        now=_campaign_now(),
-    )
-    _print_json(
-        {
-            "campaign_id": campaign_id,
-            "discovered_count": outcome.discovery.discovered_count,
-            "duplicate_count": outcome.discovery.duplicate_count,
-            "new_item_count": len(outcome.discovery.new_item_keys),
-            "pass_sequence": outcome.discovery.pass_sequence,
-            "pass_added_nothing": outcome.discovery.added_nothing,
-            "run_id": outcome.state.run_id,
-            "tool_calls": outcome.state.budgets.tool_calls_used,
-        }
-    )
-    return 0
+    progress = _active_progress_lifecycle(config)
+    try:
+        runner = AgentRunner(
+            config,
+            RunnerPorts(
+                provider=_ForbiddenCampaignProvider(),
+                desktop=StdioDesktopMCP(config.mcp),
+                approvals=ReadOnlyApprovalPort(),
+            ),
+        )
+        outcome = await execute_boss_discovery_page(
+            runner,
+            campaign_id=campaign_id,
+            run_id=run_id,
+            now=_campaign_now(),
+        )
+        _print_json(
+            {
+                "campaign_id": campaign_id,
+                "discovered_count": outcome.discovery.discovered_count,
+                "duplicate_count": outcome.discovery.duplicate_count,
+                "new_item_count": len(outcome.discovery.new_item_keys),
+                "pass_sequence": outcome.discovery.pass_sequence,
+                "pass_added_nothing": outcome.discovery.added_nothing,
+                "run_id": outcome.state.run_id,
+                "tool_calls": outcome.state.budgets.tool_calls_used,
+            }
+        )
+        return 0
+    finally:
+        progress.release()
 
 
 def _observe_boss_discovery_page(path: Path, campaign_id: str, run_id: str) -> int:
@@ -719,37 +739,41 @@ async def _run_claimed_boss_identity_async(
     from .desktop_mcp import StdioDesktopMCP
 
     config = load_agent_config(path)
-    runner = AgentRunner(
-        config,
-        RunnerPorts(
-            provider=_ForbiddenCampaignProvider(),
-            desktop=StdioDesktopMCP(config.mcp),
-            approvals=ReadOnlyApprovalPort(),
-        ),
-    )
-    outcome = await execute_claimed_boss_identity_through_handoff(
-        runner,
-        campaign_id=campaign_id,
-        run_id=run_id,
-        now=_campaign_now(),
-    )
-    _print_json(
-        {
-            "campaign_id": campaign_id,
-            "claimed_item_ordinal": outcome.claimed_item_ordinal,
-            "content_digest": outcome.content_digest,
-            "next_item_ordinal": outcome.handoff["next_item_ordinal"],
-            "run_id": outcome.state.run_id,
-            "stop_code": outcome.stop_code,
-            "usage": {
-                "elapsed_seconds": outcome.usage.elapsed_seconds,
-                "input_tokens": outcome.usage.input_tokens,
-                "provider_turns": outcome.usage.provider_turns,
-                "tool_calls": outcome.usage.tool_calls,
-            },
-        }
-    )
-    return 0
+    progress = _active_progress_lifecycle(config)
+    try:
+        runner = AgentRunner(
+            config,
+            RunnerPorts(
+                provider=_ForbiddenCampaignProvider(),
+                desktop=StdioDesktopMCP(config.mcp),
+                approvals=ReadOnlyApprovalPort(),
+            ),
+        )
+        outcome = await execute_claimed_boss_identity_through_handoff(
+            runner,
+            campaign_id=campaign_id,
+            run_id=run_id,
+            now=_campaign_now(),
+        )
+        _print_json(
+            {
+                "campaign_id": campaign_id,
+                "claimed_item_ordinal": outcome.claimed_item_ordinal,
+                "content_digest": outcome.content_digest,
+                "next_item_ordinal": outcome.handoff["next_item_ordinal"],
+                "run_id": outcome.state.run_id,
+                "stop_code": outcome.stop_code,
+                "usage": {
+                    "elapsed_seconds": outcome.usage.elapsed_seconds,
+                    "input_tokens": outcome.usage.input_tokens,
+                    "provider_turns": outcome.usage.provider_turns,
+                    "tool_calls": outcome.usage.tool_calls,
+                },
+            }
+        )
+        return 0
+    finally:
+        progress.release()
 
 
 def _run_claimed_boss_identity(path: Path, campaign_id: str, run_id: str) -> int:
@@ -891,7 +915,6 @@ async def _recover_live_async(
         execute_read_only_recovery_step,
         plan_read_only_recovery,
     )
-    from .presence_lifecycle import FailSilentLifecycle
     from .run_lock import RunLock
     from .tool_registry import verify_discovered_tools
     from .trace import RunPhase, read_run_checkpoint

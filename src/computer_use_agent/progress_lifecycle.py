@@ -57,6 +57,11 @@ class RunProgressCoordinator:
         if not isinstance(phase, RunPhase):
             self._fail_before_start()
             return
+        self.wake()
+
+    def wake(self) -> None:
+        """Start or wake the worker for validated non-run state such as campaigns."""
+
         with self._guard:
             if self._suppressed or self._failed:
                 return
