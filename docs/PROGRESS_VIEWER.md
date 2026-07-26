@@ -32,7 +32,9 @@
 > [retained here](PROGRESS_LIFECYCLE_EVIDENCE.md).
 > The three fixed MCP-backed campaign execution commands start the same poller
 > over validated campaign state; zero-port campaign control commands remain
-> window-free. Campaign lifecycle wiring is offline verified only.
+> window-free. The fixed synthetic command has retained
+> [native lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); BOSS
+> campaign lifecycle wiring remains offline-only.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator

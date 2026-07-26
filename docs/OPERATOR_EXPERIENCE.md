@@ -25,7 +25,9 @@
 > and the opt-in approval path has bounded native
 > [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md). The separate
 > progress lifecycle has retained
-> [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md).
+> [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md), and the fixed
+> synthetic campaign has retained
+> [campaign lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md).
 
 ## Goal
 
