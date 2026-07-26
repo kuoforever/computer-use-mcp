@@ -27,7 +27,9 @@
 > progress lifecycle has retained
 > [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md), and the fixed
 > synthetic campaign has retained
-> [campaign lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md).
+> [campaign lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md). One
+> persisted observation-pending run has separate read-only
+> [recovery lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md).
 
 ## Goal
 

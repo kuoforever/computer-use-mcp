@@ -30,6 +30,8 @@
 > wakes after durable checkpoints and closes on E-stop/final cleanup. Native
 > ordinary-run lifecycle evidence is
 > [retained here](PROGRESS_LIFECYCLE_EVIDENCE.md).
+> One persisted observation-pending run also has bounded read-only
+> [recovery lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md).
 > The three fixed MCP-backed campaign execution commands start the same poller
 > over validated campaign state; zero-port campaign control commands remain
 > window-free. The fixed synthetic command has retained
