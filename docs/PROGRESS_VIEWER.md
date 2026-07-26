@@ -1,8 +1,8 @@
 # Operator progress viewer
 
 > **Status: reducer, passive window, live polling, independent-run grouping,
-> campaign progress, honest checkpoint telemetry, and opt-in ordinary-run plus
-> bounded plan-run lifecycle wiring implemented.**
+> campaign progress, honest checkpoint telemetry, and opt-in ordinary-run,
+> bounded plan-run, plus read-only recovery lifecycle wiring implemented.**
 > The pure checkpoint-to-view-model reducer (delivery step 1) is implemented and
 > offline tested in `computer_use_agent.progress_view`. The passive
 > non-activating window (delivery step 2) is implemented in
@@ -24,9 +24,10 @@
 > stable, lock-free snapshot of their validated control files and grouped into
 > Campaign attention, Active campaigns, and Campaign history without taking
 > execution authority. The projection remains strictly read-only.
-> Agent `run`, `resume`, and bounded observation-only `plan run` can now opt
-> into a dedicated background UI thread that wakes after durable checkpoints
-> and closes on E-stop/final cleanup. Native ordinary-run lifecycle evidence is
+> Agent `run`, `resume`, bounded observation-only `plan run`, and explicit
+> read-only recovery can now opt into a dedicated background UI thread that
+> wakes after durable checkpoints and closes on E-stop/final cleanup. Native
+> ordinary-run lifecycle evidence is
 > [retained here](PROGRESS_LIFECYCLE_EVIDENCE.md).
 
 This passive projection is one surface of the planned
@@ -249,7 +250,8 @@ model prose, arbitrary errors, credentials, or account identifiers.
 6. Integrate shared presence and Decision Card state only through pure operator
    view-model contracts; keep execution and approval out of the passive window.
    **The separate primary-display presence and Decision Card surfaces now
-   exist. Ordinary `run`/`resume` and bounded `plan run` progress lifecycle
-   wiring is implemented through an independent fail-silent Runner port and
-   background UI thread; campaign, recovery, and broader cross-surface
-   integration remain.**
+   exist. Ordinary `run`/`resume`, bounded `plan run`, and explicit read-only
+   recovery progress lifecycle wiring is implemented through an independent
+   fail-silent port and background UI thread. Recovery notifications follow
+   the existing durable CAS and cannot authorize replay; campaign and broader
+   cross-surface integration remain.**

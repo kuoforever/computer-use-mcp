@@ -1242,6 +1242,22 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     )
     monkeypatch.setattr(desktop_module, "StdioDesktopMCP", lambda _config: desktop)
 
+    class Progress:
+        def __init__(self) -> None:
+            self.events: list[RunPhase | str] = []
+
+        def on_phase(self, phase: RunPhase) -> None:
+            self.events.append(phase)
+
+        def estop(self) -> None:
+            self.events.append("estop")
+
+        def release(self) -> None:
+            self.events.append("release")
+
+    progress = Progress()
+    monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
+
     assert (
         main(
             [
@@ -1271,6 +1287,12 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     }
     assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
     assert desktop.close_calls == 1
+    assert progress.events == [
+        RunPhase.PLANNING,
+        RunPhase.VERIFYING,
+        RunPhase.VERIFYING,
+        "release",
+    ]
 
 
 @pytest.mark.parametrize("provider_requests_action", [False, True])

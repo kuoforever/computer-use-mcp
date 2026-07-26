@@ -705,6 +705,13 @@ def test_locked_recovery_persists_observation_intent_and_completion_atomically(
         sanitized_text="Notepad",
     )
     desktop = FakeDesktopMCP(results=deque([result]))
+    observed_phases: list[RunPhase] = []
+
+    def observe_phase(phase: RunPhase) -> None:
+        observed_phases.append(phase)
+        if len(observed_phases) == 1:
+            raise RuntimeError("progress unavailable")
+
     lock = RunLock(config.application_state_dir)
     lock.acquire()
     try:
@@ -715,6 +722,7 @@ def test_locked_recovery_persists_observation_intent_and_completion_atomically(
             config=config,
             task=state.task,
             lock=lock,
+            phase_observer=observe_phase,
         )
         step = asyncio.run(
             execute_read_only_recovery_step(
@@ -746,6 +754,7 @@ def test_locked_recovery_persists_observation_intent_and_completion_atomically(
     }
     assert persisted.payload["budget"]["tool_calls_used"] == 1
     assert persisted.payload["observation"]["verified_epoch"] == 1
+    assert observed_phases == [RunPhase.EXECUTING, RunPhase.PLANNING]
 
 
 def test_locked_recovery_leaves_durable_unknown_intent_when_external_call_fails(
