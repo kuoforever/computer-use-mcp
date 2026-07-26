@@ -53,6 +53,54 @@ class RecordingProgress:
 
 
 @pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("ABORTED", ["estop"]),
+        ("HUMAN_ACTIVE", ["release"]),
+        (None, []),
+        ("MCP_TIMEOUT_BEFORE_DISPATCH", []),
+    ],
+)
+def test_recovery_presence_closes_only_for_desktop_authority_loss(
+    code: str | None,
+    expected: list[str],
+) -> None:
+    from computer_use_agent.presence_lifecycle import FailSilentLifecycle
+    from computer_use_agent.types import (
+        CallIdentity,
+        DispatchCertainty,
+        ToolResult,
+        ToolResultStatus,
+    )
+
+    presence = RecordingProgress()
+    result = ToolResult(
+        CallIdentity("run_1", "turn_1", "call_1"),
+        "list_windows",
+        (
+            ToolResultStatus.REJECTED
+            if code in {"ABORTED", "HUMAN_ACTIVE"}
+            else ToolResultStatus.TRANSPORT_ERROR
+            if code is not None
+            else ToolResultStatus.SUCCESS
+        ),
+        (
+            DispatchCertainty.NOT_DISPATCHED
+            if code is not None
+            else DispatchCertainty.DISPATCHED
+        ),
+        code=code,
+    )
+
+    agent_cli._apply_recovery_presence_result(
+        FailSilentLifecycle(presence),
+        result,
+    )
+
+    assert presence.events == expected
+
+
+@pytest.mark.parametrize(
     "arguments",
     [
         ["--help"],
@@ -1278,7 +1326,9 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
         def release(self) -> None:
             self.events.append("release")
 
+    presence = Progress()
     progress = Progress()
+    monkeypatch.setattr(agent_cli, "_presence_lifecycle", lambda _config: presence)
     monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
 
     assert (
@@ -1310,12 +1360,14 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     }
     assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
     assert desktop.close_calls == 1
-    assert progress.events == [
+    expected_events = [
         RunPhase.PLANNING,
         RunPhase.VERIFYING,
         RunPhase.VERIFYING,
         "release",
     ]
+    assert presence.events == expected_events
+    assert progress.events == expected_events
 
 
 @pytest.mark.parametrize("provider_requests_action", [False, True])

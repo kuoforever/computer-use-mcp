@@ -19,7 +19,12 @@ from .presence_lifecycle import (
 )
 from .runner import AgentRunner, RunnerError, RunnerPorts
 from .run_lock import RunLockError
-from .types import AGENT_CONTRACT_VERSION, ApprovalPort, ProviderContinuationStrategy
+from .types import (
+    AGENT_CONTRACT_VERSION,
+    ApprovalPort,
+    ProviderContinuationStrategy,
+    ToolResult,
+)
 
 
 def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
@@ -70,6 +75,20 @@ def _active_progress_lifecycle(config: AgentConfig) -> FailSilentLifecycle:
     progress = FailSilentLifecycle(_progress_lifecycle(config))
     progress.wake()
     return progress
+
+
+def _apply_recovery_presence_result(
+    presence: FailSilentLifecycle,
+    result: ToolResult | None,
+) -> None:
+    """Close recovery presence immediately after a desktop authority loss."""
+
+    if result is None:
+        return
+    if result.code == "ABORTED":
+        presence.estop()
+    elif result.code == "HUMAN_ACTIVE":
+        presence.release()
 
 
 def _approval_port(config: AgentConfig) -> ApprovalPort:
@@ -925,16 +944,25 @@ async def _recover_live_async(
         raise RunnerError("CONTINUATION_DISABLED")
     if stateless_replay and config.provider.name != "openai":
         raise RunnerError("STATELESS_REPLAY_OPENAI_ONLY")
+    presence = FailSilentLifecycle(_presence_lifecycle(config))
     progress = FailSilentLifecycle(_progress_lifecycle(config))
+
+    def publish_operator_phase(phase: RunPhase) -> None:
+        presence.on_phase(phase)
+        progress.on_phase(phase)
+
     lock = RunLock(config.application_state_dir)
     try:
         lock.acquire(recover_stale=True)
     except BaseException:
-        progress.release()
+        try:
+            presence.release()
+        finally:
+            progress.release()
         raise
     desktop = None
     provider = None
-    progress_started = False
+    lifecycle_started = False
     try:
         step_outputs: list[dict[str, object]] = []
         terminal_failure = False
@@ -942,10 +970,10 @@ async def _recover_live_async(
             checkpoint = read_run_checkpoint(config.state_dir, run_id)
             envelope = read_continuation(config.state_dir, run_id)
             plan = plan_read_only_recovery(checkpoint, envelope, config, task=task)
-            if not progress_started:
-                progress_started = True
+            if not lifecycle_started:
+                lifecycle_started = True
                 try:
-                    progress.on_phase(RunPhase(str(checkpoint["phase"])))
+                    publish_operator_phase(RunPhase(str(checkpoint["phase"])))
                 except (KeyError, ValueError):
                     pass
             blocked_call_count: int | None = None
@@ -1002,7 +1030,7 @@ async def _recover_live_async(
                 config=config,
                 task=task,
                 lock=lock,
-                phase_observer=progress.on_phase,
+                phase_observer=publish_operator_phase,
             )
             if plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS:
                 sequence = envelope.payload["checkpoint_sequence"]
@@ -1046,6 +1074,7 @@ async def _recover_live_async(
                 commit_completion=persistence.commit_completion,
                 use_stateless_replay=stateless_replay and not step_outputs,
             )
+            _apply_recovery_presence_result(presence, step.tool_result)
             completed = read_continuation(config.state_dir, run_id)
             boundary = completed.payload["boundary"]
             assert isinstance(boundary, dict)
@@ -1105,8 +1134,13 @@ async def _recover_live_async(
                     if not active_error:
                         raise
         finally:
-            progress.release()
-            lock.release()
+            try:
+                presence.release()
+            finally:
+                try:
+                    progress.release()
+                finally:
+                    lock.release()
 
 
 def _recover_live(

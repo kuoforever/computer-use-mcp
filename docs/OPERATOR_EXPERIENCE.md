@@ -1,7 +1,8 @@
 # Operator experience
 
 > **Status: passive progress plus opt-in ordinary-run/bounded-plan/read-only
-> recovery/fixed-campaign progress and ordinary-run/bounded-plan
+> recovery/fixed-campaign progress and ordinary-run/bounded-plan/read-only
+> recovery
 > primary-display presence
 > lifecycles are implemented; complete-product
 > integration remains planned.** The presence
@@ -9,9 +10,10 @@
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
 > it from durable phases in ordinary Agent `run`/`resume` and bounded
-> observation-only `plan run` lifecycles when explicitly enabled. The progress
-> coordinator also follows explicit read-only recovery after durable recovery
-> CAS writes. The fixed MCP-backed
+> observation-only `plan run` lifecycles when explicitly enabled. Explicit
+> read-only recovery now projects the same presence phases only after validated
+> persistence and durable recovery CAS writes. The progress coordinator follows
+> those paths as well. The fixed MCP-backed
 > campaign execution commands start the same campaign-state poller without a
 > synthetic run phase; zero-port campaign control remains window-free.
 > Multi-monitor support and abrupt-process teardown remain separate gates.
@@ -127,8 +129,9 @@ coordinator only after its atomic checkpoint succeeds. `ABORTED`,
 later phase notifications cannot reopen it. Surface failure is swallowed and
 permanently disables that run's passive projection. The UI has no execution or
 approval method. Bounded `plan run` now uses the same durable phase projection
-and fail-silent teardown. Recovery/campaign wiring and multi-monitor selection
-remain separate work.
+and fail-silent teardown. Explicit read-only recovery starts only after
+validated persistence and publishes later phases after its existing CAS.
+Campaign wiring and multi-monitor selection remain separate work.
 
 The indicator must not claim that an action succeeded. It displays only the
 current validated Host phase and ownership state.
@@ -318,9 +321,9 @@ There is no global "always allow" control in the first interactive version.
 3. Implement the click-through presence indicator, capture filtering, reduced
    motion, DPI handling, and E-stop/authority-release teardown. **Implemented
    for one primary display over an injected controller and ctypes backend;
-   opt-in ordinary `run`/`resume` and bounded `plan run` lifecycle wiring is
-   implemented, while recovery/campaign wiring and multi-monitor selection
-   remain.**
+   opt-in ordinary `run`/`resume`, bounded `plan run`, and explicit read-only
+   recovery lifecycle wiring is implemented, while campaign wiring and
+   multi-monitor selection remain.**
 4. Add a fake-only Decision Card compiler and deterministic choice tests.
    **Implemented: expiry plus state, policy, task, registry, object, and evidence
    drift all fail closed; recommendation never selects an option.**
