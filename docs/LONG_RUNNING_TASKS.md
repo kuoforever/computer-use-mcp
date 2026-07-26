@@ -427,7 +427,7 @@ replacement grants no item or action authority and starts no worker.
 ## Host-visible completion and mobile notification
 
 > **Status: internal projection implemented and offline verified; no public
-> status tool or notification bridge is implemented.** The current eleven-tool
+> status tool or notification bridge is implemented.** The current thirteen-tool
 > desktop MCP surface remains unchanged. The projection is a read-only campaign
 > module and does not broaden the fixed synthetic seam into a general worker.
 

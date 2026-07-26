@@ -3,7 +3,7 @@
 Tools:
   ui_snapshot / find / list_windows      perception (ungated; passwords redacted)
   screenshot / capture_region / ocr      perception; sensitive windows blacked out
-  activate_window / click / type / key   action
+  activate_window / click / scroll / drag / type / key   action
 
 In ``safe_local`` mode, actions pass e-stop -> human activity -> foreground
 allowlist -> dangerous confirmation -> execute -> audit. ``full_control_local``
@@ -128,7 +128,7 @@ def build_server(
         "computer-use-mcp",
         instructions=(
             "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
-            "or screenshot, act with click/type/key. "
+            "or screenshot, act with click/scroll/drag/type/key. "
             f"Operating mode={mode}. A panic hotkey can abort every action."
         ),
     )
@@ -294,6 +294,58 @@ def build_server(
                 audit.record("click", _audit_args(args), "user_denied", desc)
                 return f"DENIED by user (dangerous: {desc})"
         return _record_action("click", args, _fmt(session.click(ref=ref, x=x, y=y)))
+
+    @mcp.tool(
+        description="Scroll at a screenshot-grounded coordinate. Positive delta_y scrolls up; "
+        "positive delta_x scrolls right. The allowlisted app must be in front."
+    )
+    def scroll(x: int, y: int, delta_x: int = 0, delta_y: int = 0) -> str:
+        args = {"x": x, "y": y, "delta_x": delta_x, "delta_y": delta_y}
+        ok, msg = _guard("scroll", args)
+        if not ok:
+            return msg
+        if (
+            delta_x == delta_y == 0
+            or abs(delta_x) > 2400
+            or abs(delta_y) > 2400
+        ):
+            return _record_action(
+                "scroll", args, "ERROR DRIVER_ERROR: invalid scroll delta"
+            )
+        return _record_action(
+            "scroll", args, _fmt(session.scroll(x, y, delta_x, delta_y))
+        )
+
+    @mcp.tool(
+        description="Drag from one screenshot-grounded coordinate to another with the left "
+        "mouse button. The allowlisted app must be in front."
+    )
+    def drag(
+        x: int,
+        y: int,
+        to_x: int,
+        to_y: int,
+        duration_ms: int = 250,
+    ) -> str:
+        args = {
+            "x": x,
+            "y": y,
+            "to_x": to_x,
+            "to_y": to_y,
+            "duration_ms": duration_ms,
+        }
+        ok, msg = _guard("drag", args)
+        if not ok:
+            return msg
+        if (x, y) == (to_x, to_y) or not 0 <= duration_ms <= 5000:
+            return _record_action(
+                "drag", args, "ERROR DRIVER_ERROR: invalid drag bounds"
+            )
+        return _record_action(
+            "drag",
+            args,
+            _fmt(session.drag(x, y, to_x, to_y, duration_ms)),
+        )
 
     @mcp.tool(name="type",
               description="Type text into an element by ref (ValuePattern) or to the focused "

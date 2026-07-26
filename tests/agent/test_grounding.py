@@ -65,6 +65,24 @@ def test_refs_windows_and_coordinates_require_current_generation_observations() 
         get_tool_spec("click"),
         generation=3,
     )
+    state.validate(
+        ToolCall(
+            CallIdentity("run_1", "turn_2", "scroll"),
+            "scroll",
+            {"x": 0, "y": 0, "delta_y": -120},
+        ),
+        get_tool_spec("scroll"),
+        generation=3,
+    )
+    state.validate(
+        ToolCall(
+            CallIdentity("run_1", "turn_2", "drag"),
+            "drag",
+            {"x": 0, "y": 0, "to_x": 0, "to_y": 0},
+        ),
+        get_tool_spec("drag"),
+        generation=3,
+    )
 
     with pytest.raises(GroundingError, match="MCP_GENERATION_CHANGED"):
         state.validate(
@@ -84,6 +102,16 @@ def test_refs_windows_and_coordinates_require_current_generation_observations() 
                 {"x": 1, "y": 0},
             ),
             get_tool_spec("click"),
+            generation=3,
+        )
+    with pytest.raises(GroundingError, match="GROUNDING_REQUIRED"):
+        state.validate(
+            ToolCall(
+                CallIdentity("run_1", "turn_2", "drag_outside"),
+                "drag",
+                {"x": 0, "y": 0, "to_x": 1, "to_y": 0},
+            ),
+            get_tool_spec("drag"),
             generation=3,
         )
 

@@ -6,8 +6,7 @@ stable ``ref_N`` handles; the driver only ever sees ``native_id``. Refs stay
 stable across snapshots where the native_id is unchanged, and an action on a
 stale ref is relocated by (role, name) before giving up.
 
-The MCP server (next milestone) is a thin wrapper that exposes these methods as
-tools: ``ui_snapshot`` / ``screenshot`` / ``find`` / ``click`` / ``type`` / ``key``.
+The MCP server is a thin wrapper that exposes these methods as reviewed tools.
 """
 from __future__ import annotations
 
@@ -83,6 +82,14 @@ class Session:
 
     def key(self, combo: str) -> Result:
         return self.driver.key(combo)
+
+    def scroll(self, x: int, y: int, delta_x: int, delta_y: int) -> Result:
+        return self.driver.scroll(x, y, delta_x, delta_y)
+
+    def drag(
+        self, x: int, y: int, to_x: int, to_y: int, duration_ms: int = 250
+    ) -> Result:
+        return self.driver.drag(x, y, to_x, to_y, duration_ms)
 
     def activate(self, window_id: str) -> Result:
         return self.driver.activate_window(window_id)

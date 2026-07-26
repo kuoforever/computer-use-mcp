@@ -848,6 +848,8 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "document_text",
         "activate_window",
         "click",
+        "scroll",
+        "drag",
         "key",
     ]
     click_definition = next(

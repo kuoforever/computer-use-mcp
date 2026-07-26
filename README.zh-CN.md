@@ -18,8 +18,9 @@
 - Windows；Python 3.11 至 3.13。
 - stdio MCP transport。
 - 主显示器截图和 UIA 控件发现。
-- 十一个 MCP 工具：`ui_snapshot`、`find`、`list_windows`、`screenshot`、
-  `capture_region`、`ocr`、`document_text`、`activate_window`、`click`、`type`、`key`。
+- 13 个 MCP 工具：`ui_snapshot`、`find`、`list_windows`、`screenshot`、
+  `capture_region`、`ocr`、`document_text`、`activate_window`、`click`、
+  `scroll`、`drag`、`type`、`key`。
 - 默认安全模式：进程白名单、检测到人类输入时让路、危险 ref 点击确认、审计
   日志和急停热键。
 

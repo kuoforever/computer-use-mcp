@@ -52,7 +52,7 @@ def test_fakes_implement_ports_and_record_deterministic_calls() -> None:
     )
     desktop = FakeDesktopMCP(results=deque([result]))
     assert isinstance(desktop, DesktopMCPPort)
-    assert len(asyncio.run(desktop.discover_tools())) == 11
+    assert len(asyncio.run(desktop.discover_tools())) == 13
     assert asyncio.run(desktop.call_tool(call)) is result
     asyncio.run(desktop.close())
     assert desktop.tool_calls == [call]

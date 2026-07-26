@@ -12,6 +12,13 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Composable scroll and drag input primitives.** The reviewed Windows MCP
+  surface now exposes bounded `scroll` and `drag` actions through the same
+  foreground guard, approval, side-effect budget, write-ahead, audit, grounding,
+  and post-action invalidation path as existing actions. Both require
+  screenshot-grounded coordinates; drag validates both endpoints. Worker
+  scenarios can compose viewport navigation and canvas manipulation without a
+  new dispatch site.
 - **Automatic application-campaign terminalization.** A fresh generic
   application-campaign resume that finds no eligible items now completes the
   exhausted manifest, writes the deterministic terminal handoff, and retires

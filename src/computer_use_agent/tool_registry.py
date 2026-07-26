@@ -162,6 +162,8 @@ _MCP_OPTIONAL_Y = {
     "default": None,
     "title": "Y",
 }
+_MCP_ZERO_INTEGER = {"default": 0, "title": "Delta", "type": "integer"}
+_MCP_DURATION = {"default": 250, "title": "Duration Ms", "type": "integer"}
 
 
 REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
@@ -323,6 +325,68 @@ REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
         mcp_input_schema=_mcp_schema(
             "clickArguments",
             {"ref": _MCP_OPTIONAL_REF, "x": _MCP_OPTIONAL_X, "y": _MCP_OPTIONAL_Y},
+        ),
+        effect=ToolEffect.SIDE_EFFECT,
+        result_content=ResultContentKind.TEXT,
+        result_sensitivity=ResultSensitivity.NORMAL,
+        redaction_policy=RedactionPolicy.NONE,
+        grounding=GroundingRequirement.REF_OR_SCREENSHOT,
+        requires_host_approval=True,
+        invalidates_observation=True,
+    ),
+    ToolSpec(
+        name="scroll",
+        description="Scroll at one primary-display coordinate with bounded wheel deltas.",
+        input_schema=_host_schema(
+            {
+                "x": _INTEGER,
+                "y": _INTEGER,
+                "delta_x": _INTEGER,
+                "delta_y": _INTEGER,
+            },
+            ("x", "y"),
+        ),
+        mcp_input_schema=_mcp_schema(
+            "scrollArguments",
+            {
+                "x": {**_MCP_INTEGER, "title": "X"},
+                "y": {**_MCP_INTEGER, "title": "Y"},
+                "delta_x": {**_MCP_ZERO_INTEGER, "title": "Delta X"},
+                "delta_y": {**_MCP_ZERO_INTEGER, "title": "Delta Y"},
+            },
+            ("x", "y"),
+        ),
+        effect=ToolEffect.SIDE_EFFECT,
+        result_content=ResultContentKind.TEXT,
+        result_sensitivity=ResultSensitivity.NORMAL,
+        redaction_policy=RedactionPolicy.NONE,
+        grounding=GroundingRequirement.REF_OR_SCREENSHOT,
+        requires_host_approval=True,
+        invalidates_observation=True,
+    ),
+    ToolSpec(
+        name="drag",
+        description="Drag between two primary-display coordinate pairs with the left button.",
+        input_schema=_host_schema(
+            {
+                "x": _INTEGER,
+                "y": _INTEGER,
+                "to_x": _INTEGER,
+                "to_y": _INTEGER,
+                "duration_ms": _INTEGER,
+            },
+            ("x", "y", "to_x", "to_y"),
+        ),
+        mcp_input_schema=_mcp_schema(
+            "dragArguments",
+            {
+                "x": {**_MCP_INTEGER, "title": "X"},
+                "y": {**_MCP_INTEGER, "title": "Y"},
+                "to_x": {**_MCP_INTEGER, "title": "To X"},
+                "to_y": {**_MCP_INTEGER, "title": "To Y"},
+                "duration_ms": _MCP_DURATION,
+            },
+            ("x", "y", "to_x", "to_y"),
         ),
         effect=ToolEffect.SIDE_EFFECT,
         result_content=ResultContentKind.TEXT,
@@ -548,6 +612,22 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[
             raise ToolValidationError("click requires exactly one of ref or the x,y coordinate pair")
         if has_coordinates and not {"x", "y"}.issubset(validated):
             raise ToolValidationError("click coordinates require both x and y")
+    if name == "scroll":
+        delta_x = validated.get("delta_x", 0)
+        delta_y = validated.get("delta_y", 0)
+        if (delta_x, delta_y) == (0, 0):
+            raise ToolValidationError("scroll requires a non-zero wheel delta")
+        if abs(delta_x) > 2400 or abs(delta_y) > 2400:
+            raise ToolValidationError("scroll wheel deltas must be between -2400 and 2400")
+    if name == "drag":
+        if (validated["x"], validated["y"]) == (
+            validated["to_x"],
+            validated["to_y"],
+        ):
+            raise ToolValidationError("drag start and end coordinates must differ")
+        duration = validated.get("duration_ms", 250)
+        if duration < 0 or duration > 5000:
+            raise ToolValidationError("drag duration_ms must be between 0 and 5000")
     if name in _REGION_TOOLS:
         x, y, w, h = (validated[field] for field in ("x", "y", "w", "h"))
         if x < 0 or y < 0 or w <= 0 or h <= 0:
