@@ -591,14 +591,20 @@ takeover are durable transitions, not informal chat instructions.
     identities and three consecutive fresh-run commits without local state
     correction, provider calls, tokens, retryable items, or uncertain items;
     see [clean evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md).
-16. **Next:** add semantic extraction only under a separately reviewed bounded
-    schema and observation ladder, then run the 100-item evaluation.
-17. Run Google Docs 50-section and WeChat draft-only evaluations.
-18. Run the cross-application campaign with a fresh-session boundary.
-19. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
-20. Only then consider resumable side-effect campaigns and higher-complexity
+16. **Implemented and offline verified:** the
+    [bounded semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) fixes the
+    compact result, classification-policy binding, canonical digest, and
+    fail-closed UIA-to-screenshot ladder without provider, MCP, or campaign
+    writes.
+17. **Next:** connect that pure contract to a separately reviewed multi-call
+    claimed-item runtime through the sole Runner boundary, then retain one
+    on-device semantic item before the 100-item evaluation.
+18. Run Google Docs 50-section and WeChat draft-only evaluations.
+19. Run the cross-application campaign with a fresh-session boundary.
+20. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+21. Only then consider resumable side-effect campaigns and higher-complexity
     remote-desktop or modal-tool workloads.
-21. Define object-scoped enterprise authority, data classification, transaction
+22. Define object-scoped enterprise authority, data classification, transaction
     reconciliation, SLA ownership, and human takeover before Wave 4.
-22. Run the synthetic read-only IT incident campaign, then add approved ticket
+23. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.
