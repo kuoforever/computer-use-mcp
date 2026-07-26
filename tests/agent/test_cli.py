@@ -523,7 +523,9 @@ def test_claimed_synthetic_campaign_cli_uses_desktop_with_provider_forbidden(
         "execute_persisted_claimed_synthetic_item_through_handoff",
         fake_execute,
     )
+    presence = RecordingProgress()
     progress = RecordingProgress()
+    monkeypatch.setattr(agent_cli, "_presence_lifecycle", lambda _config: presence)
     monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
     monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
     arguments = [
@@ -548,6 +550,7 @@ def test_claimed_synthetic_campaign_cli_uses_desktop_with_provider_forbidden(
     assert runner.ports is not None
     assert runner.ports.desktop is desktop
     assert isinstance(runner.ports.provider, agent_cli._ForbiddenCampaignProvider)
+    assert runner.ports.presence is presence
     assert campaign_id == "campaign_1"
     assert run_id == "run_1"
     assert captured_now == now
@@ -679,7 +682,9 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
         "computer_use_agent.boss_campaign_observation_runtime.execute_boss_discovery_page",
         fake_execute,
     )
+    presence = RecordingProgress()
     progress = RecordingProgress()
+    monkeypatch.setattr(agent_cli, "_presence_lifecycle", lambda _config: presence)
     monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
     monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
     arguments = [
@@ -702,6 +707,7 @@ def test_boss_page_cli_uses_one_desktop_with_provider_forbidden(
     assert runner.ports is not None
     assert runner.ports.desktop is desktop
     assert isinstance(runner.ports.provider, agent_cli._ForbiddenCampaignProvider)
+    assert runner.ports.presence is presence
     assert (campaign_id, run_id, captured_now) == ("campaign_1", "run_1", now)
     assert progress.events == ["wake", "release"]
     assert json.loads(capsys.readouterr().out) == {

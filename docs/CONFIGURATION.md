@@ -104,8 +104,9 @@ dispatch must retain the existing crash boundary. It remains disabled when
 ## Passive operator presence
 
 The ordinary Agent `run` and `resume` paths, bounded observation-only
-`plan run`, and explicit `recover --execute-read-only` can show the
-primary-display computer-use halo with an explicit local opt-in:
+`plan run`, explicit `recover --execute-read-only`, and the three fixed
+MCP-backed campaign execution commands can show the primary-display
+computer-use halo with an explicit local opt-in:
 
 ~~~toml
 [operator]
@@ -125,8 +126,9 @@ use the same durable Executor checkpoint observer and immediate E-stop/human-
 yield teardown. Recovery starts only after its persisted checkpoint and private
 continuation validate; later notifications follow the existing recovery CAS,
 and `ABORTED`/`HUMAN_ACTIVE` close the halo before another bounded step. This
-integration does not yet cover campaign runtimes and remains
-primary-display-only.
+same immediate teardown applies to fixed campaign MCP calls. Campaign
+prepare/start/resume control commands remain window-free. The integration
+remains primary-display-only.
 
 ## Passive progress lifecycle
 

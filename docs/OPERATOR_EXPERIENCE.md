@@ -2,7 +2,7 @@
 
 > **Status: passive progress plus opt-in ordinary-run/bounded-plan/read-only
 > recovery/fixed-campaign progress and ordinary-run/bounded-plan/read-only
-> recovery
+> recovery/fixed-campaign
 > primary-display presence
 > lifecycles are implemented; complete-product
 > integration remains planned.** The presence
@@ -12,10 +12,10 @@
 > it from durable phases in ordinary Agent `run`/`resume` and bounded
 > observation-only `plan run` lifecycles when explicitly enabled. Explicit
 > read-only recovery now projects the same presence phases only after validated
-> persistence and durable recovery CAS writes. The progress coordinator follows
-> those paths as well. The fixed MCP-backed
-> campaign execution commands start the same campaign-state poller without a
-> synthetic run phase; zero-port campaign control remains window-free.
+> persistence and durable recovery CAS writes. The three fixed MCP-backed
+> campaign execution commands also project their durable run phases through
+> presence and start the same campaign-state progress poller; zero-port campaign
+> control remains window-free.
 > Multi-monitor support and abrupt-process teardown remain separate gates.
 > Decision Card compilation,
 > choice validation, and an opt-in four-choice focus-taking Win32 adapter are
@@ -131,7 +131,10 @@ permanently disables that run's passive projection. The UI has no execution or
 approval method. Bounded `plan run` now uses the same durable phase projection
 and fail-silent teardown. Explicit read-only recovery starts only after
 validated persistence and publishes later phases after its existing CAS.
-Campaign wiring and multi-monitor selection remain separate work.
+The three fixed MCP-backed campaign execution commands use the same recorder
+observer and immediate MCP E-stop/human-yield teardown; zero-port campaign
+control remains window-free. Native BOSS campaign evidence and multi-monitor
+selection remain separate work.
 
 The indicator must not claim that an action succeeded. It displays only the
 current validated Host phase and ownership state.

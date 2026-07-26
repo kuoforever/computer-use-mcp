@@ -38,7 +38,7 @@
 > over validated campaign state; zero-port campaign control commands remain
 > window-free. The fixed synthetic command has retained
 > [native lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); BOSS
-> campaign lifecycle wiring remains offline-only.
+> campaign execution wiring is offline verified and still lacks native evidence.
 
 This passive projection is one surface of the planned
 [Operator experience](OPERATOR_EXPERIENCE.md). The desktop presence indicator
