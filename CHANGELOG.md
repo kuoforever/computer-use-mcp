@@ -22,6 +22,11 @@ a version number states what is packaged, never what has been verified.
   prepare/start/resume commands remain window-free. One provider-free bounded
   plan, one persisted read-only recovery observation, and the fixed synthetic
   campaign command have retained native lifecycle evidence.
+- **Bounded-plan presence lifecycle.** The opt-in passive presence halo now
+  follows durable phases for bounded observation-only `plan run` sessions as
+  well as ordinary `run`/`resume`. It shares the Executor's fail-silent
+  lifecycle, receives immediate E-stop/human-yield teardown, and cannot affect
+  plan success or desktop authority.
 - **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
   compact, configurable-corner normal Windows window that can be dragged,
   resized, minimized, maximized, and covered by other applications. Decision

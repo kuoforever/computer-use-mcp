@@ -66,6 +66,7 @@ class RuntimeExecutorSession:
         contract: BoundedExecutorSession,
         recorder: RunRecorder,
         continuation: RuntimeContinuationRecorder,
+        presence: FailSilentLifecycle,
         progress: FailSilentLifecycle,
     ) -> None:
         self.runner = runner
@@ -73,6 +74,7 @@ class RuntimeExecutorSession:
         self.contract = contract
         self.recorder = recorder
         self.continuation = continuation
+        self.presence = presence
         self.progress = progress
         self.store = prepared_run.plan_store(runner.config.state_dir)
         self.state = prepared_run.state
@@ -101,9 +103,12 @@ class RuntimeExecutorSession:
                     await self.runner.ports.desktop.close()
             finally:
                 try:
-                    self.progress.release()
+                    self.presence.release()
                 finally:
-                    self.prepared_run.close()
+                    try:
+                        self.progress.release()
+                    finally:
+                        self.prepared_run.close()
 
     async def preserve_and_close(self) -> None:
         """Release live resources while retaining WAL for conservative recovery."""
@@ -165,6 +170,7 @@ class RuntimeExecutorSession:
                 grounding=self.grounding,
                 recorder=self.recorder,
                 continuation=self.continuation,
+                presence=self.presence,
                 progress=self.progress,
             )
         except RunFailure as failure:
@@ -419,11 +425,17 @@ async def open_runtime_executor_session(
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_PORTS_REQUIRED")
 
     prepared_run = runner.prepare(task, run_id=plan.run_id)
+    presence = FailSilentLifecycle(runner.ports.presence)
     progress = FailSilentLifecycle(runner.ports.progress)
+
+    def publish_operator_phase(phase: RunPhase) -> None:
+        presence.on_phase(phase)
+        progress.on_phase(phase)
+
     recorder = RunRecorder(
         runner.config.state_dir,
         plan.run_id,
-        phase_observer=progress.on_phase,
+        phase_observer=publish_operator_phase,
     )
     recorder_started = False
     continuation: RuntimeContinuationRecorder | None = None
@@ -452,6 +464,7 @@ async def open_runtime_executor_session(
             contract=contract,
             recorder=recorder,
             continuation=continuation,
+            presence=presence,
             progress=progress,
         )
     except BaseException:
@@ -471,9 +484,12 @@ async def open_runtime_executor_session(
                     await runner.ports.desktop.close()
                 finally:
                     try:
-                        progress.release()
+                        presence.release()
                     finally:
-                        prepared_run.close()
+                        try:
+                            progress.release()
+                        finally:
+                            prepared_run.close()
         raise
 
 

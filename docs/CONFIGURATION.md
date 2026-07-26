@@ -103,8 +103,9 @@ dispatch must retain the existing crash boundary. It remains disabled when
 
 ## Passive operator presence
 
-The ordinary Agent `run` and `resume` paths can show the primary-display
-computer-use halo with an explicit local opt-in:
+The ordinary Agent `run` and `resume` paths plus bounded observation-only
+`plan run` can show the primary-display computer-use halo with an explicit
+local opt-in:
 
 ~~~toml
 [operator]
@@ -119,9 +120,10 @@ receives only fixed phases after their run checkpoints are durably published.
 It receives no task, target, model output, arguments, approval, or execution
 capability. E-stop, detected human activity, terminal completion, and final
 cleanup remove it and prevent later reopening. A presence failure is
-fail-silent and cannot fail, approve, or advance the run. This integration does
-not yet cover `plan`, campaign, or recovery runtimes and remains
-primary-display-only.
+fail-silent and cannot fail, approve, or advance the run. Bounded-plan phases
+use the same durable Executor checkpoint observer and immediate E-stop/human-
+yield teardown. This integration does not yet cover campaign or recovery
+runtimes and remains primary-display-only.
 
 ## Passive progress lifecycle
 

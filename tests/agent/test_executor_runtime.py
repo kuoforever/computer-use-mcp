@@ -36,6 +36,7 @@ from computer_use_agent.planning import (
     TaskPlanStatus,
     compile_task_plan,
 )
+from computer_use_agent.presence_lifecycle import PresenceLifecyclePort
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, RunnerPorts
 from computer_use_agent.trace import RunPhase, read_run_record
@@ -92,6 +93,7 @@ def _plan(*, tool: str = "ui_snapshot", arguments: str = "{}"):
 class DynamicDesktop(FakeDesktopMCP):
     result_status: ToolResultStatus = ToolResultStatus.SUCCESS
     result_dispatch: DispatchCertainty = DispatchCertainty.DISPATCHED
+    result_code: str | None = None
     on_call: Callable[[ToolCall], None] | None = None
 
     async def call_tool(self, call: ToolCall) -> ToolResult:
@@ -104,7 +106,8 @@ class DynamicDesktop(FakeDesktopMCP):
             status=self.result_status,
             dispatch=self.result_dispatch,
             sanitized_text="observed" if self.result_status is ToolResultStatus.SUCCESS else "",
-            code=(
+            code=self.result_code
+            or (
                 "MCP_TRANSPORT_ERROR"
                 if self.result_status is ToolResultStatus.UNKNOWN_OUTCOME
                 else "MCP_TIMEOUT_BEFORE_DISPATCH"
@@ -135,7 +138,8 @@ def _runner(
     config: AgentConfig,
     desktop: FakeDesktopMCP,
     *,
-    progress: object | None = None,
+    presence: PresenceLifecyclePort | None = None,
+    progress: PresenceLifecyclePort | None = None,
 ) -> tuple[AgentRunner, FakeModelProvider, FakeApprovalPort]:
     provider = FakeModelProvider()
     approvals = FakeApprovalPort()
@@ -146,6 +150,7 @@ def _runner(
                 provider=provider,
                 desktop=desktop,
                 approvals=approvals,
+                presence=presence,
                 progress=progress,
             ),
         ),
@@ -220,7 +225,7 @@ def test_runtime_executes_observation_only_after_plan_and_wal_intent(
     assert final.plan.steps[1].status is PlanStepStatus.CANCELLED
 
 
-def test_runtime_projects_durable_phases_and_releases_progress(
+def test_runtime_projects_durable_phases_and_releases_operator_lifecycles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _config(tmp_path, monkeypatch)
@@ -239,8 +244,14 @@ def test_runtime_projects_durable_phases_and_releases_progress(
         def release(self) -> None:
             self.events.append("release")
 
+    presence = Progress()
     progress = Progress()
-    runner, provider, approvals = _runner(config, desktop, progress=progress)
+    runner, provider, approvals = _runner(
+        config,
+        desktop,
+        presence=presence,
+        progress=progress,
+    )
     session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
     asyncio.run(session.execute_next_observation())
     final = FakeFinalResponsePort(
@@ -256,7 +267,7 @@ def test_runtime_projects_durable_phases_and_releases_progress(
     outcome = asyncio.run(session.execute_final_response(final))
 
     assert outcome.text == "The UI is ready."
-    assert progress.events == [
+    expected_events = [
         RunPhase.CREATED,
         RunPhase.OBSERVING,
         RunPhase.PLANNING,
@@ -269,17 +280,22 @@ def test_runtime_projects_durable_phases_and_releases_progress(
         RunPhase.SUCCESS,
         "release",
     ]
+    assert presence.events == expected_events
+    assert progress.events == expected_events
     assert provider.calls == []
     assert approvals.requests == []
 
 
-def test_runtime_progress_failure_cannot_change_successful_plan(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("port_name", ["presence", "progress"])
+def test_runtime_passive_lifecycle_failure_cannot_change_successful_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    port_name: str,
 ) -> None:
     config = _config(tmp_path, monkeypatch)
     desktop = DynamicDesktop()
 
-    class BrokenProgress:
+    class BrokenLifecycle:
         def __init__(self) -> None:
             self.calls = 0
 
@@ -293,8 +309,13 @@ def test_runtime_progress_failure_cannot_change_successful_plan(
         def release(self) -> None:
             raise RuntimeError("progress unavailable")
 
-    progress = BrokenProgress()
-    runner, _provider, _approvals = _runner(config, desktop, progress=progress)
+    broken = BrokenLifecycle()
+    runner, _provider, _approvals = _runner(
+        config,
+        desktop,
+        presence=broken if port_name == "presence" else None,
+        progress=broken if port_name == "progress" else None,
+    )
     session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
     asyncio.run(session.execute_next_observation())
     outcome = asyncio.run(
@@ -312,7 +333,52 @@ def test_runtime_progress_failure_cannot_change_successful_plan(
     )
 
     assert outcome.text == "Done."
-    assert progress.calls == 1
+    assert broken.calls == 1
+    assert session.closed
+
+
+@pytest.mark.parametrize(
+    ("code", "terminal_event"),
+    [("ABORTED", "estop"), ("HUMAN_ACTIVE", "release")],
+)
+def test_runtime_presence_closes_immediately_on_desktop_authority_loss(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    code: str,
+    terminal_event: str,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop(
+        result_status=ToolResultStatus.REJECTED,
+        result_dispatch=DispatchCertainty.NOT_DISPATCHED,
+        result_code=code,
+    )
+
+    class Presence:
+        def __init__(self) -> None:
+            self.events: list[RunPhase | str] = []
+
+        def on_phase(self, phase: RunPhase) -> None:
+            self.events.append(phase)
+
+        def estop(self) -> None:
+            self.events.append("estop")
+
+        def release(self) -> None:
+            self.events.append("release")
+
+    presence = Presence()
+    runner, _provider, _approvals = _runner(config, desktop, presence=presence)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+
+    with pytest.raises(
+        ExecutorRuntimeError,
+        match="^EXECUTOR_TOOL_FAILED$",
+    ):
+        asyncio.run(session.execute_next_observation())
+
+    assert presence.events[-1] == terminal_event
+    assert presence.events.count(terminal_event) == 1
     assert session.closed
 
 
