@@ -38,7 +38,7 @@ from computer_use_agent.planning import (
 )
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, RunnerPorts
-from computer_use_agent.trace import read_run_record
+from computer_use_agent.trace import RunPhase, read_run_record
 from computer_use_agent.types import (
     DispatchCertainty,
     LedgerEventKind,
@@ -134,13 +134,20 @@ class FakeFinalResponsePort:
 def _runner(
     config: AgentConfig,
     desktop: FakeDesktopMCP,
+    *,
+    progress: object | None = None,
 ) -> tuple[AgentRunner, FakeModelProvider, FakeApprovalPort]:
     provider = FakeModelProvider()
     approvals = FakeApprovalPort()
     return (
         AgentRunner(
             config,
-            RunnerPorts(provider=provider, desktop=desktop, approvals=approvals),
+            RunnerPorts(
+                provider=provider,
+                desktop=desktop,
+                approvals=approvals,
+                progress=progress,
+            ),
         ),
         provider,
         approvals,
@@ -211,6 +218,102 @@ def test_runtime_executes_observation_only_after_plan_and_wal_intent(
     final = _read_plan_after_close(config)
     assert final.plan.status is TaskPlanStatus.CANCELLED
     assert final.plan.steps[1].status is PlanStepStatus.CANCELLED
+
+
+def test_runtime_projects_durable_phases_and_releases_progress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+
+    class Progress:
+        def __init__(self) -> None:
+            self.events: list[RunPhase | str] = []
+
+        def on_phase(self, phase: RunPhase) -> None:
+            self.events.append(phase)
+
+        def estop(self) -> None:
+            self.events.append("estop")
+
+        def release(self) -> None:
+            self.events.append("release")
+
+    progress = Progress()
+    runner, provider, approvals = _runner(config, desktop, progress=progress)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    asyncio.run(session.execute_next_observation())
+    final = FakeFinalResponsePort(
+        FinalResponseResult(
+            run_id="run_1",
+            turn_id="executor_final_1",
+            provider_response_id="resp_final_1",
+            text="The UI is ready.",
+            usage=ModelUsage(input_tokens=10, output_tokens=4),
+        )
+    )
+
+    outcome = asyncio.run(session.execute_final_response(final))
+
+    assert outcome.text == "The UI is ready."
+    assert progress.events == [
+        RunPhase.CREATED,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.EXECUTING,
+        RunPhase.EXECUTING,
+        RunPhase.EXECUTING,
+        RunPhase.EXECUTING,
+        RunPhase.OBSERVING,
+        RunPhase.PLANNING,
+        RunPhase.SUCCESS,
+        "release",
+    ]
+    assert provider.calls == []
+    assert approvals.requests == []
+
+
+def test_runtime_progress_failure_cannot_change_successful_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+
+    class BrokenProgress:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def on_phase(self, _phase: RunPhase) -> None:
+            self.calls += 1
+            raise RuntimeError("progress unavailable")
+
+        def estop(self) -> None:
+            raise RuntimeError("progress unavailable")
+
+        def release(self) -> None:
+            raise RuntimeError("progress unavailable")
+
+    progress = BrokenProgress()
+    runner, _provider, _approvals = _runner(config, desktop, progress=progress)
+    session = asyncio.run(open_runtime_executor_session(runner, task=TASK, plan=_plan()))
+    asyncio.run(session.execute_next_observation())
+    outcome = asyncio.run(
+        session.execute_final_response(
+            FakeFinalResponsePort(
+                FinalResponseResult(
+                    run_id="run_1",
+                    turn_id="executor_final_1",
+                    provider_response_id="resp_final_1",
+                    text="Done.",
+                    usage=ModelUsage(1, 1),
+                )
+            )
+        )
+    )
+
+    assert outcome.text == "Done."
+    assert progress.calls == 1
+    assert session.closed
 
 
 def test_runtime_unknown_outcome_is_preserved_and_never_replayed(

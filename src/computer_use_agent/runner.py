@@ -20,7 +20,7 @@ from .executor_final_store import FinalResponseStore
 from .plan_store import TaskPlanStore
 from .policy import HostPolicy, PolicyDisposition
 from .privacy import PrivacyError, PrivacyImageRedactionPort, PrivacySession
-from .presence_lifecycle import PresenceLifecyclePort
+from .presence_lifecycle import FailSilentLifecycle, PresenceLifecyclePort
 from .run_lock import RunLock
 from .telemetry import MAX_ATTRIBUTE_STRING_LENGTH, NoOpTelemetry, TelemetryPort
 from .tool_registry import (
@@ -120,41 +120,6 @@ class RunnerPorts:
     telemetry: TelemetryPort | None = None
     presence: PresenceLifecyclePort | None = None
     progress: PresenceLifecyclePort | None = None
-
-
-class _SafePresenceLifecycle:
-    """Keep passive presence outside execution authority and failure."""
-
-    __slots__ = ("_port", "_suppressed")
-
-    def __init__(self, port: PresenceLifecyclePort | None) -> None:
-        self._port = port
-        self._suppressed = False
-
-    def on_phase(self, phase: RunPhase) -> None:
-        if self._port is None or self._suppressed:
-            return
-        try:
-            self._port.on_phase(phase)
-        except Exception:
-            self._suppressed = True
-
-    def estop(self) -> None:
-        self._suppress("estop")
-
-    def release(self) -> None:
-        self._suppress("release")
-
-    def _suppress(self, method: str) -> None:
-        if self._suppressed:
-            return
-        self._suppressed = True
-        if self._port is None:
-            return
-        try:
-            getattr(self._port, method)()
-        except Exception:
-            pass
 
 
 class _SafeSpan:
@@ -496,8 +461,8 @@ class AgentRunner:
         grounding: GroundingState,
         recorder: RunRecorder,
         continuation: RuntimeContinuationRecorder | None,
-        presence: _SafePresenceLifecycle | None = None,
-        progress: _SafePresenceLifecycle | None = None,
+        presence: FailSilentLifecycle | None = None,
+        progress: FailSilentLifecycle | None = None,
         privacy: PrivacySession | None = None,
     ) -> _CallBoundaryOutcome:
         """Run one fresh requested call through every ordinary host boundary.
@@ -510,8 +475,8 @@ class AgentRunner:
 
         if self.ports is None:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
-        safe_presence = presence or _SafePresenceLifecycle(None)
-        safe_progress = progress or _SafePresenceLifecycle(None)
+        safe_presence = presence or FailSilentLifecycle(None)
+        safe_progress = progress or FailSilentLifecycle(None)
         try:
             if privacy is not None:
                 privacy.validate_tool_call(call)
@@ -790,8 +755,8 @@ class AgentRunner:
             )
         )
         grounding = GroundingState()
-        presence = _SafePresenceLifecycle(self.ports.presence)
-        progress = _SafePresenceLifecycle(self.ports.progress)
+        presence = FailSilentLifecycle(self.ports.presence)
+        progress = FailSilentLifecycle(self.ports.progress)
 
         def publish_operator_phase(phase: RunPhase) -> None:
             presence.on_phase(phase)
