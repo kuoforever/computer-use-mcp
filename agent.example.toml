@@ -85,3 +85,5 @@ high_contrast = false
 # yields desktop authority before opening it; close and timeout deny.
 decision_cards_enabled = false
 decision_timeout_seconds = 300
+# top_left | top_right | bottom_left | bottom_right
+decision_card_corner = "bottom_right"

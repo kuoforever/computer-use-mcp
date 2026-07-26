@@ -12,6 +12,11 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Responsive native Decision Card.** Replaced the topmost Task Dialog with a
+  compact, configurable-corner normal Windows window that can be dragged,
+  resized, minimized, maximized, and covered by other applications. Decision
+  and digest-only evidence panes scroll independently, buttons reflow for
+  narrow widths, and close/timeout semantics still deny before dispatch.
 - **Bounded BOSS batch-start boundary.** A fixed
   `campaign start-boss-batch` command validates the complete current BOSS
   discovery ledger, requires at least two discovery passes, opens only the

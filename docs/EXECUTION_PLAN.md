@@ -176,8 +176,12 @@ implemented without an approval or dispatch port. An opt-in four-choice Win32
 card now connects exact-effect selection, re-observe, durable defer, and denial through the existing `ApprovalPort`;
 the Runner yields first and rechecks every Host digest before its unchanged
 dispatch boundary. Expandable inspection exposes only fixed facts and digest
-provenance. Its focus, options, approval, timeout-denial, sole-dispatch, and
-foreground-restoration path now has [bounded on-device evidence](DECISION_CARD_WINDOW_EVIDENCE.md).
+provenance. The native surface is now a compact corner-positioned normal
+Windows window with drag/resize/minimize/maximize behavior, non-topmost
+stacking, responsive option layout, and scrollable detail/evidence panes. Its
+focus, options, approval, timeout-denial, sole-dispatch, resize/scroll, and
+foreground-restoration path now has
+[bounded on-device evidence](DECISION_CARD_WINDOW_EVIDENCE.md).
 Re-observe now abandons the old turn and requires fresh reviewed evidence;
 defer writes a non-resumable `PAUSED` checkpoint. These semantics have
 [offline evidence](DECISION_CARD_RECOVERY_EVIDENCE.md); next retain a

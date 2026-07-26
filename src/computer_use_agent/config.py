@@ -351,13 +351,14 @@ class PrivacyConfig:
 
 @dataclass(frozen=True)
 class OperatorConfig:
-    """Disabled-by-default passive operator-presence preferences."""
+    """Local operator-interface preferences."""
 
     presence_enabled: bool = False
     reduced_motion: bool = False
     high_contrast: bool = False
     decision_cards_enabled: bool = False
     decision_timeout_seconds: int = 300
+    decision_card_corner: str = "bottom_right"
 
     def __post_init__(self) -> None:
         if not all(
@@ -377,6 +378,16 @@ class OperatorConfig:
         ):
             raise ConfigError(
                 "operator decision_timeout_seconds must be between 5 and 3600"
+            )
+        if self.decision_card_corner not in {
+            "top_left",
+            "top_right",
+            "bottom_left",
+            "bottom_right",
+        }:
+            raise ConfigError(
+                "operator decision_card_corner must be one of "
+                "top_left, top_right, bottom_left, bottom_right"
             )
 
 
@@ -490,6 +501,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "high_contrast",
             "decision_cards_enabled",
             "decision_timeout_seconds",
+            "decision_card_corner",
         },
         "operator",
     )
@@ -592,6 +604,12 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         if not isinstance(value, bool):
             raise ConfigError(f"[operator].{key} must be boolean")
         operator_values[key] = value
+    decision_card_corner = operator.get(
+        "decision_card_corner",
+        "bottom_right",
+    )
+    if not isinstance(decision_card_corner, str):
+        raise ConfigError("[operator].decision_card_corner must be a string")
     return AgentConfig(
         state_dir=state_dir,
         policy_version=policy_version,
@@ -608,5 +626,6 @@ def load_agent_config(path: str | Path) -> AgentConfig:
                 "operator",
                 300,
             ),
+            decision_card_corner=decision_card_corner,
         ),
     )

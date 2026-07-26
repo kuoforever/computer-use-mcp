@@ -50,6 +50,15 @@ Card is a deliberate transition into operator interaction; it may take focus and
 therefore triggers normal human-activity yielding until the decision is closed
 and the desktop is explicitly returned to the Agent.
 
+The native card is a normal Windows overlapped window rather than a modal Task
+Dialog. It starts compact in one configured work-area corner (bottom-right by
+default), can be dragged, minimized, maximized, covered by another application,
+or resized by the operator, and never remains topmost. Decision detail and
+digest-only evidence use independent read-only scroll areas; resizing gives
+those panes more space instead of expanding the initial window to fit all text.
+Buttons use a responsive two-column layout and stack when the window is narrow.
+Close and timeout still deny without dispatch.
+
 ## Desktop presence indicator
 
 The indicator provides ambient feedback comparable to a computer-use border or

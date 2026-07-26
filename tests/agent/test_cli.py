@@ -1625,16 +1625,20 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
         ),
         policy=PolicyConfig(mode=APPROVED_ACTIONS_MODE),
         operator=OperatorConfig(
-            decision_cards_enabled=True, decision_timeout_seconds=45
+            decision_cards_enabled=True,
+            decision_timeout_seconds=45,
+            decision_card_corner="top_left",
         ),
     )
     native = object()
     monkeypatch.setattr(
-        decision_card_window_win32, "Win32DecisionCardWindowApi", lambda: native
+        decision_card_window_win32,
+        "Win32DecisionCardWindowApi",
+        lambda *, corner: (native, corner),
     )
 
     port = agent_cli._approval_port(config)
 
     assert isinstance(port, DecisionCardApprovalPort)
     assert port._timeout_seconds == 45
-    assert port._surface.api is native
+    assert port._surface.api == (native, "top_left")

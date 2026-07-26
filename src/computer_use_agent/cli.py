@@ -53,7 +53,11 @@ def _approval_port(config: AgentConfig) -> ApprovalPort:
     from .decision_card_window_win32 import Win32DecisionCardWindowApi
 
     return DecisionCardApprovalPort(
-        DecisionCardWindow(Win32DecisionCardWindowApi()),
+        DecisionCardWindow(
+            Win32DecisionCardWindowApi(
+                corner=config.operator.decision_card_corner,
+            )
+        ),
         timeout_seconds=config.operator.decision_timeout_seconds,
     )
 
