@@ -59,6 +59,9 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
         ["campaign", "start-boss-batch", "--help"],
         ["campaign", "run-claimed-boss", "--help"],
         ["campaign", "resume-boss-batch", "--help"],
+        ["campaign", "start-boss-semantic-batch", "--help"],
+        ["campaign", "run-claimed-boss-semantic", "--help"],
+        ["campaign", "resume-boss-semantic-batch", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -803,6 +806,45 @@ def test_boss_batch_resume_cli_has_no_item_selector_or_external_ports(
         "prior_run_id": "boss_run_1",
         "run_id": "boss_run_2",
     }
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "start-boss-semantic-batch",
+        "run-claimed-boss-semantic",
+        "resume-boss-semantic-batch",
+    ],
+)
+def test_boss_semantic_cli_has_no_free_form_or_item_selector(
+    command: str,
+    tmp_path: Path,
+) -> None:
+    parsed = agent_cli.build_parser().parse_args(
+        [
+            "campaign",
+            command,
+            "--config",
+            str(tmp_path / "agent.toml"),
+            "--campaign-id",
+            "campaign_1",
+            "--run-id",
+            "semantic_run_1",
+        ]
+    )
+
+    for forbidden in (
+        "task",
+        "item_key",
+        "url",
+        "page",
+        "scope",
+        "campaign_kind",
+        "batch_id",
+        "classification",
+        "classification_policy",
+    ):
+        assert not hasattr(parsed, forbidden)
 
 
 def test_non_dry_run_with_missing_config_fails_before_creating_a_lock(

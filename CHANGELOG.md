@@ -20,13 +20,16 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
-- **Bounded BOSS semantic extraction contract.** Added an offline-only strict
-  compact result with classification-policy binding, canonical digest, and a
-  deterministic UIA-to-screenshot ladder. Escalation requires explicit
-  incomplete evidence; authentication, challenge, rate-limit, site-blocked,
-  unavailable-content, and exhausted-ladder states hand off without retry.
-  This contract opens no provider/MCP port and is not connected to the retained
-  one-call BOSS item runtime.
+- **Bounded BOSS semantic extraction seam.** Added a strict compact result with
+  classification-policy binding, canonical digest, and deterministic
+  UIA-to-screenshot ladder plus three fixed no-selector CLIs. The separate
+  one-item/five-call/zero-side-effect runtime re-establishes the claim through
+  Runner, supports UIA/document-text extraction, accepts only strict provider
+  JSON, commits canonical digests, and transfers successful handoff to a fresh
+  run. Authentication/challenge states hand off, and the still-gated OCR Host
+  baseline produces a retryable `CONTENT_UNAVAILABLE` handoff with zero OCR
+  MCP dispatch. The initial policy permits only `INSUFFICIENT_EVIDENCE`
+  because no user job preference is configured.
 - **Bounded BOSS batch-start boundary.** A fixed
   `campaign start-boss-batch` command validates the complete current BOSS
   discovery ledger, requires at least two discovery passes, opens only the

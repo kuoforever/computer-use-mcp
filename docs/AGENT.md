@@ -318,6 +318,20 @@ and claims its first item. These paths are offline verified and accept no item
 selector. They do not navigate automatically, extract job semantics, or fill
 the 100-item application gate.
 
+`boss_semantic_item_runtime.py` adds a separate one-item semantic policy
+without changing that retained identity seam. Fixed
+`start-boss-semantic-batch` permits one item, at most five provider turns and
+five tool attempts, and zero side effects. Fixed
+`run-claimed-boss-semantic` re-establishes the exact public identity through
+Runner UIA, discloses only the exact next observation tool, accepts only strict
+assessment/result JSON, and commits only a schema-, source-, and fixed
+no-preference-policy-bound digest. UIA and document text are connected; the
+still-gated OCR Host baseline produces a zero-OCR-dispatch
+`CONTENT_UNAVAILABLE` handoff. Fixed `resume-boss-semantic-batch` transfers a
+successful batch to a fresh zero-port run and claims the exact next item. These
+paths are offline verified, have no free-form task or item selector, and have
+no on-device semantic result.
+
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.

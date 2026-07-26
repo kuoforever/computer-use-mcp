@@ -71,8 +71,13 @@ extraction, automatic navigation, provider execution, or the 100-item
 application gate. A separate
 [bounded semantic contract](docs/BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) now
 offline-verifies the exact compact result, classification-policy binding,
-canonical digest, and fail-closed UIA-to-screenshot observation ladder. It is
-pure and is not connected to the retained one-call item runtime. The broader
+canonical digest, and fail-closed UIA-to-screenshot observation ladder. A
+separate one-item semantic CLI seam now connects UIA and document text through
+Runner, commits only strict provider JSON under a fixed no-preference
+classification policy, writes failure handoff when the still-gated OCR rung is
+denied without dispatch, and transfers a successful batch to a fresh run. It
+does not alter the retained one-call identity runtime and has no on-device
+semantic evidence. The broader
 universal GUI, operator UI, cross-application demo, continual-learning, and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))

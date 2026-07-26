@@ -128,11 +128,14 @@ recovery. The later [clean three-item sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE
 retained two discovery passes, twelve stable identities, and three consecutive
 fresh-run commits without local state correction. The separately
 [reviewed bounded semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) is
-now offline verified: it fixes the compact result, classification-policy
-binding, canonical digest, and fail-closed UIA-to-screenshot ladder without
-provider, MCP, or campaign writes. Next connect that contract to a newly
-reviewed multi-call claimed-item runtime through Runner, retain one on-device
-semantic item, then expand to the 100-item evaluation.
+now connected to a separately bounded offline-verified runtime. Three fixed
+no-selector commands open a one-item/five-call/zero-side-effect batch,
+re-establish the exact claim through Runner UIA, permit document-text
+escalation, validate strict provider JSON, commit only canonical
+policy/source-bound results, and transfer successful handoff to a fresh run.
+The runtime performs no OCR dispatch while that rung retains an unmet Host
+safety baseline. Next retain one on-device UIA/document-text semantic item,
+review pixel escalation separately, then expand to the 100-item evaluation.
 
 The prior per-increment chronology is preserved in
 [archived campaign control-state history](archive/CAMPAIGN_CONTROL_STATE_HISTORY.md);
