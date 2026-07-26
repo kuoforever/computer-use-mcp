@@ -178,11 +178,13 @@ same poller without inventing a run phase, while zero-port control commands
 remain window-free. The fixed synthetic command has
 [retained native evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md), and one
 persisted read-only recovery observation has separate
-[native lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md). Bounded
-plan-run and BOSS campaign lifecycle wiring remain offline-only. Fake-only,
-digest-bound Decision Card models and
-choice validation from [Operator experience](OPERATOR_EXPERIENCE.md) are now
-implemented without an approval or dispatch port. An opt-in four-choice Win32
+[native lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md). One fixed
+provider-free bounded plan also has separate
+[native lifecycle evidence](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md). BOSS campaign
+lifecycle wiring remains offline-only. Fake-only, digest-bound Decision Card
+models and choice validation from
+[Operator experience](OPERATOR_EXPERIENCE.md) are now implemented without an
+approval or dispatch port. An opt-in four-choice Win32
 card now connects exact-effect selection, re-observe, durable defer, and denial through the existing `ApprovalPort`;
 the Runner yields first and rechecks every Host digest before its unchanged
 dispatch boundary. Expandable inspection exposes only fixed facts and digest

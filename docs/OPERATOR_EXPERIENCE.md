@@ -25,8 +25,10 @@
 > and the opt-in approval path has bounded native
 > [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md). The separate
 > progress lifecycle has retained
-> [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md), and the fixed
-> synthetic campaign has retained
+> [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md), a fixed
+> provider-free bounded plan has separate
+> [plan lifecycle evidence](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md), and the fixed
+> synthetic campaign has
 > [campaign lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md). One
 > persisted observation-pending run has separate read-only
 > [recovery lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md).
