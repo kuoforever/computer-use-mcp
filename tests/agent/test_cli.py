@@ -129,6 +129,8 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["campaign", "run-claimed", "--help"],
         ["campaign", "resume", "--help"],
         ["campaign", "prepare-application", "--help"],
+        ["campaign", "prepare-discovery", "--help"],
+        ["campaign", "observe-discovery-page", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -677,6 +679,188 @@ def test_boss_discovery_prepare_cli_has_no_selector_or_external_ports(
         "campaign_kind": "boss_saved_job_read_only",
         "discovered_count": 0,
         "run_id": "prepare_1",
+    }
+
+
+def test_discovery_prepare_cli_accepts_only_a_registered_kind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    captured: list[tuple[object, str, str, str, datetime]] = []
+    now = datetime(2026, 7, 26, 6, 0, tzinfo=timezone.utc)
+
+    def fake_prepare(
+        runner: object,
+        *,
+        campaign_kind: str,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_kind, campaign_id, run_id, now))
+        return SimpleNamespace(
+            campaign_id=campaign_id,
+            campaign_kind=campaign_kind,
+            adapter_id="incident_queue_rows",
+            run_id=run_id,
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.application_discovery_runtime."
+        "prepare_application_discovery_campaign",
+        fake_prepare,
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "prepare-discovery",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "prepare_1",
+        "--kind",
+        "enterprise_incident",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in ("task", "item_key", "url", "page", "scope", "items_file"):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+    runner, campaign_kind, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is None
+    assert (campaign_kind, campaign_id, run_id, captured_now) == (
+        "enterprise_incident",
+        "campaign_1",
+        "prepare_1",
+        now,
+    )
+    assert json.loads(capsys.readouterr().out) == {
+        "adapter_id": "incident_queue_rows",
+        "campaign_id": "campaign_1",
+        "campaign_kind": "enterprise_incident",
+        "discovered_count": 0,
+        "run_id": "prepare_1",
+    }
+
+    with pytest.raises(SystemExit) as raised:
+        agent_cli.build_parser().parse_args(
+            [
+                "campaign",
+                "prepare-discovery",
+                "--config",
+                str(config_path),
+                "--campaign-id",
+                "campaign_1",
+                "--run-id",
+                "prepare_2",
+                "--kind",
+                "google_docs_section_review",
+            ]
+        )
+    assert raised.value.code == 2
+
+
+def test_discovery_page_cli_uses_one_desktop_with_provider_forbidden(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from computer_use_agent.fakes import FakeDesktopMCP
+
+    captured: list[tuple[object, str, str, datetime]] = []
+    now = datetime(2026, 7, 26, 6, 0, tzinfo=timezone.utc)
+    desktop = FakeDesktopMCP()
+
+    async def fake_execute(
+        runner: object,
+        *,
+        campaign_id: str,
+        run_id: str,
+        now: datetime,
+    ) -> object:
+        captured.append((runner, campaign_id, run_id, now))
+        return SimpleNamespace(
+            state=SimpleNamespace(
+                run_id=run_id,
+                budgets=SimpleNamespace(tool_calls_used=1),
+            ),
+            discovery=SimpleNamespace(
+                adapter_id="incident_queue_rows",
+                campaign_kind="enterprise_incident",
+                discovered_count=2,
+                duplicate_count=1,
+                new_item_keys=("incident:ticket:INC-004822",),
+                pass_sequence=2,
+                added_nothing=False,
+            ),
+        )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(
+        "computer_use_agent.desktop_mcp.StdioDesktopMCP",
+        lambda _config: desktop,
+    )
+    monkeypatch.setattr(
+        "computer_use_agent.application_discovery_runtime."
+        "execute_application_discovery_pass",
+        fake_execute,
+    )
+    presence = RecordingProgress()
+    progress = RecordingProgress()
+    monkeypatch.setattr(agent_cli, "_presence_lifecycle", lambda _config: presence)
+    monkeypatch.setattr(agent_cli, "_progress_lifecycle", lambda _config: progress)
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "observe-discovery-page",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_1",
+        "--run-id",
+        "run_1",
+    ]
+    parsed = agent_cli.build_parser().parse_args(arguments)
+    for forbidden in ("task", "item_key", "url", "page", "scope", "kind"):
+        assert not hasattr(parsed, forbidden)
+
+    assert main(arguments) == 0
+    runner, campaign_id, run_id, captured_now = captured[0]
+    assert isinstance(runner, agent_cli.AgentRunner)
+    assert runner.ports is not None
+    assert runner.ports.desktop is desktop
+    assert isinstance(runner.ports.provider, agent_cli._ForbiddenCampaignProvider)
+    assert runner.ports.presence is presence
+    assert (campaign_id, run_id, captured_now) == ("campaign_1", "run_1", now)
+    assert progress.events == ["wake", "release"]
+    assert json.loads(capsys.readouterr().out) == {
+        "adapter_id": "incident_queue_rows",
+        "campaign_id": "campaign_1",
+        "campaign_kind": "enterprise_incident",
+        "discovered_count": 2,
+        "duplicate_count": 1,
+        "new_item_count": 1,
+        "pass_added_nothing": False,
+        "pass_sequence": 2,
+        "run_id": "run_1",
+        "tool_calls": 1,
     }
 
 

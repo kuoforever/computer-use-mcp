@@ -140,8 +140,25 @@ only Runner-advertised MCP tool subset. Provider execution returns one strict
 scenario/item/result schema and can commit only observation evidence matching
 tools actually dispatched. One-item batches force deterministic handoff and a
 fresh provider context. This is offline runtime coverage, not application
-acceptance: only BOSS has a discovery adapter, and every semantic/application
-claim still requires its own retained provider/desktop/application evidence.
+acceptance: every semantic/application claim still requires its own retained
+provider/desktop/application evidence.
+
+Composable discovery adapters now close the item-identity half of that gate
+without widening authority. A reviewed adapter binds one campaign kind to one
+identity dimension, an extraction mode (`link_url` or `control_name`), an
+item-key prefix, an identity pattern, a source marker, and an exact role set.
+`campaign prepare-discovery` creates only the empty reviewed campaign for one
+registered kind, and `campaign observe-discovery-page` records exactly one
+operator-driven pass from one foreground `ui_snapshot` through the sole Runner
+boundary with the provider forbidden; the observing command takes no kind
+because the durable manifest selects the adapter. Because the created campaign
+carries the ordinary worker policy and schema digests, discovery flows into
+`campaign start` without a second manifest shape or dispatch path. Two adapters
+are registered as reviewed examples, and unregistered kinds, unchanged sources,
+torn pass ledgers, and campaigns that already opened a batch or wrote a handoff
+fail closed. BOSS keeps its own fixed discovery contract and its retained
+on-device evidence; the generic path is offline verified only, so the next gate
+is one retained on-device adapter pass followed by the 100-item evaluation.
 A partial [three-item diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md)
 now retains two discovered-and-fixed integration defects plus one clean
 post-fix stale-owner recovery. It is not clean acceptance evidence; the next

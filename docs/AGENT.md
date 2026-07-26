@@ -318,6 +318,21 @@ and claims its first item. These paths are offline verified and accept no item
 selector. They do not navigate automatically, extract job semantics, or fill
 the 100-item application gate.
 
+`discovery_adapters.py`, `application_campaign_discovery.py`, and
+`application_discovery_runtime.py` generalize identity discovery without
+generalizing authority. An adapter is reviewed data bound to one campaign kind:
+`link_url` keeps only the path identifier of an `https` target on an
+allowlisted host and discards scheme, host, query, and fragment, while
+`control_name` keeps only a control name matching the declared roles and
+pattern. Both require a same-observation source marker and bound snapshot size,
+lines, identities per pass, campaign items, and passes. `campaign
+prepare-discovery` creates only the empty reviewed campaign for one registered
+kind; `campaign observe-discovery-page` takes no kind, resolves the adapter from
+the durable manifest, and dispatches exactly one foreground `ui_snapshot`
+through the same Runner/project-MCP boundary with the provider forbidden. The
+created campaign carries the ordinary worker policy and schema digests, so it
+enters `campaign start` unchanged. These paths are offline verified only.
+
 Non-dry runs now project that in-memory ledger to an atomic safe checkpoint and
 append-only redacted JSONL trace. The projection deliberately omits task/final
 text, observation content, screenshots, provider IDs/errors, and typed values.

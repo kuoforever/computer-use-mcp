@@ -12,6 +12,25 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Composable application discovery adapters.** A declarative adapter states
+  how one bounded foreground observation yields stable public item identities
+  for a reviewed scenario: `link_url` reads identifiers out of hyperlink
+  targets on an exact allowlisted host and discards every other URL field,
+  while `control_name` reads them out of control names for an exact role set.
+  Both require a same-observation source marker, bound snapshot size, identity
+  count, campaign size, and pass count, and persist only a prefixed public key.
+  New `campaign prepare-discovery` and `campaign observe-discovery-page`
+  commands create the reviewed campaign and record exactly one pass through the
+  sole Runner boundary with the provider forbidden; the adapter is bound by the
+  durable manifest kind, never by a caller argument, and no command accepts a
+  page, URL, scope, or item selector. Because the campaign carries the ordinary
+  worker policy and schema digests, a discovered campaign enters `campaign
+  start` without a second manifest shape or dispatch path. Two reviewed
+  adapters are registered as examples; unregistered kinds, unchanged sources,
+  torn pass ledgers, and campaigns that already opened a batch or wrote a
+  handoff fail closed. The fixed BOSS discovery module, its contract digests,
+  and its retained on-device evidence are unchanged, and this generic path is
+  offline verified only.
 - **Composable scroll and drag input primitives.** The reviewed Windows MCP
   surface now exposes bounded `scroll` and `drag` actions through the same
   foreground guard, approval, side-effect budget, write-ahead, audit, grounding,

@@ -12,6 +12,7 @@ from typing import Sequence
 from uuid import uuid4
 
 from .config import APPROVED_ACTIONS_MODE, AgentConfig, ConfigError, load_agent_config
+from .discovery_adapters import DEFAULT_DISCOVERY_ADAPTERS
 from .presence_lifecycle import (
     FailSilentLifecycle,
     PresenceLifecyclePort,
@@ -342,6 +343,26 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="JSON array of stable item keys; content is not printed or traced.",
     )
+    campaign_prepare_discovery = campaign_commands.add_parser(
+        "prepare-discovery",
+        help="Prepare one empty reviewed campaign for a registered discovery adapter.",
+    )
+    campaign_prepare_discovery.add_argument("--config", required=True, type=Path)
+    campaign_prepare_discovery.add_argument("--campaign-id", required=True)
+    campaign_prepare_discovery.add_argument("--run-id", required=True)
+    campaign_prepare_discovery.add_argument(
+        "--kind",
+        required=True,
+        choices=DEFAULT_DISCOVERY_ADAPTERS.kinds,
+        help="Registered campaign kind; it selects the reviewed adapter.",
+    )
+    campaign_observe_discovery = campaign_commands.add_parser(
+        "observe-discovery-page",
+        help="Observe one foreground discovery source for a durable adapter campaign.",
+    )
+    campaign_observe_discovery.add_argument("--config", required=True, type=Path)
+    campaign_observe_discovery.add_argument("--campaign-id", required=True)
+    campaign_observe_discovery.add_argument("--run-id", required=True)
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -1046,6 +1067,80 @@ def _prepare_application_campaign(
     return 0
 
 
+def _prepare_discovery_campaign(
+    path: Path,
+    campaign_id: str,
+    run_id: str,
+    campaign_kind: str,
+) -> int:
+    from .application_discovery_runtime import prepare_application_discovery_campaign
+
+    config = load_agent_config(path)
+    outcome = prepare_application_discovery_campaign(
+        AgentRunner(config),
+        campaign_kind=campaign_kind,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "adapter_id": outcome.adapter_id,
+            "campaign_id": outcome.campaign_id,
+            "campaign_kind": outcome.campaign_kind,
+            "discovered_count": 0,
+            "run_id": outcome.run_id,
+        }
+    )
+    return 0
+
+
+async def _observe_discovery_page_async(path: Path, campaign_id: str, run_id: str) -> int:
+    from .application_discovery_runtime import execute_application_discovery_pass
+    from .approvals import ReadOnlyApprovalPort
+    from .desktop_mcp import StdioDesktopMCP
+
+    config = load_agent_config(path)
+    progress = _active_progress_lifecycle(config)
+    try:
+        runner = AgentRunner(
+            config,
+            RunnerPorts(
+                provider=_ForbiddenCampaignProvider(),
+                desktop=StdioDesktopMCP(config.mcp),
+                approvals=ReadOnlyApprovalPort(),
+                presence=_presence_lifecycle(config),
+            ),
+        )
+        outcome = await execute_application_discovery_pass(
+            runner,
+            campaign_id=campaign_id,
+            run_id=run_id,
+            now=_campaign_now(),
+        )
+        _print_json(
+            {
+                "adapter_id": outcome.discovery.adapter_id,
+                "campaign_id": campaign_id,
+                "campaign_kind": outcome.discovery.campaign_kind,
+                "discovered_count": outcome.discovery.discovered_count,
+                "duplicate_count": outcome.discovery.duplicate_count,
+                "new_item_count": len(outcome.discovery.new_item_keys),
+                "pass_added_nothing": outcome.discovery.added_nothing,
+                "pass_sequence": outcome.discovery.pass_sequence,
+                "run_id": outcome.state.run_id,
+                "tool_calls": outcome.state.budgets.tool_calls_used,
+            }
+        )
+        return 0
+    finally:
+        progress.release()
+
+
+def _observe_discovery_page(path: Path, campaign_id: str, run_id: str) -> int:
+    return asyncio.run(_observe_discovery_page_async(path, campaign_id, run_id))
+
+
 def _cancel(path: Path, run_id: str) -> int:
     from .run_lock import RunLock
     from .trace import cancel_run_record
@@ -1519,6 +1614,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.run_id,
                 args.scenario,
                 args.items_file,
+            )
+        if args.command == "campaign" and args.campaign_command == "prepare-discovery":
+            return _prepare_discovery_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+                args.kind,
+            )
+        if (
+            args.command == "campaign"
+            and args.campaign_command == "observe-discovery-page"
+        ):
+            return _observe_discovery_page(
+                args.config,
+                args.campaign_id,
+                args.run_id,
             )
         if args.command == "cancel":
             return _cancel(args.config, args.run_id)
