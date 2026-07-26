@@ -130,10 +130,15 @@ focus-taking local Decision Card:
 [operator]
 decision_cards_enabled = true
 decision_timeout_seconds = 300
+decision_card_corner = "bottom_right"
 ~~~
 
 The feature is disabled by default; the timeout is a strict integer from 5 to
-3600 seconds. Before the card opens, the ordinary Runner records
+3600 seconds. The card defaults to the bottom-right work-area corner; the other
+accepted positions are `top_left`, `top_right`, and `bottom_left`. It opens as
+a normal movable, resizable, minimizable, non-topmost Windows window. Its
+initial size stays compact, while the decision and digest-only evidence panes
+scroll independently and expand with the window. Before the card opens, the ordinary Runner records
 `WAITING_APPROVAL`, releases passive presence/Agent desktop authority, and makes
 no desktop call while the card is open. The native adapter presents four fixed
 choices around one effect: request approval for the exact effect, re-observe,

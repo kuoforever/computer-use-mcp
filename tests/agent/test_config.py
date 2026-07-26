@@ -229,16 +229,22 @@ def test_decision_cards_are_default_off_and_timeout_is_bounded(
     path.write_text(
         _config_text(tmp_path)
         + "\n[operator]\ndecision_cards_enabled = true\n"
-        + "decision_timeout_seconds = 45\n",
+        + "decision_timeout_seconds = 45\n"
+        + 'decision_card_corner = "top_left"\n',
         encoding="utf-8",
     )
     assert load_agent_config(path).operator == OperatorConfig(
-        decision_cards_enabled=True, decision_timeout_seconds=45
+        decision_cards_enabled=True,
+        decision_timeout_seconds=45,
+        decision_card_corner="top_left",
     )
 
     for value in (4, 3_601, True):
         with pytest.raises(ConfigError, match="decision_timeout_seconds"):
             OperatorConfig(decision_timeout_seconds=value)  # type: ignore[arg-type]
+
+    with pytest.raises(ConfigError, match="decision_card_corner"):
+        OperatorConfig(decision_card_corner="center")
 
 
 @pytest.mark.parametrize(

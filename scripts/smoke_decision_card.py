@@ -1,8 +1,10 @@
 """Operator-approved native smoke for the focus-taking Decision Card path."""
 from __future__ import annotations
 
+import argparse
 import asyncio
 import ctypes
+import json
 import sys
 import tempfile
 import threading
@@ -54,6 +56,13 @@ from computer_use_agent.types import (  # noqa: E402
 
 _TDM_CLICK_BUTTON = 0x0400 + 102
 _FIRST_BUTTON_ID = 1001
+_GWL_STYLE = -16
+_GWL_EXSTYLE = -20
+_WS_THICKFRAME = 0x00040000
+_WS_MINIMIZEBOX = 0x00020000
+_WS_MAXIMIZEBOX = 0x00010000
+_WS_EX_TOPMOST = 0x00000008
+_WS_VSCROLL = 0x00200000
 
 
 class Presence:
@@ -146,10 +155,31 @@ def _choose_first_button(observed: dict[str, int], controls: list[str]) -> None:
     user32 = ctypes.windll.user32
     user32.FindWindowW.restype = wintypes.HWND
     user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowLongW.restype = ctypes.c_long
+    user32.GetWindowRect.argtypes = [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.RECT),
+    ]
+    user32.GetWindowRect.restype = wintypes.BOOL
+    user32.MoveWindow.argtypes = [
+        wintypes.HWND,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.BOOL,
+    ]
+    user32.MoveWindow.restype = wintypes.BOOL
 
     def collect(control, depth: int = 0) -> None:  # noqa: ANN001
         if control.Name:
             controls.append(control.Name)
+        native_handle = int(control.NativeWindowHandle or 0)
+        if native_handle:
+            style = int(user32.GetWindowLongW(native_handle, _GWL_STYLE))
+            if style & _WS_VSCROLL:
+                observed["scrollable"] = 1
         if depth < 4:
             for child in control.GetChildren():
                 collect(child, depth + 1)
@@ -162,6 +192,30 @@ def _choose_first_button(observed: dict[str, int], controls: list[str]) -> None:
                 observed["hwnd"] = hwnd
                 if int(user32.GetForegroundWindow() or 0) == hwnd:
                     observed["foreground"] = hwnd
+                    observed["style"] = int(
+                        user32.GetWindowLongW(hwnd, _GWL_STYLE)
+                    )
+                    observed["ex_style"] = int(
+                        user32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
+                    )
+                    before = wintypes.RECT()
+                    after = wintypes.RECT()
+                    if user32.GetWindowRect(hwnd, ctypes.byref(before)):
+                        initial_width = before.right - before.left
+                        initial_height = before.bottom - before.top
+                        observed["initial_width"] = initial_width
+                        observed["initial_height"] = initial_height
+                        user32.MoveWindow(
+                            hwnd,
+                            before.left,
+                            before.top,
+                            initial_width + 120,
+                            initial_height + 80,
+                            True,
+                        )
+                        if user32.GetWindowRect(hwnd, ctypes.byref(after)):
+                            observed["resized_width"] = after.right - after.left
+                            observed["resized_height"] = after.bottom - after.top
                     collect(auto.ControlFromHandle(hwnd))
                     user32.SendMessageW(
                         wintypes.HWND(hwnd), _TDM_CLICK_BUTTON, _FIRST_BUTTON_ID, 0
@@ -203,7 +257,37 @@ async def _timeout_run(state_dir: Path):
     return "UNEXPECTED_SUCCESS", desktop
 
 
-def main() -> int:
+async def _human_run(state_dir: Path, timeout_seconds: int) -> dict[str, object]:
+    provider, desktop = _workflow("card_human_allow", complete=True)
+    presence = Presence()
+    card = DecisionCardApprovalPort(
+        DecisionCardWindow(Win32DecisionCardWindowApi()),
+        timeout_seconds=timeout_seconds,
+    )
+    outcome = await AgentRunner(
+        _config(state_dir),
+        RunnerPorts(provider, desktop, card, presence=presence),
+    ).run(
+        "Human reviews one synthetic exact-effect activation",
+        run_id="card_human_allow",
+    )
+    calls = [call.name for call in desktop.tool_calls]
+    if outcome.text != "Complete":
+        raise RuntimeError("HUMAN_CARD_WORKFLOW_INCOMPLETE")
+    if calls != ["list_windows", "activate_window", "list_windows"]:
+        raise RuntimeError("HUMAN_CARD_DISPATCH_SEQUENCE_INVALID")
+    if presence.releases != 1:
+        raise RuntimeError("HUMAN_CARD_AUTHORITY_NOT_YIELDED")
+    return {
+        "authority_releases": presence.releases,
+        "external_ports": "fake_only",
+        "result": "PASS",
+        "side_effect_dispatches": 1,
+        "tool_sequence": calls,
+    }
+
+
+def _automated_main() -> int:
     user32 = ctypes.windll.user32
     user32.GetForegroundWindow.restype = wintypes.HWND
     foreground_before = int(user32.GetForegroundWindow() or 0)
@@ -229,6 +313,18 @@ def main() -> int:
         problems.append("Agent authority was not yielded exactly once before the card")
     if observed.get("hwnd", 0) == 0 or observed.get("foreground") != observed.get("hwnd"):
         problems.append("native Decision Card did not become the foreground window")
+    required_style = _WS_THICKFRAME | _WS_MINIMIZEBOX | _WS_MAXIMIZEBOX
+    if observed.get("style", 0) & required_style != required_style:
+        problems.append("native Decision Card is not a standard resizable window")
+    if observed.get("ex_style", 0) & _WS_EX_TOPMOST:
+        problems.append("native Decision Card remained topmost")
+    if (
+        observed.get("resized_width", 0) <= observed.get("initial_width", 0)
+        or observed.get("resized_height", 0) <= observed.get("initial_height", 0)
+    ):
+        problems.append("native Decision Card did not respond to resizing")
+    if observed.get("scrollable") != 1:
+        problems.append("native Decision Card did not expose scrollable content")
     expected_controls = {
         "Request approval for one exact effect",
         "Re-observe before continuing",
@@ -259,10 +355,39 @@ def main() -> int:
         return 1
     print(
         f"RESULT: PASS (card foreground {observed['hwnd']:#x}; authority yielded; "
+        "normal movable/resizable non-topmost window and scrollable content verified; "
         "four bounded options and evidence affordance rendered; approved choice "
         "used ordinary dispatch and verification; five-second timeout denied with "
         "zero side-effect dispatch; prior foreground restored)"
     )
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Exercise the bounded native Decision Card with fake external ports."
+    )
+    parser.add_argument(
+        "--human",
+        action="store_true",
+        help="Wait for a human to approve the exact synthetic effect.",
+    )
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=120,
+        help="Human Decision Card timeout (15-300 seconds; default: 120).",
+    )
+    args = parser.parse_args()
+    if not args.human:
+        return _automated_main()
+    if not 15 <= args.timeout_seconds <= 300:
+        parser.error("--timeout-seconds must be between 15 and 300")
+    root = default_state_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="decision-card-human-", dir=root) as raw:
+        result = asyncio.run(_human_run(Path(raw), args.timeout_seconds))
+    print(json.dumps(result, ensure_ascii=True, sort_keys=True))
     return 0
 
 
