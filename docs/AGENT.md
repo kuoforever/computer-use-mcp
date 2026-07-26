@@ -24,7 +24,7 @@ CLI / local operator
   -> Agent Host (policy, ledger, memory, trace)
       -> provider adapter
       -> local stdio MCP bridge
-          -> computer-use-mcp server
+          -> guarded-desktop-mcp server
               -> gate, human activity, confirmation, e-stop, audit
               -> Windows UI Automation / Win32
 ~~~
@@ -34,7 +34,7 @@ allowlist, human-activity check, confirmation, e-stop, or audit behavior.
 
 ## Current CLI behavior
 
-The `computer-use-agent` entry point and `python -m computer_use_agent` expose
+The `guarded-desktop-agent` entry point and `python -m computer_use_agent` expose
 the following commands:
 
 - `config validate --config PATH` parses and validates TOML without creating
@@ -407,8 +407,8 @@ Install and run the experimental slice with:
 ~~~powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
 $env:OPENAI_API_KEY = "..."
-.\.venv\Scripts\computer-use-agent.exe config validate --config agent.toml
-.\.venv\Scripts\computer-use-agent.exe run --config agent.toml --task "List the open windows"
+.\.venv\Scripts\guarded-desktop-agent.exe config validate --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe run --config agent.toml --task "List the open windows"
 ~~~
 
 For Claude, install `.[agent-anthropic]`, set `ANTHROPIC_API_KEY`, and use

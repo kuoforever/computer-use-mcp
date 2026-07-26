@@ -252,7 +252,7 @@ Cases live in `evals/cases/*.json`, use schema version 1, and are loaded in
 filename order. Run the baseline with no credentials or desktop access:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe eval `
+.\.venv\Scripts\guarded-desktop-agent.exe eval `
   --cases evals\cases `
   --manifest evals\e5-case-manifest.json `
   --report out\e1-e2-report.json
@@ -278,7 +278,7 @@ After intentionally reviewing a case-set change and confirming the full suite
 passes, regenerate the canonical manifest explicitly:
 
 ~~~powershell
-.\.venv\Scripts\computer-use-agent.exe eval `
+.\.venv\Scripts\guarded-desktop-agent.exe eval `
   --cases evals\cases `
   --write-manifest evals\e5-case-manifest.json
 ~~~

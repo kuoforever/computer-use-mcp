@@ -53,12 +53,12 @@ Examples:
 # Default guardrails; only foreground Notepad actions are permitted.
 $env:CUMCP_MODE = "safe_local"
 $env:CUMCP_ALLOWLIST = "notepad.exe"
-.\.venv\Scripts\computer-use-mcp.exe
+.\.venv\Scripts\guarded-desktop-mcp.exe
 
 # Explicit local takeover. E-stop and audit remain enabled.
 $env:CUMCP_MODE = "full_control_local"
 $env:CUMCP_DANGEROUS_CONFIRM = "1"
-.\.venv\Scripts\computer-use-mcp.exe
+.\.venv\Scripts\guarded-desktop-mcp.exe
 ~~~
 
 ## What the safeguards do not cover

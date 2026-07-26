@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/kuoforever/computer-use-mcp/security/advisories/new
+    url: https://github.com/kuoforever/guarded-desktop-agent/security/advisories/new
     about: Do not open a public issue for a guard bypass or credential leak. Use private reporting; see SECURITY.md.
   - name: Capability and evidence status
-    url: https://github.com/kuoforever/computer-use-mcp/blob/main/docs/CAPABILITY_STATUS.md
+    url: https://github.com/kuoforever/guarded-desktop-agent/blob/main/docs/CAPABILITY_STATUS.md
     about: Check what is implemented, offline-verified, provider-verified, and desktop-verified before filing.

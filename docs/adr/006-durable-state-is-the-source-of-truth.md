@@ -64,4 +64,4 @@ completion is measured only from durable state.
 Related: [ADR-001](001-uncertain-dispatch-is-never-auto-replayed.md),
 [ADR-003](003-custom-durability-vs-workflow-engine.md).
 
-[#173]: https://github.com/kuoforever/computer-use-mcp/pull/173
+[#173]: https://github.com/kuoforever/guarded-desktop-agent/pull/173

@@ -33,7 +33,7 @@ body:
     id: sdk
     attributes:
       label: SDK version and project version or commit
-      placeholder: "openai 1.99.0, computer-use-mcp 0.1.0"
+      placeholder: "openai 1.99.0, guarded-desktop-agent 0.1.0"
     validations:
       required: true
   - type: dropdown

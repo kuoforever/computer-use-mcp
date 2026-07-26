@@ -1,6 +1,11 @@
-# computer-use-mcp
+# Guarded Desktop Agent
 
 **A durable, safety-governed computer-use runtime for Windows.**
+
+Formerly `computer-use-mcp`. The new name distinguishes this repository and
+its project-local MCP server from platform-provided computer-use plugins.
+Legacy Python import paths, state directories, environment variables, and
+console commands remain supported during the compatibility window.
 
 [中文快速开始](README.zh-CN.md) · [Architecture](#architecture) · [Reliability demo](#try-the-reliability-demo) · [Evidence dashboard](docs/CAPABILITY_STATUS.md) · [Documentation](docs/README.md)
 
@@ -27,7 +32,7 @@ desktop execution authority, and durable evidence that outlives a crash.
   with no correlated completion stops for a human instead of guessing.
 - **Offline CI** on Windows across Python 3.11–3.13, plus a wheel clean-install
   smoke ([workflow](.github/workflows/ci.yml) ·
-  [runs](https://github.com/kuoforever/computer-use-mcp/actions/workflows/ci.yml)).
+  [runs](https://github.com/kuoforever/guarded-desktop-agent/actions/workflows/ci.yml)).
 
 ## Measured results
 
@@ -130,7 +135,7 @@ to Notepad:
 
 ~~~powershell
 $env:CUMCP_ALLOWLIST = "notepad.exe"
-.\.venv\Scripts\computer-use-mcp.exe
+.\.venv\Scripts\guarded-desktop-mcp.exe
 ~~~
 
 Register the executable with an MCP client using that client's stdio-server
@@ -139,7 +144,7 @@ on an activated virtual environment:
 
 ~~~json
 {
-  "command": "C:\\absolute\\path\\to\\computer-use-mcp\\.venv\\Scripts\\computer-use-mcp.exe",
+  "command": "C:\\absolute\\path\\to\\guarded-desktop-agent\\.venv\\Scripts\\guarded-desktop-mcp.exe",
   "env": {
     "CUMCP_ALLOWLIST": "notepad.exe"
   }
@@ -148,6 +153,10 @@ on an activated virtual environment:
 
 The exact configuration wrapper varies by MCP client; the command and
 environment values above are the portable part.
+
+The legacy `computer-use-mcp` and `computer-use-agent` entry points remain
+aliases for existing integrations. New configurations should use
+`guarded-desktop-mcp` and `guarded-desktop-agent`.
 
 ## Typical workflow
 

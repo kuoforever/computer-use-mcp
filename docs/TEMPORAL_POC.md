@@ -54,7 +54,7 @@ what stopped without reading state files.
 ## Running it
 
 ```powershell
-pip install "computer-use-mcp[temporal]"
+pip install "guarded-desktop-agent[temporal]"
 .\.venv\Scripts\python.exe -m pytest tests\agent\test_temporal_poc.py -q
 ```
 

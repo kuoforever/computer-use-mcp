@@ -79,7 +79,7 @@ def test_cli_without_a_command_prints_help_and_returns_success(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert main([]) == 0
-    assert "Safe local Agent Host foundation" in capsys.readouterr().out
+    assert "Guarded Desktop Agent" in capsys.readouterr().out
 
 
 def test_plan_run_cli_routes_only_config_and_task(

@@ -32,7 +32,7 @@ from computer_use_mcp.drivers.windows import WindowsDriver  # noqa: E402
 from PIL import Image as PILImage  # noqa: E402
 from PIL import ImageDraw  # noqa: E402
 
-TEXT = "你好，世界 — hello from computer-use-mcp v0.1"
+TEXT = "你好，世界 — hello from Guarded Desktop Agent v0.1"
 
 
 def find_notepad_hwnd(launch: bool = True) -> int | None:

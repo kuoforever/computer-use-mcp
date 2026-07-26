@@ -10,7 +10,7 @@ allowlist -> dangerous confirmation -> execute -> audit. ``full_control_local``
 explicitly bypasses the allowlist and human-yield checks, but never e-stop or
 audit. A global panic hotkey (default Ctrl+Alt+Q) latches the server off.
 
-Run:    computer-use-mcp                  (console script, stdio)
+Run:    guarded-desktop-mcp               (console script, stdio)
 Config (env):
   CUMCP_ALLOWLIST="notepad.exe,weixin.exe"   actions allowed only for these (front)
   CUMCP_REDACT_TITLES="1Password,Bitwarden"  window-title substrings to black out
@@ -28,6 +28,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
+from . import MCP_SERVER_NAME
 from .audit import AuditLog
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
@@ -125,7 +126,7 @@ def build_server(
             estop.start()
 
     mcp = FastMCP(
-        "computer-use-mcp",
+        MCP_SERVER_NAME,
         instructions=(
             "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
             "or screenshot, act with click/type/key. "
@@ -290,7 +291,7 @@ def build_server(
             return msg
         desc = session.describe_ref(ref) if ref else None
         if require_dangerous_confirmation and desc and is_dangerous(desc, dangerous_words):
-            if not confirm(f"computer-use-mcp 请求点击：\n\n{desc}\n\n允许执行吗？"):
+            if not confirm(f"{MCP_SERVER_NAME} 请求点击：\n\n{desc}\n\n允许执行吗？"):
                 audit.record("click", _audit_args(args), "user_denied", desc)
                 return f"DENIED by user (dangerous: {desc})"
         return _record_action("click", args, _fmt(session.click(ref=ref, x=x, y=y)))

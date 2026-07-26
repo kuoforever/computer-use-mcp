@@ -3,7 +3,7 @@
 This module is the *only* place in the package that imports OpenTelemetry, and
 nothing in the domain imports this module. The dependency is an optional extra:
 
-    pip install "computer-use-mcp[observability]"
+    pip install "guarded-desktop-agent[observability]"
 
 Without that extra installed, or without an operator explicitly building an
 adapter, the runner keeps using :class:`~computer_use_agent.telemetry.NoOpTelemetry`
@@ -32,7 +32,7 @@ def require_opentelemetry() -> None:
     except ImportError as exc:  # pragma: no cover - exercised by absence
         raise TelemetryError(
             "OpenTelemetry is not installed; "
-            'install the optional extra: pip install "computer-use-mcp[observability]"'
+            'install the optional extra: pip install "guarded-desktop-agent[observability]"'
         ) from exc
 
 

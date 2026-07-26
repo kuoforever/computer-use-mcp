@@ -16,6 +16,7 @@ not a line-by-line mirror of every reference page.
 | Audience or question | Document |
 | --- | --- |
 | I need the complete project map: features, implementation, quality attributes, status, evidence, and next gates | [Project overview](PROJECT_OVERVIEW.md) |
+| I need the current product names and compatibility aliases | [Naming migration](BRAND_MIGRATION.md) |
 | I want to install and run the server | [Root README](../README.md) |
 | I need the shortest implemented/evidence/next-gate view | [Capability status](CAPABILITY_STATUS.md) |
 | I need environment variables or safety behavior | [Configuration and safety](CONFIGURATION.md) |

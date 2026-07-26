@@ -20,6 +20,12 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Guarded Desktop Agent project identity.** Renamed the repository,
+  distribution, product, and MCP service to distinguish the project-local
+  runtime from platform Computer Use plugins. Added canonical
+  `guarded-desktop-agent` and `guarded-desktop-mcp` commands while retaining
+  legacy import paths, console aliases, environment variables, durable state
+  paths, and historical evidence.
 - **Bounded BOSS semantic extraction seam.** Added a strict compact result with
   classification-policy binding, canonical digest, and deterministic
   UIA-to-screenshot ladder plus three fixed no-selector CLIs. The separate
@@ -122,4 +128,4 @@ promote any capability evidence level.
 - Live provider and isolated desktop validation remain explicit human gates and
   are deliberately absent from default CI.
 
-[Unreleased]: https://github.com/kuoforever/computer-use-mcp/compare/main...HEAD
+[Unreleased]: https://github.com/kuoforever/guarded-desktop-agent/compare/main...HEAD
