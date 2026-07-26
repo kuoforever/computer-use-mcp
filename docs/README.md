@@ -58,6 +58,7 @@ not a line-by-line mirror of every reference page.
 | I need the retained current-contract multi-pass BOSS discovery result | [BOSS multi-pass discovery evidence](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) |
 | I need the retained on-device synthetic campaign result | [Synthetic campaign evidence](SYNTHETIC_CAMPAIGN_EVIDENCE.md) |
 | I need the native synthetic campaign progress-window result | [Campaign progress lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md) |
+| I need the native read-only recovery progress-window result | [Recovery progress lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md) |
 | I need the 100-item forced-restart reliability result | [Reliability benchmark evidence](benchmark/README.md) |
 | I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
@@ -97,7 +98,7 @@ not a line-by-line mirror of every reference page.
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
-| Operator experience | Implemented passive progress with opt-in ordinary-run, bounded-plan, read-only recovery, and fixed MCP-backed campaign execution lifecycle wiring; zero-port campaign control remains window-free. Opt-in durable ordinary-run presence and a focus-taking four-choice Win32 Decision Card with expandable digest evidence also exist; same-run re-observe and durable non-resumable defer are offline verified, while integrated campaign desktop evidence and host-owned mobile notification remain planned |
+| Operator experience | Implemented passive progress with opt-in ordinary-run, bounded-plan, read-only recovery, and fixed MCP-backed campaign execution lifecycle wiring; zero-port campaign control remains window-free. Ordinary-run, one persisted read-only recovery observation, and the fixed synthetic campaign have native progress lifecycle evidence. Opt-in durable ordinary-run presence and a focus-taking four-choice Win32 Decision Card with expandable digest evidence also exist; same-run re-observe and durable non-resumable defer are offline verified, while bounded plan-run/BOSS campaign desktop evidence and host-owned mobile notification remain planned |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
