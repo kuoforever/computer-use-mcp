@@ -303,6 +303,29 @@ boundaries fail closed on ownership, plan,
 handoff, or identity drift. They are offline verified only and do not navigate
 or extract role, company, compensation, or other job semantics.
 
+`campaign_worker.py`, `application_campaign_runtime.py`, and
+`worker_capabilities.py` now supply the application-neutral execution layer.
+An explicit operator-side preparation boundary accepts one built-in example
+scenario ID and a bounded JSON list of stable item keys; the library runtime
+also accepts another validated capability-composed scenario spec without core
+Runner changes. Item content is not
+printed or traced. `start`, `run-claimed`, and `resume` then resolve only the
+persisted manifest kind. Fifteen immutable capabilities derive the advertised
+Runner tool subset and carry preconditions, postconditions, stop states,
+approval requirements, and grounding invalidation. The provider must return
+the exact scenario ID, selected item key, identity dimensions, result fields,
+executed observation sources, and verified-state attestations. Unknown or
+substituted values fail before campaign commit. One-item batches deliberately
+rotate provider context through deterministic handoff.
+
+All nineteen application-matrix examples and one non-matrix custom composition
+are offline tested at this shared boundary. They demonstrate extensibility,
+not an exhaustive scenario list, and do not mean the applications have passed:
+application-specific discovery, locator/recovery tuning, fixture accounts,
+desktop evidence, and acceptance evidence remain independent gates. BOSS is
+still the only application with a dedicated discovery adapter and retained
+on-device campaign observations.
+
 
 A future worker must close the current run cleanly at a batch boundary, write
 `handoff.json`, and start a fresh provider context. A replacement session must

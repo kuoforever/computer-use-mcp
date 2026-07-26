@@ -706,11 +706,26 @@ class AgentRunner:
         run_id: str | None = None,
         memories: tuple[MemoryContextItem, ...] = (),
         resume_initial: bool = False,
+        allowed_tool_names: frozenset[str] | None = None,
     ) -> RunOutcome:
         """Run a bounded model/tool loop and release lock and desktop."""
 
         if self.ports is None:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
+        reviewed_tool_names = frozenset(tool.name for tool in REVIEWED_TOOLS)
+        if (
+            allowed_tool_names is not None
+            and (
+                not isinstance(allowed_tool_names, frozenset)
+                or any(
+                    not isinstance(name, str) or name not in reviewed_tool_names
+                    for name in allowed_tool_names
+                )
+            )
+        ):
+            raise ValueError(
+                "allowed_tool_names must be a frozenset of reviewed tool names or None"
+            )
         if not isinstance(memories, tuple) or not all(
             isinstance(item, MemoryContextItem) for item in memories
         ):
@@ -746,6 +761,7 @@ class AgentRunner:
         provider_tools = tuple(
             tool
             for tool in REVIEWED_TOOLS
+            if allowed_tool_names is None or tool.name in allowed_tool_names
             if not self.config.privacy.enabled
             or not tool.returns_image
             or (

@@ -123,6 +123,19 @@ finished session, transfer heartbeat ownership, open the exact coordinator
 resume plan, and claim its first item. Neither accepts an item selector or
 performs automatic navigation or semantic job extraction. Next retain this
 commit/restart sequence on-device, then expand it to the 100-item evaluation.
+A manifest-routed worker runtime now exposes explicit stable-item preparation
+and generic `campaign start`, `campaign run-claimed`, and `campaign resume`
+commands for capability-composed scenario contracts. A1-A19 are built-in
+evaluation examples rather than a closed product list; another validated spec
+can compose reviewed capabilities and register with the same runtime. Fifteen immutable capabilities
+compose stable identity, observation escalation, navigation, entry, recovery,
+verification, and approval-bound effect requirements; their union derives the
+only Runner-advertised MCP tool subset. Provider execution returns one strict
+scenario/item/result schema and can commit only observation evidence matching
+tools actually dispatched. One-item batches force deterministic handoff and a
+fresh provider context. This is offline runtime coverage, not application
+acceptance: only BOSS has a discovery adapter, and every semantic/application
+claim still requires its own retained provider/desktop/application evidence.
 A partial [three-item diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md)
 now retains two discovered-and-fixed integration defects plus one clean
 post-fix stale-owner recovery. It is not clean acceptance evidence; the next

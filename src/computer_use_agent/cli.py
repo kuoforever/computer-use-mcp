@@ -303,6 +303,45 @@ def build_parser() -> argparse.ArgumentParser:
     campaign_resume_boss.add_argument("--config", required=True, type=Path)
     campaign_resume_boss.add_argument("--campaign-id", required=True)
     campaign_resume_boss.add_argument("--run-id", required=True)
+    campaign_start_registered = campaign_commands.add_parser(
+        "start",
+        help="Start the reviewed worker selected by the durable campaign manifest.",
+    )
+    campaign_start_registered.add_argument("--config", required=True, type=Path)
+    campaign_start_registered.add_argument("--campaign-id", required=True)
+    campaign_start_registered.add_argument("--run-id", required=True)
+    campaign_run_registered = campaign_commands.add_parser(
+        "run-claimed",
+        help="Execute the exact durable claim with its registered campaign worker.",
+    )
+    campaign_run_registered.add_argument("--config", required=True, type=Path)
+    campaign_run_registered.add_argument("--campaign-id", required=True)
+    campaign_run_registered.add_argument("--run-id", required=True)
+    campaign_resume_registered = campaign_commands.add_parser(
+        "resume",
+        help="Resume the registered campaign worker from durable handoff state.",
+    )
+    campaign_resume_registered.add_argument("--config", required=True, type=Path)
+    campaign_resume_registered.add_argument("--campaign-id", required=True)
+    campaign_resume_registered.add_argument("--run-id", required=True)
+    campaign_prepare_application = campaign_commands.add_parser(
+        "prepare-application",
+        help="Prepare one reviewed application scenario from a JSON stable-item list.",
+    )
+    campaign_prepare_application.add_argument("--config", required=True, type=Path)
+    campaign_prepare_application.add_argument("--campaign-id", required=True)
+    campaign_prepare_application.add_argument("--run-id", required=True)
+    campaign_prepare_application.add_argument(
+        "--scenario",
+        required=True,
+        choices=tuple(f"A{index}" for index in range(1, 20)),
+    )
+    campaign_prepare_application.add_argument(
+        "--items-file",
+        required=True,
+        type=Path,
+        help="JSON array of stable item keys; content is not printed or traced.",
+    )
 
     remember = commands.add_parser("remember", help="Manage explicit local memories.")
     remember_commands = remember.add_subparsers(dest="remember_command", required=True)
@@ -835,6 +874,178 @@ def _resume_finished_boss_batch(
     return 0
 
 
+def _start_registered_campaign(path: Path, campaign_id: str, run_id: str) -> int:
+    from .campaign_worker import start_campaign_batch
+
+    config = load_agent_config(path)
+    result = start_campaign_batch(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_kind": result.campaign_kind,
+            "operation": result.operation,
+            **result.summary,
+        }
+    )
+    return 0
+
+
+async def _run_registered_campaign_async(
+    path: Path,
+    campaign_id: str,
+    run_id: str,
+) -> int:
+    from .approvals import ReadOnlyApprovalPort
+    from .campaign_worker import (
+        execute_claimed_campaign_item,
+        resolve_campaign_worker,
+    )
+    from .desktop_mcp import StdioDesktopMCP
+    from .privacy import LocalPrivacyImageRedactor, WindowsPrivacyImageRecognizer
+
+    config = load_agent_config(path)
+    selected = resolve_campaign_worker(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+    )
+    if selected.provider_required:
+        if config.provider.name == "openai":
+            from .providers.openai import OpenAIResponsesProvider
+
+            provider = OpenAIResponsesProvider.from_environment(
+                config.provider.model,
+                allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+                max_request_bytes=config.provider.max_request_bytes,
+                context_window_tokens=config.provider.context_window_tokens,
+                output_token_reserve=config.provider.output_token_reserve,
+            )
+        elif config.provider.name == "anthropic":
+            from .providers.anthropic import AnthropicMessagesProvider
+
+            provider = AnthropicMessagesProvider.from_environment(
+                config.provider.model,
+                allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+                max_request_bytes=config.provider.max_request_bytes,
+                context_window_tokens=config.provider.context_window_tokens,
+                output_token_reserve=config.provider.output_token_reserve,
+            )
+        else:
+            raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+        approvals = _approval_port(config)
+        image_redactor = (
+            LocalPrivacyImageRedactor(WindowsPrivacyImageRecognizer())
+            if config.privacy.enabled and config.privacy.image_redaction
+            else None
+        )
+    else:
+        provider = _ForbiddenCampaignProvider()
+        approvals = ReadOnlyApprovalPort()
+        image_redactor = None
+    progress = _active_progress_lifecycle(config)
+    try:
+        result = await execute_claimed_campaign_item(
+            AgentRunner(
+                config,
+                RunnerPorts(
+                    provider=provider,
+                    desktop=StdioDesktopMCP(config.mcp),
+                    approvals=approvals,
+                    image_redactor=image_redactor,
+                    presence=_presence_lifecycle(config),
+                ),
+            ),
+            campaign_id=campaign_id,
+            run_id=run_id,
+            now=_campaign_now(),
+        )
+        _print_json(
+            {
+                "campaign_kind": result.campaign_kind,
+                "operation": result.operation,
+                **result.summary,
+            }
+        )
+        return 0
+    finally:
+        progress.release()
+
+
+def _run_registered_campaign(path: Path, campaign_id: str, run_id: str) -> int:
+    return asyncio.run(_run_registered_campaign_async(path, campaign_id, run_id))
+
+
+def _resume_registered_campaign(path: Path, campaign_id: str, run_id: str) -> int:
+    from .campaign_worker import resume_campaign_batch
+
+    config = load_agent_config(path)
+    result = resume_campaign_batch(
+        AgentRunner(config),
+        campaign_id=campaign_id,
+        replacement_run_id=run_id,
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_kind": result.campaign_kind,
+            "operation": result.operation,
+            **result.summary,
+        }
+    )
+    return 0
+
+
+def _prepare_application_campaign(
+    path: Path,
+    campaign_id: str,
+    run_id: str,
+    scenario_id: str,
+    items_file: Path,
+) -> int:
+    from .application_campaign_runtime import prepare_application_campaign
+    from .application_worker_catalog import APPLICATION_WORKERS_BY_SCENARIO
+
+    try:
+        raw = items_file.read_bytes()
+    except OSError as exc:
+        raise RunnerError("APPLICATION_ITEMS_FILE_READ_FAILED") from exc
+    if not raw or len(raw) > 256 * 1024:
+        raise RunnerError("APPLICATION_ITEMS_FILE_INVALID")
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise RunnerError("APPLICATION_ITEMS_FILE_INVALID") from exc
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(not isinstance(item, str) or not item for item in value)
+    ):
+        raise RunnerError("APPLICATION_ITEMS_FILE_INVALID")
+    spec = APPLICATION_WORKERS_BY_SCENARIO[scenario_id]
+    config = load_agent_config(path)
+    outcome = prepare_application_campaign(
+        AgentRunner(config),
+        spec=spec,
+        campaign_id=campaign_id,
+        run_id=run_id,
+        item_keys=tuple(value),
+        now=_campaign_now(),
+    )
+    _print_json(
+        {
+            "campaign_id": outcome.campaign_id,
+            "campaign_kind": outcome.campaign_kind,
+            "item_count": outcome.item_count,
+            "run_id": outcome.run_id,
+            "scenario_id": outcome.scenario_id,
+        }
+    )
+    return 0
+
+
 def _cancel(path: Path, run_id: str) -> int:
     from .run_lock import RunLock
     from .trace import cancel_run_record
@@ -1279,6 +1490,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.config,
                 args.campaign_id,
                 args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "start":
+            return _start_registered_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "run-claimed":
+            return _run_registered_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if args.command == "campaign" and args.campaign_command == "resume":
+            return _resume_registered_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+            )
+        if (
+            args.command == "campaign"
+            and args.campaign_command == "prepare-application"
+        ):
+            return _prepare_application_campaign(
+                args.config,
+                args.campaign_id,
+                args.run_id,
+                args.scenario,
+                args.items_file,
             )
         if args.command == "cancel":
             return _cancel(args.config, args.run_id)

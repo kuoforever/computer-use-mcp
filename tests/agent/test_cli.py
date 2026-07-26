@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -124,6 +125,10 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["campaign", "start-boss-batch", "--help"],
         ["campaign", "run-claimed-boss", "--help"],
         ["campaign", "resume-boss-batch", "--help"],
+        ["campaign", "start", "--help"],
+        ["campaign", "run-claimed", "--help"],
+        ["campaign", "resume", "--help"],
+        ["campaign", "prepare-application", "--help"],
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
@@ -142,6 +147,47 @@ def test_cli_without_a_command_prints_help_and_returns_success(
 ) -> None:
     assert main([]) == 0
     assert "Safe local Agent Host foundation" in capsys.readouterr().out
+
+
+def test_application_campaign_prepare_cli_persists_only_explicit_stable_items(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    now = datetime(2026, 7, 25, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    items_path = tmp_path / "items.json"
+    items_path.write_text(
+        json.dumps(["doc:fixture:section_1", "doc:fixture:section_2"]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(agent_cli, "_campaign_now", lambda: now)
+    arguments = [
+        "campaign",
+        "prepare-application",
+        "--config",
+        str(config_path),
+        "--campaign-id",
+        "campaign_docs",
+        "--run-id",
+        "prepare_docs",
+        "--scenario",
+        "A2",
+        "--items-file",
+        str(items_path),
+    ]
+
+    assert main(arguments) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "campaign_id": "campaign_docs",
+        "campaign_kind": "google_docs_section_review",
+        "item_count": 2,
+        "run_id": "prepare_docs",
+        "scenario_id": "A2",
+    }
 
 
 def test_plan_run_cli_routes_only_config_and_task(
