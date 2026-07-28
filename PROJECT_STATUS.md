@@ -62,7 +62,7 @@ delivery work.
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Next | Consumer fixture in `LLM-FullCycle-Learning` | Export bundle parsed and validated without desktop/provider access |
 | `GDA-FC-003` | Pending review | Explicit-consent rich episode capture contract owned by Full Cycle | Separate security/privacy review; disabled by default |
-| `GDA-FC-004` | Pending clean candidate | Freeze validation and handoff | Quality gates pass; release preflight awaits a committed clean worktree |
+| `GDA-FC-004` | Complete locally | Freeze validation and handoff | Clean release preflight passed for producer candidate `45bee82`; PR CI validates the final documentation commit |
 
 Only one item may be `Next` or `In progress`.
 
@@ -140,3 +140,4 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-07-28 | Rich episodes require an explicit-consent external capture adapter and a separate privacy/security review. |
 | 2026-07-28 | New product features are frozen until the bridge and baseline handoff close. |
 | 2026-07-28 | Lane A manifest/export v1 is implemented; the next code task is the external offline consumer, not more Runtime capability. |
+| 2026-07-28 | Clean release preflight passed for producer candidate `45bee82`; Runtime remains feature-frozen while the external consumer is completed. |
