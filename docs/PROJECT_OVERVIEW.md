@@ -199,6 +199,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
 | Final-response reconciliation | Preflight implemented/internal | Pure reconstruction of exact completed evidence; applying CAS/cleanup and CLI exposure remain next | [Planning](PLANNING.md) |
 | Complete Planner/Executor CLI | Not implemented | No supported end-to-end planned workflow or side-effect execution path | [Capability status](CAPABILITY_STATUS.md) |
+| Hierarchical task and behavior trees | Planned | Post-linear goals, typed conditions, bounded fallbacks, reusable reviewed behavior templates, and durable node state; no runtime support | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) |
 
 ### Long-running campaigns
 
