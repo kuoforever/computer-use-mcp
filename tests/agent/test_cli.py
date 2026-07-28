@@ -1223,6 +1223,73 @@ def test_trace_cli_reads_only_redacted_record(
     assert "CLI_TASK_SECRET" not in raw
 
 
+def test_fullcycle_cli_writes_manifest_and_redacted_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.fullcycle_export import canonical_json_bytes
+    from computer_use_agent.trace import RunRecorder
+    from computer_use_agent.types import RunBudget, RunState
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    manifest_path = tmp_path.resolve() / "runtime-manifest.json"
+    export_path = tmp_path.resolve() / "run-export.json"
+    state = RunState(
+        run_id="run_cli_fullcycle",
+        task="FULLCYCLE_CLI_SECRET",
+        policy_version="trace-v1",
+        observation_epoch=0,
+        budgets=RunBudget(1, 1, 0),
+    )
+    RunRecorder(state_dir.resolve(), state.run_id).start(state)
+
+    assert main(["fullcycle", "manifest", "--output", str(manifest_path)]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "fullcycle_manifest_version": 1,
+        "written": True,
+    }
+    assert (
+        main(
+            [
+                "fullcycle",
+                "export-run",
+                "--config",
+                str(config_path),
+                "--run-id",
+                state.run_id,
+                "--output",
+                str(export_path),
+            ]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out) == {
+        "fullcycle_run_export_version": 1,
+        "run_id": state.run_id,
+        "written": True,
+    }
+    exported = json.loads(export_path.read_bytes())
+    assert export_path.read_bytes() == canonical_json_bytes(exported)
+    assert exported["run_id"] == state.run_id
+    assert "FULLCYCLE_CLI_SECRET" not in export_path.read_text(encoding="utf-8")
+
+
+def test_fullcycle_cli_rejects_existing_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = tmp_path.resolve() / "existing.json"
+    output.write_text("keep", encoding="utf-8")
+
+    assert main(["fullcycle", "manifest", "--output", str(output)]) == 2
+
+    assert "FULLCYCLE_OUTPUT_ALREADY_EXISTS" in capsys.readouterr().err
+    assert output.read_text(encoding="utf-8") == "keep"
+
+
 def test_recovery_cli_classifies_without_mutating_or_disclosing_task(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

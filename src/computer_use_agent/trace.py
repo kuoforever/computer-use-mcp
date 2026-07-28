@@ -20,6 +20,7 @@ TRACE_VERSION = 1
 CHECKPOINT_VERSION = 1
 MAX_CHECKPOINT_BYTES = 64 * 1024
 MAX_TRACE_LINE_BYTES = 1024 * 1024
+MAX_TRACE_BYTES = 16 * 1024 * 1024
 
 
 class TraceError(RuntimeError):
@@ -606,10 +607,25 @@ def read_run_record(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     recorder = RunRecorder(state_dir=state_dir, run_id=run_id)
     checkpoint = read_run_checkpoint(state_dir, run_id)
     events: list[JSONValue] = []
+    trace_bytes = 0
+    if any(
+        path.is_symlink()
+        for path in (
+            state_dir,
+            recorder.trace_path.parent,
+            recorder.trace_path,
+        )
+    ):
+        raise TraceError("TRACE_READ_FAILED")
     try:
         with recorder.trace_path.open("rb") as file:
             for sequence, line in enumerate(file, start=1):
-                if not line or len(line) > MAX_TRACE_LINE_BYTES:
+                trace_bytes += len(line)
+                if (
+                    not line
+                    or len(line) > MAX_TRACE_LINE_BYTES
+                    or trace_bytes > MAX_TRACE_BYTES
+                ):
                     raise TraceError("TRACE_READ_FAILED")
                 try:
                     event = json.loads(line)
@@ -634,7 +650,15 @@ def read_run_checkpoint(state_dir: Path, run_id: str) -> dict[str, JSONValue]:
     """Read one bounded atomic checkpoint without opening its JSONL trace."""
 
     recorder = RunRecorder(state_dir=state_dir, run_id=run_id)
-    if recorder.checkpoint_path.is_symlink():
+    if any(
+        path.is_symlink()
+        for path in (
+            state_dir,
+            recorder.run_dir.parent,
+            recorder.run_dir,
+            recorder.checkpoint_path,
+        )
+    ):
         raise TraceError("CHECKPOINT_READ_FAILED")
     checkpoint = _read_json(
         recorder.checkpoint_path, MAX_CHECKPOINT_BYTES, "CHECKPOINT_READ_FAILED"
