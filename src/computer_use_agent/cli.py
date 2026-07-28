@@ -201,6 +201,21 @@ def build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--artifacts", type=Path, default=Path("out/release-preflight"))
     preflight.add_argument("--report", type=Path, default=Path("out/release-preflight.json"))
 
+    fullcycle = commands.add_parser(
+        "fullcycle", help="Export bounded runtime contracts and redacted run evidence."
+    )
+    fullcycle_commands = fullcycle.add_subparsers(dest="fullcycle_command", required=True)
+    fullcycle_manifest = fullcycle_commands.add_parser(
+        "manifest", help="Write the versioned reviewed runtime manifest."
+    )
+    fullcycle_manifest.add_argument("--output", required=True, type=Path)
+    fullcycle_export = fullcycle_commands.add_parser(
+        "export-run", help="Write one validated redacted run bundle."
+    )
+    fullcycle_export.add_argument("--config", required=True, type=Path)
+    fullcycle_export.add_argument("--run-id", required=True)
+    fullcycle_export.add_argument("--output", required=True, type=Path)
+
     trace = commands.add_parser("trace", help="Inspect one redacted run record.")
     trace.add_argument("run_id")
     trace.add_argument("--config", required=True, type=Path)
@@ -1365,6 +1380,36 @@ def _show_trace(path: Path, run_id: str) -> int:
     return 0
 
 
+def _write_fullcycle_manifest(output: Path) -> int:
+    from .fullcycle_export import build_fullcycle_manifest, write_new_fullcycle_json
+
+    payload = build_fullcycle_manifest()
+    write_new_fullcycle_json(output, payload)
+    _print_json(
+        {
+            "fullcycle_manifest_version": payload["fullcycle_manifest_version"],
+            "written": True,
+        }
+    )
+    return 0
+
+
+def _write_fullcycle_run(path: Path, run_id: str, output: Path) -> int:
+    from .fullcycle_export import build_fullcycle_run_export, write_new_fullcycle_json
+
+    config = load_agent_config(path)
+    payload = build_fullcycle_run_export(config.state_dir, run_id)
+    write_new_fullcycle_json(output, payload)
+    _print_json(
+        {
+            "fullcycle_run_export_version": payload["fullcycle_run_export_version"],
+            "run_id": run_id,
+            "written": True,
+        }
+    )
+    return 0
+
+
 def _show_report(path: Path) -> int:
     from .report import build_run_report
 
@@ -1687,6 +1732,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_eval(args.cases, args.report, args.manifest, args.write_manifest)
         if args.command == "release" and args.release_command == "preflight":
             return _run_release_preflight(args.root, args.artifacts, args.report)
+        if args.command == "fullcycle" and args.fullcycle_command == "manifest":
+            return _write_fullcycle_manifest(args.output)
+        if args.command == "fullcycle" and args.fullcycle_command == "export-run":
+            return _write_fullcycle_run(args.config, args.run_id, args.output)
         if args.command == "trace":
             return _show_trace(args.config, args.run_id)
         if args.command == "report":

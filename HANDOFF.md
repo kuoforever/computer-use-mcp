@@ -91,6 +91,14 @@ driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver
 remain planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and
 read the status header of every owner document before treating it as available.
 
+The Runtime-side Full Cycle Lane A bridge is implemented. `fullcycle manifest`
+derives a versioned capability document from the reviewed registry, and
+`fullcycle export-run` packages only the already-redacted checkpoint and trace.
+Both write canonical bounded JSON to a new absolute path and open no external
+port. The next implementation task belongs in `LLM-FullCycle-Learning`: add the
+strict offline consumer fixture. Rich episode capture remains a separate,
+explicit-consent design review.
+
 Before changing behavior, inspect the current worktree and run the unit suite:
 
 ~~~powershell
@@ -120,6 +128,7 @@ src/computer_use_agent/
   runner.py            sole Agent tool-dispatch authority boundary
   providers/           OpenAI and Claude adapters
   planning.py          bounded declarative planning contracts
+  fullcycle_export.py  versioned manifest and redacted run-export producer
   executor*.py         internal observation/final runtime and local reconciliation
   planned_observation_runtime.py fixed observation-only CLI composition
   campaign*.py         offline campaign control state and preflights
@@ -188,6 +197,12 @@ docs/                  canonical English documentation
     exactly one of two runs into History without changing foreground.
 
 ## Starting a fresh maintenance session
+
+When the repository is in closure mode, start with
+[Project status](PROJECT_STATUS.md). It owns the single active `GDA-FC-*` item,
+the freeze scope, and the exact next task. For Full Cycle bridge work, then read
+[the integration contract](docs/FULLCYCLE_INTEGRATION.md). Do not infer active
+work from the branch name or the broad roadmap.
 
 For long-running feature work, read only the documents needed for the current
 layer:

@@ -30,6 +30,9 @@ desktop execution authority, and durable evidence that outlives a crash.
 - **Fresh grounding before a side effect**, and mandatory observation after it.
 - **Recovery that never auto-replays an uncertain action.** A dispatch intent
   with no correlated completion stops for a human instead of guessing.
+- **Versioned Full Cycle handoff.** An offline CLI exports the reviewed runtime
+  manifest and existing redacted run evidence without opening provider,
+  desktop, MCP, approval, memory, or continuation ports.
 - **Offline CI** on Windows across Python 3.11–3.13, plus a wheel clean-install
   smoke ([workflow](.github/workflows/ci.yml) ·
   [runs](https://github.com/kuoforever/guarded-desktop-agent/actions/workflows/ci.yml)).
@@ -57,6 +60,23 @@ complete application acceptance.
 The [capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
 designed, implemented, offline-verified, provider-verified, desktop-verified,
 and application-verified.
+
+For the external model lifecycle, use the bounded Lane A bridge:
+
+~~~powershell
+guarded-desktop-agent fullcycle manifest `
+  --output C:\absolute\path\runtime-manifest.json
+
+guarded-desktop-agent fullcycle export-run `
+  --config C:\absolute\path\agent.toml `
+  --run-id <run-id> `
+  --output C:\absolute\path\run-export.json
+~~~
+
+These files support reliability, safety, failure, sequence, and verifier
+evaluation. They intentionally contain no screenshots or raw semantic content
+and are not multimodal training episodes. See
+[Full Cycle integration](docs/FULLCYCLE_INTEGRATION.md).
 
 ## Architecture
 
@@ -216,6 +236,8 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 
 | Need | Read |
 | --- | --- |
+| Continue the active closure task in a fresh coding-agent session | [Project status](PROJECT_STATUS.md) |
+| Use this Runtime from the Multimodal LLM Full Cycle project | [Full Cycle integration](docs/FULLCYCLE_INTEGRATION.md) |
 | Understand the complete project, every feature family, implementation path, quality attribute, status, and next gate | [Project overview](docs/PROJECT_OVERVIEW.md) |
 | Find the right document | [Documentation index](docs/README.md) |
 | See what is implemented, verified, or still planned | [Capability status](docs/CAPABILITY_STATUS.md) |

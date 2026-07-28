@@ -18,7 +18,8 @@ state_dir/
 The run ID is restricted to a 1-128 character path-safe identifier. Existing
 records are never overwritten. Checkpoints are written to a sibling temporary
 file, flushed, and atomically replaced. Trace lines are appended, flushed, and
-bounded to 1 MiB; checkpoints are bounded to 64 KiB. Readers reject malformed
+bounded to 1 MiB each and 16 MiB per run; checkpoints are bounded to 64 KiB.
+Readers reject symbolic-link redirection of the state/run/trace path, malformed
 JSON, version drift, sequence drift, run-ID mismatch, truncation, and an event
 count that disagrees with the checkpoint.
 
