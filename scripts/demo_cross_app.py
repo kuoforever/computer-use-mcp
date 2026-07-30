@@ -7,6 +7,8 @@ desktop operation is requested through AgentRunner and StdioDesktopMCP.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 import shutil
@@ -82,6 +84,24 @@ SUMMARY = (
 )
 
 
+@dataclass(frozen=True)
+class LaunchedFixture:
+    """One exact disposable application process started by this Demo."""
+
+    application: str
+    process: subprocess.Popen[bytes]
+
+
+@dataclass(frozen=True)
+class FixtureCleanup:
+    """Sanitized disposition for one exact launched process."""
+
+    application: str
+    pid: int
+    disposition: str
+    exit_code: int | None
+
+
 class DemoDecisionCards:
     """Add trusted Demo context without duplicating dispatch readiness."""
 
@@ -143,6 +163,11 @@ def _fixtures() -> tuple[Path, Path, str]:
     initial_state = {
         "browser_profile_empty": True,
         "browser_window": {"x": 80, "y": 80, "width": 1280, "height": 900},
+        "cleanup_contract": {
+            "on_exit": "terminate_exact_launched_processes",
+            "scope": "exact_launched_processes_only",
+            "unresolved": "record_explicit_handoff",
+        },
         "document_marker_present": False,
         "source_url": SOURCE_URL,
         "template_sha256": hashlib.sha256(document.read_bytes()).hexdigest(),
@@ -158,30 +183,114 @@ def _launch_fixtures(
     page_url: str,
     document: Path,
     profile: Path,
-) -> None:
+    *,
+    ownership: list[LaunchedFixture] | None = None,
+) -> tuple[LaunchedFixture, ...]:
     for executable in (CHROME, WORD, MCP):
         if not executable.is_file():
             raise RuntimeError("DEMO_REQUIRED_EXECUTABLE_NOT_FOUND")
-    subprocess.Popen([str(WORD), "/q", "/n", str(document)])
-    time.sleep(3)
-    subprocess.Popen(
-        [
-            str(CHROME),
-            f"--user-data-dir={profile}",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-default-apps",
-            "--disable-extensions",
-            "--disable-session-crashed-bubble",
-            "--disable-sync",
-            "--force-renderer-accessibility",
-            "--window-position=80,80",
-            "--window-size=1280,900",
-            "--new-window",
-            page_url,
-        ]
+    launched = ownership if ownership is not None else []
+    try:
+        word = subprocess.Popen([str(WORD), "/q", "/x", str(document)])
+        launched.append(LaunchedFixture("Microsoft Word", word))
+        time.sleep(3)
+        if word.poll() is not None:
+            raise RuntimeError("DEMO_WORD_EXITED_DURING_STARTUP")
+        chrome = subprocess.Popen(
+            [
+                str(CHROME),
+                f"--user-data-dir={profile}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-default-apps",
+                "--disable-extensions",
+                "--disable-session-crashed-bubble",
+                "--disable-sync",
+                "--force-renderer-accessibility",
+                "--window-position=80,80",
+                "--window-size=1280,900",
+                "--new-window",
+                page_url,
+            ]
+        )
+        launched.append(LaunchedFixture("Google Chrome", chrome))
+        time.sleep(5)
+        if chrome.poll() is not None:
+            raise RuntimeError("DEMO_CHROME_EXITED_DURING_STARTUP")
+    except BaseException:
+        if ownership is None:
+            _cleanup_fixture_processes(launched)
+        raise
+    return tuple(launched)
+
+
+def _cleanup_fixture_processes(
+    launched: Sequence[LaunchedFixture],
+    *,
+    wait_seconds: float = 5.0,
+    timeout_error: type[BaseException] = subprocess.TimeoutExpired,
+) -> tuple[FixtureCleanup, ...]:
+    """Stop only exact processes created for this run, in reverse launch order."""
+
+    results: list[FixtureCleanup] = []
+    for fixture in reversed(launched):
+        process = fixture.process
+        disposition = "already_exited"
+        exit_code = process.poll()
+        try:
+            if exit_code is None:
+                process.terminate()
+                disposition = "terminated"
+                try:
+                    exit_code = process.wait(timeout=wait_seconds)
+                except timeout_error:
+                    process.kill()
+                    disposition = "killed"
+                    exit_code = process.wait(timeout=wait_seconds)
+        except (OSError, timeout_error):
+            disposition = "handoff_required"
+            exit_code = process.poll()
+        results.append(
+            FixtureCleanup(
+                fixture.application,
+                process.pid,
+                disposition,
+                exit_code,
+            )
+        )
+    return tuple(results)
+
+
+def _write_final_state(
+    root: Path,
+    *,
+    run_id: str,
+    document_name: str,
+    profile_name: str,
+    outcome: str,
+    failure_class: str | None,
+    cleanup: Sequence[FixtureCleanup],
+) -> None:
+    cleanup_complete = all(
+        item.disposition != "handoff_required" for item in cleanup
     )
-    time.sleep(5)
+    state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "outcome": outcome,
+        "failure_class": failure_class,
+        "cleanup_complete": cleanup_complete,
+        "cleanup_scope": "exact_launched_processes_only",
+        "fixture_identity": {
+            "browser_profile": profile_name,
+            "document": document_name,
+        },
+        "fixtures": [asdict(item) for item in cleanup],
+    }
+    (root / "final-state.json").write_text(
+        json.dumps(state, ensure_ascii=True, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 def _config(stamp: str) -> AgentConfig:
@@ -242,66 +351,102 @@ def _progress(config: AgentConfig) -> RunProgressCoordinator:
 
 async def _run() -> dict[str, object]:
     document, profile, stamp = _fixtures()
-    _launch_fixtures(SOURCE_URL, document, profile)
-    config = _config(stamp)
-    provider = CrossAppDemoProvider(
-        chrome_title_fragment=SOURCE_TITLE,
-        word_title_fragment=document.name,
-        summary_text=SUMMARY,
-    )
-    step_context: list[OperatorStepContext | None] = [None]
-    inner_cards = DecisionCardApprovalPort(
-        DecisionCardWindow(
-            Win32DecisionCardWindowApi(
-                corner=config.operator.decision_card_corner,
+    run_id = f"cross-app-demo-{stamp}"
+    ownership: list[LaunchedFixture] = []
+    cleanup: tuple[FixtureCleanup, ...] = ()
+    result: dict[str, object] | None = None
+    outcome = "failed"
+    failure_class: str | None = None
+    try:
+        _launch_fixtures(
+            SOURCE_URL,
+            document,
+            profile,
+            ownership=ownership,
+        )
+        config = _config(stamp)
+        provider = CrossAppDemoProvider(
+            chrome_title_fragment=SOURCE_TITLE,
+            word_title_fragment=document.name,
+            summary_text=SUMMARY,
+        )
+        step_context: list[OperatorStepContext | None] = [None]
+        inner_cards = DecisionCardApprovalPort(
+            DecisionCardWindow(
+                Win32DecisionCardWindowApi(
+                    corner=config.operator.decision_card_corner,
+                ),
+                step_context=lambda: step_context[0],
             ),
-            step_context=lambda: step_context[0],
-        ),
-        timeout_seconds=config.operator.decision_timeout_seconds,
-    )
-    approvals = DemoDecisionCards(
-        inner_cards,
-        step_context=step_context,
-    )
-    desktop = StdioDesktopMCP(config.mcp)
-    outcome = await AgentRunner(
-        config,
-        RunnerPorts(
-            provider=provider,
-            desktop=desktop,
-            approvals=approvals,
-            presence=_presence(),
-            progress=_progress(config),
-        ),
-    ).run(
-        "Review the public Microsoft Support page in Chrome, update the "
-        "disposable Word research notes, and save only after exact local approvals.",
-        run_id=f"cross-app-demo-{stamp}",
-        allowed_tool_names=frozenset(
-            {
-                "list_windows",
-                "document_text",
-                "ocr",
-                "activate_window",
-                "ui_snapshot",
-                "click",
-                "type",
-                "key",
-            }
-        ),
-    )
-    with zipfile.ZipFile(document) as package:
-        document_xml = package.read("word/document.xml")
-    body = "".join(ElementTree.fromstring(document_xml).itertext())
-    if outcome.text != DEMO_COMPLETE_TEXT or DEMO_TYPED_MARKER not in body:
-        raise RuntimeError("DEMO_DURABLE_ARTIFACT_VERIFICATION_FAILED")
-    return {
-        "document": str(document),
-        "result": "PASS",
-        "run_id": outcome.state.run_id,
-        "side_effects": outcome.state.budgets.side_effects_used,
-        "tool_calls": outcome.state.budgets.tool_calls_used,
-    }
+            timeout_seconds=config.operator.decision_timeout_seconds,
+        )
+        approvals = DemoDecisionCards(
+            inner_cards,
+            step_context=step_context,
+        )
+        desktop = StdioDesktopMCP(config.mcp)
+        runner_outcome = await AgentRunner(
+            config,
+            RunnerPorts(
+                provider=provider,
+                desktop=desktop,
+                approvals=approvals,
+                presence=_presence(),
+                progress=_progress(config),
+            ),
+        ).run(
+            "Review the public Microsoft Support page in Chrome, update the "
+            "disposable Word research notes, and save only after exact local approvals.",
+            run_id=run_id,
+            allowed_tool_names=frozenset(
+                {
+                    "list_windows",
+                    "document_text",
+                    "ocr",
+                    "activate_window",
+                    "ui_snapshot",
+                    "click",
+                    "type",
+                    "key",
+                }
+            ),
+        )
+        with zipfile.ZipFile(document) as package:
+            document_xml = package.read("word/document.xml")
+        body = "".join(ElementTree.fromstring(document_xml).itertext())
+        if (
+            runner_outcome.text != DEMO_COMPLETE_TEXT
+            or DEMO_TYPED_MARKER not in body
+        ):
+            raise RuntimeError("DEMO_DURABLE_ARTIFACT_VERIFICATION_FAILED")
+        outcome = "passed"
+        result = {
+            "document": str(document),
+            "result": "PASS",
+            "run_id": runner_outcome.state.run_id,
+            "side_effects": runner_outcome.state.budgets.side_effects_used,
+            "tool_calls": runner_outcome.state.budgets.tool_calls_used,
+        }
+    except BaseException as exc:
+        failure_class = type(exc).__name__
+        if isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt)):
+            outcome = "cancelled"
+        raise
+    finally:
+        cleanup = _cleanup_fixture_processes(ownership)
+        _write_final_state(
+            document.parent,
+            run_id=run_id,
+            document_name=document.name,
+            profile_name=profile.name,
+            outcome=outcome,
+            failure_class=failure_class,
+            cleanup=cleanup,
+        )
+    if result is None:
+        raise RuntimeError("DEMO_RESULT_UNAVAILABLE")
+    result["fixture_cleanup"] = [asdict(item) for item in cleanup]
+    return result
 
 
 def main() -> int:

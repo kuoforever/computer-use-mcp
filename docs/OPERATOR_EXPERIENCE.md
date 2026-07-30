@@ -309,6 +309,15 @@ values and complete digests are not operator prose; technical correlation is
 shown only as labeled short fingerprints. Collapsing restores the saved compact
 geometry and does not create a new decision or selection.
 
+At the current desktop DPI, Computer Use inspected a visual-only card carrying
+the same trusted labels used by the bounded Demo. Compact state visibly showed
+`APPROVAL 4/7`, `Microsoft Word`, the exact source-note action,
+`WORKFLOW 4/6`, the safe-close countdown, details affordance, and four short
+choices without clipping. Expanded state visibly showed separate readable
+decision-scope and safety-check panes above the same choices; `Esc` then
+removed the window. These are session-visible screenshots, not retained
+repository artifacts, multi-DPI evidence, or Chrome/Word acceptance.
+
 The card may also show one Host-owned workflow breadcrumb derived from the
 validated checklist's exact current row. Approval count and workflow position
 remain different facts: for example, `APPROVAL 4/7` can appear with
@@ -318,6 +327,28 @@ workflow location from provider prose, or treats the breadcrumb as authority.
 An isolated Computer Use review at the current DPI confirmed the approval
 count, exact action, application, workflow breadcrumb, countdown, details
 affordance, and 2x2 choices fit in compact mode without clipping.
+
+## Disposable Demo lifecycle
+
+The bounded Chrome-to-Word Demo declares both its start and end state. Each run
+creates a unique root, empty Chrome profile, pristine DOCX copy, initial-state
+manifest, and run ID. The manifest also declares that cleanup is limited to
+exact processes launched by that run.
+
+Word starts as a separate `/x` instance and Chrome starts with the unique
+profile. The launcher retains only those two exact process handles. One
+`finally` block executes for normal completion, Runner failure, safe denial or
+cancel, keyboard interruption, and partial startup. It attempts cleanup in
+reverse launch order and records one of `already_exited`, `terminated`,
+`killed`, or `handoff_required` per PID. It never enumerates or terminates all
+`chrome.exe` or `winword.exe` processes.
+
+The per-run `final-state.json` contains only its schema version, run identity,
+fixed outcome, sanitized failure class, document/profile identity, cleanup
+scope, and per-process disposition. `cleanup_complete` means the exact launch
+handles exited; it is not proof that an application could never detach another
+process. A real cleanup smoke must therefore confirm that the exact disposable
+Chrome and Word windows disappear while unrelated user windows remain.
 
 Each option uses a typed trade-off record:
 
