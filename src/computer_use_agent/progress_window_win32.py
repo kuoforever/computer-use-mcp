@@ -43,8 +43,8 @@ _LINE_H = 20
 _PAD = 14
 _HUD_BACKGROUND = 0x001E1713
 _HUD_TEXT = 0x00F5F5F5
-_HUD_ACCENT = 0x00F0A020
 _HUD_MUTED = 0x00B8B8B8
+_DEFAULT_ACCENT_RGB = 0x2F80ED
 _FW_NORMAL = 400
 _FW_SEMIBOLD = 600
 
@@ -113,6 +113,7 @@ class Win32ProgressWindowApi:
             tuple[tuple[str, ...], tuple[str, ...]],
         ] = {}
         self._toggle_handlers: dict[int, Callable[[bool], None]] = {}
+        self._workflow_accents: dict[int, int] = {}
         self._configure_gdi()
         # Keep a strong reference to the WNDPROC; if it is collected, the window
         # procedure pointer dangles and the next message crashes the process.
@@ -150,6 +151,7 @@ class Win32ProgressWindowApi:
         rendered = tuple(lines)
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
+        self._workflow_accents.pop(int(hwnd), None)
         self._apply_lines(hwnd, rendered)
 
     def set_workflow_lines(
@@ -159,6 +161,7 @@ class Win32ProgressWindowApi:
         compact_lines: Sequence[str],
         expanded_lines: Sequence[str],
         expanded: bool,
+        accent_rgb: int,
         on_toggle: Callable[[bool], None],
     ) -> None:
         compact = tuple(compact_lines)
@@ -169,11 +172,15 @@ class Win32ProgressWindowApi:
             or detail[:6] != compact
             or detail[6] != "WORKFLOW CHECKLIST"
             or not isinstance(expanded, bool)
+            or isinstance(accent_rgb, bool)
+            or not isinstance(accent_rgb, int)
+            or not 0 <= accent_rgb <= 0xFFFFFF
             or not callable(on_toggle)
         ):
             raise ValueError("PROGRESS_WORKFLOW_LINES_INVALID")
         self._workflow_lines[int(hwnd)] = (compact, detail)
         self._toggle_handlers[int(hwnd)] = on_toggle
+        self._workflow_accents[int(hwnd)] = accent_rgb
         self._show_workflow(hwnd, expanded=expanded)
 
     def lines(self, hwnd: int) -> tuple[str, ...]:
@@ -205,6 +212,7 @@ class Win32ProgressWindowApi:
         self._lines.pop(int(hwnd), None)
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
+        self._workflow_accents.pop(int(hwnd), None)
         self._user32.DestroyWindow(wintypes.HWND(hwnd))
 
     # --- message pump (used by the smoke, not the controller) --------------
@@ -258,7 +266,10 @@ class Win32ProgressWindowApi:
             gdi32.DeleteObject(background)
             gdi32.SetBkMode(hdc, _TRANSPARENT)
             gdi32.SetTextColor(hdc, _HUD_TEXT)
-            accent = gdi32.CreateSolidBrush(_HUD_ACCENT)
+            accent_color = self._rgb_to_colorref(
+                self._workflow_accents.get(hwnd, _DEFAULT_ACCENT_RGB)
+            )
+            accent = gdi32.CreateSolidBrush(accent_color)
             dpi = self._window_dpi(hwnd)
             accent_rect = wintypes.RECT(
                 0,
@@ -270,9 +281,19 @@ class Win32ProgressWindowApi:
             gdi32.DeleteObject(accent)
             lines = self._lines.get(hwnd, ())
             if lines and lines[0].startswith("COMPUTER USE  ·  "):
-                self._paint_workflow_summary(hdc, lines[:6], dpi)
+                self._paint_workflow_summary(
+                    hdc,
+                    lines[:6],
+                    dpi,
+                    accent_color,
+                )
                 if len(lines) > 6 and lines[6] == "WORKFLOW CHECKLIST":
-                    self._paint_workflow_checklist(hdc, lines[6:], dpi)
+                    self._paint_workflow_checklist(
+                        hdc,
+                        lines[6:],
+                        dpi,
+                        accent_color,
+                    )
                 if int(hwnd) in self._workflow_lines:
                     self._paint_toggle(
                         hdc,
@@ -301,15 +322,16 @@ class Win32ProgressWindowApi:
         hdc: wintypes.HDC,
         lines: tuple[str, ...],
         dpi: int,
+        accent_color: int,
     ) -> None:
         """Paint the fixed six-line compact summary with visual hierarchy."""
 
         x = _scaled(24, dpi)
         styles = (
-            (18, 10, _FW_SEMIBOLD, _HUD_ACCENT),
+            (18, 10, _FW_SEMIBOLD, accent_color),
             (47, 16, _FW_SEMIBOLD, _HUD_TEXT),
             (78, 10, _FW_NORMAL, _HUD_MUTED),
-            (114, 9, _FW_SEMIBOLD, _HUD_ACCENT),
+            (114, 9, _FW_SEMIBOLD, accent_color),
             (139, 14, _FW_SEMIBOLD, _HUD_TEXT),
             (174, 10, _FW_NORMAL, _HUD_MUTED),
         )
@@ -330,6 +352,7 @@ class Win32ProgressWindowApi:
         hdc: wintypes.HDC,
         lines: tuple[str, ...],
         dpi: int,
+        accent_color: int,
     ) -> None:
         """Paint the bounded checklist beneath the unchanged compact summary."""
 
@@ -340,7 +363,7 @@ class Win32ProgressWindowApi:
             lines[0],
             points=9,
             weight=_FW_SEMIBOLD,
-            color=_HUD_ACCENT,
+            color=accent_color,
             dpi=dpi,
         )
         y = 247
@@ -462,6 +485,13 @@ class Win32ProgressWindowApi:
             return 96
         observed = int(get_dpi(wintypes.HWND(hwnd)))
         return observed if observed > 0 else 96
+
+    @staticmethod
+    def _rgb_to_colorref(rgb: int) -> int:
+        red = (rgb >> 16) & 0xFF
+        green = (rgb >> 8) & 0xFF
+        blue = rgb & 0xFF
+        return red | (green << 8) | (blue << 16)
 
     def _system_dpi(self) -> int:
         get_dpi = getattr(self._user32, "GetDpiForSystem", None)

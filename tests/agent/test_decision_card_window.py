@@ -134,7 +134,7 @@ def test_controller_renders_compact_locked_step_context() -> None:
     )
 
     call = api.calls[0]
-    assert call["title"] == "Approval locked"
+    assert call["title"] == "Needs input · approval locked"
     assert call["instruction"].splitlines() == [
         "APPROVAL 4/7  ·  Microsoft Word",
         "Switch to the research notes",

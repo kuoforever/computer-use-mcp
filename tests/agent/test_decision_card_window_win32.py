@@ -46,6 +46,7 @@ def test_compact_layout_is_two_by_two_without_detail_panes(dpi: int) -> None:
 
     assert "content" not in rects
     assert "evidence" not in rects
+    assert rects["accent"] == (0, 0, round(5 * dpi / 96), height)
     assert rects["button_0"][1] == rects["button_1"][1]
     assert rects["button_2"][1] == rects["button_3"][1]
     assert rects["button_0"][0] == rects["button_2"][0]

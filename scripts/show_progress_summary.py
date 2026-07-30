@@ -16,6 +16,7 @@ from computer_use_agent.progress_window import (  # noqa: E402
     PassiveProgressWindow,
     render_workflow_detail_lines,
     render_workflow_summary_lines,
+    workflow_visual,
 )
 from computer_use_agent.progress_window_win32 import (  # noqa: E402
     Win32ProgressWindowApi,
@@ -55,12 +56,19 @@ def main() -> int:
         action="store_true",
         help="Start in the full six-row checklist state.",
     )
+    parser.add_argument(
+        "--status",
+        choices=("running", "needs_input", "verifying", "uncertain"),
+        default="running",
+        help="Synthetic overall workflow status (default: running).",
+    )
     args = parser.parse_args()
     if not 15 <= args.timeout_seconds <= 600:
         parser.error("--timeout-seconds must be between 15 and 600")
 
+    status = WorkflowStatus(args.status)
     checklist = DEMO_WORKFLOW.project(
-        WorkflowStatus.RUNNING,
+        status,
         completed_step_ids=("prepare_workspace", "review_public_source"),
         current_step_id="open_research_brief",
     )
@@ -78,6 +86,7 @@ def main() -> int:
             compact_lines=render_workflow_summary_lines(checklist),
             expanded_lines=render_workflow_detail_lines(checklist),
             expanded=args.expanded,
+            accent_rgb=workflow_visual(checklist.status).color_rgb,
             on_toggle=lambda _expanded: None,
         )
         api.show_noactivate(review_hwnd)

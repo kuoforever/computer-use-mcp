@@ -7,11 +7,22 @@ from datetime import UTC
 from typing import Callable, Protocol, runtime_checkable
 
 from .decision_cards import DecisionCard, DecisionSelection
+from .operator_visuals import (
+    OperatorVisualRole,
+    OperatorVisualToken,
+    operator_visual,
+)
 from .workflow_checklist import WorkflowChecklist
 
 
 class DecisionCardWindowError(RuntimeError):
     """A fixed local-card failure without card or desktop content."""
+
+
+def decision_attention_visual() -> OperatorVisualToken:
+    """Return the shared attention token used by every approval card."""
+
+    return operator_visual(OperatorVisualRole.NEEDS_INPUT)
 
 
 @dataclass(frozen=True)
@@ -157,7 +168,8 @@ class DecisionCardWindow:
         title = "Decision required"
         instruction = "Choose one bounded option"
         if context is not None:
-            title = "Approval locked"
+            attention = decision_attention_visual()
+            title = f"{attention.label} · approval locked"
             instruction = (
                 f"APPROVAL {context.current}/{context.total}"
                 f"  ·  {context.application}\n"
@@ -305,4 +317,5 @@ __all__ = [
     "DecisionCardWindowError",
     "OperatorStepContext",
     "WorkflowBreadcrumb",
+    "decision_attention_visual",
 ]

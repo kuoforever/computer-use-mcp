@@ -8,6 +8,8 @@ from typing import Literal
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .operator_visuals import OperatorVisualRole, operator_visual
+
 from .decision_card_window import DecisionCardButton
 
 DecisionCardCorner = Literal[
@@ -70,6 +72,7 @@ _CONTENT_ID = 2001
 _EVIDENCE_TOGGLE_ID = 2002
 _EVIDENCE_ID = 2003
 _TIMEOUT_ID = 2004
+_ACCENT_ID = 2005
 _TIMER_ID = 1
 _TIMER_INTERVAL_MS = 250
 
@@ -175,6 +178,13 @@ def _scaled_client_size(
     )
 
 
+def _colorref(rgb: int) -> int:
+    red = (rgb >> 16) & 0xFF
+    green = (rgb >> 8) & 0xFF
+    blue = rgb & 0xFF
+    return red | (green << 8) | (blue << 16)
+
+
 def _layout_rects(
     width: int,
     height: int,
@@ -206,6 +216,12 @@ def _layout_rects(
         (width - 2 * margin - gap) // columns,
     )
     rects: dict[str, tuple[int, int, int, int]] = {
+        "accent": (
+            0,
+            0,
+            scale(5),
+            height,
+        ),
         "instruction": (
             margin,
             margin,
@@ -549,6 +565,10 @@ class Win32DecisionCardWindowApi:
         dpi = int(self._user32.GetDpiForSystem() or _BASE_DPI)
         background_brush = self._gdi32.CreateSolidBrush(_HUD_BACKGROUND)
         surface_brush = self._gdi32.CreateSolidBrush(_HUD_SURFACE)
+        attention = operator_visual(OperatorVisualRole.NEEDS_INPUT)
+        accent_brush = self._gdi32.CreateSolidBrush(
+            _colorref(attention.color_rgb)
+        )
         id_to_option = {
             _FIRST_BUTTON_ID + index: button.option_id
             for index, button in enumerate(buttons)
@@ -660,6 +680,10 @@ class Win32DecisionCardWindowApi:
                 _WM_CTLCOLORBTN,
             }:
                 control_id = self._user32.GetDlgCtrlID(wintypes.HWND(lparam))
+                if control_id == _ACCENT_ID:
+                    return int(
+                        ctypes.cast(accent_brush, ctypes.c_void_p).value or 0
+                    )
                 text_color = (
                     _HUD_MUTED_TEXT if control_id == _TIMEOUT_ID else _HUD_TEXT
                 )
@@ -791,6 +815,13 @@ class Win32DecisionCardWindowApi:
                 return handle
 
             create_control(
+                "accent",
+                "STATIC",
+                "",
+                0,
+                _ACCENT_ID,
+            )
+            create_control(
                 "instruction",
                 "STATIC",
                 instruction,
@@ -888,6 +919,8 @@ class Win32DecisionCardWindowApi:
             self._user32.UnregisterClassW(class_name, instance)
             if surface_brush:
                 self._gdi32.DeleteObject(surface_brush)
+            if accent_brush:
+                self._gdi32.DeleteObject(accent_brush)
             if background_brush:
                 self._gdi32.DeleteObject(background_brush)
             if owns_font and font:

@@ -101,9 +101,18 @@ visible halo, so high-visibility behavior is not yet an evidence-backed claim.
 | Executing | green, directional motion, action label | One authorized desktop action is in progress. |
 | Verifying | cyan, short pulse, verify label | A fresh observation is checking the preceding action. |
 | Recovering | orange, slow pulse, recovery label | The Agent is re-observing or preparing a bounded recovery path. |
-| Waiting approval | amber, attention pulse, approval label | No further side effect may execute until a bound decision is returned. |
+| Needs input | amber, attention pulse, approval label | No further side effect may execute until a bound decision is returned. |
 | Paused / human takeover | neutral white/gray, paused label | Agent desktop authority is released or yielding to local input. |
-| Unknown outcome / blocked | red, fixed warning, inspect label | Automatic replay is forbidden; evidence or human action is required. |
+| Needs inspection | red, fixed warning, inspect label | Automatic replay is forbidden; evidence or human action is required. |
+
+The implemented shared token contract is now the source of truth for these
+labels, glyphs, and RGB roles. Presence phase projection and workflow progress
+both consume it directly. Decision Card uses the same amber `Needs input`
+token while retaining the separate `approval locked` boundary. The older
+run/campaign diagnostic projection also uses `In progress`, `Needs input`,
+`Paused`, `Ready`, `Failed`, `Cancelled`, and `Needs inspection` rather than a
+second vocabulary. High contrast may replace color with white, but never
+removes the fixed label or glyph.
 
 Implementation requirements:
 

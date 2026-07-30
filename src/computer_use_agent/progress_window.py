@@ -32,6 +32,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+from .operator_visuals import (
+    OperatorVisualRole,
+    OperatorVisualToken,
+    operator_visual,
+)
 from .progress_view import (
     CampaignProgressView,
     ProgressProjection,
@@ -137,21 +142,21 @@ def _campaign_lines(view: CampaignProgressView) -> tuple[str, ...]:
     return (_clip(head), _clip(counts))
 
 
-_WORKFLOW_STATUS_LABELS = {
-    WorkflowStatus.NOT_STARTED: "NOT STARTED",
-    WorkflowStatus.RUNNING: "IN PROGRESS",
-    WorkflowStatus.NEEDS_INPUT: "NEEDS INPUT",
-    WorkflowStatus.PAUSED: "PAUSED",
-    WorkflowStatus.VERIFYING: "VERIFYING",
-    WorkflowStatus.READY: "READY",
-    WorkflowStatus.FAILED: "FAILED",
-    WorkflowStatus.UNCERTAIN: "NEEDS INSPECTION",
-    WorkflowStatus.CANCELLED: "CANCELLED",
+_WORKFLOW_STATUS_ROLES = {
+    WorkflowStatus.NOT_STARTED: OperatorVisualRole.NOT_STARTED,
+    WorkflowStatus.RUNNING: OperatorVisualRole.IN_PROGRESS,
+    WorkflowStatus.NEEDS_INPUT: OperatorVisualRole.NEEDS_INPUT,
+    WorkflowStatus.PAUSED: OperatorVisualRole.PAUSED,
+    WorkflowStatus.VERIFYING: OperatorVisualRole.VERIFYING,
+    WorkflowStatus.READY: OperatorVisualRole.READY,
+    WorkflowStatus.FAILED: OperatorVisualRole.FAILED,
+    WorkflowStatus.UNCERTAIN: OperatorVisualRole.NEEDS_INSPECTION,
+    WorkflowStatus.CANCELLED: OperatorVisualRole.CANCELLED,
 }
 _WORKFLOW_STEP_LABELS = {
     WorkflowStepStatus.NOT_STARTED: "Not started",
     WorkflowStepStatus.IN_PROGRESS: "In progress",
-    WorkflowStepStatus.WAITING_APPROVAL: "Waiting approval",
+    WorkflowStepStatus.WAITING_APPROVAL: "Needs input",
     WorkflowStepStatus.COMPLETED: "Completed",
     WorkflowStepStatus.SKIPPED: "Skipped",
     WorkflowStepStatus.FAILED: "Failed",
@@ -168,6 +173,14 @@ _WORKFLOW_STEP_GLYPHS = {
 }
 
 
+def workflow_visual(status: WorkflowStatus) -> OperatorVisualToken:
+    """Return the shared visual token for one validated workflow status."""
+
+    if not isinstance(status, WorkflowStatus):
+        raise ProgressWindowError("PROGRESS_WORKFLOW_STATUS_INVALID")
+    return operator_visual(_WORKFLOW_STATUS_ROLES[status])
+
+
 def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ...]:
     """Render one trusted workflow as a compact human-readable HUD summary.
 
@@ -179,6 +192,7 @@ def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ..
 
     if not isinstance(checklist, WorkflowChecklist):
         raise ProgressWindowError("PROGRESS_WORKFLOW_INVALID")
+    visual = workflow_visual(checklist.status)
     total = len(checklist.steps)
     count_parts = [f"{checklist.completed_count} completed"]
     if checklist.skipped_count:
@@ -211,7 +225,7 @@ def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ..
     return tuple(
         _clip(line)
         for line in (
-            f"COMPUTER USE  ·  {_WORKFLOW_STATUS_LABELS[checklist.status]}",
+            f"COMPUTER USE  ·  {visual.label.upper()}",
             checklist.title,
             "  ·  ".join(count_parts),
             current_line,
@@ -356,6 +370,7 @@ class ProgressWindowApi(Protocol):
         compact_lines: Sequence[str],
         expanded_lines: Sequence[str],
         expanded: bool,
+        accent_rgb: int,
         on_toggle: Callable[[bool], None],
     ) -> None: ...
 
@@ -505,6 +520,7 @@ class PassiveProgressWindow:
             compact_lines=render_workflow_summary_lines(self._workflow),
             expanded_lines=render_workflow_detail_lines(self._workflow),
             expanded=self._expanded,
+            accent_rgb=workflow_visual(self._workflow.status).color_rgb,
             on_toggle=self._on_native_toggle,
         )
 
@@ -525,4 +541,5 @@ __all__ = [
     "render_progress_lines",
     "render_workflow_detail_lines",
     "render_workflow_summary_lines",
+    "workflow_visual",
 ]

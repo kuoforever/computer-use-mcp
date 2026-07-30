@@ -84,13 +84,14 @@ class FakeProgressWindowApi:
         compact_lines,
         expanded_lines,
         expanded: bool,
+        accent_rgb: int,
         on_toggle,
     ) -> None:
         variants = (tuple(compact_lines), tuple(expanded_lines))
         self.workflow_lines[hwnd] = variants
         self.toggle_handlers[hwnd] = on_toggle
         self.lines[hwnd] = variants[1] if expanded else variants[0]
-        self.calls.append(("set_workflow_lines", hwnd, expanded))
+        self.calls.append(("set_workflow_lines", hwnd, expanded, accent_rgb))
 
     def show_noactivate(self, hwnd: int) -> None:
         self.calls.append(("show_noactivate", hwnd))
@@ -162,7 +163,7 @@ def _campaign(campaign_id: str, *, status: str = "RUNNING", **over) -> CampaignP
     base = dict(
         campaign_id=campaign_id,
         status=status,
-        display_state="Running",
+        display_state="In progress",
         is_terminal=False,
         needs_attention=False,
         discovered_count=5,
@@ -210,7 +211,7 @@ def test_full_cycle_never_changes_foreground() -> None:
             _view(
                 "run_a",
                 phase="SUCCESS",
-                display_state="Complete",
+                display_state="Ready",
                 is_terminal=True,
                 liveness_known=True,
             )
@@ -252,7 +253,7 @@ def test_open_twice_refreshes_instead_of_recreating() -> None:
             _view(
                 "run_a",
                 phase="SUCCESS",
-                display_state="Complete",
+                display_state="Ready",
                 is_terminal=True,
                 liveness_known=True,
             )
@@ -319,6 +320,20 @@ def test_workflow_summary_hides_tool_budget_and_run_diagnostics() -> None:
     assert "run_internal" not in blob
     assert "model" not in blob
     assert "tool" not in blob
+
+
+def test_workflow_attention_uses_the_shared_amber_visual_role() -> None:
+    api = FakeProgressWindowApi()
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    PassiveProgressWindow(api).open(_projection(), workflow=checklist)
+
+    call = next(item for item in api.calls if item[0] == "set_workflow_lines")
+    assert call[3] == 0xF2C94C
 
 
 def test_expanded_workflow_lists_every_step_and_human_status() -> None:
@@ -447,7 +462,7 @@ def test_reobserve_is_marked_and_never_a_retry_button() -> None:
     view = _view(
         "run_unsure",
         phase="UNKNOWN_OUTCOME",
-        display_state="Uncertain; re-observe before retry",
+        display_state="Needs inspection; re-observe before retry",
         is_terminal=True,
         needs_reobserve=True,
     )
@@ -460,7 +475,7 @@ def test_terminal_duration_shown_only_when_present() -> None:
     done = _view(
         "run_done",
         phase="SUCCESS",
-        display_state="Complete",
+        display_state="Ready",
         is_terminal=True,
         duration_ms=1234,
     )
@@ -489,7 +504,7 @@ def test_grouping_prioritizes_attention_over_newer_history() -> None:
         _view(
             f"run_done_{i:03d}",
             phase="SUCCESS",
-            display_state="Complete",
+            display_state="Ready",
             is_terminal=True,
             updated_at_us=1000 + i,
         )
@@ -499,7 +514,7 @@ def test_grouping_prioritizes_attention_over_newer_history() -> None:
         _view(
             "run_needs_operator",
             phase="WAITING_APPROVAL",
-            display_state="Waiting approval",
+            display_state="Needs input",
             updated_at_us=1,
         )
     )
@@ -552,7 +567,7 @@ def test_campaigns_render_before_runs_with_aggregate_counts_only() -> None:
             _campaign(
                 "campaign_paused",
                 status="PAUSED",
-                display_state="Paused; operator attention",
+                display_state="Paused",
                 needs_attention=True,
             ),
             _campaign("campaign_active"),
@@ -574,7 +589,7 @@ def test_campaign_render_cap_preserves_attention_first() -> None:
         _campaign(
             f"campaign_history_{index}",
             status="COMPLETED",
-            display_state="Complete",
+            display_state="Ready",
             is_terminal=True,
             updated_at_us=100 + index,
         )
