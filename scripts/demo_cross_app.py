@@ -7,8 +7,8 @@ desktop operation is requested through AgentRunner and StdioDesktopMCP.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import asdict
 import hashlib
 import json
 import shutil
@@ -47,6 +47,12 @@ from computer_use_agent.demo_cross_app import (  # noqa: E402
     CrossAppDemoProvider,
 )
 from computer_use_agent.desktop_mcp import StdioDesktopMCP  # noqa: E402
+from computer_use_agent.disposable_process import (  # noqa: E402
+    DisposableCleanup as FixtureCleanup,
+    DisposableProcess as LaunchedFixture,
+    ProcessWindows,
+    cleanup_disposable_processes,
+)
 from computer_use_agent.presence import PresencePreferences  # noqa: E402
 from computer_use_agent.presence_lifecycle import RunPresenceCoordinator  # noqa: E402
 from computer_use_agent.presence_window import PassivePresenceWindow  # noqa: E402
@@ -82,24 +88,6 @@ SUMMARY = (
     "Workflow: Comments and mentions support review and follow-up.\n"
     "Practical note: Keep changes in one reviewable file instead of extra copies.\n"
 )
-
-
-@dataclass(frozen=True)
-class LaunchedFixture:
-    """One exact disposable application process started by this Demo."""
-
-    application: str
-    process: subprocess.Popen[bytes]
-
-
-@dataclass(frozen=True)
-class FixtureCleanup:
-    """Sanitized disposition for one exact launched process."""
-
-    application: str
-    pid: int
-    disposition: str
-    exit_code: int | None
 
 
 class DemoDecisionCards:
@@ -164,7 +152,7 @@ def _fixtures() -> tuple[Path, Path, str]:
         "browser_profile_empty": True,
         "browser_window": {"x": 80, "y": 80, "width": 1280, "height": 900},
         "cleanup_contract": {
-            "on_exit": "terminate_exact_launched_processes",
+            "on_exit": "close_exact_owned_windows",
             "scope": "exact_launched_processes_only",
             "unresolved": "record_explicit_handoff",
         },
@@ -228,37 +216,21 @@ def _cleanup_fixture_processes(
     launched: Sequence[LaunchedFixture],
     *,
     wait_seconds: float = 5.0,
+    poll_interval_seconds: float = 0.1,
+    sleep: Callable[[float], None] = time.sleep,
     timeout_error: type[BaseException] = subprocess.TimeoutExpired,
+    windows: ProcessWindows | None = None,
 ) -> tuple[FixtureCleanup, ...]:
-    """Stop only exact processes created for this run, in reverse launch order."""
+    """Apply the shared exact-process, window-first cleanup contract."""
 
-    results: list[FixtureCleanup] = []
-    for fixture in reversed(launched):
-        process = fixture.process
-        disposition = "already_exited"
-        exit_code = process.poll()
-        try:
-            if exit_code is None:
-                process.terminate()
-                disposition = "terminated"
-                try:
-                    exit_code = process.wait(timeout=wait_seconds)
-                except timeout_error:
-                    process.kill()
-                    disposition = "killed"
-                    exit_code = process.wait(timeout=wait_seconds)
-        except (OSError, timeout_error):
-            disposition = "handoff_required"
-            exit_code = process.poll()
-        results.append(
-            FixtureCleanup(
-                fixture.application,
-                process.pid,
-                disposition,
-                exit_code,
-            )
-        )
-    return tuple(results)
+    return cleanup_disposable_processes(
+        launched,
+        windows=windows,
+        wait_seconds=wait_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+        sleep=sleep,
+        timeout_error=timeout_error,
+    )
 
 
 def _write_final_state(

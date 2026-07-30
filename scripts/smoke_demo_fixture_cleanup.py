@@ -36,7 +36,7 @@ def _load_demo_script() -> ModuleType:
 
 
 def _visible_top_level_windows() -> dict[int, int]:
-    """Return visible, unowned top-level HWND -> PID without window text."""
+    """Return every visible top-level HWND -> PID without window text."""
 
     user32 = ctypes.windll.user32
     user32.EnumWindows.argtypes = [
@@ -46,8 +46,6 @@ def _visible_top_level_windows() -> dict[int, int]:
     user32.EnumWindows.restype = wintypes.BOOL
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsWindowVisible.restype = wintypes.BOOL
-    user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
-    user32.GetWindow.restype = wintypes.HWND
     user32.GetWindowThreadProcessId.argtypes = [
         wintypes.HWND,
         ctypes.POINTER(wintypes.DWORD),
@@ -63,8 +61,6 @@ def _visible_top_level_windows() -> dict[int, int]:
     @callback_type
     def collect(hwnd: int, _lparam: int) -> bool:
         if not user32.IsWindowVisible(hwnd):
-            return True
-        if user32.GetWindow(hwnd, 4):  # GW_OWNER
             return True
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
@@ -138,14 +134,22 @@ def main() -> int:
         observed_pids = set(observed_owned.values())
         if observed_pids != owned_pids:
             problems.append("not every exact launched PID exposed a top-level window")
+        if len(observed_owned) != len(ownership):
+            problems.append("a disposable PID exposed an unexpected extra top-level window")
         if args.hold_seconds:
             time.sleep(args.hold_seconds)
     finally:
         cleanup = demo._cleanup_fixture_processes(ownership)
 
     after = _live_target_windows()
-    if any(item.process.poll() is None for item in ownership):
-        problems.append("an exact launched process remained alive after cleanup")
+    owned_pids = {int(item.process.pid) for item in ownership}
+    remaining_owned_windows = {
+        hwnd: pid
+        for hwnd, pid in _visible_top_level_windows().items()
+        if pid in owned_pids
+    }
+    if remaining_owned_windows:
+        problems.append("an exact launched process retained a top-level window")
     if set(before).difference(after):
         problems.append("a pre-existing Chrome/Word top-level window disappeared")
     if any(item.disposition == "handoff_required" for item in cleanup):
@@ -165,8 +169,10 @@ def main() -> int:
         "cleanup": [
             {
                 "application": item.application,
+                "close_requests": item.close_requests,
                 "disposition": item.disposition,
                 "pid": item.pid,
+                "process_running": item.process_running,
             }
             for item in cleanup
         ],

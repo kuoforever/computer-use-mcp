@@ -338,17 +338,30 @@ exact processes launched by that run.
 Word starts as a separate `/x` instance and Chrome starts with the unique
 profile. The launcher retains only those two exact process handles. One
 `finally` block executes for normal completion, Runner failure, safe denial or
-cancel, keyboard interruption, and partial startup. It attempts cleanup in
-reverse launch order and records one of `already_exited`, `terminated`,
-`killed`, or `handoff_required` per PID. It never enumerates or terminates all
-`chrome.exe` or `winword.exe` processes.
+cancel, keyboard interruption, and partial startup. It delegates to the shared
+disposable-process cleanup component, which posts `WM_CLOSE` only to visible
+unowned top-level windows belonging to each retained PID, then waits for every
+visible top-level window for that PID, including owned dialogs, to disappear. A
+process may drain naturally after its operator-visible windows are gone. Force
+termination is reserved for a bounded close timeout or a partial launch that
+exposed no window. Unavailable window observation becomes
+`handoff_required`; it never causes a process-name scan.
 
 The per-run `final-state.json` contains only its schema version, run identity,
 fixed outcome, sanitized failure class, document/profile identity, cleanup
-scope, and per-process disposition. `cleanup_complete` means the exact launch
-handles exited; it is not proof that an application could never detach another
-process. A real cleanup smoke must therefore confirm that the exact disposable
-Chrome and Word windows disappear while unrelated user windows remain.
+scope, close-request count, per-process disposition, exit-code snapshot, and
+process-running snapshot. `cleanup_complete` means every exact owned window was
+closed or the exact process was already gone; it does not require killing an
+otherwise windowless application process.
+
+An initial live diagnostic proved why that distinction matters:
+force-terminating Word after its windows closed caused prior disposable
+documents to reappear as AutoRecover windows on the next launch. The shared
+window-first fallback then closed those exact windows without touching the
+pre-existing Chrome window. Two subsequent real fixture-cleanup runs each
+started exactly one disposable Chrome and one disposable Word window, closed
+both as `windows_closed`, preserved the pre-existing Chrome window, and did not
+reproduce the recovery windows.
 
 Each option uses a typed trade-off record:
 

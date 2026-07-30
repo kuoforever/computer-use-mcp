@@ -67,7 +67,7 @@ def test_each_demo_run_starts_from_a_fresh_profile_and_template(
             "y": 80,
         }
         assert state["cleanup_contract"] == {
-            "on_exit": "terminate_exact_launched_processes",
+            "on_exit": "close_exact_owned_windows",
             "scope": "exact_launched_processes_only",
             "unresolved": "record_explicit_handoff",
         }
@@ -124,6 +124,22 @@ class _Process:
         return self.exit_code
 
 
+class _Windows:
+    def __init__(self, states: dict[int, list[int]]) -> None:
+        self.states = {pid: list(values) for pid, values in states.items()}
+        self.close_requests: list[int] = []
+
+    def visible_count(self, pid: int) -> int:
+        values = self.states[pid]
+        if len(values) > 1:
+            return values.pop(0)
+        return values[0]
+
+    def request_close(self, pid: int) -> int:
+        self.close_requests.append(pid)
+        return 1
+
+
 def test_fixture_launch_uses_isolated_word_instance_and_exact_process_handles(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -171,15 +187,46 @@ def test_cleanup_targets_every_exact_process_and_never_uses_process_names() -> N
         demo.LaunchedFixture("Google Chrome", chrome),
     )
 
-    cleanup = demo._cleanup_fixture_processes(launched, wait_seconds=0.01)
+    cleanup = demo._cleanup_fixture_processes(
+        launched,
+        wait_seconds=0.01,
+        poll_interval_seconds=0.01,
+        sleep=lambda _seconds: None,
+        windows=_Windows({101: [0], 202: [1, 1]}),
+    )
 
     assert [(item.application, item.pid, item.disposition) for item in cleanup] == [
-        ("Google Chrome", 202, "killed"),
+        ("Google Chrome", 202, "killed_after_close_timeout"),
         ("Microsoft Word", 101, "handoff_required"),
     ]
     assert chrome.terminated == 1
     assert chrome.killed == 1
     assert word.terminated == 1
+
+
+def test_cleanup_requests_graceful_close_before_any_process_termination() -> None:
+    demo = _load_demo_script()
+    word = _Process(101)
+    launched = (demo.LaunchedFixture("Microsoft Word", word),)
+
+    cleanup = demo._cleanup_fixture_processes(
+        launched,
+        sleep=lambda _seconds: None,
+        windows=_Windows({101: [1, 0]}),
+    )
+
+    assert cleanup == (
+        demo.FixtureCleanup(
+            "Microsoft Word",
+            101,
+            "windows_closed",
+            None,
+            1,
+            True,
+        ),
+    )
+    assert word.terminated == 0
+    assert word.killed == 0
 
 
 def test_partial_launch_failure_cleans_the_process_already_owned(
@@ -223,8 +270,22 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
 ) -> None:
     demo = _load_demo_script()
     cleanup = (
-        demo.FixtureCleanup("Google Chrome", 202, "terminated", 0),
-        demo.FixtureCleanup("Microsoft Word", 101, "handoff_required", None),
+        demo.FixtureCleanup(
+            "Google Chrome",
+            202,
+            "windows_closed",
+            None,
+            1,
+            True,
+        ),
+        demo.FixtureCleanup(
+            "Microsoft Word",
+            101,
+            "handoff_required",
+            None,
+            0,
+            True,
+        ),
     )
 
     demo._write_final_state(
@@ -249,15 +310,19 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
         "fixtures": [
             {
                 "application": "Google Chrome",
-                "disposition": "terminated",
-                "exit_code": 0,
+                "close_requests": 1,
+                "disposition": "windows_closed",
+                "exit_code": None,
                 "pid": 202,
+                "process_running": True,
             },
             {
                 "application": "Microsoft Word",
+                "close_requests": 0,
                 "disposition": "handoff_required",
                 "exit_code": None,
                 "pid": 101,
+                "process_running": True,
             },
         ],
         "outcome": "failed",
