@@ -82,24 +82,31 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
         "option_defer",
         "option_deny",
     ]
-    assert "Recommendation is advisory and grants no authority" in call["content"]
-    assert "Expected time seconds:" in call["content"]
-    assert "Expected tokens:" in call["content"]
+    assert [button.label for button in call["buttons"]] == [
+        "Approve once",
+        "Re-observe",
+        "Defer",
+        "Deny",
+    ]
+    assert "A recommendation is advice, not permission" in call["content"]
+    assert "Expected time:" in call["content"]
+    assert "Compute cost:" in call["content"]
     assert "Confidence:" in call["content"]
-    assert "Fallback:" in call["content"]
-    assert "Close or timeout denies" in call["content"]
+    assert "Esc, close, or timeout denies" in call["content"]
     evidence = call["expanded_information"]
-    assert "Evidence references (SHA-256 digests only)" in evidence
-    assert "observation: " + "7" * 64 in evidence
-    assert "completion_outcome" in evidence
-    assert "state: " + "1" * 64 in evidence
-    assert "policy: " + "2" * 64 in evidence
-    assert "task: " + "3" * 64 in evidence
-    assert "registry: " + "4" * 64 in evidence
-    assert "object: " + "5" * 64 in evidence
-    assert "evidence: " + "6" * 64 in evidence
-    assert card.card_digest in evidence
-    assert "not execution authority" in evidence
+    assert "Safety checks" in evidence
+    assert "Observation" in evidence
+    assert "Completion outcome" in evidence
+    assert "Screen state: 1111111111…111111" in evidence
+    assert "Safety policy: 2222222222…222222" in evidence
+    assert "Task: 3333333333…333333" in evidence
+    assert "Tool registry: 4444444444…444444" in evidence
+    assert "Target object: 5555555555…555555" in evidence
+    assert "Evidence set: 6666666666…666666" in evidence
+    assert card.card_digest not in evidence
+    assert "They grant no authority" in evidence
+    assert "completion_outcome" not in evidence
+    assert "7" * 64 not in evidence
 
 
 def test_controller_renders_compact_locked_step_context() -> None:
@@ -118,12 +125,13 @@ def test_controller_renders_compact_locked_step_context() -> None:
     )
 
     call = api.calls[0]
-    assert call["title"] == "Approval locked — 3 of 7"
+    assert call["title"] == "Approval locked"
     assert "3/7" in call["instruction"]
     assert "Switch to the research notes" in call["instruction"]
     assert "Microsoft Word" in call["instruction"]
-    assert "Execution is paused at this exact action" in call["content"]
-    assert "Esc, window close, or timeout safely rejects it" in call["content"]
+    assert call["content"].startswith("Decision scope")
+    assert "Switch to the research notes" not in call["content"]
+    assert "Microsoft Word" not in call["content"]
 
 
 @pytest.mark.parametrize(

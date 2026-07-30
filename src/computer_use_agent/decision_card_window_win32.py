@@ -31,6 +31,9 @@ _WM_KEYDOWN = 0x0100
 _WM_COMMAND = 0x0111
 _WM_TIMER = 0x0113
 _WM_SETFONT = 0x0030
+_WM_CTLCOLOREDIT = 0x0133
+_WM_CTLCOLORSTATIC = 0x0138
+_WM_CTLCOLORBTN = 0x0135
 _TDM_CLICK_BUTTON = 0x0400 + 102
 _BN_CLICKED = 0
 _VK_ESCAPE = 0x1B
@@ -60,6 +63,7 @@ _SWP_SHOWWINDOW = 0x0040
 _COLOR_WINDOW = 5
 _DEFAULT_GUI_FONT = 17
 _MONITOR_DEFAULTTOPRIMARY = 1
+_DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
 _FIRST_BUTTON_ID = 1001
 _CONTENT_ID = 2001
@@ -69,9 +73,18 @@ _TIMEOUT_ID = 2004
 _TIMER_ID = 1
 _TIMER_INTERVAL_MS = 250
 
-_DEFAULT_CLIENT_WIDTH = 500
-_DEFAULT_CLIENT_HEIGHT = 360
+_COMPACT_CLIENT_WIDTH = 560
+_COMPACT_CLIENT_HEIGHT = 250
+_EXPANDED_CLIENT_WIDTH = 720
+_EXPANDED_CLIENT_HEIGHT = 620
 _CORNER_MARGIN = 20
+_BASE_DPI = 96
+
+# COLORREF values use BGR byte order.
+_HUD_BACKGROUND = 0x0022201F
+_HUD_SURFACE = 0x00302D2B
+_HUD_TEXT = 0x00F2F2F2
+_HUD_MUTED_TEXT = 0x00AAA7A3
 
 _LRESULT = ctypes.c_ssize_t
 _WNDPROC = ctypes.WINFUNCTYPE(
@@ -146,6 +159,102 @@ def _corner_origin(
     return x, y
 
 
+def _scaled_client_size(
+    expanded: bool,
+    dpi: int,
+) -> tuple[int, int]:
+    """Return intentional logical geometry for one DPI-aware card state."""
+
+    if not 96 <= dpi <= 768:
+        dpi = _BASE_DPI
+    width = _EXPANDED_CLIENT_WIDTH if expanded else _COMPACT_CLIENT_WIDTH
+    height = _EXPANDED_CLIENT_HEIGHT if expanded else _COMPACT_CLIENT_HEIGHT
+    return (
+        max(1, round(width * dpi / _BASE_DPI)),
+        max(1, round(height * dpi / _BASE_DPI)),
+    )
+
+
+def _layout_rects(
+    width: int,
+    height: int,
+    button_count: int,
+    *,
+    expanded: bool,
+    dpi: int = _BASE_DPI,
+) -> dict[str, tuple[int, int, int, int]]:
+    """Compute a fixed 2x2 compact grid and bounded expanded detail panes."""
+
+    if not 96 <= dpi <= 768:
+        dpi = _BASE_DPI
+
+    def scale(value: int) -> int:
+        return max(1, round(value * dpi / _BASE_DPI))
+
+    margin = scale(16)
+    gap = scale(8)
+    header_height = scale(62)
+    timeout_width = min(scale(150), max(scale(112), width // 4))
+    toggle_height = scale(30)
+    button_height = scale(42)
+    columns = 2
+    rows = (button_count + columns - 1) // columns
+    buttons_height = rows * button_height + max(0, rows - 1) * gap
+    buttons_top = height - margin - buttons_height
+    button_width = max(
+        100,
+        (width - 2 * margin - gap) // columns,
+    )
+    rects: dict[str, tuple[int, int, int, int]] = {
+        "instruction": (
+            margin,
+            margin,
+            max(120, width - 2 * margin - timeout_width - gap),
+            header_height,
+        ),
+        "timeout": (
+            width - margin - timeout_width,
+            margin,
+            timeout_width,
+            24,
+        ),
+        "toggle": (
+            margin,
+            margin + header_height + gap,
+            min(150, width - 2 * margin),
+            toggle_height,
+        ),
+    }
+    for index in range(button_count):
+        row = index // columns
+        column = index % columns
+        rects[f"button_{index}"] = (
+            margin + column * (button_width + gap),
+            buttons_top + row * (button_height + gap),
+            button_width,
+            button_height,
+        )
+    if expanded:
+        details_top = margin + header_height + gap + toggle_height + gap
+        details_bottom = buttons_top - gap
+        available = max(128, details_bottom - details_top)
+        content_height = max(72, int(available * 0.55))
+        evidence_height = max(48, available - content_height - gap)
+        rects["content"] = (
+            margin,
+            details_top,
+            width - 2 * margin,
+            content_height,
+        )
+        rects["evidence"] = (
+            margin,
+            details_top + content_height + gap,
+            width - 2 * margin,
+            evidence_height,
+        )
+    return rects
+
+
 class Win32DecisionCardWindowApi:
     """Show a timed, resizable Decision Card in a normal Windows tool window."""
 
@@ -157,12 +266,17 @@ class Win32DecisionCardWindowApi:
         self._user32 = ctypes.windll.user32
         self._kernel32 = ctypes.windll.kernel32
         self._gdi32 = ctypes.windll.gdi32
+        self._dwmapi = ctypes.windll.dwmapi
+        self._uxtheme = ctypes.windll.uxtheme
         self._configure_apis()
 
     def _configure_apis(self) -> None:
         user32 = self._user32
         kernel32 = self._kernel32
         user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetDpiForSystem.restype = wintypes.UINT
+        user32.GetDlgCtrlID.argtypes = [wintypes.HWND]
+        user32.GetDlgCtrlID.restype = ctypes.c_int
         user32.IsWindow.argtypes = [wintypes.HWND]
         user32.IsWindow.restype = wintypes.BOOL
         user32.GetWindowThreadProcessId.argtypes = [
@@ -245,6 +359,11 @@ class Win32DecisionCardWindowApi:
             wintypes.BOOL,
         ]
         user32.MoveWindow.restype = wintypes.BOOL
+        user32.GetClientRect.argtypes = [
+            wintypes.HWND,
+            ctypes.POINTER(wintypes.RECT),
+        ]
+        user32.GetClientRect.restype = wintypes.BOOL
         user32.SetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPCWSTR]
         user32.SetWindowTextW.restype = wintypes.BOOL
         user32.SetTimer.argtypes = [
@@ -288,14 +407,53 @@ class Win32DecisionCardWindowApi:
         kernel32.GetCurrentThreadId.restype = wintypes.DWORD
         self._gdi32.GetStockObject.argtypes = [ctypes.c_int]
         self._gdi32.GetStockObject.restype = wintypes.HGDIOBJ
+        self._gdi32.CreateFontW.argtypes = [
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPCWSTR,
+        ]
+        self._gdi32.CreateFontW.restype = wintypes.HGDIOBJ
+        self._gdi32.CreateSolidBrush.argtypes = [wintypes.DWORD]
+        self._gdi32.CreateSolidBrush.restype = wintypes.HBRUSH
+        self._gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+        self._gdi32.DeleteObject.restype = wintypes.BOOL
+        self._gdi32.SetBkColor.argtypes = [wintypes.HDC, wintypes.DWORD]
+        self._gdi32.SetBkColor.restype = wintypes.DWORD
+        self._gdi32.SetTextColor.argtypes = [wintypes.HDC, wintypes.DWORD]
+        self._gdi32.SetTextColor.restype = wintypes.DWORD
+        self._uxtheme.SetWindowTheme.argtypes = [
+            wintypes.HWND,
+            wintypes.LPCWSTR,
+            wintypes.LPCWSTR,
+        ]
+        self._uxtheme.SetWindowTheme.restype = ctypes.c_long
+        self._dwmapi.DwmSetWindowAttribute.argtypes = [
+            wintypes.HWND,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+        ]
+        self._dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
 
     def _window_rect(
         self,
         foreground: wintypes.HWND,
         style: int,
         ex_style: int,
+        client_size: tuple[int, int],
     ) -> tuple[int, int, int, int]:
-        rectangle = wintypes.RECT(0, 0, _DEFAULT_CLIENT_WIDTH, _DEFAULT_CLIENT_HEIGHT)
+        rectangle = wintypes.RECT(0, 0, client_size[0], client_size[1])
         if not self._user32.AdjustWindowRectEx(
             ctypes.byref(rectangle), style, False, ex_style
         ):
@@ -311,6 +469,10 @@ class Win32DecisionCardWindowApi:
             monitor, ctypes.byref(info)
         ):
             raise OSError("DECISION_CARD_MONITOR_INFO_FAILED")
+        work_width = info.rcWork.right - info.rcWork.left
+        work_height = info.rcWork.bottom - info.rcWork.top
+        width = min(width, max(1, work_width - 2 * _CORNER_MARGIN))
+        height = min(height, max(1, work_height - 2 * _CORNER_MARGIN))
         left, top = _corner_origin(
             (
                 info.rcWork.left,
@@ -381,8 +543,12 @@ class Win32DecisionCardWindowApi:
         class_name = f"GuardedDesktopDecisionCard_{id(self):x}"
         selected: list[str | None] = [None]
         controls: dict[str, wintypes.HWND] = {}
-        evidence_visible = [False]
+        expanded = [False]
+        compact_window_rect: list[tuple[int, int, int, int] | None] = [None]
         deadline = time.monotonic() + timeout_seconds
+        dpi = int(self._user32.GetDpiForSystem() or _BASE_DPI)
+        background_brush = self._gdi32.CreateSolidBrush(_HUD_BACKGROUND)
+        surface_brush = self._gdi32.CreateSolidBrush(_HUD_SURFACE)
         id_to_option = {
             _FIRST_BUTTON_ID + index: button.option_id
             for index, button in enumerate(buttons)
@@ -401,83 +567,34 @@ class Win32DecisionCardWindowApi:
                 )
 
         def layout(width: int, height: int) -> None:
-            margin = 16
-            gap = 8
-            header_height = 28
-            toggle_height = 30
-            button_height = 48
-            columns = 2 if width >= 520 else 1
-            rows = (len(buttons) + columns - 1) // columns
-            buttons_height = rows * button_height + max(0, rows - 1) * gap
-            buttons_top = max(
-                margin + header_height + toggle_height + 80,
-                height - margin - buttons_height,
-            )
-            body_top = margin + header_height
-            body_bottom = buttons_top - gap
-            available = max(100, body_bottom - body_top - toggle_height - gap)
-            if evidence_visible[0]:
-                content_height = max(60, int(available * 0.55))
-                evidence_height = max(60, available - content_height - gap)
-                move("content", margin, body_top, width - 2 * margin, content_height)
-                toggle_top = body_top + content_height + gap
-                move(
-                    "toggle",
-                    margin,
-                    toggle_top,
-                    min(190, width - 2 * margin),
-                    toggle_height,
-                )
-                move(
-                    "evidence",
-                    margin,
-                    toggle_top + toggle_height + gap,
-                    width - 2 * margin,
-                    evidence_height,
-                )
+            for name, rectangle in _layout_rects(
+                width,
+                height,
+                len(buttons),
+                expanded=expanded[0],
+                dpi=dpi,
+            ).items():
+                move(name, *rectangle)
+
+        def resize_for_state(hwnd: wintypes.HWND) -> None:
+            if not expanded[0] and compact_window_rect[0] is not None:
+                left, top, width, height = compact_window_rect[0]
             else:
-                move(
-                    "content",
-                    margin,
-                    body_top,
-                    width - 2 * margin,
-                    available,
+                left, top, width, height = self._window_rect(
+                    hwnd,
+                    _WS_OVERLAPPEDWINDOW | _WS_CLIPCHILDREN,
+                    _WS_EX_APPWINDOW,
+                    _scaled_client_size(expanded[0], dpi),
                 )
-                move(
-                    "toggle",
-                    margin,
-                    body_top + available + gap,
-                    min(190, width - 2 * margin),
-                    toggle_height,
-                )
-            move(
-                "instruction",
-                margin,
-                margin,
-                max(120, width - 2 * margin - 190),
-                header_height,
+            self._user32.SetWindowPos(
+                hwnd,
+                wintypes.HWND(0),
+                left,
+                top,
+                width,
+                height,
+                _SWP_SHOWWINDOW,
             )
-            move(
-                "timeout",
-                max(margin, width - margin - 180),
-                margin,
-                180,
-                header_height,
-            )
-            button_width = max(
-                120,
-                (width - 2 * margin - (columns - 1) * gap) // columns,
-            )
-            for index in range(len(buttons)):
-                row = index // columns
-                column = index % columns
-                move(
-                    f"button_{index}",
-                    margin + column * (button_width + gap),
-                    buttons_top + row * (button_height + gap),
-                    button_width,
-                    button_height,
-                )
 
         @_WNDPROC
         def window_proc(hwnd, message, wparam, lparam):  # noqa: ANN001
@@ -500,19 +617,21 @@ class Win32DecisionCardWindowApi:
                     notification == _BN_CLICKED
                     and command_id == _EVIDENCE_TOGGLE_ID
                 ):
-                    evidence_visible[0] = not evidence_visible[0]
+                    expanded[0] = not expanded[0]
                     self._user32.SetWindowTextW(
                         controls["toggle"],
                         (
-                            "Hide technical details"
-                            if evidence_visible[0]
-                            else "Expand technical details"
+                            "Hide details"
+                            if expanded[0]
+                            else "Show details"
                         ),
                     )
-                    self._user32.ShowWindow(
-                        controls["evidence"],
-                        _SW_SHOWNORMAL if evidence_visible[0] else _SW_HIDE,
-                    )
+                    for name in ("content", "evidence"):
+                        self._user32.ShowWindow(
+                            controls[name],
+                            _SW_SHOWNORMAL if expanded[0] else _SW_HIDE,
+                        )
+                    resize_for_state(hwnd)
                     rectangle = wintypes.RECT()
                     self._user32.GetClientRect(hwnd, ctypes.byref(rectangle))
                     layout(rectangle.right, rectangle.bottom)
@@ -527,7 +646,7 @@ class Win32DecisionCardWindowApi:
                 remaining = max(0, int(deadline - time.monotonic() + 0.999))
                 self._user32.SetWindowTextW(
                     controls["timeout"],
-                    f"Closes safely in {remaining}s",
+                    f"Closes in {remaining}s",
                 )
                 if remaining <= 0:
                     self._user32.DestroyWindow(hwnd)
@@ -535,6 +654,26 @@ class Win32DecisionCardWindowApi:
             if message == _WM_CLOSE:
                 self._user32.DestroyWindow(hwnd)
                 return 0
+            if message in {
+                _WM_CTLCOLORSTATIC,
+                _WM_CTLCOLOREDIT,
+                _WM_CTLCOLORBTN,
+            }:
+                control_id = self._user32.GetDlgCtrlID(wintypes.HWND(lparam))
+                text_color = (
+                    _HUD_MUTED_TEXT if control_id == _TIMEOUT_ID else _HUD_TEXT
+                )
+                self._gdi32.SetTextColor(wintypes.HDC(wparam), text_color)
+                self._gdi32.SetBkColor(
+                    wintypes.HDC(wparam),
+                    _HUD_SURFACE if message == _WM_CTLCOLOREDIT else _HUD_BACKGROUND,
+                )
+                brush = (
+                    surface_brush
+                    if message == _WM_CTLCOLOREDIT
+                    else background_brush
+                )
+                return int(ctypes.cast(brush, ctypes.c_void_p).value or 0)
             if message == _WM_DESTROY:
                 self._user32.KillTimer(hwnd, _TIMER_ID)
                 self._user32.PostQuitMessage(0)
@@ -547,17 +686,22 @@ class Win32DecisionCardWindowApi:
         window_class.lpfnWndProc = window_proc
         window_class.hInstance = instance
         window_class.hCursor = cursor
-        window_class.hbrBackground = wintypes.HBRUSH(_COLOR_WINDOW + 1)
+        window_class.hbrBackground = background_brush
         window_class.lpszClassName = class_name
         if not self._user32.RegisterClassExW(ctypes.byref(window_class)):
             raise OSError("DECISION_CARD_WINDOW_CLASS_FAILED")
 
         hwnd = None
+        font = None
+        owns_font = False
         try:
             style = _WS_OVERLAPPEDWINDOW | _WS_CLIPCHILDREN
             ex_style = _WS_EX_APPWINDOW
             x, y, width, height = self._window_rect(
-                foreground_before, style, ex_style
+                foreground_before,
+                style,
+                ex_style,
+                _scaled_client_size(False, dpi),
             )
             hwnd = self._user32.CreateWindowExW(
                 ex_style,
@@ -575,8 +719,34 @@ class Win32DecisionCardWindowApi:
             )
             if not hwnd:
                 raise OSError("DECISION_CARD_WINDOW_CREATE_FAILED")
+            compact_window_rect[0] = (x, y, width, height)
+            dark_mode = wintypes.BOOL(True)
+            self._dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                _DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(dark_mode),
+                ctypes.sizeof(dark_mode),
+            )
 
-            font = self._gdi32.GetStockObject(_DEFAULT_GUI_FONT)
+            font = self._gdi32.CreateFontW(
+                -max(13, round(10 * dpi / 72)),
+                0,
+                0,
+                0,
+                400,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                5,
+                0,
+                "Segoe UI",
+            )
+            if not font:
+                font = self._gdi32.GetStockObject(_DEFAULT_GUI_FONT)
+            owns_font = font != self._gdi32.GetStockObject(_DEFAULT_GUI_FONT)
 
             def create_control(
                 name: str,
@@ -588,10 +758,15 @@ class Win32DecisionCardWindowApi:
                 ex: int = 0,
                 visible: bool = True,
             ) -> wintypes.HWND:
+                rendered_text = (
+                    text.replace("\n", "\r\n")
+                    if class_text == "EDIT"
+                    else text
+                )
                 handle = self._user32.CreateWindowExW(
                     ex,
                     class_text,
-                    text,
+                    rendered_text,
                     _WS_CHILD
                     | (_WS_VISIBLE if visible else 0)
                     | control_style,
@@ -608,6 +783,11 @@ class Win32DecisionCardWindowApi:
                     raise OSError("DECISION_CARD_CONTROL_CREATE_FAILED")
                 controls[name] = handle
                 self._user32.SendMessageW(handle, _WM_SETFONT, font, 1)
+                self._uxtheme.SetWindowTheme(
+                    handle,
+                    "DarkMode_Explorer",
+                    None,
+                )
                 return handle
 
             create_control(
@@ -620,7 +800,7 @@ class Win32DecisionCardWindowApi:
             create_control(
                 "timeout",
                 "STATIC",
-                f"Closes safely in {timeout_seconds}s",
+                f"Closes in {timeout_seconds}s",
                 0,
                 _TIMEOUT_ID,
             )
@@ -635,11 +815,12 @@ class Win32DecisionCardWindowApi:
                 | _WS_TABSTOP,
                 _CONTENT_ID,
                 ex=_WS_EX_CLIENTEDGE,
+                visible=False,
             )
             create_control(
                 "toggle",
                 "BUTTON",
-                "Expand technical details",
+                "Show details",
                 _BS_PUSHBUTTON | _WS_TABSTOP,
                 _EVIDENCE_TOGGLE_ID,
             )
@@ -705,6 +886,12 @@ class Win32DecisionCardWindowApi:
             if hwnd and self._user32.IsWindow(hwnd):
                 self._user32.DestroyWindow(hwnd)
             self._user32.UnregisterClassW(class_name, instance)
+            if surface_brush:
+                self._gdi32.DeleteObject(surface_brush)
+            if background_brush:
+                self._gdi32.DeleteObject(background_brush)
+            if owns_font and font:
+                self._gdi32.DeleteObject(font)
             if foreground_before and self._user32.IsWindow(foreground_before):
                 foreground_after = self._user32.GetForegroundWindow()
                 self._bring_to_foreground(

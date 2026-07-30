@@ -25,9 +25,46 @@ from .types import (
     ToolResult,
     to_json_value,
 )
+from .workflow_checklist import WorkflowDefinition, WorkflowStepDefinition
 
 DEMO_COMPLETE_TEXT = "CONTROLLED_CROSS_APP_DEMO_COMPLETE"
 DEMO_TYPED_MARKER = "VERIFIED PORTAL FOLLOW-UP"
+DEMO_WORKFLOW = WorkflowDefinition(
+    workflow_id="chrome_word_research",
+    title="Review a public source and update the research brief",
+    steps=(
+        WorkflowStepDefinition(
+            "prepare_workspace",
+            "Prepare the controlled demo workspace",
+            "Demo setup",
+        ),
+        WorkflowStepDefinition(
+            "review_public_source",
+            "Review the public collaboration guide",
+            "Google Chrome",
+        ),
+        WorkflowStepDefinition(
+            "open_research_brief",
+            "Open the research brief",
+            "Microsoft Word",
+        ),
+        WorkflowStepDefinition(
+            "add_verified_note",
+            "Add the verified source note",
+            "Microsoft Word",
+        ),
+        WorkflowStepDefinition(
+            "save_research_brief",
+            "Save the research brief",
+            "Microsoft Word",
+        ),
+        WorkflowStepDefinition(
+            "verify_saved_document",
+            "Verify the saved document",
+            "Microsoft Word",
+        ),
+    ),
+)
 _REF = re.compile(r'^(ref_[1-9][0-9]*) \| edit "页面 1 内容" \|', re.MULTILINE)
 
 
@@ -334,4 +371,5 @@ __all__ = [
     "CrossAppDemoProvider",
     "DEMO_COMPLETE_TEXT",
     "DEMO_TYPED_MARKER",
+    "DEMO_WORKFLOW",
 ]

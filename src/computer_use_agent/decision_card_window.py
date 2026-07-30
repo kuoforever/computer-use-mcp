@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import UTC
 from typing import Callable, Protocol, runtime_checkable
 
 from .decision_cards import DecisionCard, DecisionSelection
@@ -16,6 +17,15 @@ class DecisionCardWindowError(RuntimeError):
 class DecisionCardButton:
     option_id: str
     label: str
+
+
+_COMPACT_BUTTON_LABELS = {
+    "option_approve_exact_effect": "Approve once",
+    "option_reobserve": "Re-observe",
+    "option_defer": "Defer",
+    "option_deny": "Deny",
+    "option_human_takeover": "Take over",
+}
 
 
 @dataclass(frozen=True)
@@ -79,7 +89,10 @@ class DecisionCardWindow:
         ):
             raise DecisionCardWindowError("DECISION_CARD_WINDOW_TIMEOUT_INVALID")
         buttons = tuple(
-            DecisionCardButton(option.option_id, option.title)
+            DecisionCardButton(
+                option.option_id,
+                _COMPACT_BUTTON_LABELS.get(option.option_id, option.title),
+            )
             for option in card.options
         )
         content = self._content(card)
@@ -89,15 +102,11 @@ class DecisionCardWindow:
         title = "Decision required"
         instruction = "Choose one bounded option"
         if context is not None:
-            title = f"Approval locked — {context.current} of {context.total}"
+            title = "Approval locked"
             instruction = (
-                f"🔒 {context.current}/{context.total}  {context.label}"
-                f"  ·  {context.application}"
-            )
-            content = (
-                "Execution is paused at this exact action.\n"
-                "Esc, window close, or timeout safely rejects it.\n\n"
-                + content
+                f"APPROVAL {context.current}/{context.total}"
+                f"  ·  {context.application}\n"
+                f"{context.label}"
             )
         try:
             async with asyncio.timeout(timeout_seconds + 2):
@@ -120,76 +129,111 @@ class DecisionCardWindow:
 
     @staticmethod
     def _content(card: DecisionCard) -> str:
-        def estimate(value) -> str:  # noqa: ANN001
+        def estimate(value, unit: str) -> str:  # noqa: ANN001
             if value.minimum is None:
-                return value.kind.value
-            return f"{value.kind.value} {value.minimum}-{value.maximum}"
+                return "Not estimated"
+            provenance = value.kind.value.replace("_", " ")
+            if value.minimum == value.maximum == 0:
+                return f"None ({provenance})"
+            if value.minimum == value.maximum:
+                return f"{value.minimum} {unit} ({provenance})"
+            return (
+                f"{value.minimum}–{value.maximum} {unit}"
+                f" ({provenance})"
+            )
+
+        def readable(value: str) -> str:
+            return value.replace("_", " ").capitalize()
+
+        def fingerprint(value: str) -> str:
+            return f"{value[:10]}…{value[-6:]}"
 
         lines = [
-            f"Class: {card.decision_class.value}",
-            f"Application: {card.application.value}",
-            f"Intended effect: {card.intended_effect.value}",
-            f"Recipient scope: {card.recipient_scope.value}",
-            "Recommendation is advisory and grants no authority.",
+            "Decision scope",
+            "This card controls one bounded desktop action only.",
+            "A recommendation is advice, not permission for later actions.",
             "",
+            "Your choices",
         ]
         for index, option in enumerate(card.options, start=1):
             recommendation = (
-                " [Recommended]"
+                " — recommended"
                 if option.option_id == card.recommended_option_id
                 else ""
             )
+            confidence = readable(option.confidence.kind.value)
+            if option.confidence.label is not None:
+                confidence = (
+                    f"{readable(option.confidence.label.value)}"
+                    f" ({readable(option.confidence.kind.value).lower()})"
+                )
             lines.extend(
                 [
                     f"{index}. {option.title}{recommendation}",
-                    f"Effect: {option.effect}",
-                    f"Benefit: {'; '.join(option.benefits)}",
-                    f"Cost: {'; '.join(option.costs)}",
-                    f"Risk: {'; '.join(option.risks)}",
-                    f"Reversible: {'yes' if option.reversible else 'no'}",
-                    f"Expected time seconds: {estimate(option.expected_time_seconds)}",
-                    f"Expected tokens: {estimate(option.expected_tokens)}",
-                    "Confidence: "
-                    + option.confidence.kind.value
-                    + (
-                        ""
-                        if option.confidence.label is None
-                        else f" {option.confidence.label.value}"
-                    ),
-                    f"Authority: {option.required_authority.value}",
-                    f"Fallback: {option.fallback.value}",
+                    f"   Outcome: {option.effect}.",
+                    f"   Benefit: {'; '.join(option.benefits)}.",
+                    f"   Trade-off: {'; '.join(option.costs)}.",
+                    f"   Risk: {'; '.join(option.risks)}.",
+                    f"   Can be undone: {'Yes' if option.reversible else 'No'}.",
+                    "   Expected time: "
+                    + estimate(option.expected_time_seconds, "seconds")
+                    + ".",
+                    "   Compute cost: "
+                    + estimate(option.expected_tokens, "tokens")
+                    + ".",
+                    f"   Confidence: {confidence}.",
                     "",
                 ]
             )
-        lines.append("Close or timeout denies this request.")
+        lines.extend(
+            [
+                "Safe exit",
+                "Esc, close, or timeout denies this action.",
+                "",
+                "Support fingerprint",
+                fingerprint(card.card_digest),
+            ]
+        )
         return "\n".join(lines)
 
     @staticmethod
     def _evidence_content(card: DecisionCard) -> str:
         binding = card.binding
+
+        def readable(value: str) -> str:
+            return value.replace("_", " ").capitalize()
+
+        def fingerprint(value: str) -> str:
+            return f"{value[:10]}…{value[-6:]}"
+
         lines = [
-            "Evidence references (SHA-256 digests only):",
+            "Safety checks",
+            "- The current screen evidence is bound to this card.",
+            "- If the task, policy, application, or target changes, this card expires.",
+            "- Choosing an option does not authorize any later action.",
+            "",
+            "Evidence available",
             *(
-                f"- {reference.kind.value}: {reference.digest}"
+                f"- {readable(reference.kind.value)}"
                 for reference in card.evidence
             ),
             "",
-            "Unknown facts:",
+            "Still unknown",
             *(
-                f"- {fact.value}" for fact in card.unknown_facts
+                f"- {readable(fact.value)}" for fact in card.unknown_facts
             ),
             "",
-            "Host binding digests:",
-            f"- state: {binding.state_digest}",
-            f"- policy: {binding.policy_digest}",
-            f"- task: {binding.task_digest}",
-            f"- registry: {binding.registry_digest}",
-            f"- object: {binding.object_digest}",
-            f"- evidence: {binding.evidence_digest}",
-            f"- card: {card.card_digest}",
-            f"- expires: {card.expires_at.isoformat()}",
+            "Technical verification (short fingerprints)",
+            f"- Screen state: {fingerprint(binding.state_digest)}",
+            f"- Safety policy: {fingerprint(binding.policy_digest)}",
+            f"- Task: {fingerprint(binding.task_digest)}",
+            f"- Tool registry: {fingerprint(binding.registry_digest)}",
+            f"- Target object: {fingerprint(binding.object_digest)}",
+            f"- Evidence set: {fingerprint(binding.evidence_digest)}",
+            f"- Card: {fingerprint(card.card_digest)}",
+            f"- Expires: {card.expires_at.astimezone(UTC).strftime('%H:%M:%S UTC')}",
             "",
-            "These digests are correlation evidence, not execution authority.",
+            "Fingerprints help support staff correlate records. They grant no authority.",
         ]
         return "\n".join(lines)
 

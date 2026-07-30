@@ -181,6 +181,23 @@ is derived only from the durable checkpoint. The issue inventory records that
 this is not yet a truthful end-user workflow-step model and has not passed live
 visual review.
 
+The first `GDA-HUD-005` model slice now defines a separate, immutable linear
+workflow checklist. Its labels and application names are reviewed Host data,
+not task text or provider prose. A checklist row can be not started, in
+progress, waiting for approval, completed, skipped, failed, or uncertain;
+overall paused and verifying states do not falsely complete the current row.
+Completed and skipped rows form an ordered prefix, only one current row may
+exist, and future rows remain not started. Contradictory or unknown state fails
+closed. The controlled Chrome-to-Word Demo has six fixed workflow chapters:
+prepare the workspace, review the public source, open the brief, add the note,
+save the brief, and verify the saved document.
+
+These six workflow chapters are deliberately independent of the seven
+side-effect approvals and the Host tool-call budget. The model is not yet wired
+to the passive native window, so the existing `STEP current/limit` display
+remains a tool-budget diagnostic until the next `GDA-HUD-005` slice replaces
+its end-user meaning.
+
 New run checkpoints now preserve creation time and separately count complete
 provider-usage reports and successful `screenshot` results. The passive viewer
 therefore labels token coverage, screenshots, and elapsed-at-checkpoint time as
@@ -231,6 +248,16 @@ Each card contains:
 - a clearly labeled Agent recommendation when one exists;
 - an explicit statement that the recommendation is advisory and grants no
   authority.
+
+The native card uses progressive disclosure. Its compact state shows only the
+approval lock, approval count, current fixed action, application, safe-close
+countdown, details affordance, and a two-by-two grid of short choices. Decision
+trade-offs and evidence are absent from that state. Expanding intentionally
+resizes the same pending card and reveals two read-only panes: human-readable
+option outcomes/trade-offs and human-readable safety checks. Internal enum
+values and complete digests are not operator prose; technical correlation is
+shown only as labeled short fingerprints. Collapsing restores the saved compact
+geometry and does not create a new decision or selection.
 
 Each option uses a typed trade-off record:
 
