@@ -251,7 +251,7 @@ def _protocol_failure(call: ToolCall) -> ToolResult:
 def _classify_action_text(text: str) -> tuple[ToolResultStatus, str | None]:
     for prefix, code in _SERVER_ERROR_PREFIXES:
         if text.startswith(prefix):
-            return ToolResultStatus.ACTION_ERROR, code
+            return ToolResultStatus.REJECTED, code
     if text.startswith("ERROR "):
         code = text[6:].partition(":")[0].strip()
         if code in _SERVER_RESULT_CODES:

@@ -60,3 +60,17 @@ def test_each_demo_run_starts_from_a_fresh_profile_and_template(
             "x": 80,
             "y": 80,
         }
+
+
+def test_demo_configures_one_mcp_dispatch_readiness_handshake() -> None:
+    demo = _load_demo_script()
+
+    config = demo._config("readiness-contract")
+    environment = config.mcp.environment
+
+    assert environment["CUMCP_HUMAN_IDLE_SECONDS"] == "2.5"
+    assert environment["CUMCP_HUMAN_STABLE_SAMPLES"] == "3"
+    assert environment["CUMCP_HUMAN_POLL_INTERVAL_SECONDS"] == "0.25"
+    assert environment["CUMCP_HUMAN_MAX_WAIT_SECONDS"] == "60.0"
+    assert hasattr(demo, "DemoDecisionCards")
+    assert not hasattr(demo, "HeartbeatDecisionCards")

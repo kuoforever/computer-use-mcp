@@ -296,6 +296,9 @@ def test_config_rejects_unreviewed_child_environment_names(
         'CUMCP_MODE = "full_control_local"',
         'CUMCP_DANGEROUS_CONFIRM = "0"',
         'CUMCP_HUMAN_IDLE_SECONDS = "0"',
+        'CUMCP_HUMAN_STABLE_SAMPLES = "0"',
+        'CUMCP_HUMAN_POLL_INTERVAL_SECONDS = "0"',
+        'CUMCP_HUMAN_MAX_WAIT_SECONDS = "0"',
         'CUMCP_TYPE_WAIT_SECONDS = "0.2"',
     ],
 )

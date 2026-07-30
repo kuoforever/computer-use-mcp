@@ -102,6 +102,26 @@ def test_structured_observation_error_is_a_redacted_failure(tool_name: str) -> N
         ("HUMAN_ACTIVE: input detected", "HUMAN_ACTIVE"),
         ("DENIED by gate: wrong foreground", "DENIED_BY_GATE"),
         ("DENIED by user (dangerous)", "DENIED_BY_USER"),
+    ],
+)
+def test_pre_dispatch_action_rejections_are_known_not_dispatched(
+    text: str,
+    code: str,
+) -> None:
+    result = convert_mcp_result(
+        _call("click", {"ref": "ref_1"}),
+        _text_result(text),
+    )
+
+    assert result.status is ToolResultStatus.REJECTED
+    assert result.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert result.code == code
+    assert result.sanitized_text == ""
+
+
+@pytest.mark.parametrize(
+    ("text", "code"),
+    [
         ("ERROR STALE_ELEMENT: re-snapshot", "STALE_ELEMENT"),
         ("ERROR NOT_INVOKABLE: unavailable", "NOT_INVOKABLE"),
         ("ERROR OUT_OF_BOUNDS: outside display", "OUT_OF_BOUNDS"),
@@ -113,6 +133,7 @@ def test_action_error_text_maps_only_to_fixed_codes(text: str, code: str) -> Non
     result = convert_mcp_result(_call("click", {"ref": "ref_1"}), _text_result(text))
 
     assert result.status is ToolResultStatus.ACTION_ERROR
+    assert result.dispatch is DispatchCertainty.DISPATCHED
     assert result.code == code
     assert result.sanitized_text == ""
 

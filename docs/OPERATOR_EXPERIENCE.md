@@ -81,6 +81,17 @@ Computer Use review at the current DPI confirmed the passive foreground,
 focus-taking card, and `Esc` restoration sequence; this is not retained
 Chrome/Word or multi-monitor evidence.
 
+Closing a Decision Card does not create a separately sampled readiness lease.
+The card first completes its exit path and restores the captured foreground.
+The Runner then makes exactly one MCP action call. Inside that call, the MCP
+guard waits for the configured consecutive healthy idle samples, verifies the
+foreground allowlist, and only then invokes the driver at most once. An idle
+timeout, unavailable idle observation, E-stop, foreground denial, or user
+denial is a known pre-dispatch rejection. It is reported as `not_dispatched`
+and must not be replayed. The bounded Demo configures three samples; the
+generic server keeps the legacy one-sample default unless a reviewed Host
+configuration raises it.
+
 The current native card is a normal Windows overlapped window rather than a
 modal Task Dialog. It can be dragged, minimized, covered by another
 application, or resized by the operator, and never remains topmost. Decision
@@ -388,7 +399,10 @@ There is no global "always allow" control in the first interactive version.
 2. Indicator state follows validated Host phases and disappears on authority
    release, crash detection, terminal close, and E-stop.
 3. A Decision Card may take focus only after the Agent has yielded; no desktop
-   action executes while the decision is open.
+   action executes while the decision is open. After it closes, foreground
+   restoration, stable-idle sampling, the foreground gate, and at most one
+   driver dispatch remain one ordered readiness boundary; a pre-dispatch
+   rejection is not replayed.
 4. Every option is schema bounded, mutually exclusive, and includes effect,
    risk, reversibility, authority, cost provenance, and fallback.
 5. Selecting an option with stale evidence, identity, policy, or object version

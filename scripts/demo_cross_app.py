@@ -7,7 +7,6 @@ desktop operation is requested through AgentRunner and StdioDesktopMCP.
 from __future__ import annotations
 
 import asyncio
-import ctypes
 import hashlib
 import json
 import shutil
@@ -16,7 +15,6 @@ import sys
 import time
 import zipfile
 from xml.etree import ElementTree
-from ctypes import wintypes
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -46,7 +44,6 @@ from computer_use_agent.demo_cross_app import (  # noqa: E402
     DEMO_TYPED_MARKER,
     CrossAppDemoProvider,
 )
-from computer_use_agent.demo_idle_heartbeat import HumanIdleHeartbeat  # noqa: E402
 from computer_use_agent.desktop_mcp import StdioDesktopMCP  # noqa: E402
 from computer_use_agent.presence import PresencePreferences  # noqa: E402
 from computer_use_agent.presence_lifecycle import RunPresenceCoordinator  # noqa: E402
@@ -60,7 +57,6 @@ from computer_use_agent.runner import AgentRunner, RunnerPorts  # noqa: E402
 from computer_use_agent.types import (  # noqa: E402
     ApprovalRequest,
     PolicyDecision,
-    PolicyDecisionKind,
 )
 
 CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
@@ -68,8 +64,9 @@ WORD = Path(r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE")
 MCP = ROOT / ".venv" / "Scripts" / "guarded-desktop-mcp.exe"
 WORD_TEMPLATE = ROOT / "demo_templates" / "word-collaboration-research.docx"
 HUMAN_IDLE_SECONDS = 2.5
-APPROVAL_IDLE_MARGIN_SECONDS = 0.75
-APPROVAL_IDLE_MAX_WAIT_SECONDS = 60.0
+HUMAN_STABLE_SAMPLES = 3
+HUMAN_POLL_INTERVAL_SECONDS = 0.25
+HUMAN_MAX_WAIT_SECONDS = 60.0
 SOURCE_URL = (
     "https://support.microsoft.com/en-US/Word/training/"
     "collaborate-on-word-documents-with-real-time-co-authoring"
@@ -85,19 +82,8 @@ SUMMARY = (
 )
 
 
-def _last_input_idle_seconds() -> float:
-    class LASTINPUTINFO(ctypes.Structure):
-        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
-
-    info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
-    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
-        raise OSError(ctypes.get_last_error(), "GetLastInputInfo failed")
-    now = int(ctypes.windll.kernel32.GetTickCount64()) & 0xFFFFFFFF
-    return ((now - int(info.dwTime)) & 0xFFFFFFFF) / 1000.0
-
-
-class HeartbeatDecisionCards:
-    """Require stable human-idle heartbeats after an operator choice."""
+class DemoDecisionCards:
+    """Add trusted Demo context without duplicating dispatch readiness."""
 
     focus_taking = True
 
@@ -132,21 +118,6 @@ class HeartbeatDecisionCards:
             application,
         )
         decision = await self._inner.request_approval(request)
-        if decision.kind is PolicyDecisionKind.ALLOW:
-            heartbeat = HumanIdleHeartbeat(
-                required_idle_seconds=(
-                    HUMAN_IDLE_SECONDS + APPROVAL_IDLE_MARGIN_SECONDS
-                ),
-                max_wait_seconds=APPROVAL_IDLE_MAX_WAIT_SECONDS,
-            )
-            if not await heartbeat.wait_until_stable(_last_input_idle_seconds):
-                return PolicyDecision(
-                    request.request_id,
-                    request.identity,
-                    request.call_digest,
-                    PolicyDecisionKind.DEFER,
-                    "demo_waiting_for_human_idle",
-                )
         return decision
 
 
@@ -226,6 +197,13 @@ def _config(stamp: str) -> AgentConfig:
             environment={
                 "CUMCP_ALLOWLIST": "chrome.exe,winword.exe",
                 "CUMCP_HUMAN_IDLE_SECONDS": str(HUMAN_IDLE_SECONDS),
+                "CUMCP_HUMAN_STABLE_SAMPLES": str(HUMAN_STABLE_SAMPLES),
+                "CUMCP_HUMAN_POLL_INTERVAL_SECONDS": str(
+                    HUMAN_POLL_INTERVAL_SECONDS
+                ),
+                "CUMCP_HUMAN_MAX_WAIT_SECONDS": str(
+                    HUMAN_MAX_WAIT_SECONDS
+                ),
                 "CUMCP_TYPE_WAIT_SECONDS": "0.035",
             },
         ),
@@ -281,7 +259,7 @@ async def _run() -> dict[str, object]:
         ),
         timeout_seconds=config.operator.decision_timeout_seconds,
     )
-    approvals = HeartbeatDecisionCards(
+    approvals = DemoDecisionCards(
         inner_cards,
         step_context=step_context,
     )

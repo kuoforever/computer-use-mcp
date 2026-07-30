@@ -4,6 +4,7 @@ import asyncio
 import json
 import tempfile
 import unittest
+from collections import deque
 from pathlib import Path
 
 from computer_use_mcp.contract import ProcRef, Result
@@ -37,6 +38,15 @@ class FakeDriver:
         return Result.success()
 
 
+class SamplingDriver(FakeDriver):
+    def __init__(self, idle_samples: tuple[float, ...]) -> None:
+        super().__init__(idle_seconds=0.0)
+        self.idle_samples = deque(idle_samples)
+
+    def last_input_idle_seconds(self) -> float:
+        return self.idle_samples.popleft()
+
+
 def tool_text(result) -> str:
     content = result[0] if isinstance(result, tuple) else result
     return "\n".join(getattr(item, "text", "") for item in content)
@@ -55,6 +65,88 @@ class HumanActivityTests(unittest.TestCase):
 
         driver.input_tick += 1
         self.assertIsNotNone(activity.blocking_reason())
+
+    def test_call_scoped_readiness_requires_one_consecutive_idle_streak(self) -> None:
+        driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3))
+        sleeps: list[float] = []
+        activity = HumanActivity(
+            driver,
+            idle_seconds=1.0,
+            stable_samples=3,
+            poll_interval_seconds=0.25,
+            max_wait_seconds=2.0,
+        )
+
+        reason = activity.wait_until_stable(sleep=sleeps.append)
+
+        self.assertIsNone(reason)
+        self.assertEqual(sleeps, [0.25] * 5)
+        self.assertEqual(len(driver.idle_samples), 0)
+
+    def test_call_scoped_readiness_fails_closed_without_idle_observation(self) -> None:
+        class UnavailableDriver(FakeDriver):
+            def last_input_idle_seconds(self) -> float:
+                raise OSError("unavailable")
+
+        activity = HumanActivity(
+            UnavailableDriver(0.0),
+            stable_samples=3,
+        )
+
+        self.assertEqual(
+            activity.wait_until_stable(sleep=lambda _seconds: None),
+            "human input idle state unavailable",
+        )
+
+    def test_server_stabilizes_inside_one_call_then_dispatches_once(self) -> None:
+        driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3))
+        activity = HumanActivity(
+            driver,
+            idle_seconds=1.0,
+            stable_samples=3,
+            poll_interval_seconds=0.001,
+            max_wait_seconds=0.01,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            server = build_server(
+                allowlist=["notepad.exe"],
+                driver=driver,
+                human_activity=activity,
+                estop=EStop(),
+                start_estop=False,
+                audit_path=str(Path(directory) / "audit.jsonl"),
+            )
+            key = tool_text(
+                asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"}))
+            )
+
+        self.assertEqual(key, "ok")
+        self.assertEqual(driver.key_calls, 1)
+
+    def test_readiness_timeout_rejects_without_dispatch_or_replay(self) -> None:
+        driver = FakeDriver(idle_seconds=0.1)
+        activity = HumanActivity(
+            driver,
+            idle_seconds=1.0,
+            stable_samples=3,
+            poll_interval_seconds=0.001,
+            max_wait_seconds=0.002,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            server = build_server(
+                allowlist=["notepad.exe"],
+                driver=driver,
+                human_activity=activity,
+                estop=EStop(),
+                start_estop=False,
+                audit_path=str(Path(directory) / "audit.jsonl"),
+            )
+            key = tool_text(
+                asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"}))
+            )
+
+        self.assertTrue(key.startswith("HUMAN_ACTIVE:"))
+        self.assertEqual(driver.key_calls, 0)
 
     def test_server_blocks_actions_and_activation_while_human_is_active(self) -> None:
         driver = FakeDriver(idle_seconds=0.1)
