@@ -9,6 +9,7 @@ import pytest
 from computer_use_agent.decision_card_window import (
     DecisionCardWindow,
     OperatorStepContext,
+    WorkflowBreadcrumb,
 )
 from computer_use_agent.decision_cards import (
     ApplicationClass,
@@ -23,6 +24,8 @@ from computer_use_agent.decision_cards import (
     UnknownFact,
     compile_decision_card,
 )
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.workflow_checklist import WorkflowStatus
 
 NOW = datetime(2026, 7, 22, 15, 0, tzinfo=UTC)
 
@@ -111,11 +114,17 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
 
 def test_controller_renders_compact_locked_step_context() -> None:
     api = Api("option_deny")
+    workflow = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
     context = OperatorStepContext(
-        current=3,
+        current=4,
         total=7,
         label="Switch to the research notes",
         application="Microsoft Word",
+        workflow=WorkflowBreadcrumb.from_checklist(workflow),
     )
 
     asyncio.run(
@@ -126,12 +135,42 @@ def test_controller_renders_compact_locked_step_context() -> None:
 
     call = api.calls[0]
     assert call["title"] == "Approval locked"
-    assert "3/7" in call["instruction"]
-    assert "Switch to the research notes" in call["instruction"]
-    assert "Microsoft Word" in call["instruction"]
+    assert call["instruction"].splitlines() == [
+        "APPROVAL 4/7  ·  Microsoft Word",
+        "Switch to the research notes",
+        "WORKFLOW 3/6  ·  Open the research brief",
+    ]
     assert call["content"].startswith("Decision scope")
     assert "Switch to the research notes" not in call["content"]
     assert "Microsoft Word" not in call["content"]
+    assert "Open the research brief" not in call["content"]
+
+
+def test_workflow_breadcrumb_requires_a_validated_current_step() -> None:
+    ready = DEMO_WORKFLOW.project(
+        WorkflowStatus.READY,
+        completed_step_ids=tuple(step.step_id for step in DEMO_WORKFLOW.steps),
+    )
+
+    with pytest.raises(
+        Exception,
+        match="DECISION_CARD_WORKFLOW_INVALID",
+    ):
+        WorkflowBreadcrumb.from_checklist(ready)
+
+
+def test_operator_context_rejects_untyped_workflow_breadcrumb() -> None:
+    with pytest.raises(
+        Exception,
+        match="DECISION_CARD_WORKFLOW_INVALID",
+    ):
+        OperatorStepContext(
+            1,
+            7,
+            "Open the public source",
+            "Google Chrome",
+            workflow="workflow 2/6",  # type: ignore[arg-type]
+        )
 
 
 @pytest.mark.parametrize(

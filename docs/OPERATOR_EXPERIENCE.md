@@ -278,6 +278,16 @@ values and complete digests are not operator prose; technical correlation is
 shown only as labeled short fingerprints. Collapsing restores the saved compact
 geometry and does not create a new decision or selection.
 
+The card may also show one Host-owned workflow breadcrumb derived from the
+validated checklist's exact current row. Approval count and workflow position
+remain different facts: for example, `APPROVAL 4/7` can appear with
+`WORKFLOW 3/6 · Open the research brief`. The primary line remains the exact
+action being approved. The card never copies the complete checklist, derives a
+workflow location from provider prose, or treats the breadcrumb as authority.
+An isolated Computer Use review at the current DPI confirmed the approval
+count, exact action, application, workflow breadcrumb, countdown, details
+affordance, and 2x2 choices fit in compact mode without clipping.
+
 Each option uses a typed trade-off record:
 
 ~~~json

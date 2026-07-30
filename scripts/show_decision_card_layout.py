@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from computer_use_agent.decision_card_window import (  # noqa: E402
     DecisionCardWindow,
     OperatorStepContext,
+    WorkflowBreadcrumb,
 )
 from computer_use_agent.decision_card_window_win32 import (  # noqa: E402
     Win32DecisionCardWindowApi,
@@ -30,6 +31,8 @@ from computer_use_agent.decision_cards import (  # noqa: E402
     UnknownFact,
     compile_decision_card,
 )
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW  # noqa: E402
+from computer_use_agent.workflow_checklist import WorkflowStatus  # noqa: E402
 
 
 def _card(timeout_seconds: int):
@@ -61,11 +64,21 @@ def _card(timeout_seconds: int):
 
 
 async def _show(timeout_seconds: int) -> str:
+    workflow = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=(
+            "prepare_workspace",
+            "review_public_source",
+            "open_research_brief",
+        ),
+        current_step_id="add_verified_note",
+    )
     context = OperatorStepContext(
         current=4,
         total=7,
         label="Add the source note to the research brief",
         application="Microsoft Word",
+        workflow=WorkflowBreadcrumb.from_checklist(workflow),
     )
     selection = await DecisionCardWindow(
         Win32DecisionCardWindowApi(),

@@ -74,7 +74,7 @@ _TIMER_ID = 1
 _TIMER_INTERVAL_MS = 250
 
 _COMPACT_CLIENT_WIDTH = 560
-_COMPACT_CLIENT_HEIGHT = 250
+_COMPACT_CLIENT_HEIGHT = 270
 _EXPANDED_CLIENT_WIDTH = 720
 _EXPANDED_CLIENT_HEIGHT = 620
 _CORNER_MARGIN = 20
@@ -193,7 +193,7 @@ def _layout_rects(
 
     margin = scale(16)
     gap = scale(8)
-    header_height = scale(62)
+    header_height = scale(78)
     timeout_width = min(scale(150), max(scale(112), width // 4))
     toggle_height = scale(30)
     button_height = scale(42)

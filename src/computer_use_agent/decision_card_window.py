@@ -7,6 +7,7 @@ from datetime import UTC
 from typing import Callable, Protocol, runtime_checkable
 
 from .decision_cards import DecisionCard, DecisionSelection
+from .workflow_checklist import WorkflowChecklist
 
 
 class DecisionCardWindowError(RuntimeError):
@@ -29,13 +30,62 @@ _COMPACT_BUTTON_LABELS = {
 
 
 @dataclass(frozen=True)
+class WorkflowBreadcrumb:
+    """One trusted workflow location; it carries no checklist or authority."""
+
+    current: int
+    total: int
+    label: str
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.current, bool)
+            or not isinstance(self.current, int)
+            or isinstance(self.total, bool)
+            or not isinstance(self.total, int)
+            or not 1 <= self.current <= self.total <= 999
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_INVALID")
+        if (
+            not isinstance(self.label, str)
+            or not self.label.strip()
+            or self.label != self.label.strip()
+            or len(self.label) > 120
+            or any(ord(character) < 32 for character in self.label)
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_TEXT_INVALID")
+
+    @classmethod
+    def from_checklist(cls, checklist: WorkflowChecklist) -> WorkflowBreadcrumb:
+        """Derive a breadcrumb only from one validated current workflow row."""
+
+        if (
+            not isinstance(checklist, WorkflowChecklist)
+            or checklist.current_step_id is None
+            or checklist.current_step_number is None
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_INVALID")
+        current = next(
+            step
+            for step in checklist.steps
+            if step.step_id == checklist.current_step_id
+        )
+        return cls(
+            current=checklist.current_step_number,
+            total=len(checklist.steps),
+            label=current.label,
+        )
+
+
+@dataclass(frozen=True)
 class OperatorStepContext:
-    """Bounded, presentation-only context for one operator decision."""
+    """Exact approval action plus an optional trusted workflow breadcrumb."""
 
     current: int
     total: int
     label: str
     application: str
+    workflow: WorkflowBreadcrumb | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -54,6 +104,11 @@ class OperatorStepContext:
                 or any(ord(character) < 32 for character in value)
             ):
                 raise DecisionCardWindowError("DECISION_CARD_STEP_TEXT_INVALID")
+        if self.workflow is not None and not isinstance(
+            self.workflow,
+            WorkflowBreadcrumb,
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_INVALID")
 
 
 @runtime_checkable
@@ -108,6 +163,11 @@ class DecisionCardWindow:
                 f"  ·  {context.application}\n"
                 f"{context.label}"
             )
+            if context.workflow is not None:
+                instruction += (
+                    f"\nWORKFLOW {context.workflow.current}/{context.workflow.total}"
+                    f"  ·  {context.workflow.label}"
+                )
         try:
             async with asyncio.timeout(timeout_seconds + 2):
                 option_id = await asyncio.to_thread(
@@ -244,4 +304,5 @@ __all__ = [
     "DecisionCardWindowApi",
     "DecisionCardWindowError",
     "OperatorStepContext",
+    "WorkflowBreadcrumb",
 ]
