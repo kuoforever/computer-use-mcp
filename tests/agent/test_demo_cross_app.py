@@ -19,6 +19,7 @@ from computer_use_agent.demo_cross_app import (
     CrossAppDemoError,
     CrossAppDemoProvider,
     _window_id,
+    project_demo_workflow,
 )
 from computer_use_agent.fakes import FakeDesktopMCP
 from computer_use_agent.runner import AgentRunner, RunnerPorts
@@ -31,9 +32,52 @@ from computer_use_agent.types import (
     ToolResult,
     ToolResultStatus,
 )
+from computer_use_agent.workflow_checklist import (
+    WorkflowStatus,
+    WorkflowStepStatus,
+)
 
 RUN_ID = "cross-app-demo-test"
 SUMMARY = f"\n{DEMO_TYPED_MARKER}\n- bounded fixture"
+
+
+def test_controlled_demo_provider_steps_map_to_human_workflow_chapters() -> None:
+    expected = {
+        0: ("review_public_source", 1),
+        5: ("review_public_source", 1),
+        6: ("open_research_brief", 2),
+        8: ("open_research_brief", 2),
+        9: ("add_verified_note", 3),
+        14: ("add_verified_note", 3),
+        15: ("save_research_brief", 4),
+        16: ("verify_saved_document", 5),
+        17: ("verify_saved_document", 5),
+    }
+
+    for provider_step, (current_step_id, completed_count) in expected.items():
+        checklist = project_demo_workflow(provider_step)
+        assert checklist.current_step_id == current_step_id
+        assert sum(
+            row.status is WorkflowStepStatus.COMPLETED
+            for row in checklist.steps
+        ) == completed_count
+
+    ready = project_demo_workflow(18, status=WorkflowStatus.READY)
+    assert ready.current_step_id is None
+    assert all(
+        row.status is WorkflowStepStatus.COMPLETED
+        for row in ready.steps
+    )
+
+
+def test_controlled_demo_workflow_mapping_fails_closed() -> None:
+    for provider_step in (-1, 19, True):
+        with pytest.raises(ValueError, match="provider step is invalid"):
+            project_demo_workflow(provider_step)
+    with pytest.raises(ValueError, match="cannot be ready"):
+        project_demo_workflow(17, status=WorkflowStatus.READY)
+    with pytest.raises(ValueError, match="must be ready"):
+        project_demo_workflow(18)
 
 
 def _result(

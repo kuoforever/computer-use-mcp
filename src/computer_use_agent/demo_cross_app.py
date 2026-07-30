@@ -25,7 +25,12 @@ from .types import (
     ToolResult,
     to_json_value,
 )
-from .workflow_checklist import WorkflowDefinition, WorkflowStepDefinition
+from .workflow_checklist import (
+    WorkflowChecklist,
+    WorkflowDefinition,
+    WorkflowStatus,
+    WorkflowStepDefinition,
+)
 
 DEMO_COMPLETE_TEXT = "CONTROLLED_CROSS_APP_DEMO_COMPLETE"
 DEMO_TYPED_MARKER = "VERIFIED PORTAL FOLLOW-UP"
@@ -66,6 +71,50 @@ DEMO_WORKFLOW = WorkflowDefinition(
     ),
 )
 _REF = re.compile(r'^(ref_[1-9][0-9]*) \| edit "页面 1 内容" \|', re.MULTILINE)
+
+_DEMO_STEP_IDS = tuple(step.step_id for step in DEMO_WORKFLOW.steps)
+
+
+def project_demo_workflow(
+    provider_step: int,
+    *,
+    status: WorkflowStatus = WorkflowStatus.RUNNING,
+) -> WorkflowChecklist:
+    """Map one fixed provider boundary to the six Host-owned Demo chapters."""
+
+    if (
+        isinstance(provider_step, bool)
+        or not isinstance(provider_step, int)
+        or not 0 <= provider_step <= 18
+    ):
+        raise ValueError("controlled Demo provider step is invalid")
+    if not isinstance(status, WorkflowStatus):
+        raise ValueError("controlled Demo workflow status is invalid")
+    if provider_step == 18:
+        if status is not WorkflowStatus.READY:
+            raise ValueError("completed controlled Demo must be ready")
+        return DEMO_WORKFLOW.project(
+            status,
+            completed_step_ids=_DEMO_STEP_IDS,
+        )
+    if status is WorkflowStatus.READY:
+        raise ValueError("incomplete controlled Demo cannot be ready")
+
+    if provider_step <= 5:
+        completed_count = 1
+    elif provider_step <= 8:
+        completed_count = 2
+    elif provider_step <= 14:
+        completed_count = 3
+    elif provider_step == 15:
+        completed_count = 4
+    else:
+        completed_count = 5
+    return DEMO_WORKFLOW.project(
+        status,
+        completed_step_ids=_DEMO_STEP_IDS[:completed_count],
+        current_step_id=_DEMO_STEP_IDS[completed_count],
+    )
 
 
 class CrossAppDemoError(RuntimeError):
@@ -372,4 +421,5 @@ __all__ = [
     "DEMO_COMPLETE_TEXT",
     "DEMO_TYPED_MARKER",
     "DEMO_WORKFLOW",
+    "project_demo_workflow",
 ]
