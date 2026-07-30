@@ -129,6 +129,9 @@ The default overlay is passive:
 
 - create a tool window with non-activating behavior;
 - show or refresh it without changing the foreground window;
+- place it in the current foreground monitor's top-right work-area rail;
+- preserve the right edge across compact/expanded workflow geometry, unless an
+  explicit operator move opts out of automatic anchoring;
 - use `SetWindowPos(..., SWP_NOACTIVATE)` for position/topmost updates;
 - do not expose keyboard focus, execution controls, or editable fields;
 - make always-on-top optional and persisted locally.

@@ -70,6 +70,17 @@ Card is a deliberate transition into operator interaction; it may take focus and
 therefore triggers normal human-activity yielding until the decision is closed
 and the desktop is explicitly returned to the Agent.
 
+The implemented default composition reserves two corners of the foreground
+application's monitor work area. Passive Progress occupies a top-right HUD rail
+and keeps its right edge fixed while its checklist expands or collapses. An
+explicit operator move opts out of automatic anchoring. Decision Card occupies
+the bottom-right rail, takes focus only for the bound decision, and restores the
+captured prior foreground window on every exit. Pure geometry covers 100%,
+125%, and 150% DPI against the bounded Demo application rectangle. An isolated
+Computer Use review at the current DPI confirmed the passive foreground,
+focus-taking card, and `Esc` restoration sequence; this is not retained
+Chrome/Word or multi-monitor evidence.
+
 The current native card is a normal Windows overlapped window rather than a
 modal Task Dialog. It can be dragged, minimized, covered by another
 application, or resized by the operator, and never remains topmost. Decision

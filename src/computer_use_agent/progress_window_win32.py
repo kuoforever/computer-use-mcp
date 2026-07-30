@@ -28,6 +28,8 @@ _SWP_NOMOVE = 0x0002
 _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
 
+_MONITOR_DEFAULTTOPRIMARY = 1
+
 _WM_PAINT = 0x000F
 _WM_DESTROY = 0x0002
 _WM_CLOSE = 0x0010
@@ -39,6 +41,7 @@ _DEFAULT_WIN_W = 460
 _DEFAULT_WIN_H = 250
 _EXPANDED_WIN_W = 520
 _EXPANDED_WIN_H = 560
+_CORNER_MARGIN = 20
 _LINE_H = 20
 _PAD = 14
 _HUD_BACKGROUND = 0x001E1713
@@ -91,6 +94,42 @@ class _PAINTSTRUCT(ctypes.Structure):
     ]
 
 
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", wintypes.RECT),
+        ("rcWork", wintypes.RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+
+def _top_right_origin(
+    work_area: tuple[int, int, int, int],
+    outer_size: tuple[int, int],
+    *,
+    margin: int = _CORNER_MARGIN,
+) -> tuple[int, int]:
+    """Place one HUD inside a monitor work area, anchored to its top-right."""
+
+    left, top, right, bottom = work_area
+    width, height = outer_size
+    if (
+        right <= left
+        or bottom <= top
+        or width <= 0
+        or height <= 0
+        or margin < 0
+    ):
+        raise ValueError("PROGRESS_WORK_AREA_INVALID")
+    x = right - width - margin
+    y = top + margin
+    if x < left:
+        x = left
+    if y + height > bottom:
+        y = top
+    return x, y
+
+
 class Win32ProgressWindowApi:
     """A live, non-activating tool window rendered with GDI text.
 
@@ -114,7 +153,9 @@ class Win32ProgressWindowApi:
         ] = {}
         self._toggle_handlers: dict[int, Callable[[bool], None]] = {}
         self._workflow_accents: dict[int, int] = {}
+        self._top_right_anchored: set[int] = set()
         self._configure_gdi()
+        self._configure_window_apis()
         # Keep a strong reference to the WNDPROC; if it is collected, the window
         # procedure pointer dangles and the next message crashes the process.
         self._wndproc = _WNDPROC(self._on_message)
@@ -134,10 +175,15 @@ class Win32ProgressWindowApi:
         ]
         dpi = self._system_dpi()
         width, height = _window_size(False, dpi)
+        x, y = _top_right_origin(
+            self._work_area(self.foreground()),
+            (width, height),
+            margin=_scaled(_CORNER_MARGIN, dpi),
+        )
         hwnd = user32.CreateWindowExW(
             ex_style, self._class_name, title, style,
-            _scaled(24, dpi),
-            _scaled(24, dpi),
+            x,
+            y,
             width,
             height,
             None, None, self._hinstance(), None,
@@ -145,6 +191,7 @@ class Win32ProgressWindowApi:
         if not hwnd:
             raise OSError(f"CreateWindowExW failed (win32 error {self._last_error()})")
         self._lines[int(hwnd)] = ()
+        self._top_right_anchored.add(int(hwnd))
         return int(hwnd)
 
     def set_lines(self, hwnd: int, lines: Sequence[str]) -> None:
@@ -196,6 +243,7 @@ class Win32ProgressWindowApi:
         self._user32.ShowWindow(wintypes.HWND(hwnd), _SW_SHOWNOACTIVATE)
 
     def reposition_noactivate(self, hwnd: int, *, x: int, y: int, topmost: bool) -> None:
+        self._top_right_anchored.discard(int(hwnd))
         insert_after = _HWND_TOPMOST if topmost else _HWND_NOTOPMOST
         ok = self._user32.SetWindowPos(
             wintypes.HWND(hwnd), wintypes.HWND(insert_after),
@@ -213,6 +261,7 @@ class Win32ProgressWindowApi:
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
         self._workflow_accents.pop(int(hwnd), None)
+        self._top_right_anchored.discard(int(hwnd))
         self._user32.DestroyWindow(wintypes.HWND(hwnd))
 
     # --- message pump (used by the smoke, not the controller) --------------
@@ -503,20 +552,65 @@ class Win32ProgressWindowApi:
         return self._window_dpi(int(desktop))
 
     def _resize_summary(self, hwnd: int, *, expanded: bool) -> None:
-        width, height = _window_size(expanded, self._window_dpi(hwnd))
+        dpi = self._window_dpi(hwnd)
+        width, height = _window_size(expanded, dpi)
+        flags = _SWP_NOZORDER | _SWP_NOACTIVATE
+        x = 0
+        y = 0
+        if int(hwnd) in self._top_right_anchored:
+            x, y = _top_right_origin(
+                self._work_area(hwnd),
+                (width, height),
+                margin=_scaled(_CORNER_MARGIN, dpi),
+            )
+        else:
+            flags |= _SWP_NOMOVE
         ok = self._user32.SetWindowPos(
             wintypes.HWND(hwnd),
             None,
-            0,
-            0,
+            x,
+            y,
             width,
             height,
-            _SWP_NOMOVE | _SWP_NOZORDER | _SWP_NOACTIVATE,
+            flags,
         )
         if not ok:
             raise OSError(
                 f"SetWindowPos failed (win32 error {self._last_error()})"
             )
+
+    def _work_area(self, hwnd: int) -> tuple[int, int, int, int]:
+        monitor = self._user32.MonitorFromWindow(
+            wintypes.HWND(hwnd),
+            _MONITOR_DEFAULTTOPRIMARY,
+        )
+        info = _MONITORINFO()
+        info.cbSize = ctypes.sizeof(info)
+        if not monitor or not self._user32.GetMonitorInfoW(
+            monitor,
+            ctypes.byref(info),
+        ):
+            raise OSError(
+                f"GetMonitorInfoW failed (win32 error {self._last_error()})"
+            )
+        return (
+            info.rcWork.left,
+            info.rcWork.top,
+            info.rcWork.right,
+            info.rcWork.bottom,
+        )
+
+    def _configure_window_apis(self) -> None:
+        self._user32.MonitorFromWindow.argtypes = [
+            wintypes.HWND,
+            wintypes.DWORD,
+        ]
+        self._user32.MonitorFromWindow.restype = wintypes.HANDLE
+        self._user32.GetMonitorInfoW.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(_MONITORINFO),
+        ]
+        self._user32.GetMonitorInfoW.restype = wintypes.BOOL
 
     def _configure_gdi(self) -> None:
         self._gdi32.CreateFontW.argtypes = [
@@ -561,4 +655,9 @@ class Win32ProgressWindowApi:
         return int(self._kernel32.GetLastError())
 
 
-__all__ = ["Win32ProgressWindowApi", "_scaled", "_window_size"]
+__all__ = [
+    "Win32ProgressWindowApi",
+    "_scaled",
+    "_top_right_origin",
+    "_window_size",
+]
