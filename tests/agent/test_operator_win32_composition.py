@@ -9,6 +9,10 @@ from computer_use_agent.decision_card_window_win32 import (
 )
 from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi
 from computer_use_agent.progress_window_win32 import Win32ProgressWindowApi
+from computer_use_agent.progress_window_win32 import _scaled as scale_progress
+from computer_use_agent.progress_window_win32 import (
+    _window_size as progress_window_size,
+)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 operator surfaces")
@@ -23,3 +27,11 @@ def test_native_operator_surfaces_can_share_one_process_abi() -> None:
     # must still accept their layout-compatible wintypes.MSG structures.
     presence.pump()
     progress.pump()
+
+
+def test_progress_summary_geometry_scales_with_dpi() -> None:
+    assert scale_progress(460, 96) == 460
+    assert scale_progress(460, 120) == 575
+    assert scale_progress(460, 144) == 690
+    assert progress_window_size(False, 144) == (690, 375)
+    assert progress_window_size(True, 144) == (780, 840)

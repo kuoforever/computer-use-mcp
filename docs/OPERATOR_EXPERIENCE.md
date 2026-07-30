@@ -194,9 +194,28 @@ save the brief, and verify the saved document.
 
 These six workflow chapters are deliberately independent of the seven
 side-effect approvals and the Host tool-call budget. The model is not yet wired
-to the passive native window, so the existing `STEP current/limit` display
-remains a tool-budget diagnostic until the next `GDA-HUD-005` slice replaces
-its end-user meaning.
+to durable Demo transitions. The passive native window can now render a
+workflow-aware compact summary from an explicitly supplied checklist: overall
+state, completed/skipped/not-started counts, total chapters, exact current
+chapter, and application. In this mode run IDs, provider/tool counters, and the
+seven-approval count are absent. Ordinary poller paths retain their existing
+diagnostic rendering until a later slice supplies durable workflow state. The
+native summary sizes both its window and text geometry from the observed DPI;
+an isolated Computer Use review at the current desktop DPI confirmed that the
+fixed title, counts, current chapter, action, and application fit without
+overlap or clipping. This is visual review, not retained production lifecycle
+evidence.
+
+The next isolated slice adds a bounded expanded projection to that same
+workflow-aware window. It retains the compact summary and appends all six
+ordered checklist rows, each with a fixed glyph, step number, Host-owned label,
+application, and human status. Expanding resizes without activation; collapsing
+restores the reviewed compact size. The toggle exists on the controller and
+as a non-activating `SHOW STEPS` / `HIDE STEPS` mouse affordance; it does not
+dispatch, approve, replay, or alter workflow state. Isolated Computer Use review
+at the current DPI confirmed a `508x554 -> 448x244 -> 508x554` logical-pixel
+round trip with the same six rows and current step. Durable Demo-state wiring
+and retained production lifecycle evidence remain separate work.
 
 New run checkpoints now preserve creation time and separately count complete
 provider-usage reports and successful `screenshot` results. The passive viewer

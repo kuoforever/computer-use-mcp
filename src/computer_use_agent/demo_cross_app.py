@@ -31,7 +31,7 @@ DEMO_COMPLETE_TEXT = "CONTROLLED_CROSS_APP_DEMO_COMPLETE"
 DEMO_TYPED_MARKER = "VERIFIED PORTAL FOLLOW-UP"
 DEMO_WORKFLOW = WorkflowDefinition(
     workflow_id="chrome_word_research",
-    title="Review a public source and update the research brief",
+    title="Public-source research brief update",
     steps=(
         WorkflowStepDefinition(
             "prepare_workspace",

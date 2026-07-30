@@ -28,7 +28,7 @@ records, so no task text, title, prose, or credential can reach a pixel.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -38,6 +38,11 @@ from .progress_view import (
     RunProgressView,
     group_campaign_views,
     group_progress_views,
+)
+from .workflow_checklist import (
+    WorkflowChecklist,
+    WorkflowStatus,
+    WorkflowStepStatus,
 )
 
 # The passive window is a monitoring surface, not a console: it shows a bounded
@@ -132,7 +137,111 @@ def _campaign_lines(view: CampaignProgressView) -> tuple[str, ...]:
     return (_clip(head), _clip(counts))
 
 
-def render_progress_lines(projection: ProgressProjection) -> tuple[str, ...]:
+_WORKFLOW_STATUS_LABELS = {
+    WorkflowStatus.NOT_STARTED: "NOT STARTED",
+    WorkflowStatus.RUNNING: "IN PROGRESS",
+    WorkflowStatus.NEEDS_INPUT: "NEEDS INPUT",
+    WorkflowStatus.PAUSED: "PAUSED",
+    WorkflowStatus.VERIFYING: "VERIFYING",
+    WorkflowStatus.READY: "READY",
+    WorkflowStatus.FAILED: "FAILED",
+    WorkflowStatus.UNCERTAIN: "NEEDS INSPECTION",
+    WorkflowStatus.CANCELLED: "CANCELLED",
+}
+_WORKFLOW_STEP_LABELS = {
+    WorkflowStepStatus.NOT_STARTED: "Not started",
+    WorkflowStepStatus.IN_PROGRESS: "In progress",
+    WorkflowStepStatus.WAITING_APPROVAL: "Waiting approval",
+    WorkflowStepStatus.COMPLETED: "Completed",
+    WorkflowStepStatus.SKIPPED: "Skipped",
+    WorkflowStepStatus.FAILED: "Failed",
+    WorkflowStepStatus.UNCERTAIN: "Needs inspection",
+}
+_WORKFLOW_STEP_GLYPHS = {
+    WorkflowStepStatus.NOT_STARTED: "○",
+    WorkflowStepStatus.IN_PROGRESS: "●",
+    WorkflowStepStatus.WAITING_APPROVAL: "◆",
+    WorkflowStepStatus.COMPLETED: "✓",
+    WorkflowStepStatus.SKIPPED: "–",
+    WorkflowStepStatus.FAILED: "×",
+    WorkflowStepStatus.UNCERTAIN: "!",
+}
+
+
+def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ...]:
+    """Render one trusted workflow as a compact human-readable HUD summary.
+
+    Approval counts and tool-call budgets are deliberately absent. The summary
+    answers only the global operator questions: what workflow is this, what is
+    its overall state, how many chapters are complete/skipped/not started, and
+    which fixed chapter/application currently owns attention.
+    """
+
+    if not isinstance(checklist, WorkflowChecklist):
+        raise ProgressWindowError("PROGRESS_WORKFLOW_INVALID")
+    total = len(checklist.steps)
+    count_parts = [f"{checklist.completed_count} completed"]
+    if checklist.skipped_count:
+        count_parts.append(f"{checklist.skipped_count} skipped")
+    count_parts.append(f"{checklist.not_started_count} not started")
+    count_parts.append(f"{total} total")
+
+    if checklist.current_step_id is None:
+        current_line = {
+            WorkflowStatus.NOT_STARTED: "READY TO BEGIN",
+            WorkflowStatus.READY: "ALL WORKFLOW STEPS RESOLVED",
+            WorkflowStatus.CANCELLED: "NO WORKFLOW STEP IS ACTIVE",
+        }.get(checklist.status, "NO WORKFLOW STEP IS ACTIVE")
+        action_line = "—"
+        application_line = "No application is active"
+    else:
+        current = next(
+            step
+            for step in checklist.steps
+            if step.step_id == checklist.current_step_id
+        )
+        current_line = (
+            f"CURRENT STEP {checklist.current_step_number} OF {total}"
+            if current.status is not WorkflowStepStatus.WAITING_APPROVAL
+            else f"APPROVAL NEEDED · STEP {checklist.current_step_number} OF {total}"
+        )
+        action_line = current.label
+        application_line = current.application
+
+    return tuple(
+        _clip(line)
+        for line in (
+            f"COMPUTER USE  ·  {_WORKFLOW_STATUS_LABELS[checklist.status]}",
+            checklist.title,
+            "  ·  ".join(count_parts),
+            current_line,
+            action_line,
+            application_line,
+        )
+    )
+
+
+def render_workflow_detail_lines(checklist: WorkflowChecklist) -> tuple[str, ...]:
+    """Extend the compact summary with every bounded, Host-owned checklist row."""
+
+    lines = list(render_workflow_summary_lines(checklist))
+    lines.append("WORKFLOW CHECKLIST")
+    for index, step in enumerate(checklist.steps, start=1):
+        lines.append(
+            _clip(f"{_WORKFLOW_STEP_GLYPHS[step.status]}  {index}  {step.label}")
+        )
+        lines.append(
+            _clip(f"    {step.application}  ·  {_WORKFLOW_STEP_LABELS[step.status]}")
+        )
+    return tuple(lines)
+
+
+def render_progress_lines(
+    projection: ProgressProjection,
+    *,
+    workflow: WorkflowChecklist | None = None,
+    expanded: bool = False,
+) -> tuple[str, ...]:
     """Project a bounded scan into the exact lines the passive window draws.
 
     The result is a flat, bounded tuple of plain strings. It carries a header
@@ -141,6 +250,17 @@ def render_progress_lines(projection: ProgressProjection) -> tuple[str, ...]:
     :data:`MAX_DISPLAYED_RUNS`). Attention is allocated first so terminal
     history cannot hide a waiting or uncertain run.
     """
+
+    if not isinstance(expanded, bool):
+        raise ProgressWindowError("PROGRESS_EXPANDED_INVALID")
+    if workflow is not None:
+        return (
+            render_workflow_detail_lines(workflow)
+            if expanded
+            else render_workflow_summary_lines(workflow)
+        )
+    if expanded:
+        raise ProgressWindowError("PROGRESS_WORKFLOW_UNAVAILABLE")
 
     total = len(projection.views)
     shown = min(total, MAX_DISPLAYED_RUNS)
@@ -229,6 +349,16 @@ class ProgressWindowApi(Protocol):
 
     def set_lines(self, hwnd: int, lines: Sequence[str]) -> None: ...
 
+    def set_workflow_lines(
+        self,
+        hwnd: int,
+        *,
+        compact_lines: Sequence[str],
+        expanded_lines: Sequence[str],
+        expanded: bool,
+        on_toggle: Callable[[bool], None],
+    ) -> None: ...
+
     def show_noactivate(self, hwnd: int) -> None: ...
 
     def reposition_noactivate(self, hwnd: int, *, x: int, y: int, topmost: bool) -> None: ...
@@ -258,28 +388,65 @@ class PassiveProgressWindow:
     _x: int = field(default=24, init=False)
     _y: int = field(default=24, init=False)
     _topmost: bool = field(default=True, init=False)
+    _projection: ProgressProjection | None = field(default=None, init=False, repr=False)
+    _workflow: WorkflowChecklist | None = field(default=None, init=False, repr=False)
+    _expanded: bool = field(default=False, init=False)
 
     @property
     def hwnd(self) -> int | None:
         return self._hwnd
 
-    def open(self, projection: ProgressProjection) -> int:
+    @property
+    def expanded(self) -> bool:
+        return self._expanded
+
+    def open(
+        self,
+        projection: ProgressProjection,
+        *,
+        workflow: WorkflowChecklist | None = None,
+        expanded: bool = False,
+    ) -> int:
         """Create and show the window non-activated; refresh it if already open."""
 
         if self._hwnd is not None:
-            self.update(projection)
+            self.update(projection, workflow=workflow, expanded=expanded)
             return self._hwnd
+        self._remember_content(projection, workflow, expanded)
         hwnd = self.api.create(ex_style=PASSIVE_EX_STYLE, style=PASSIVE_STYLE, title=self.title)
         self._hwnd = hwnd
-        self.api.set_lines(hwnd, render_progress_lines(projection))
+        self._set_content(hwnd)
         self.api.show_noactivate(hwnd)
         return hwnd
 
-    def update(self, projection: ProgressProjection) -> None:
+    def update(
+        self,
+        projection: ProgressProjection,
+        *,
+        workflow: WorkflowChecklist | None = None,
+        expanded: bool = False,
+    ) -> None:
         """Refresh the drawn lines without re-showing or activating the window."""
 
         hwnd = self._require_open()
-        self.api.set_lines(hwnd, render_progress_lines(projection))
+        self._remember_content(projection, workflow, expanded)
+        self._set_content(hwnd)
+
+    def set_expanded(self, expanded: bool) -> None:
+        """Switch checklist detail without focus, activation, or authority."""
+
+        hwnd = self._require_open()
+        if not isinstance(expanded, bool):
+            raise ProgressWindowError("PROGRESS_EXPANDED_INVALID")
+        if self._projection is None or self._workflow is None:
+            raise ProgressWindowError("PROGRESS_WORKFLOW_UNAVAILABLE")
+        self._expanded = expanded
+        self._set_content(hwnd)
+
+    def toggle_details(self) -> None:
+        """Toggle the bounded checklist while preserving workflow state."""
+
+        self.set_expanded(not self._expanded)
 
     def move(self, x: int, y: int) -> None:
         """Reposition non-activated, preserving the current topmost state."""
@@ -300,6 +467,9 @@ class PassiveProgressWindow:
             return
         self.api.destroy(self._hwnd)
         self._hwnd = None
+        self._projection = None
+        self._workflow = None
+        self._expanded = False
 
     def _reposition(self) -> None:
         hwnd = self._require_open()
@@ -309,6 +479,39 @@ class PassiveProgressWindow:
         if self._hwnd is None:
             raise ProgressWindowError("PROGRESS_WINDOW_NOT_OPEN")
         return self._hwnd
+
+    def _remember_content(
+        self,
+        projection: ProgressProjection,
+        workflow: WorkflowChecklist | None,
+        expanded: bool,
+    ) -> None:
+        if not isinstance(expanded, bool):
+            raise ProgressWindowError("PROGRESS_EXPANDED_INVALID")
+        if expanded and workflow is None:
+            raise ProgressWindowError("PROGRESS_WORKFLOW_UNAVAILABLE")
+        self._projection = projection
+        self._workflow = workflow
+        self._expanded = expanded
+
+    def _set_content(self, hwnd: int) -> None:
+        if self._projection is None:
+            raise ProgressWindowError("PROGRESS_PROJECTION_UNAVAILABLE")
+        if self._workflow is None:
+            self.api.set_lines(hwnd, render_progress_lines(self._projection))
+            return
+        self.api.set_workflow_lines(
+            hwnd,
+            compact_lines=render_workflow_summary_lines(self._workflow),
+            expanded_lines=render_workflow_detail_lines(self._workflow),
+            expanded=self._expanded,
+            on_toggle=self._on_native_toggle,
+        )
+
+    def _on_native_toggle(self, expanded: bool) -> None:
+        if not isinstance(expanded, bool):
+            return
+        self._expanded = expanded
 
 
 __all__ = [
@@ -320,4 +523,6 @@ __all__ = [
     "ProgressWindowApi",
     "ProgressWindowError",
     "render_progress_lines",
+    "render_workflow_detail_lines",
+    "render_workflow_summary_lines",
 ]

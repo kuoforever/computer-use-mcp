@@ -28,7 +28,11 @@ from computer_use_agent.progress_window import (
     ProgressWindowApi,
     ProgressWindowError,
     render_progress_lines,
+    render_workflow_detail_lines,
+    render_workflow_summary_lines,
 )
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.workflow_checklist import WorkflowStatus
 
 FORBIDDEN = "PROGRESS_TASK_SECRET"
 
@@ -51,6 +55,11 @@ class FakeProgressWindowApi:
     def __init__(self, foreground: int = 4242) -> None:
         self.calls: list[tuple] = []
         self.lines: dict[int, tuple[str, ...]] = {}
+        self.workflow_lines: dict[
+            int,
+            tuple[tuple[str, ...], tuple[str, ...]],
+        ] = {}
+        self.toggle_handlers: dict[int, object] = {}
         self._foreground = foreground
         self._next_hwnd = 1000
         self.alive: set[int] = set()
@@ -63,8 +72,25 @@ class FakeProgressWindowApi:
         return hwnd
 
     def set_lines(self, hwnd: int, lines) -> None:
+        self.workflow_lines.pop(hwnd, None)
+        self.toggle_handlers.pop(hwnd, None)
         self.lines[hwnd] = tuple(lines)
         self.calls.append(("set_lines", hwnd, tuple(lines)))
+
+    def set_workflow_lines(
+        self,
+        hwnd: int,
+        *,
+        compact_lines,
+        expanded_lines,
+        expanded: bool,
+        on_toggle,
+    ) -> None:
+        variants = (tuple(compact_lines), tuple(expanded_lines))
+        self.workflow_lines[hwnd] = variants
+        self.toggle_handlers[hwnd] = on_toggle
+        self.lines[hwnd] = variants[1] if expanded else variants[0]
+        self.calls.append(("set_workflow_lines", hwnd, expanded))
 
     def show_noactivate(self, hwnd: int) -> None:
         self.calls.append(("show_noactivate", hwnd))
@@ -77,7 +103,18 @@ class FakeProgressWindowApi:
 
     def destroy(self, hwnd: int) -> None:
         self.alive.discard(hwnd)
+        self.workflow_lines.pop(hwnd, None)
+        self.toggle_handlers.pop(hwnd, None)
         self.calls.append(("destroy", hwnd))
+
+    def click_workflow_toggle(self, hwnd: int) -> None:
+        variants = self.workflow_lines[hwnd]
+        expanded = self.lines[hwnd] == variants[1]
+        next_expanded = not expanded
+        self.lines[hwnd] = variants[1] if next_expanded else variants[0]
+        handler = self.toggle_handlers[hwnd]
+        assert callable(handler)
+        handler(next_expanded)
 
     def __getattr__(self, name: str):  # pragma: no cover - only hit on misuse
         if name in _FORBIDDEN_CALLS:
@@ -245,6 +282,134 @@ def test_rendered_lines_exclude_forbidden_content() -> None:
     blob = "\n".join(lines)
     assert FORBIDDEN not in blob
     assert "http" not in blob
+
+
+def test_workflow_summary_answers_global_progress_questions() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    assert render_workflow_summary_lines(checklist) == (
+        "COMPUTER USE  ·  IN PROGRESS",
+        "Public-source research brief update",
+        "2 completed  ·  3 not started  ·  6 total",
+        "CURRENT STEP 3 OF 6",
+        "Open the research brief",
+        "Microsoft Word",
+    )
+
+
+def test_workflow_summary_hides_tool_budget_and_run_diagnostics() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    lines = render_progress_lines(
+        _projection(_view("run_internal")),
+        workflow=checklist,
+    )
+    blob = "\n".join(lines)
+
+    assert lines[0] == "COMPUTER USE  ·  NEEDS INPUT"
+    assert lines[3] == "APPROVAL NEEDED · STEP 3 OF 6"
+    assert "run_internal" not in blob
+    assert "model" not in blob
+    assert "tool" not in blob
+
+
+def test_expanded_workflow_lists_every_step_and_human_status() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    lines = render_workflow_detail_lines(checklist)
+
+    assert len(lines) == 19
+    assert lines[6] == "WORKFLOW CHECKLIST"
+    assert lines[7:13] == (
+        "✓  1  Prepare the controlled demo workspace",
+        "    Demo setup  ·  Completed",
+        "✓  2  Review the public collaboration guide",
+        "    Google Chrome  ·  Completed",
+        "●  3  Open the research brief",
+        "    Microsoft Word  ·  In progress",
+    )
+    assert lines[-2:] == (
+        "○  6  Verify the saved document",
+        "    Microsoft Word  ·  Not started",
+    )
+
+
+def test_expanded_workflow_rejects_missing_workflow() -> None:
+    with pytest.raises(
+        ProgressWindowError,
+        match="PROGRESS_WORKFLOW_UNAVAILABLE",
+    ):
+        render_progress_lines(_projection(), expanded=True)
+
+
+def test_passive_window_can_open_and_refresh_with_workflow_summary() -> None:
+    api = FakeProgressWindowApi()
+    window = PassiveProgressWindow(api)
+    running = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace",),
+        current_step_id="review_public_source",
+    )
+    verifying = DEMO_WORKFLOW.project(
+        WorkflowStatus.VERIFYING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    hwnd = window.open(_projection(), workflow=running)
+    window.update(_projection(), workflow=verifying)
+
+    assert api.lines[hwnd][0] == "COMPUTER USE  ·  VERIFYING"
+    assert api.foreground() == 4242
+
+
+def test_passive_window_expands_and_collapses_without_focus() -> None:
+    api = FakeProgressWindowApi()
+    window = PassiveProgressWindow(api)
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    hwnd = window.open(_projection(), workflow=checklist)
+    compact_lines = api.lines[hwnd]
+    window.set_expanded(True)
+    expanded_lines = api.lines[hwnd]
+    window.toggle_details()
+
+    assert len(compact_lines) == 6
+    assert len(expanded_lines) == 19
+    assert api.lines[hwnd] == compact_lines
+    assert window.expanded is False
+    assert api.foreground() == 4242
+
+    api.click_workflow_toggle(hwnd)
+    assert window.expanded is True
+    assert api.lines[hwnd] == expanded_lines
+
+
+def test_diagnostic_progress_cannot_expand_as_workflow() -> None:
+    window = PassiveProgressWindow(FakeProgressWindowApi())
+    window.open(_projection(_view("run_a")))
+
+    with pytest.raises(
+        ProgressWindowError,
+        match="PROGRESS_WORKFLOW_UNAVAILABLE",
+    ):
+        window.set_expanded(True)
 
 
 def test_unknown_facts_are_labelled_not_faked() -> None:
