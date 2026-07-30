@@ -40,6 +40,7 @@ same-desktop background control safe or parallel.
 | `CUMCP_ALLOWLIST` | `notepad.exe` | Comma-separated executable names allowed for safe-mode foreground actions. A match anywhere in the foreground process ancestry is accepted. |
 | `CUMCP_MODE` | `safe_local` | Either `safe_local` or `full_control_local`. No `isolated_worker` mode is currently accepted. |
 | `CUMCP_HUMAN_IDLE_SECONDS` | `2.5` | Seconds after local mouse/keyboard input during which safe-mode actions yield. |
+| `CUMCP_TYPE_WAIT_SECONDS` | `0` | Optional delay between visible keystrokes for the focused-control `type` fallback. Accepted range is `0` to `0.1`; the bounded Demo uses `0.035`. Ref-based ValuePattern writes remain immediate. |
 | `CUMCP_DANGEROUS_CONFIRM` | on in safe mode; off in full-control mode | Enables confirmation for dangerous `click(ref=...)` targets. |
 | `CUMCP_ESTOP` | `ctrl+alt+q` | Global hotkey that latches all actions off until the server restarts. |
 | `CUMCP_AUDIT` | `audit/actions.jsonl` | JSONL audit-log path. |

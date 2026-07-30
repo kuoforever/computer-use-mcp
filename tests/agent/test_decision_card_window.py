@@ -6,7 +6,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from computer_use_agent.decision_card_window import DecisionCardWindow
+from computer_use_agent.decision_card_window import (
+    DecisionCardWindow,
+    OperatorStepContext,
+)
 from computer_use_agent.decision_cards import (
     ApplicationClass,
     DecisionBinding,
@@ -97,6 +100,44 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     assert "evidence: " + "6" * 64 in evidence
     assert card.card_digest in evidence
     assert "not execution authority" in evidence
+
+
+def test_controller_renders_compact_locked_step_context() -> None:
+    api = Api("option_deny")
+    context = OperatorStepContext(
+        current=3,
+        total=7,
+        label="Switch to the research notes",
+        application="Microsoft Word",
+    )
+
+    asyncio.run(
+        DecisionCardWindow(api, step_context=lambda: context).choose(
+            _card(), timeout_seconds=30
+        )
+    )
+
+    call = api.calls[0]
+    assert call["title"] == "Approval locked — 3 of 7"
+    assert "3/7" in call["instruction"]
+    assert "Switch to the research notes" in call["instruction"]
+    assert "Microsoft Word" in call["instruction"]
+    assert "Execution is paused at this exact action" in call["content"]
+    assert "Esc, window close, or timeout safely rejects it" in call["content"]
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        (0, 7, "label", "Word"),
+        (8, 7, "label", "Word"),
+        (1, 0, "label", "Word"),
+        (1, 7, "", "Word"),
+    ],
+)
+def test_operator_step_context_is_bounded(context: tuple[object, ...]) -> None:
+    with pytest.raises(Exception, match="DECISION_CARD_STEP"):
+        OperatorStepContext(*context)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("result", [None, "option_missing"])

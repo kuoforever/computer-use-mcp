@@ -141,6 +141,7 @@ class FakeModelProvider:
 @dataclass
 class FakeDesktopMCP:
     generation: int = 1
+    satisfied_safety_baselines: frozenset[str] = frozenset()
     descriptors: tuple[MCPToolDescriptor, ...] = field(default_factory=reviewed_mcp_descriptors)
     results: deque[ToolResult] = field(default_factory=deque)
     discovery_calls: int = 0

@@ -23,6 +23,11 @@ from typing import Any, Protocol
 from mcp import ClientSession, StdioServerParameters
 from PIL import Image as PILImage
 
+from computer_use_mcp import (
+    SAFETY_BASELINE_ATTESTATION_V1,
+    SUPPORTED_SAFETY_BASELINES,
+)
+
 from .bounded_stdio import bounded_stdio_client
 from .config import MCPLaunchConfig
 from .tool_registry import (
@@ -73,6 +78,9 @@ _SERVER_ERROR_PREFIXES = (
     ("DENIED by gate:", "DENIED_BY_GATE"),
     ("DENIED by user", "DENIED_BY_USER"),
 )
+_STRUCTURED_OBSERVATION_ERROR_TOOLS = frozenset(
+    {"capture_region", "document_text", "ocr"}
+)
 
 
 class MCPBridgeError(RuntimeError):
@@ -110,6 +118,44 @@ class _ClientSessionPort(Protocol):
     ) -> object: ...
 
 
+class _InitializedClientSession:
+    """Forward one initialized SDK session plus bounded capability attestation."""
+
+    def __init__(
+        self,
+        session: ClientSession,
+        *,
+        satisfied_safety_baselines: frozenset[str],
+    ) -> None:
+        self._session = session
+        self.satisfied_safety_baselines = satisfied_safety_baselines
+
+    async def list_tools(self, cursor: str | None = None) -> object:
+        return await self._session.list_tools(cursor=cursor)
+
+    async def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+        read_timeout_seconds: timedelta | None = None,
+    ) -> object:
+        return await self._session.call_tool(
+            name,
+            arguments=arguments,
+            read_timeout_seconds=read_timeout_seconds,
+        )
+
+
+def _safety_baselines_from_instructions(instructions: object) -> frozenset[str]:
+    """Accept only the exact versioned attestation emitted by this server."""
+
+    if not isinstance(instructions, str) or len(instructions) > 4096:
+        return frozenset()
+    if SAFETY_BASELINE_ATTESTATION_V1 not in instructions.split():
+        return frozenset()
+    return SUPPORTED_SAFETY_BASELINES
+
+
 SessionFactory = Callable[
     [MCPLaunchConfig, float], AbstractAsyncContextManager[_ClientSessionPort]
 ]
@@ -141,8 +187,14 @@ async def _open_stdio_session(
                 write_stream,
                 read_timeout_seconds=timeout,
             ) as session:
-                await session.initialize()
-                yield session
+                initialized = await session.initialize()
+                baselines = _safety_baselines_from_instructions(
+                    getattr(initialized, "instructions", None)
+                )
+                yield _InitializedClientSession(
+                    session,
+                    satisfied_safety_baselines=baselines,
+                )
 
 
 def _validate_timeout(value: float, field_name: str) -> float:
@@ -208,6 +260,12 @@ def _classify_action_text(text: str) -> tuple[ToolResultStatus, str | None]:
     if text == "ok":
         return ToolResultStatus.SUCCESS, None
     raise MCPResultConversionError("unexpected MCP action result")
+
+
+def _is_structured_observation_error(tool_name: str, text: str) -> bool:
+    """Recognize server-owned error envelopes without trusting their details."""
+
+    return tool_name in _STRUCTURED_OBSERVATION_ERROR_TOOLS and text.startswith("ERROR ")
 
 
 def _decode_png(data: object, mime_type: object) -> ImageContent:
@@ -295,6 +353,16 @@ def convert_mcp_result(call: ToolCall, raw_result: object) -> ToolResult:
         envelope = getattr(content[0], "text", None)
         if not isinstance(envelope, str) or len(envelope) > MAX_TEXT_RESULT_CHARS:
             raise MCPResultConversionError("MCP text result exceeds the reviewed limit")
+        if _is_structured_observation_error(call.name, envelope):
+            if len(content) != 1:
+                raise MCPResultConversionError("a failed region capture cannot include pixels")
+            result = _safe_result(
+                call,
+                ToolResultStatus.ACTION_ERROR,
+                code="DRIVER_ERROR",
+            )
+            validate_tool_result(call, result)
+            return result
         images: tuple[ImageContent, ...] = ()
         if len(content) == 2:
             if getattr(content[1], "type", None) != "image":
@@ -325,6 +393,12 @@ def convert_mcp_result(call: ToolCall, raw_result: object) -> ToolResult:
     if spec.effect is ToolEffect.SIDE_EFFECT:
         status, code = _classify_action_text(text)
         result = _safe_result(call, status, code=code)
+    elif _is_structured_observation_error(call.name, text):
+        result = _safe_result(
+            call,
+            ToolResultStatus.ACTION_ERROR,
+            code="DRIVER_ERROR",
+        )
     else:
         result = _safe_result(call, ToolResultStatus.SUCCESS, sanitized_text=text)
     validate_tool_result(call, result)
@@ -365,6 +439,7 @@ class StdioDesktopMCP:
         self._session_ready: asyncio.Future[_ClientSessionPort] | None = None
         self._session_stop: asyncio.Event | None = None
         self._verified_generation: int | None = None
+        self._satisfied_safety_baselines: frozenset[str] = frozenset()
         self._generation = 0
         self._ever_connected = False
         self._owner_failed = False
@@ -377,6 +452,10 @@ class StdioDesktopMCP:
     @property
     def closed(self) -> bool:
         return self._closed
+
+    @property
+    def satisfied_safety_baselines(self) -> frozenset[str]:
+        return self._satisfied_safety_baselines
 
     async def __aenter__(self) -> "StdioDesktopMCP":
         await self.discover_tools()
@@ -445,6 +524,16 @@ class StdioDesktopMCP:
             await self._drop_locked(suppress_errors=True)
             raise MCPBridgeError("MCP_TRANSPORT_ERROR")
         self._session = session
+        claimed_baselines = getattr(
+            session, "satisfied_safety_baselines", frozenset()
+        )
+        if (
+            not isinstance(claimed_baselines, frozenset)
+            or not claimed_baselines.issubset(SUPPORTED_SAFETY_BASELINES)
+        ):
+            await self._drop_locked(suppress_errors=True)
+            raise MCPBridgeError("MCP_PROTOCOL_ERROR")
+        self._satisfied_safety_baselines = claimed_baselines
         self._generation += 1
         self._ever_connected = True
         return session
@@ -455,6 +544,7 @@ class StdioDesktopMCP:
         stop = self._session_stop
         self._session = None
         self._verified_generation = None
+        self._satisfied_safety_baselines = frozenset()
         if owner_task is None:
             self._session_ready = None
             self._session_stop = None

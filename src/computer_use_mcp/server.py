@@ -28,7 +28,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
-from . import MCP_SERVER_NAME
+from . import MCP_SERVER_NAME, SAFETY_BASELINE_ATTESTATION_V1
 from .audit import AuditLog
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
@@ -104,7 +104,9 @@ def build_server(
     if driver is None:
         from .drivers.windows import WindowsDriver
 
-        driver = WindowsDriver()
+        driver = WindowsDriver(
+            type_wait_seconds=_env_float("CUMCP_TYPE_WAIT_SECONDS", 0.0)
+        )
     session = Session(driver)
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
     activity = human_activity or HumanActivity(
@@ -130,7 +132,8 @@ def build_server(
         instructions=(
             "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
             "or screenshot, act with click/scroll/drag/type/key. "
-            f"Operating mode={mode}. A panic hotkey can abort every action."
+            f"Operating mode={mode}. A panic hotkey can abort every action. "
+            f"{SAFETY_BASELINE_ATTESTATION_V1}"
         ),
     )
 

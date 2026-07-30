@@ -27,11 +27,13 @@ _VALID_CORNERS = {
 _WM_CLOSE = 0x0010
 _WM_DESTROY = 0x0002
 _WM_SIZE = 0x0005
+_WM_KEYDOWN = 0x0100
 _WM_COMMAND = 0x0111
 _WM_TIMER = 0x0113
 _WM_SETFONT = 0x0030
 _TDM_CLICK_BUTTON = 0x0400 + 102
 _BN_CLICKED = 0
+_VK_ESCAPE = 0x1B
 
 _WS_OVERLAPPEDWINDOW = 0x00CF0000
 _WS_CLIPCHILDREN = 0x02000000
@@ -67,8 +69,8 @@ _TIMEOUT_ID = 2004
 _TIMER_ID = 1
 _TIMER_INTERVAL_MS = 250
 
-_DEFAULT_CLIENT_WIDTH = 520
-_DEFAULT_CLIENT_HEIGHT = 480
+_DEFAULT_CLIENT_WIDTH = 500
+_DEFAULT_CLIENT_HEIGHT = 360
 _CORNER_MARGIN = 20
 
 _LRESULT = ctypes.c_ssize_t
@@ -209,7 +211,11 @@ class Win32DecisionCardWindowApi:
             wintypes.LPARAM,
         ]
         user32.DefWindowProcW.restype = _LRESULT
-        user32.RegisterClassExW.argtypes = [ctypes.POINTER(_WNDCLASSEXW)]
+        # user32 is one process-global ctypes library object. Presence and
+        # progress use layout-compatible WNDCLASSEXW definitions, so binding
+        # this function to one module-private pointer type makes construction
+        # order accidentally authoritative. Keep the ABI pointer opaque.
+        user32.RegisterClassExW.argtypes = [ctypes.c_void_p]
         user32.RegisterClassExW.restype = wintypes.ATOM
         user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, wintypes.HINSTANCE]
         user32.UnregisterClassW.restype = wintypes.BOOL
@@ -251,14 +257,16 @@ class Win32DecisionCardWindowApi:
         user32.KillTimer.argtypes = [wintypes.HWND, ctypes.c_size_t]
         user32.KillTimer.restype = wintypes.BOOL
         user32.GetMessageW.argtypes = [
-            ctypes.POINTER(_MSG),
+            ctypes.c_void_p,
             wintypes.HWND,
             wintypes.UINT,
             wintypes.UINT,
         ]
         user32.GetMessageW.restype = wintypes.BOOL
-        user32.TranslateMessage.argtypes = [ctypes.POINTER(_MSG)]
-        user32.DispatchMessageW.argtypes = [ctypes.POINTER(_MSG)]
+        # The passive surfaces pump wintypes.MSG on other threads. Their layout
+        # is the same, but ctypes pointer classes are nominally distinct.
+        user32.TranslateMessage.argtypes = [ctypes.c_void_p]
+        user32.DispatchMessageW.argtypes = [ctypes.c_void_p]
         user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
         user32.MonitorFromWindow.restype = wintypes.HANDLE
         user32.GetMonitorInfoW.argtypes = [
@@ -476,6 +484,11 @@ class Win32DecisionCardWindowApi:
             if message == _WM_SIZE:
                 layout(_loword(int(lparam)), _hiword(int(lparam)))
                 return 0
+            if message == _WM_KEYDOWN and int(wparam) == _VK_ESCAPE:
+                # Escape is always a safe rejection. It never selects a
+                # positive option and therefore cannot dispatch an action.
+                self._user32.DestroyWindow(hwnd)
+                return 0
             if message == _WM_COMMAND:
                 command_id = _loword(int(wparam))
                 notification = _hiword(int(wparam))
@@ -491,9 +504,9 @@ class Win32DecisionCardWindowApi:
                     self._user32.SetWindowTextW(
                         controls["toggle"],
                         (
-                            "Hide bounded evidence"
+                            "Hide technical details"
                             if evidence_visible[0]
-                            else "Show bounded evidence"
+                            else "Expand technical details"
                         ),
                     )
                     self._user32.ShowWindow(
@@ -626,7 +639,7 @@ class Win32DecisionCardWindowApi:
             create_control(
                 "toggle",
                 "BUTTON",
-                "Show bounded evidence",
+                "Expand technical details",
                 _BS_PUSHBUTTON | _WS_TABSTOP,
                 _EVIDENCE_TOGGLE_ID,
             )
@@ -678,6 +691,14 @@ class Win32DecisionCardWindowApi:
                     raise OSError("DECISION_CARD_MESSAGE_LOOP_FAILED")
                 if result == 0:
                     break
+                if (
+                    message.message == _WM_KEYDOWN
+                    and int(message.wParam) == _VK_ESCAPE
+                ):
+                    # Child edit/button controls receive keyboard messages
+                    # directly, so enforce the same safe exit at the pump.
+                    self._user32.DestroyWindow(hwnd)
+                    continue
                 self._user32.TranslateMessage(ctypes.byref(message))
                 self._user32.DispatchMessageW(ctypes.byref(message))
         finally:

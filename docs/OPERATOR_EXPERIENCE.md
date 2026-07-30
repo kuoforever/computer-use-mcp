@@ -70,21 +70,29 @@ Card is a deliberate transition into operator interaction; it may take focus and
 therefore triggers normal human-activity yielding until the decision is closed
 and the desktop is explicitly returned to the Agent.
 
-The native card is a normal Windows overlapped window rather than a modal Task
-Dialog. It starts compact in one configured work-area corner (bottom-right by
-default), can be dragged, minimized, maximized, covered by another application,
-or resized by the operator, and never remains topmost. Decision detail and
-digest-only evidence use independent read-only scroll areas; resizing gives
-those panes more space instead of expanding the initial window to fit all text.
-Buttons use a responsive two-column layout and stack when the window is narrow.
-Close and timeout still deny without dispatch.
+The current native card is a normal Windows overlapped window rather than a
+modal Task Dialog. It can be dragged, minimized, covered by another
+application, or resized by the operator, and never remains topmost. Decision
+detail and digest-only evidence use independent read-only scroll areas. Buttons
+use a responsive layout and stack when the window is narrow. Close and timeout
+deny without dispatch.
+
+`GDA-DEMO-003` targets a compact Operator HUD that adds the current approval
+number, total approvals, fixed action label, target application, a genuine
+compact/expanded details state, and safe `Esc` rejection. The first live review
+did not meet that target: content overlapped, buttons stacked and clipped, and
+the details affordance was not a true collapsed state. The classified issue
+inventory and acceptance criteria are owned by `PROJECT_STATUS.md`; these
+sentences describe the target, not promoted implementation evidence.
 
 ## Desktop presence indicator
 
 The indicator provides ambient feedback comparable to a computer-use border or
 halo. It appears only while the Agent owns or is waiting to regain the shared
 desktop. State is conveyed by label/icon/motion as well as color so color is
-never the only signal.
+never the only signal. A thicker border and solid phase tab are present as
+unverified `GDA-DEMO-003` worktree changes; the first live review reported no
+visible halo, so high-visibility behavior is not yet an evidence-backed claim.
 
 | Host state | Suggested presentation | Meaning |
 | --- | --- | --- |
@@ -166,6 +174,12 @@ The compact summary may show:
 - waiting approval, human takeover, challenge, recovery, uncertain, and
   terminal states;
 - last validated checkpoint time and whether liveness is known or unknown.
+
+An unpromoted `GDA-DEMO-003` worktree change leads the first line with
+`STEP current/total`, where the total is the Host tool-call budget and current
+is derived only from the durable checkpoint. The issue inventory records that
+this is not yet a truthful end-user workflow-step model and has not passed live
+visual review.
 
 New run checkpoints now preserve creation time and separately count complete
 provider-usage reports and successful `screenshot` results. The passive viewer

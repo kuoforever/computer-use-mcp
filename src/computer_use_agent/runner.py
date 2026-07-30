@@ -495,6 +495,13 @@ class AgentRunner:
             raise RunFailure("SCHEMA_MISMATCH", state) from exc
         spec = get_tool_spec(call.name)
         disposition = self.policy.disposition(spec)
+        if spec.required_safety_baselines:
+            disposition = self.policy.disposition(
+                spec,
+                satisfied_safety_baselines=(
+                    self.ports.desktop.satisfied_safety_baselines
+                ),
+            )
         if disposition is PolicyDisposition.DENY:
             denied = ToolResult(
                 identity=call.identity,
@@ -809,6 +816,13 @@ class AgentRunner:
             recorder.record(state, RunPhase.OBSERVING)
             discovered = await self.ports.desktop.discover_tools()
             verify_discovered_tools(discovered)
+            provider_tools = tuple(
+                tool
+                for tool in provider_tools
+                if set(tool.required_safety_baselines).issubset(
+                    self.ports.desktop.satisfied_safety_baselines
+                )
+            )
             if self.config.continuation.enabled:
                 continuation = RuntimeContinuationRecorder(
                     state_dir=self.config.state_dir,

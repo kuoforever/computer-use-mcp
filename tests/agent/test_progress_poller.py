@@ -311,8 +311,8 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
     # of the two whole records. A mixture of the two would show up here as an
     # unrecognised state, and a partial record would fail the reducer outright.
     assert observed <= {
-        "In progress at last checkpoint; liveness unknown",
-        "Complete",
+        "STEP 3/4  Planning  In progress at last checkpoint; liveness unknown",
+        "STEP 2/4  Success  Complete",
     }
     assert observed, "expected at least one observation"
     # Scheduling determines how often a reader lands in ReplaceFileW's brief

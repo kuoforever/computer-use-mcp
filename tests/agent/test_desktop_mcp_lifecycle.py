@@ -9,7 +9,13 @@ from types import SimpleNamespace
 import pytest
 
 from computer_use_agent.config import MCPLaunchConfig
-from computer_use_agent.desktop_mcp import MCPBridgeError, MCPCallCancelled, StdioDesktopMCP
+from computer_use_agent.desktop_mcp import (
+    MCPBridgeError,
+    MCPCallCancelled,
+    StdioDesktopMCP,
+    _safety_baselines_from_instructions,
+)
+from computer_use_mcp import SAFETY_BASELINE_ATTESTATION_V1
 from computer_use_agent.tool_registry import reviewed_mcp_descriptors
 from computer_use_agent.types import (
     CallIdentity,
@@ -191,6 +197,23 @@ def test_start_verifies_registry_before_dispatch_and_close_is_idempotent(
     assert factory.enter_calls == 1
     assert factory.exit_calls == 1
     assert bridge.closed
+
+
+def test_server_instructions_attest_only_the_exact_reviewed_safety_baseline() -> None:
+    assert _safety_baselines_from_instructions(
+        f"bounded server {SAFETY_BASELINE_ATTESTATION_V1}"
+    ) == frozenset(
+        {
+            "title_matched_image_redaction",
+            "typed_text_audit_redaction",
+        }
+    )
+    assert _safety_baselines_from_instructions(
+        "GDA_SAFETY_BASELINES_V1=typed_text_audit_redaction,other"
+    ) == frozenset()
+    assert _safety_baselines_from_instructions(
+        "typed_text_audit_redaction"
+    ) == frozenset()
 
 
 def test_supervisor_task_can_call_and_close_after_discovery_task_returns(tmp_path: Path) -> None:

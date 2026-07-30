@@ -68,7 +68,7 @@ def _png_with_dimensions(width: int, height: int) -> str:
     return base64.b64encode(changed).decode("ascii")
 
 
-def test_observation_text_is_bounded_but_not_interpreted_as_an_action_error() -> None:
+def test_unstructured_observation_text_is_bounded_but_not_an_action_error() -> None:
     text = "ERROR DRIVER_ERROR: this is untrusted UI text"
     result = convert_mcp_result(_call("ui_snapshot"), _text_result(text))
 
@@ -81,6 +81,18 @@ def test_observation_text_is_bounded_but_not_interpreted_as_an_action_error() ->
             _call("list_windows"),
             _text_result("x" * (MAX_TEXT_RESULT_CHARS + 1)),
         )
+
+
+@pytest.mark.parametrize("tool_name", ["document_text", "ocr"])
+def test_structured_observation_error_is_a_redacted_failure(tool_name: str) -> None:
+    result = convert_mcp_result(
+        _call(tool_name),
+        _text_result("ERROR OCR_FAILED: untrusted implementation detail"),
+    )
+
+    assert result.status is ToolResultStatus.ACTION_ERROR
+    assert result.code == "DRIVER_ERROR"
+    assert result.sanitized_text == ""
 
 
 @pytest.mark.parametrize(
@@ -290,15 +302,16 @@ def test_region_capture_keeps_the_envelope_with_its_crop() -> None:
     assert result.images[0].data == base64.b64decode(VALID_PNG_BASE64)
 
 
-def test_refused_region_capture_is_text_alone_and_keeps_no_pixels() -> None:
+def test_refused_region_capture_is_a_redacted_failure_and_keeps_no_pixels() -> None:
     result = convert_mcp_result(
         _capture_call(),
         _capture_result(SimpleNamespace(type="text", text="ERROR CAPTURE_INVALID_REGION: bad")),
     )
 
-    assert result.status is ToolResultStatus.SUCCESS
+    assert result.status is ToolResultStatus.ACTION_ERROR
+    assert result.code == "DRIVER_ERROR"
     assert result.images == ()
-    assert result.sanitized_text.startswith("ERROR CAPTURE_INVALID_REGION")
+    assert result.sanitized_text == ""
 
 
 @pytest.mark.parametrize(

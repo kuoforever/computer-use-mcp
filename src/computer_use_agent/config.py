@@ -35,6 +35,7 @@ SUPPORTED_PRIVACY_DETECTORS = frozenset(
     {"email", "phone", "ipv4", "cn_id", "bank_card", "secret"}
 )
 MINIMUM_HUMAN_IDLE_SECONDS = 2.5
+MAXIMUM_TYPE_WAIT_SECONDS = 0.1
 
 # These are the only server configuration inputs the host is willing to pass
 # through. Audit and screenshot-redaction destinations remain server defaults so
@@ -44,6 +45,7 @@ REVIEWED_MCP_ENVIRONMENT_NAMES = frozenset(
         "CUMCP_ALLOWLIST",
         "CUMCP_MODE",
         "CUMCP_HUMAN_IDLE_SECONDS",
+        "CUMCP_TYPE_WAIT_SECONDS",
         "CUMCP_DANGEROUS_CONFIRM",
     }
 )
@@ -114,6 +116,16 @@ def _validate_mcp_environment_value(key: str, value: str) -> None:
         if not isfinite(seconds) or seconds < MINIMUM_HUMAN_IDLE_SECONDS:
             raise ConfigError(
                 f"CUMCP_HUMAN_IDLE_SECONDS must be at least {MINIMUM_HUMAN_IDLE_SECONDS}"
+            )
+    elif key == "CUMCP_TYPE_WAIT_SECONDS":
+        try:
+            seconds = float(value)
+        except ValueError as exc:
+            raise ConfigError("CUMCP_TYPE_WAIT_SECONDS must be numeric") from exc
+        if not isfinite(seconds) or not 0.0 <= seconds <= MAXIMUM_TYPE_WAIT_SECONDS:
+            raise ConfigError(
+                f"CUMCP_TYPE_WAIT_SECONDS must be between 0 and "
+                f"{MAXIMUM_TYPE_WAIT_SECONDS}"
             )
 
 

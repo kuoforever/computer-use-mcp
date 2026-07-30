@@ -38,8 +38,22 @@ class HostPolicy:
             max_input_tokens=self.config.max_input_tokens,
         )
 
-    def disposition(self, tool: ToolSpec) -> PolicyDisposition:
-        if tool.required_safety_baselines:
+    def disposition(
+        self,
+        tool: ToolSpec,
+        *,
+        satisfied_safety_baselines: frozenset[str] = frozenset(),
+    ) -> PolicyDisposition:
+        if not isinstance(satisfied_safety_baselines, frozenset) or not all(
+            isinstance(baseline, str) and baseline
+            for baseline in satisfied_safety_baselines
+        ):
+            raise ValueError(
+                "satisfied_safety_baselines must be a frozenset of non-empty strings"
+            )
+        if not set(tool.required_safety_baselines).issubset(
+            satisfied_safety_baselines
+        ):
             return PolicyDisposition.DENY
         if tool.effect is ToolEffect.OBSERVATION:
             return PolicyDisposition.ALLOW

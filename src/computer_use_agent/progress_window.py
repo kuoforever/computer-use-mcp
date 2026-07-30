@@ -80,7 +80,14 @@ def _run_lines(view: RunProgressView) -> tuple[str, ...]:
     labelled honestly rather than shown as a misleading zero or "running".
     """
 
-    head = f"{view.run_id}  {view.display_state}"
+    if view.is_terminal:
+        step = view.tool_calls.used
+    else:
+        step = min(view.tool_calls.used + 1, view.tool_calls.limit)
+    head = (
+        f"{view.run_id}  STEP {step}/{view.tool_calls.limit}  "
+        f"{view.phase.replace('_', ' ').title()}  {view.display_state}"
+    )
     if view.needs_reobserve:
         # Acceptance check 7: distinct, and never a retry affordance — this is a
         # passive label, not a button.

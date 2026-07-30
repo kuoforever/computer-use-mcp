@@ -13,6 +13,7 @@ start (the constructor calls it too, as a backstop).
 from __future__ import annotations
 
 import ctypes
+import math
 import time
 from ctypes import wintypes
 
@@ -67,6 +68,7 @@ _NAMED_KEYS = {
     "enter": 0x0D, "return": 0x0D, "esc": 0x1B, "escape": 0x1B, "tab": 0x09,
     "space": 0x20, "backspace": 0x08, "delete": 0x2E, "del": 0x2E,
     "home": 0x24, "end": 0x23, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
+    "pageup": 0x21, "pagedown": 0x22,
 }
 _KEYEVENTF_KEYUP = 0x0002
 _SW_RESTORE = 9
@@ -163,9 +165,17 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
 
 
 class WindowsDriver(Driver):
-    def __init__(self) -> None:
+    def __init__(self, *, type_wait_seconds: float = 0.0) -> None:
+        if (
+            isinstance(type_wait_seconds, bool)
+            or not isinstance(type_wait_seconds, (int, float))
+            or not math.isfinite(type_wait_seconds)
+            or not 0.0 <= float(type_wait_seconds) <= 0.1
+        ):
+            raise ValueError("type_wait_seconds must be between 0 and 0.1")
         # Backstop: real entrypoints set this earlier, before uiautomation import.
         self.dpi_mode = enable_dpi_awareness()
+        self._type_wait_seconds = float(type_wait_seconds)
         # native_id -> live UIA control, repopulated each get_tree(); actions
         # resolve refs through it. The core owns ref<->native_id; this is the
         # driver-side native_id<->handle half of that mapping.
@@ -641,7 +651,7 @@ class WindowsDriver(Driver):
         # Keyboard fallback for surfaces without a writable ValuePattern; targets
         # whatever holds focus, so callers must focus first.
         try:
-            auto.SendKeys(text, waitTime=0.0)
+            auto.SendKeys(text, waitTime=self._type_wait_seconds)
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))

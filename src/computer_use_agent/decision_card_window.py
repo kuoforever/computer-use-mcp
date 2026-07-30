@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 from .decision_cards import DecisionCard, DecisionSelection
 
@@ -16,6 +16,34 @@ class DecisionCardWindowError(RuntimeError):
 class DecisionCardButton:
     option_id: str
     label: str
+
+
+@dataclass(frozen=True)
+class OperatorStepContext:
+    """Bounded, presentation-only context for one operator decision."""
+
+    current: int
+    total: int
+    label: str
+    application: str
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.current, bool)
+            or not isinstance(self.current, int)
+            or isinstance(self.total, bool)
+            or not isinstance(self.total, int)
+            or not 1 <= self.current <= self.total <= 999
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_STEP_INVALID")
+        for value in (self.label, self.application):
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or len(value) > 120
+                or any(ord(character) < 32 for character in value)
+            ):
+                raise DecisionCardWindowError("DECISION_CARD_STEP_TEXT_INVALID")
 
 
 @runtime_checkable
@@ -37,6 +65,7 @@ class DecisionCardWindowApi(Protocol):
 @dataclass
 class DecisionCardWindow:
     api: DecisionCardWindowApi
+    step_context: Callable[[], OperatorStepContext | None] | None = None
 
     async def choose(
         self, card: DecisionCard, *, timeout_seconds: int
@@ -54,12 +83,28 @@ class DecisionCardWindow:
             for option in card.options
         )
         content = self._content(card)
+        context = self.step_context() if self.step_context is not None else None
+        if context is not None and not isinstance(context, OperatorStepContext):
+            raise DecisionCardWindowError("DECISION_CARD_STEP_INVALID")
+        title = "Decision required"
+        instruction = "Choose one bounded option"
+        if context is not None:
+            title = f"Approval locked — {context.current} of {context.total}"
+            instruction = (
+                f"🔒 {context.current}/{context.total}  {context.label}"
+                f"  ·  {context.application}"
+            )
+            content = (
+                "Execution is paused at this exact action.\n"
+                "Esc, window close, or timeout safely rejects it.\n\n"
+                + content
+            )
         try:
             async with asyncio.timeout(timeout_seconds + 2):
                 option_id = await asyncio.to_thread(
                     self.api.choose,
-                    title="Decision required",
-                    instruction="Choose one bounded option",
+                    title=title,
+                    instruction=instruction,
                     content=content,
                     expanded_information=self._evidence_content(card),
                     buttons=buttons,
@@ -154,4 +199,5 @@ __all__ = [
     "DecisionCardWindow",
     "DecisionCardWindowApi",
     "DecisionCardWindowError",
+    "OperatorStepContext",
 ]

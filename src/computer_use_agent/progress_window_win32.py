@@ -32,10 +32,13 @@ _WM_CLOSE = 0x0010
 _WM_ERASEBKGND = 0x0014
 
 _TRANSPARENT = 1
-_DEFAULT_WIN_W = 420
-_DEFAULT_WIN_H = 320
-_LINE_H = 18
-_PAD = 10
+_DEFAULT_WIN_W = 460
+_DEFAULT_WIN_H = 250
+_LINE_H = 20
+_PAD = 14
+_HUD_BACKGROUND = 0x001E1713
+_HUD_TEXT = 0x00F5F5F5
+_HUD_ACCENT = 0x00F0A020
 
 _WNDPROC = ctypes.WINFUNCTYPE(
     ctypes.c_longlong, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM
@@ -185,9 +188,15 @@ class Win32ProgressWindowApi:
         hdc = user32.BeginPaint(wintypes.HWND(hwnd), ctypes.byref(ps))
         try:
             rect = ps.rcPaint
-            white = gdi32.GetStockObject(0)  # WHITE_BRUSH
-            user32.FillRect(hdc, ctypes.byref(rect), white)
+            background = gdi32.CreateSolidBrush(_HUD_BACKGROUND)
+            user32.FillRect(hdc, ctypes.byref(rect), background)
+            gdi32.DeleteObject(background)
             gdi32.SetBkMode(hdc, _TRANSPARENT)
+            gdi32.SetTextColor(hdc, _HUD_TEXT)
+            accent = gdi32.CreateSolidBrush(_HUD_ACCENT)
+            accent_rect = wintypes.RECT(0, 0, 6, max(rect.bottom, _DEFAULT_WIN_H))
+            user32.FillRect(hdc, ctypes.byref(accent_rect), accent)
+            gdi32.DeleteObject(accent)
             y = _PAD
             for line in self._lines.get(hwnd, ()):
                 text = str(line)
@@ -203,6 +212,8 @@ class Win32ProgressWindowApi:
         wc.lpfnWndProc = self._wndproc
         wc.hInstance = self._hinstance()
         wc.lpszClassName = self._class_name
+        self._user32.RegisterClassExW.argtypes = [ctypes.c_void_p]
+        self._user32.RegisterClassExW.restype = wintypes.ATOM
         if not self._user32.RegisterClassExW(ctypes.byref(wc)):
             raise OSError(f"RegisterClassExW failed (win32 error {self._last_error()})")
 
