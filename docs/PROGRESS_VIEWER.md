@@ -132,6 +132,8 @@ The default overlay is passive:
 - place it in the current foreground monitor's top-right work-area rail;
 - preserve the right edge across compact/expanded workflow geometry, unless an
   explicit operator move opts out of automatic anchoring;
+- show the bounded workflow checklist on first open, while preserving an
+  operator's explicit collapse across later workflow refreshes;
 - use `SetWindowPos(..., SWP_NOACTIVATE)` for position/topmost updates;
 - do not expose keyboard focus, execution controls, or editable fields;
 - make always-on-top optional and persisted locally.

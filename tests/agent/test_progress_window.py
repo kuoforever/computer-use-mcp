@@ -390,7 +390,7 @@ def test_passive_window_can_open_and_refresh_with_workflow_summary() -> None:
     assert api.foreground() == 4242
 
 
-def test_passive_window_expands_and_collapses_without_focus() -> None:
+def test_passive_workflow_defaults_expanded_and_preserves_operator_collapse() -> None:
     api = FakeProgressWindowApi()
     window = PassiveProgressWindow(api)
     checklist = DEMO_WORKFLOW.project(
@@ -400,10 +400,10 @@ def test_passive_window_expands_and_collapses_without_focus() -> None:
     )
 
     hwnd = window.open(_projection(), workflow=checklist)
-    compact_lines = api.lines[hwnd]
-    window.set_expanded(True)
     expanded_lines = api.lines[hwnd]
     window.toggle_details()
+    compact_lines = api.lines[hwnd]
+    window.update(_projection(), workflow=checklist)
 
     assert len(compact_lines) == 6
     assert len(expanded_lines) == 19

@@ -420,14 +420,15 @@ class PassiveProgressWindow:
         projection: ProgressProjection,
         *,
         workflow: WorkflowChecklist | None = None,
-        expanded: bool = False,
+        expanded: bool | None = None,
     ) -> int:
-        """Create and show the window non-activated; refresh it if already open."""
+        """Create the window with workflow steps visible unless explicitly collapsed."""
 
         if self._hwnd is not None:
             self.update(projection, workflow=workflow, expanded=expanded)
             return self._hwnd
-        self._remember_content(projection, workflow, expanded)
+        initial_expanded = workflow is not None if expanded is None else expanded
+        self._remember_content(projection, workflow, initial_expanded)
         hwnd = self.api.create(ex_style=PASSIVE_EX_STYLE, style=PASSIVE_STYLE, title=self.title)
         self._hwnd = hwnd
         self._set_content(hwnd)
@@ -439,12 +440,16 @@ class PassiveProgressWindow:
         projection: ProgressProjection,
         *,
         workflow: WorkflowChecklist | None = None,
-        expanded: bool = False,
+        expanded: bool | None = None,
     ) -> None:
-        """Refresh the drawn lines without re-showing or activating the window."""
+        """Refresh without activation, preserving an operator's checklist toggle."""
 
         hwnd = self._require_open()
-        self._remember_content(projection, workflow, expanded)
+        if expanded is None:
+            next_expanded = self._expanded if workflow is not None else False
+        else:
+            next_expanded = expanded
+        self._remember_content(projection, workflow, next_expanded)
         self._set_content(hwnd)
 
     def set_expanded(self, expanded: bool) -> None:

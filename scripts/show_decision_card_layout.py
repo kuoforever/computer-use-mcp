@@ -3,9 +3,17 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import ctypes
 import sys
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+from operator_hud_review_guard import (
+    ReviewAlreadyRunningError,
+    exclusive_review,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -33,6 +41,23 @@ from computer_use_agent.decision_cards import (  # noqa: E402
 )
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW  # noqa: E402
 from computer_use_agent.workflow_checklist import WorkflowStatus  # noqa: E402
+
+_REVIEW_WINDOW_TITLE = "Needs input · approval locked"
+_WM_COMMAND = 0x0111
+_EVIDENCE_TOGGLE_ID = 2002
+
+
+def _expand_when_ready() -> None:
+    """Toggle the synthetic card through its real local window procedure."""
+
+    user32 = ctypes.windll.user32
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        hwnd = user32.FindWindowW(None, _REVIEW_WINDOW_TITLE)
+        if hwnd:
+            user32.PostMessageW(hwnd, _WM_COMMAND, _EVIDENCE_TOGGLE_ID, 0)
+            return
+        time.sleep(0.01)
 
 
 def _card(timeout_seconds: int):
@@ -100,10 +125,25 @@ def main() -> int:
         default=300,
         help="Seconds before the visual-only card closes safely (default: 300).",
     )
+    parser.add_argument(
+        "--expanded",
+        action="store_true",
+        help=(
+            "Start expanded by posting the same local Show details command. "
+            "This remains visual-only and cannot dispatch an action."
+        ),
+    )
     args = parser.parse_args()
     if not 15 <= args.timeout_seconds <= 600:
         parser.error("--timeout-seconds must be between 15 and 600")
-    print(asyncio.run(_show(args.timeout_seconds)))
+    try:
+        with exclusive_review("decision-card"):
+            if args.expanded:
+                threading.Thread(target=_expand_when_ready, daemon=True).start()
+            print(asyncio.run(_show(args.timeout_seconds)))
+    except ReviewAlreadyRunningError as error:
+        print(error, file=sys.stderr)
+        return 2
     return 0
 
 

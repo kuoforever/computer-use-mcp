@@ -7,6 +7,11 @@ import sys
 import time
 from pathlib import Path
 
+from operator_hud_review_guard import (
+    ReviewAlreadyRunningError,
+    exclusive_review,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
@@ -51,11 +56,20 @@ def main() -> int:
             "Production passive-window styles are not changed."
         ),
     )
-    parser.add_argument(
+    detail_group = parser.add_mutually_exclusive_group()
+    detail_group.add_argument(
         "--expanded",
+        dest="expanded",
         action="store_true",
-        help="Start in the full six-row checklist state.",
+        help="Start in the full six-row checklist state (the default).",
     )
+    detail_group.add_argument(
+        "--collapsed",
+        dest="expanded",
+        action="store_false",
+        help="Start with only the overall and current-step summary.",
+    )
+    parser.set_defaults(expanded=True)
     parser.add_argument(
         "--status",
         choices=("running", "needs_input", "verifying", "uncertain"),
@@ -66,6 +80,16 @@ def main() -> int:
     if not 15 <= args.timeout_seconds <= 600:
         parser.error("--timeout-seconds must be between 15 and 600")
 
+    try:
+        with exclusive_review("progress-hud"):
+            _show(args)
+    except ReviewAlreadyRunningError as error:
+        print(error, file=sys.stderr)
+        return 2
+    return 0
+
+
+def _show(args: argparse.Namespace) -> None:
     status = WorkflowStatus(args.status)
     checklist = DEMO_WORKFLOW.project(
         status,
@@ -110,7 +134,6 @@ def main() -> int:
         if review_hwnd is not None:
             api.destroy(review_hwnd)
         api.pump()
-    return 0
 
 
 if __name__ == "__main__":

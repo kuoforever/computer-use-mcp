@@ -197,7 +197,7 @@ execution starts the same poller directly over validated campaign state and
 releases it at command cleanup; zero-port campaign control commands do not open
 the window.
 
-The compact summary may show:
+The diagnostic summary may show:
 
 - campaign, chapter, batch, and committed-item counts;
 - current application class and sanitized fixed phase;
@@ -237,16 +237,18 @@ fixed title, counts, current chapter, action, and application fit without
 overlap or clipping. This is visual review, not retained production lifecycle
 evidence.
 
-The next isolated slice adds a bounded expanded projection to that same
-workflow-aware window. It retains the compact summary and appends all six
-ordered checklist rows, each with a fixed glyph, step number, Host-owned label,
-application, and human status. Expanding resizes without activation; collapsing
-restores the reviewed compact size. The toggle exists on the controller and
-as a non-activating `SHOW STEPS` / `HIDE STEPS` mouse affordance; it does not
-dispatch, approve, replay, or alter workflow state. Isolated Computer Use review
-at the current DPI confirmed a `508x554 -> 448x244 -> 508x554` logical-pixel
-round trip with the same six rows and current step. Durable Demo-state wiring
-and retained production lifecycle evidence remain separate work.
+The workflow-aware window also has a bounded checklist projection. It retains
+the summary and appends all six ordered rows, each with a fixed glyph, step
+number, Host-owned label, application, and human status. The checklist is the
+default first-open state so the operator can immediately see completed,
+current, and not-started work. Collapsing restores the reviewed compact size;
+subsequent workflow refreshes preserve that explicit operator choice. The
+toggle exists on the controller and as a non-activating `SHOW STEPS` /
+`HIDE STEPS` mouse affordance; it does not dispatch, approve, replay, or alter
+workflow state. Isolated Computer Use review at 150% DPI confirmed the default
+six-row checklist and explicit collapsed summary. The retained matrix is
+[recorded separately](OPERATOR_HUD_VISUAL_EVIDENCE.md). Durable Demo-state
+wiring and complete production lifecycle evidence remain separate work.
 
 New run checkpoints now preserve creation time and separately count complete
 provider-usage reports and successful `screenshot` results. The passive viewer
