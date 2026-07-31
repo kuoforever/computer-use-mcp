@@ -35,6 +35,7 @@ not a line-by-line mirror of every reference page.
 | I need the planned full Agent Host scope and delivery gates | [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md) |
 | I am implementing or reviewing the Agent Host Phase 0-3 foundation and MCP bridge | [Agent Host contract](AGENT.md) and [evaluation contract](EVALUATION.md) |
 | I am reviewing declarative TaskPlan, Planner, Executor, WAL, or reconciliation contracts | [Task planning](PLANNING.md) |
+| I am designing hierarchical task state, conditional branches, or reusable behavior trees | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) |
 | I need Agent checkpoint, trace redaction, or recovery rules | [Agent traces](TRACE.md) |
 | I am adding telemetry, or need the observation-vs-authority boundary | [Telemetry contract](TELEMETRY.md) |
 | I am designing broader crash resume without replay | [Persisted continuation](CONTINUATION.md) |
@@ -102,6 +103,7 @@ not a line-by-line mirror of every reference page.
 | Continual learning | Planned four-layer memory, verified workflow promotion, cost-aware strategy selection, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
 | Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `plan run` composition |
+| Hierarchical task and behavior trees | Planned post-linear task hierarchy, reviewed behavior templates, typed conditions, fail-closed propagation, persistence, and delivery order |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, deterministic cross-session handoff, and the planned host-terminal polling contract |
 | Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |

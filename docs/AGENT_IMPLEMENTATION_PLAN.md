@@ -256,6 +256,16 @@ model-weight learning. See [Continual learning](CONTINUAL_LEARNING.md) for the
 gated post-MVP sequence rather than inferring these features from trace or
 memory support.
 
+Hierarchical task state and reusable behavior trees are also post-linear
+planning work. They are intentionally deferred until the current bounded plan,
+Runner authority, WAL, and recovery invariants remain proven. The intended
+closed node model, fail-closed result propagation, world-state conditions, and
+phased implementation order are recorded in
+[Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md).
+That future control layer must propose at most one external boundary at a time
+and must not become a second policy, approval, recovery, or MCP dispatch
+authority.
+
 ## Remaining delivery gates
 
 The original build order has been completed far enough that repeating it here

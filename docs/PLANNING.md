@@ -403,3 +403,22 @@ approval, memory, recovery, resume, campaign, or alternate MCP option. Offline
 fakes prove exact tool scope, call order, budget/WAL preflight, zero ordinary
 provider calls, zero approval requests, and no direct dispatch site. Provider,
 desktop, and application evidence remain unretained.
+
+## Planned post-linear planning
+
+The current `TaskPlan` remains deliberately flat, strictly ordered, and
+bounded. Conditional branches, hierarchical subgoals, bounded iteration, and
+reusable behavior subtrees are not implemented.
+
+The planned successor is described in
+[Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md).
+It preserves this document's core invariants: model output is non-authorizing,
+tree state is digest-bound evidence, only one next leaf may enter an external
+boundary, all calls reuse the sole Runner path, and uncertain outcomes are
+never retried or redirected through fallback branches.
+
+Tree nodes reuse the `PlanStepStatus` vocabulary defined here without adding a
+status. Uncertainty stays where it already lives: an uncertain boundary leaves
+the leaf `in_progress`, records `RunPhase.UNKNOWN_OUTCOME`, and retains the
+continuation WAL. A current linear plan is therefore readable as the degenerate
+tree of one ordered `sequence`, and no persisted status requires a rewrite.
