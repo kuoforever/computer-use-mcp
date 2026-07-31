@@ -95,8 +95,8 @@ The Runtime-side Full Cycle Lane A bridge is implemented. `fullcycle manifest`
 derives a versioned capability document from the reviewed registry, and
 `fullcycle export-run` packages only the already-redacted checkpoint and trace.
 Both write canonical bounded JSON to a new absolute path and open no external
-port. The next implementation task belongs in `LLM-FullCycle-Learning`: add the
-strict offline consumer fixture. Rich episode capture remains a separate,
+port. The next implementation task belongs in `reliable-agent-model-lifecycle`:
+add the strict offline consumer fixture. Rich episode capture remains a separate,
 explicit-consent design review.
 
 Before changing behavior, inspect the current worktree and run the unit suite:

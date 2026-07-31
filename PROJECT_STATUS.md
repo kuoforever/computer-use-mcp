@@ -60,7 +60,7 @@ delivery work.
 | --- | --- | --- | --- |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
-| `GDA-FC-002` | Next | Consumer fixture in `LLM-FullCycle-Learning` | Export bundle parsed and validated without desktop/provider access |
+| `GDA-FC-002` | Next | Consumer fixture in `reliable-agent-model-lifecycle` | Export bundle parsed and validated without desktop/provider access |
 | `GDA-FC-003` | Pending review | Explicit-consent rich episode capture contract owned by Full Cycle | Separate security/privacy review; disabled by default |
 | `GDA-FC-004` | Complete locally | Freeze validation and handoff | Clean release preflight passed for producer candidate `45bee82`; PR CI validates the final documentation commit |
 
@@ -68,7 +68,7 @@ Only one item may be `Next` or `In progress`.
 
 ## Exact next task: GDA-FC-002
 
-Work in `C:\Users\Alienware\Desktop\LLM-FullCycle-Learning`, not in this
+Work in `C:\Users\Alienware\reliable-agent-model-lifecycle`, not in this
 repository's Runtime:
 
 1. Add an offline consumer for manifest v1 and redacted run-export v1.
