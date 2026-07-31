@@ -106,18 +106,28 @@ sole active closure item and exact Full Cycle resume point. The notes below
 describe only the user-authorized, bounded `GDA-DEMO-003` detour; they do not
 activate broader operator UI or replace the Full Cycle backlog.
 
-The working branch is `codex/demo-hud-baseline`. At this handoff:
+The working branch is `codex/demo-hud-baseline`.
 
-- remote `origin/codex/demo-hud-baseline` ends at `d1507e3`
-  (`Retain isolated operator HUD evidence`);
-- local `35c5363` (`Map Demo steps to workflow chapters`) is one commit ahead
-  and has not been pushed;
+The branch was rebased onto `main` at `9cb38c8` on 2026-07-31, so every commit
+below carries a new identity. The pre-rebase commits are preserved locally at
+`backup/demo-hud-pre-rebase` and the old identities are given here so the
+earlier evidence stays traceable:
+
+- local and remote `codex/demo-hud-baseline` both end at `07efbb6`
+  (`Document Operator HUD handoff`, pre-rebase `f4b0a70`);
+- `3e9af02` (`Map Demo steps to workflow chapters`, pre-rebase `35c5363`) is
+  its parent, and is now pushed;
+- `efc5062` (`Retain isolated operator HUD evidence`, pre-rebase `d1507e3`) is
+  the former remote tip;
 - the worktree is clean before this handoff-document update;
-- the last complete offline gate was run for `d1507e3` and passed; the exact
-  dated result is retained in the `GDA-HUD-011` row of `PROJECT_STATUS.md`;
-- `35c5363` has targeted evidence only:
+- the last complete offline gate passed for pre-rebase `d1507e3`; the exact
+  dated result is retained in the `GDA-HUD-011` row of `PROJECT_STATUS.md`.
+  **That result has not been re-established after the rebase.** The rebase base
+  added documentation-only commits and no source change, so the gate is
+  expected to still pass, but it must be re-run before any evidence promotion;
+- pre-rebase `35c5363` had targeted evidence only:
   `pytest tests/agent/test_demo_cross_app.py -q` and Ruff passed for the
-  changed source and test.
+  changed source and test. This has likewise not been re-run.
 
 Read these files in order for the HUD continuation:
 
@@ -135,13 +145,15 @@ The completed HUD foundation includes:
 - compact and expanded human-readable Decision Card geometry;
 - default-expanded six-row Progress checklist with explicit collapse
   preservation;
-- fixed 150% DPI Decision/Progress screenshots retained at `d1507e3`;
+- fixed 150% DPI Decision/Progress screenshots retained at `efc5062`
+  (pre-rebase `d1507e3`);
 - exact-title, DPI-aware, compositor-settled capture with fixed output slots;
 - a named mutex that rejects duplicate visual-review instances;
 - exact-process Chrome/Word fixture cleanup that does not scan by executable
   name and avoids Word AutoRecover on the next run.
 
-`35c5363` adds only the pure transition projector. Its fixed mapping is:
+`3e9af02` (pre-rebase `35c5363`) adds only the pure transition projector. Its
+fixed mapping is:
 
 - provider steps `0..5`: workspace complete, public-source review current;
 - `6..8`: source review complete, open-research-brief current;

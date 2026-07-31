@@ -5,9 +5,12 @@ Date: 2026-07-30
 ## Scope
 
 This retained matrix covers only the synthetic Decision Card and workflow
-Progress HUD renderers. The source baseline was `19840a9`; the capture helper,
-default-expanded workflow behavior, single-instance visual-review guard, tests,
-and this record are retained together at `d1507e3`.
+Progress HUD renderers. The source baseline was `df35711` (pre-rebase
+`19840a9`); the capture helper, default-expanded workflow behavior,
+single-instance visual-review guard, tests, and this record are retained
+together at `efc5062` (pre-rebase `d1507e3`). The branch was rebased onto
+`main` at `9cb38c8` on 2026-07-31; these images were captured before that
+rebase and were not re-collected.
 
 No Runner, MCP server, provider, Chrome/Word action, approval dispatch, network
 request, or complete Demo ran while collecting these images. All labels and
