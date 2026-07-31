@@ -7,7 +7,7 @@ Date: 2026-07-30
 This retained matrix covers only the synthetic Decision Card and workflow
 Progress HUD renderers. The source baseline was `19840a9`; the capture helper,
 default-expanded workflow behavior, single-instance visual-review guard, tests,
-and this record are retained together in the following candidate change.
+and this record are retained together at `d1507e3`.
 
 No Runner, MCP server, provider, Chrome/Word action, approval dispatch, network
 request, or complete Demo ran while collecting these images. All labels and

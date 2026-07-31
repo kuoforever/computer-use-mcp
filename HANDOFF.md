@@ -99,6 +99,81 @@ port. The next implementation task belongs in `reliable-agent-model-lifecycle`:
 add the strict offline consumer fixture. Rich episode capture remains a separate,
 explicit-consent design review.
 
+## Bounded Operator HUD handoff (2026-07-31)
+
+`PROJECT_STATUS.md` remains the only task registry. `GDA-FC-002` is still the
+sole active closure item and exact Full Cycle resume point. The notes below
+describe only the user-authorized, bounded `GDA-DEMO-003` detour; they do not
+activate broader operator UI or replace the Full Cycle backlog.
+
+The working branch is `codex/demo-hud-baseline`. At this handoff:
+
+- remote `origin/codex/demo-hud-baseline` ends at `d1507e3`
+  (`Retain isolated operator HUD evidence`);
+- local `35c5363` (`Map Demo steps to workflow chapters`) is one commit ahead
+  and has not been pushed;
+- the worktree is clean before this handoff-document update;
+- the last complete offline gate was run for `d1507e3` and passed; the exact
+  dated result is retained in the `GDA-HUD-011` row of `PROJECT_STATUS.md`;
+- `35c5363` has targeted evidence only:
+  `pytest tests/agent/test_demo_cross_app.py -q` and Ruff passed for the
+  changed source and test.
+
+Read these files in order for the HUD continuation:
+
+1. `PROJECT_STATUS.md`, especially `GDA-HUD-005`, `GDA-HUD-006`, and
+   `GDA-HUD-011`;
+2. `docs/OPERATOR_HUD_VISUAL_EVIDENCE.md` for the retained 150% DPI matrix and
+   its promotion boundary;
+3. `docs/OPERATOR_EXPERIENCE.md` and `docs/PROGRESS_VIEWER.md` for the default
+   expanded checklist and operator-collapse contract;
+4. `src/computer_use_agent/demo_cross_app.py` and
+   `tests/agent/test_demo_cross_app.py` for the new pure mapping.
+
+The completed HUD foundation includes:
+
+- compact and expanded human-readable Decision Card geometry;
+- default-expanded six-row Progress checklist with explicit collapse
+  preservation;
+- fixed 150% DPI Decision/Progress screenshots retained at `d1507e3`;
+- exact-title, DPI-aware, compositor-settled capture with fixed output slots;
+- a named mutex that rejects duplicate visual-review instances;
+- exact-process Chrome/Word fixture cleanup that does not scan by executable
+  name and avoids Word AutoRecover on the next run.
+
+`35c5363` adds only the pure transition projector. Its fixed mapping is:
+
+- provider steps `0..5`: workspace complete, public-source review current;
+- `6..8`: source review complete, open-research-brief current;
+- `9..14`: brief open, add-verified-note current;
+- `15`: note added, save current;
+- `16..17`: save complete, durable verification current;
+- `18` with `WorkflowStatus.READY`: all six chapters complete.
+
+The exact next HUD action is to connect that projector without starting the
+complete Demo:
+
+1. add one Demo-only, UI-thread-owned workflow lifecycle that receives only
+   the fixed provider-step projection and durable Runner phase;
+2. feed its latest validated checklist to `PassiveProgressWindow.open/update`;
+   first open must show all steps, and an explicit operator collapse must
+   survive later refreshes;
+3. set `OperatorStepContext.workflow` from
+   `WorkflowBreadcrumb.from_checklist(...)` before each Decision Card while
+   preserving the separate approval `n/7` count;
+4. project approval wait as `NEEDS_INPUT`, terminal success as `READY`, and
+   failure/uncertainty without falsely completing the current chapter;
+5. add deterministic tests for thread ownership, monotonic chapter changes,
+   approval breadcrumbs, collapse preservation, and fail-closed invalid state;
+6. rerun the complete offline validation gate before any commit or live smoke.
+
+Do not wire provider prose, tool-budget counts, or raw task text into the
+checklist. Do not add another Runner/MCP dispatch path. Do not treat a provider
+step callback as execution authority or durable side-effect evidence. Do not
+run the full Chrome-to-Word Demo until the offline lifecycle tests pass and a
+separate live evidence plan has been declared. Presence remains
+capture-excluded by design.
+
 Before changing behavior, inspect the current worktree and run the unit suite:
 
 ~~~powershell
