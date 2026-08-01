@@ -157,7 +157,7 @@ def test_phase_and_dpi_changes_update_without_recreating_or_taking_focus() -> No
     assert api.kinds().count("create") == 1
     configured = [call for call in api.calls if call[0] == "configure"][-1]
     geometry = configured[3]
-    assert geometry == PresenceGeometry(0, 0, 2560, 1440, 9, 18)
+    assert geometry == PresenceGeometry(0, 0, 2560, 1440, 15, 24)
     assert api.foreground() == before
 
 
@@ -200,7 +200,7 @@ def test_capture_exclusion_failure_is_reported_without_becoming_a_secrecy_claim(
 
 @pytest.mark.parametrize(
     ("dpi", "border", "inset"),
-    [(96, 6, 12), (144, 9, 18), (192, 12, 24), (768, 24, 40)],
+    [(96, 10, 16), (144, 15, 24), (192, 20, 32), (768, 32, 48)],
 )
 def test_geometry_is_dpi_scaled_and_bounded(dpi: int, border: int, inset: int) -> None:
     geometry = presence_geometry(DisplayBounds(-1920, 0, 0, 1080, dpi))

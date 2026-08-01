@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .operator_visuals import OperatorVisualRole, operator_visual
 from .types import JSONValue
 
 
@@ -84,6 +85,7 @@ class PresenceView:
     """The complete fixed allowlist a native indicator may render."""
 
     phase: str
+    visual_role: str
     label: str
     glyph: str
     color_rgb: int
@@ -95,6 +97,7 @@ class PresenceView:
     def as_display_dict(self) -> dict[str, JSONValue]:
         return {
             "phase": self.phase,
+            "visual_role": self.visual_role,
             "label": self.label,
             "glyph": self.glyph,
             "color_rgb": self.color_rgb,
@@ -105,38 +108,40 @@ class PresenceView:
         }
 
 
-_PRESENTATION: dict[PresencePhase, tuple[str, str, int, PresenceMotion]] = {
-    PresencePhase.OBSERVING: ("Observing", "EYE", 0x2F80ED, PresenceMotion.STEADY),
-    PresencePhase.PLANNING: ("Planning", "PLAN", 0x8E5BE8, PresenceMotion.SLOW),
+_PRESENTATION: dict[
+    PresencePhase,
+    tuple[OperatorVisualRole, PresenceMotion],
+] = {
+    PresencePhase.OBSERVING: (
+        OperatorVisualRole.OBSERVING,
+        PresenceMotion.STEADY,
+    ),
+    PresencePhase.PLANNING: (
+        OperatorVisualRole.PLANNING,
+        PresenceMotion.SLOW,
+    ),
     PresencePhase.EXECUTING: (
-        "Executing",
-        "ACTION",
-        0x27AE60,
+        OperatorVisualRole.EXECUTING,
         PresenceMotion.DIRECTIONAL,
     ),
     PresencePhase.VERIFYING: (
-        "Verifying",
-        "VERIFY",
-        0x00A7B5,
+        OperatorVisualRole.VERIFYING,
         PresenceMotion.SHORT_PULSE,
     ),
     PresencePhase.RECOVERING: (
-        "Recovering",
-        "RECOVERY",
-        0xE67E22,
+        OperatorVisualRole.RECOVERING,
         PresenceMotion.SLOW,
     ),
     PresencePhase.WAITING_APPROVAL: (
-        "Waiting approval",
-        "APPROVAL",
-        0xF2C94C,
+        OperatorVisualRole.NEEDS_INPUT,
         PresenceMotion.PULSE,
     ),
-    PresencePhase.PAUSED: ("Paused", "PAUSED", 0xBDBDBD, PresenceMotion.STEADY),
+    PresencePhase.PAUSED: (
+        OperatorVisualRole.PAUSED,
+        PresenceMotion.STEADY,
+    ),
     PresencePhase.INSPECT: (
-        "Inspect required",
-        "INSPECT",
-        0xEB5757,
+        OperatorVisualRole.NEEDS_INSPECTION,
         PresenceMotion.FIXED_WARNING,
     ),
 }
@@ -164,14 +169,17 @@ def project_presence(snapshot: PresenceSnapshot) -> PresenceView | None:
     ):
         return None
 
-    label, glyph, color, motion = _PRESENTATION[snapshot.phase]
+    visual_role, motion = _PRESENTATION[snapshot.phase]
+    token = operator_visual(visual_role)
+    color = token.color_rgb
     if snapshot.preferences.high_contrast:
         color = 0xFFFFFF
     motion_enabled = not snapshot.preferences.reduced_motion
     return PresenceView(
         phase=snapshot.phase.value,
-        label=label,
-        glyph=glyph,
+        visual_role=token.role.value,
+        label=token.label,
+        glyph=token.glyph,
         color_rgb=color,
         motion=motion.value,
         motion_enabled=motion_enabled,

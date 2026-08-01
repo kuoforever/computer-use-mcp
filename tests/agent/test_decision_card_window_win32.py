@@ -3,9 +3,34 @@ from __future__ import annotations
 import pytest
 
 from computer_use_agent.decision_card_window_win32 import (
+    _BS_MULTILINE,
+    _BS_OWNERDRAW,
+    _CARD_EX_STYLE,
+    _CARD_STYLE,
+    _HEADER_TIERS,
+    _HUD_BACKGROUND,
+    _HUD_MUTED_TEXT,
+    _HUD_TEXT,
     Win32DecisionCardWindowApi,
     _corner_origin,
+    _header_rects,
+    _layout_rects,
+    _scaled_client_size,
+    _toggle_label,
+    measure_tier_text_width,
 )
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.operator_visuals import OPERATOR_TYPE_META
+from computer_use_agent.progress_window_win32 import (
+    _HUD_BACKGROUND as _PROGRESS_BACKGROUND,
+    _HUD_MUTED as _PROGRESS_MUTED,
+    _HUD_TEXT as _PROGRESS_TEXT,
+)
+
+_WS_THICKFRAME = 0x00040000
+_WS_MINIMIZEBOX = 0x00020000
+_WS_MAXIMIZEBOX = 0x00010000
+_WS_EX_CLIENTEDGE = 0x00000200
 
 
 @pytest.mark.parametrize(
@@ -35,3 +60,197 @@ def test_native_window_defaults_to_bottom_right_and_rejects_unknown_corner() -> 
     assert Win32DecisionCardWindowApi().corner == "bottom_right"
     with pytest.raises(ValueError, match="corner is invalid"):
         Win32DecisionCardWindowApi(corner="center")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("dpi", [96, 120, 144])
+def test_compact_layout_is_two_by_two_without_detail_panes(dpi: int) -> None:
+    width, height = _scaled_client_size(False, dpi)
+    rects = _layout_rects(width, height, 4, expanded=False, dpi=dpi)
+
+    assert "content" not in rects
+    assert "evidence" not in rects
+    # The header is painted, so it contributes no child-control rectangle.
+    assert "instruction" not in rects
+    assert "timeout" not in rects
+    assert rects["accent"] == (0, 0, round(4 * dpi / 96), height)
+    assert rects["button_0"][1] == rects["button_1"][1]
+    assert rects["button_2"][1] == rects["button_3"][1]
+    assert rects["button_0"][0] == rects["button_2"][0]
+    assert rects["button_1"][0] == rects["button_3"][0]
+    assert rects["toggle"][1] + rects["toggle"][3] < rects["button_0"][1]
+    for x, y, control_width, control_height in rects.values():
+        assert x >= 0 and y >= 0
+        assert x + control_width <= width
+        assert y + control_height <= height
+
+
+@pytest.mark.parametrize("dpi", [96, 120, 144])
+def test_expanded_layout_reveals_separate_bounded_detail_panes(dpi: int) -> None:
+    width, height = _scaled_client_size(True, dpi)
+    rects = _layout_rects(width, height, 4, expanded=True, dpi=dpi)
+
+    details = rects["details"]
+    toggle = rects["toggle"]
+    first_button = rects["button_0"]
+    # One scroll context, not two stacked ones, and it clears the affordance
+    # above it and the choices below it.
+    assert "content" not in rects
+    assert "evidence" not in rects
+    assert toggle[1] + toggle[3] <= details[1]
+    assert details[1] + details[3] < first_button[1]
+    assert details[0] + details[2] <= width
+
+
+def test_card_frame_offers_no_resize_maximize_or_minimize() -> None:
+    """One bounded decision has one reviewed geometry the operator cannot break."""
+
+    for forbidden in (_WS_THICKFRAME, _WS_MINIMIZEBOX, _WS_MAXIMIZEBOX):
+        assert _CARD_STYLE & forbidden == 0
+    # The caption and system menu stay: closing the card must remain one
+    # obvious click, and closing is already a safe deny.
+    assert _CARD_STYLE & 0x00C00000 == 0x00C00000
+    assert _CARD_STYLE & 0x00080000
+    # The sunken 3D bevel is a legacy dialog cue and must not return.
+    assert _CARD_EX_STYLE & _WS_EX_CLIENTEDGE == 0
+
+
+def test_choice_controls_are_owner_drawn_without_a_default_push_type() -> None:
+    """``BS_*`` type styles share one field, so owner draw excludes the rest."""
+
+    style = _BS_OWNERDRAW | _BS_MULTILINE
+    assert style & 0x0F == _BS_OWNERDRAW
+    assert _toggle_label(False) == "SHOW DETAILS  ∨"
+    assert _toggle_label(True) == "HIDE DETAILS  ∧"
+
+
+def test_header_tiers_match_the_four_line_controller_contract() -> None:
+    assert len(_HEADER_TIERS) == 4
+    offsets = [offset for offset, _tier, _accent in _HEADER_TIERS]
+    assert offsets == sorted(offsets)
+    assert [accent for _offset, _tier, accent in _HEADER_TIERS] == [
+        True,
+        False,
+        False,
+        False,
+    ]
+    points = [tier.points for _offset, tier, _accent in _HEADER_TIERS]
+    assert points[1] > points[0], "the decided action outranks its micro-label"
+
+
+#: The longest strings the bounded Demo can actually put on the card. Chapter
+#: labels come from the reviewed workflow itself so the check tracks real data.
+_LONGEST_ACTION = "Add the source note to the research brief"
+_LONGEST_CHAPTER = max(
+    (step.label for step in DEMO_WORKFLOW.steps),
+    key=len,
+)
+_LONGEST_HEADER_LINES = (
+    "NEEDS INPUT  ·  APPROVAL LOCKED",
+    _LONGEST_ACTION,
+    "APPROVAL 7/7  ·  Microsoft Word",
+    f"WORKFLOW 6/6  ·  {_LONGEST_CHAPTER}",
+)
+_LONGEST_BUTTON = "Approve once"
+
+
+@pytest.mark.parametrize("dpi", [96, 120, 144])
+def test_header_text_fits_its_painted_rectangle_at_every_dpi(dpi: int) -> None:
+    """Measure real glyph extents, not just boxes.
+
+    Geometry checks passed while the title was visibly clipped, because they
+    only proved the rectangles fitted the client area. This measures the text
+    that goes inside them.
+
+    The measurement is machine-specific by design. If Segoe UI is unavailable
+    and a wider fallback is substituted, a failure here is a true report that
+    this card would clip on that machine, not a flaky test.
+    """
+
+    width, _height = _scaled_client_size(False, dpi)
+    rects = _header_rects(width, dpi)
+
+    for index, text in enumerate(_LONGEST_HEADER_LINES):
+        (_left, _top, rect_width, _rect_height), tier = rects[f"line_{index}"]
+        measured = measure_tier_text_width(text, tier=tier, dpi=dpi)
+        assert measured <= rect_width, (
+            f"line {index} needs {measured}px in {rect_width}px at {dpi} DPI"
+        )
+
+    (_left, _top, countdown_width, _h), countdown_tier = rects["countdown"]
+    measured = measure_tier_text_width(
+        "Closes in 3600s", tier=countdown_tier, dpi=dpi
+    )
+    assert measured <= countdown_width
+
+
+@pytest.mark.parametrize("dpi", [96, 120, 144])
+def test_choice_labels_fit_their_buttons_at_every_dpi(dpi: int) -> None:
+    width, height = _scaled_client_size(False, dpi)
+    button_width = _layout_rects(width, height, 4, expanded=False, dpi=dpi)[
+        "button_0"
+    ][2]
+    measured = measure_tier_text_width(
+        _LONGEST_BUTTON, tier=OPERATOR_TYPE_META, dpi=dpi
+    )
+    assert measured <= button_width
+
+
+def test_the_text_fit_check_would_have_caught_the_clipped_title() -> None:
+    """Guard the guard: the regression it exists for must actually trip it.
+
+    The title was clipped because the countdown reserve was subtracted from
+    every header row instead of only the micro-label's. Reproducing that
+    reserve must exceed the measured title width.
+    """
+
+    dpi = 144
+    width, _height = _scaled_client_size(False, dpi)
+    (_left, _top, title_width, _h), tier = _header_rects(width, dpi)["line_1"]
+    countdown_width = _header_rects(width, dpi)["countdown"][0][2]
+
+    measured = measure_tier_text_width(_LONGEST_ACTION, tier=tier, dpi=dpi)
+    assert measured <= title_width
+    assert measured > title_width - countdown_width, (
+        "the old shared-reserve layout must still be provably too narrow"
+    )
+
+
+def test_owner_drawn_labels_are_sized_from_get_window_text_length() -> None:
+    """A caption read the Win32 way, so owner-drawn controls are never blank.
+
+    ``GetWindowTextW(hwnd, NULL, 0)`` copies nothing and returns 0. Sizing the
+    buffer from it produced buttons with correct geometry and no text at all.
+    """
+
+    class Win32Semantics:
+        def GetWindowTextLengthW(self, _hwnd: object) -> int:
+            return len("Approve once")
+
+        def GetWindowTextW(
+            self,
+            _hwnd: object,
+            buffer: object,
+            max_count: int,
+        ) -> int:
+            if buffer is None or max_count <= 0:
+                return 0
+            buffer.value = "Approve once"[: max_count - 1]
+            return len(buffer.value)
+
+    api = Win32DecisionCardWindowApi.__new__(Win32DecisionCardWindowApi)
+    api._user32 = Win32Semantics()  # type: ignore[attr-defined]
+
+    assert api._control_label(object()) == "Approve once"  # type: ignore[arg-type]
+
+    class NeverLabelled(Win32Semantics):
+        def GetWindowTextLengthW(self, _hwnd: object) -> int:
+            return 0
+
+    api._user32 = NeverLabelled()  # type: ignore[attr-defined]
+    assert api._control_label(object()) == ""  # type: ignore[arg-type]
+
+
+def test_both_hud_surfaces_share_one_chrome_palette() -> None:
+    assert _HUD_BACKGROUND == _PROGRESS_BACKGROUND
+    assert _HUD_TEXT == _PROGRESS_TEXT
+    assert _HUD_MUTED_TEXT == _PROGRESS_MUTED

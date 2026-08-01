@@ -592,6 +592,7 @@ message that could echo the typed value.
 | Provider -> host | host policy and reviewed registry | model text, tool calls, response IDs | Validate schemas, serialize calls, apply budgets, and never grant approval from model text. |
 | Desktop/UI -> host | host policy only | UI text, window titles, refs, screenshots, tool output | Treat as untrusted data; never execute instructions embedded in it or promote it to memory automatically. |
 | Host -> MCP child | current MCP server safety controls | child output and discovery metadata | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch. |
+| MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak, then the foreground gate, then at most one driver invocation. Every guard rejection is known `not_dispatched` and is never replayed. |
 | Host state -> disk | explicit local persistence rules | all candidate memory and trace content | Keep state under a user-local directory; redact traces and store memory only after explicit confirmation. |
 
 Provider credentials are read by their future adapter from the host process
@@ -599,9 +600,11 @@ environment. They are not a configuration field and are never placed in the
 MCP child environment. `MCPLaunchConfig.child_environment()` creates a fixed
 safe baseline (`safe_local`, enabled confirmation, at least 2.5 seconds of
 human-idle yielding, and a non-empty e-stop) plus only a small reviewed set of
-server settings. The MCP SDK separately adds its fixed OS bootstrap allowlist
-(such as `SYSTEMROOT`, `PATH`, and `TEMP`); arbitrary variables and provider or
-cloud credentials are not inherited.
+server settings. Those reviewed settings include bounded stable-sample count,
+poll interval, and maximum wait for the call-scoped human-readiness guard. The
+MCP SDK separately adds its fixed OS bootstrap allowlist (such as `SYSTEMROOT`,
+`PATH`, and `TEMP`); arbitrary variables and provider or cloud credentials are
+not inherited.
 
 The initial host policy has two modes:
 
@@ -675,7 +678,7 @@ as general secret detection.
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
 | `[provider]` | provider name (`openai` or `anthropic`), model ID, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. |
-| `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, audit redirection, and custom redaction controls are rejected. |
+| `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, out-of-range stable-sample/poll/wait values, audit redirection, and custom redaction controls are rejected. |
 | `[policy]` | read-only/approved-actions choice and fixed budgets | `approved_actions` cannot disable per-action approval. |
 
 Configuration parsing has no side effects: it does not create state directories,

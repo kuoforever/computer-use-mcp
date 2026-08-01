@@ -12,10 +12,22 @@ __version__ = "0.1.0"
 PRODUCT_NAME = "Guarded Desktop Agent"
 DISTRIBUTION_NAME = "guarded-desktop-agent"
 MCP_SERVER_NAME = "guarded-desktop-mcp"
+SAFETY_BASELINE_ATTESTATION_V1 = (
+    "GDA_SAFETY_BASELINES_V1="
+    "title_matched_image_redaction,typed_text_audit_redaction"
+)
+SUPPORTED_SAFETY_BASELINES = frozenset(
+    {
+        "title_matched_image_redaction",
+        "typed_text_audit_redaction",
+    }
+)
 
 __all__ = [
     "DISTRIBUTION_NAME",
     "MCP_SERVER_NAME",
     "PRODUCT_NAME",
+    "SAFETY_BASELINE_ATTESTATION_V1",
+    "SUPPORTED_SAFETY_BASELINES",
     "__version__",
 ]

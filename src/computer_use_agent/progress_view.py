@@ -30,6 +30,7 @@ from .campaign_host_status import (
     HostTaskStatus,
     project_campaign_control_snapshot,
 )
+from .operator_visuals import OperatorVisualRole, operator_visual
 from .trace import RunPhase, TraceError, read_run_checkpoint
 from .types import JSONValue
 
@@ -51,15 +52,25 @@ _TERMINAL_PHASES = frozenset(
 # The fixed, honest projection from a source phase to an operator-facing label.
 # A nonterminal phase never maps to "running" or "blocked": a checkpoint
 # record cannot prove whether that run is alive, waiting, or crashed.
-_DISPLAY_STATE: dict[RunPhase, str] = {
-    RunPhase.WAITING_APPROVAL: "Waiting approval",
-    RunPhase.PAUSED: "Paused; operator attention",
-    RunPhase.SUCCESS: "Complete",
-    RunPhase.FAILED: "Failed",
-    RunPhase.UNKNOWN_OUTCOME: "Uncertain; re-observe before retry",
-    RunPhase.CANCELLED: "Cancelled",
+_VISUAL = {
+    role: operator_visual(role).label
+    for role in OperatorVisualRole
 }
-_IN_PROGRESS_LABEL = "In progress at last checkpoint; liveness unknown"
+_DISPLAY_STATE: dict[RunPhase, str] = {
+    RunPhase.WAITING_APPROVAL: _VISUAL[OperatorVisualRole.NEEDS_INPUT],
+    RunPhase.PAUSED: _VISUAL[OperatorVisualRole.PAUSED],
+    RunPhase.SUCCESS: _VISUAL[OperatorVisualRole.READY],
+    RunPhase.FAILED: _VISUAL[OperatorVisualRole.FAILED],
+    RunPhase.UNKNOWN_OUTCOME: (
+        f"{_VISUAL[OperatorVisualRole.NEEDS_INSPECTION]}; "
+        "re-observe before retry"
+    ),
+    RunPhase.CANCELLED: _VISUAL[OperatorVisualRole.CANCELLED],
+}
+_IN_PROGRESS_LABEL = (
+    f"{_VISUAL[OperatorVisualRole.IN_PROGRESS]} at last checkpoint; "
+    "liveness unknown"
+)
 
 _BUDGET_USED = {"model_calls": "model_turns_used", "tool_calls": "tool_calls_used"}
 _BUDGET_LIMIT = {"model_calls": "max_model_turns", "tool_calls": "max_tool_calls"}
@@ -72,16 +83,28 @@ _ATTENTION_PHASES = frozenset(
 )
 
 _CAMPAIGN_DISPLAY_STATE: dict[HostTaskStatus, str] = {
-    HostTaskStatus.RUNNING: "Running",
-    HostTaskStatus.WAITING_APPROVAL: "Waiting approval",
-    HostTaskStatus.PAUSED: "Paused; operator attention",
-    HostTaskStatus.CHALLENGE: "Challenge; operator attention",
-    HostTaskStatus.COMPLETED: "Complete",
-    HostTaskStatus.FAILED: "Failed; inspect before resume",
-    HostTaskStatus.CANCELLED: "Cancelled",
-    HostTaskStatus.UNCERTAIN: "Uncertain; re-observe before retry",
-    HostTaskStatus.STALE: "Stale; inspect before reclaim",
-    HostTaskStatus.NEEDS_INSPECTION: "State invalid; inspect",
+    HostTaskStatus.RUNNING: _VISUAL[OperatorVisualRole.IN_PROGRESS],
+    HostTaskStatus.WAITING_APPROVAL: _VISUAL[OperatorVisualRole.NEEDS_INPUT],
+    HostTaskStatus.PAUSED: _VISUAL[OperatorVisualRole.PAUSED],
+    HostTaskStatus.CHALLENGE: (
+        f"{_VISUAL[OperatorVisualRole.NEEDS_INPUT]}; challenge"
+    ),
+    HostTaskStatus.COMPLETED: _VISUAL[OperatorVisualRole.READY],
+    HostTaskStatus.FAILED: (
+        f"{_VISUAL[OperatorVisualRole.FAILED]}; inspect before resume"
+    ),
+    HostTaskStatus.CANCELLED: _VISUAL[OperatorVisualRole.CANCELLED],
+    HostTaskStatus.UNCERTAIN: (
+        f"{_VISUAL[OperatorVisualRole.NEEDS_INSPECTION]}; "
+        "re-observe before retry"
+    ),
+    HostTaskStatus.STALE: (
+        f"{_VISUAL[OperatorVisualRole.NEEDS_INSPECTION]}; "
+        "stale before reclaim"
+    ),
+    HostTaskStatus.NEEDS_INSPECTION: (
+        f"{_VISUAL[OperatorVisualRole.NEEDS_INSPECTION]}; state invalid"
+    ),
 }
 _CAMPAIGN_TERMINAL = frozenset(
     {HostTaskStatus.COMPLETED, HostTaskStatus.FAILED, HostTaskStatus.CANCELLED}

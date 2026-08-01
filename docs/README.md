@@ -51,10 +51,13 @@ not a line-by-line mirror of every reference page.
 | I am implementing the bounded BOSS semantic result or per-item observation ladder | [BOSS semantic extraction contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) |
 | I need the latest partial BOSS item/restart diagnostic | [BOSS item/restart diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 | I need the one-campaign complete-product showcase and evidence plan | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
+| I need the retained bounded Chrome-to-Word GUI Demo result | [Cross-application Demo evidence](CROSS_APP_DEMO_EVIDENCE.md) |
+| I need the retained public-web-to-Word Demo with approval heartbeat | [Public-web Word Demo evidence](PUBLIC_WEB_WORD_DEMO_EVIDENCE.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | I am adding OCR, document text, image, or delta observations | [Observation contract](OBSERVATION_CONTRACT.md) |
 | I am designing computer-use presence, progress, Decision Cards, or operator trade-offs | [Operator experience](OPERATOR_EXPERIENCE.md) |
 | I am implementing the non-activating multi-run UI | [Operator progress viewer](PROGRESS_VIEWER.md) |
+| I need the retained isolated Decision Card and workflow Progress HUD images | [Operator HUD visual evidence, 2026-08-01](OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md); the superseded presentation is retained in [the 2026-07-30 record](OPERATOR_HUD_VISUAL_EVIDENCE.md) |
 | I need sanitized findings from live desktop sessions | [Operator session notes](OPERATOR_SESSION_NOTES.md) |
 | I need the retained bounded BOSS MCP observation | [BOSS observation evidence](BOSS_EVIDENCE.md) |
 | I need the retained BOSS static-content OCR result | [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |

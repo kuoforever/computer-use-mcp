@@ -131,7 +131,7 @@ def _campaign(state_dir: Path, campaign_id: str = "campaign_1") -> RunLock:
 def test_success_view_reports_terminal_facts(tmp_path: Path) -> None:
     view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_ok", RunPhase.SUCCESS))
 
-    assert view.display_state == "Complete"
+    assert view.display_state == "Ready"
     assert view.is_terminal is True
     assert view.liveness_known is True
     assert view.needs_reobserve is False
@@ -175,7 +175,7 @@ def test_nonterminal_phase_is_not_reported_as_running(tmp_path: Path) -> None:
 def test_waiting_approval_has_a_definite_but_nonterminal_label(tmp_path: Path) -> None:
     view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_wait", RunPhase.WAITING_APPROVAL))
 
-    assert view.display_state == "Waiting approval"
+    assert view.display_state == "Needs input"
     assert view.is_terminal is False
     assert view.liveness_known is False
 
@@ -183,7 +183,7 @@ def test_waiting_approval_has_a_definite_but_nonterminal_label(tmp_path: Path) -
 def test_paused_has_known_liveness_and_requires_operator_attention(tmp_path: Path) -> None:
     view = checkpoint_to_view(_checkpoint(tmp_path.resolve(), "run_paused", RunPhase.PAUSED))
 
-    assert view.display_state == "Paused; operator attention"
+    assert view.display_state == "Paused"
     assert view.is_terminal is False
     assert view.liveness_known is True
     assert view.needs_reobserve is False
@@ -195,7 +195,7 @@ def test_unknown_outcome_is_distinct_and_flags_reobservation(tmp_path: Path) -> 
     # Acceptance check 7: UNKNOWN_OUTCOME is distinct and never a retry affordance.
     # The view model is pure data: it carries a re-observe flag and no action or
     # retry field a window could wire to a button.
-    assert view.display_state == "Uncertain; re-observe before retry"
+    assert view.display_state == "Needs inspection; re-observe before retry"
     assert view.needs_reobserve is True
     assert view.is_terminal is True
     assert set(view.as_display_dict()) == {
@@ -360,7 +360,7 @@ def test_campaign_projection_is_lock_free_bounded_and_redacted(tmp_path: Path) -
     view = projection.campaigns[0]
     assert view.campaign_id == "campaign_1"
     assert view.status == "RUNNING"
-    assert view.display_state == "Running"
+    assert view.display_state == "In progress"
     assert view.discovered_count == view.completed_count == 0
     rendered = json.dumps(view.as_display_dict())
     assert CAMPAIGN_SECRET not in rendered

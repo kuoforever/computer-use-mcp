@@ -67,6 +67,15 @@ def test_approved_actions_policy_still_requires_approval() -> None:
 
     assert policy.disposition(get_tool_spec("click")) is PolicyDisposition.APPROVAL_REQUIRED
     assert policy.disposition(get_tool_spec("type")) is PolicyDisposition.DENY
+    assert (
+        policy.disposition(
+            get_tool_spec("type"),
+            satisfied_safety_baselines=frozenset(
+                {"typed_text_audit_redaction"}
+            ),
+        )
+        is PolicyDisposition.APPROVAL_REQUIRED
+    )
 
 
 def test_prepare_builds_bounded_state_without_calling_any_external_port(

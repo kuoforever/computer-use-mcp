@@ -251,9 +251,22 @@ class Win32PresenceWindowApi:
                 )
                 self._user32.FrameRect(hdc, ctypes.byref(current), border)
             self._gdi32.DeleteObject(border)
+            # A solid status tab makes the active phase readable at a glance;
+            # the rest of the window remains color-key transparent.
+            tab_width = min(360, max(240, geometry.width // 5))
+            tab_height = max(42, geometry.label_inset_px * 2 + 18)
+            tab = wintypes.RECT(
+                geometry.border_px,
+                geometry.border_px,
+                tab_width,
+                tab_height,
+            )
+            tab_brush = self._gdi32.CreateSolidBrush(color)
+            self._user32.FillRect(hdc, ctypes.byref(tab), tab_brush)
+            self._gdi32.DeleteObject(tab_brush)
             self._gdi32.SetBkMode(hdc, _TRANSPARENT)
-            self._gdi32.SetTextColor(hdc, color)
-            text = f"{view.glyph}  {view.label}"
+            self._gdi32.SetTextColor(hdc, self._colorref(0xFFFFFF))
+            text = f"{view.glyph}  AGENT · {view.label.upper()}"
             self._gdi32.TextOutW(
                 hdc,
                 geometry.label_inset_px,
@@ -284,6 +297,8 @@ class Win32PresenceWindowApi:
         wc.lpfnWndProc = self._wndproc
         wc.hInstance = self._hinstance()
         wc.lpszClassName = self._class_name
+        self._user32.RegisterClassExW.argtypes = [ctypes.c_void_p]
+        self._user32.RegisterClassExW.restype = wintypes.ATOM
         if not self._user32.RegisterClassExW(ctypes.byref(wc)):
             raise OSError(f"RegisterClassExW failed ({self._last_error()})")
 

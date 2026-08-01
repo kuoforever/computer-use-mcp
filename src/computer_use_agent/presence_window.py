@@ -63,8 +63,8 @@ def presence_geometry(bounds: DisplayBounds) -> PresenceGeometry:
 
     if not isinstance(bounds, DisplayBounds):
         raise PresenceWindowError("PRESENCE_DISPLAY_BOUNDS_INVALID")
-    border = max(4, min(24, round(6 * bounds.dpi / 96)))
-    inset = max(8, min(40, round(12 * bounds.dpi / 96)))
+    border = max(8, min(32, round(10 * bounds.dpi / 96)))
+    inset = max(12, min(48, round(16 * bounds.dpi / 96)))
     return PresenceGeometry(
         x=bounds.left,
         y=bounds.top,

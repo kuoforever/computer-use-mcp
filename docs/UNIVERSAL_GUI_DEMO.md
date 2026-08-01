@@ -74,6 +74,23 @@ Required visible behavior:
 
 The operator surfaces follow [Operator experience](OPERATOR_EXPERIENCE.md).
 
+`GDA-DEMO-003` targets one visual language for the bounded Chrome-to-Word
+interview Demo:
+
+- a high-visibility phase halo and solid status tab while desktop authority is
+  held;
+- a compact dark progress HUD showing `STEP current/17`;
+- a compact approval HUD showing the current approval out of seven, its fixed
+  action label, and the current application;
+- an expandable technical-details pane;
+- a locked approval pause where `Esc`, close, and timeout safely reject the
+  exact action.
+
+The passive halo and progress HUD must remain click-through/non-activating.
+Only the approval HUD may take focus, and it may do so only after desktop
+authority has yielded. This target is paused after a failed first live review;
+`PROJECT_STATUS.md` owns the issue-by-issue status and acceptance criteria.
+
 ## Act 1: research, documents, data, and native communication
 
 Primary flow:
@@ -317,6 +334,19 @@ fixtures and compare total cost per verified outcome; a shorter prompt that
 causes more retries is not an improvement.
 
 ## Operator experience demonstration
+
+The application owning the current step must remain visibly in the foreground.
+Before entering a different application stage, activate the exact previously
+listed window through Runner/MCP, verify that activation, and re-observe the
+target before acting. If foreground verification fails, stop the chapter; never
+continue the visible workflow against a background application.
+
+Every repeatable Demo chapter must also declare and verify its initial state.
+Use a fresh browser profile, a pristine copied document fixture, fixed visible
+window geometry where the application supports it, and a new run identity.
+Bind a same-title browser only when the newly launched window is foreground,
+never reuse the prior run's mutated document or navigation state, and fail
+before launch when the initial-state manifest does not match.
 
 The recording must show, without revealing sensitive content:
 

@@ -122,7 +122,7 @@ def test_phase_change_is_picked_up_on_the_next_poll(tmp_path: Path) -> None:
     assert outcome.redrew is True
     drawn = "\n".join(api.lines[poller.window.hwnd])
     assert "History  1" in drawn
-    assert "Complete" in drawn
+    assert "Ready" in drawn
 
 
 def test_new_run_appears_and_runs_stay_separate(tmp_path: Path) -> None:
@@ -138,7 +138,7 @@ def test_new_run_appears_and_runs_stay_separate(tmp_path: Path) -> None:
     assert outcome.run_count == 2
     # Acceptance check 2: both ids present, each with its own distinct state.
     assert "run_a" in drawn and "run_b" in drawn
-    assert "In progress at last checkpoint" in drawn and "Complete" in drawn
+    assert "In progress at last checkpoint" in drawn and "Ready" in drawn
 
 
 def test_polling_never_activates_or_moves_foreground(tmp_path: Path) -> None:
@@ -311,8 +311,8 @@ def test_atomic_replacement_never_yields_a_torn_record(tmp_path: Path) -> None:
     # of the two whole records. A mixture of the two would show up here as an
     # unrecognised state, and a partial record would fail the reducer outright.
     assert observed <= {
-        "In progress at last checkpoint; liveness unknown",
-        "Complete",
+        "STEP 3/4  Planning  In progress at last checkpoint; liveness unknown",
+        "STEP 2/4  Success  Ready",
     }
     assert observed, "expected at least one observation"
     # Scheduling determines how often a reader lands in ReplaceFileW's brief
@@ -372,6 +372,6 @@ def test_campaign_change_redraws_while_execution_lock_remains_held(tmp_path: Pat
     assert second.redrew is True
     assert second.campaign_count == 1
     assert "Campaign attention  1" in drawn
-    assert "Paused; operator attention" in drawn
+    assert "Paused" in drawn
     assert "private_campaign_kind" not in drawn
     assert "private_worker_run" not in drawn

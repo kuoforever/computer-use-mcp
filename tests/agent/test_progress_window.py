@@ -28,7 +28,11 @@ from computer_use_agent.progress_window import (
     ProgressWindowApi,
     ProgressWindowError,
     render_progress_lines,
+    render_workflow_detail_lines,
+    render_workflow_summary_lines,
 )
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.workflow_checklist import WorkflowStatus
 
 FORBIDDEN = "PROGRESS_TASK_SECRET"
 
@@ -51,6 +55,11 @@ class FakeProgressWindowApi:
     def __init__(self, foreground: int = 4242) -> None:
         self.calls: list[tuple] = []
         self.lines: dict[int, tuple[str, ...]] = {}
+        self.workflow_lines: dict[
+            int,
+            tuple[tuple[str, ...], tuple[str, ...]],
+        ] = {}
+        self.toggle_handlers: dict[int, object] = {}
         self._foreground = foreground
         self._next_hwnd = 1000
         self.alive: set[int] = set()
@@ -63,8 +72,26 @@ class FakeProgressWindowApi:
         return hwnd
 
     def set_lines(self, hwnd: int, lines) -> None:
+        self.workflow_lines.pop(hwnd, None)
+        self.toggle_handlers.pop(hwnd, None)
         self.lines[hwnd] = tuple(lines)
         self.calls.append(("set_lines", hwnd, tuple(lines)))
+
+    def set_workflow_lines(
+        self,
+        hwnd: int,
+        *,
+        compact_lines,
+        expanded_lines,
+        expanded: bool,
+        accent_rgb: int,
+        on_toggle,
+    ) -> None:
+        variants = (tuple(compact_lines), tuple(expanded_lines))
+        self.workflow_lines[hwnd] = variants
+        self.toggle_handlers[hwnd] = on_toggle
+        self.lines[hwnd] = variants[1] if expanded else variants[0]
+        self.calls.append(("set_workflow_lines", hwnd, expanded, accent_rgb))
 
     def show_noactivate(self, hwnd: int) -> None:
         self.calls.append(("show_noactivate", hwnd))
@@ -77,7 +104,18 @@ class FakeProgressWindowApi:
 
     def destroy(self, hwnd: int) -> None:
         self.alive.discard(hwnd)
+        self.workflow_lines.pop(hwnd, None)
+        self.toggle_handlers.pop(hwnd, None)
         self.calls.append(("destroy", hwnd))
+
+    def click_workflow_toggle(self, hwnd: int) -> None:
+        variants = self.workflow_lines[hwnd]
+        expanded = self.lines[hwnd] == variants[1]
+        next_expanded = not expanded
+        self.lines[hwnd] = variants[1] if next_expanded else variants[0]
+        handler = self.toggle_handlers[hwnd]
+        assert callable(handler)
+        handler(next_expanded)
 
     def __getattr__(self, name: str):  # pragma: no cover - only hit on misuse
         if name in _FORBIDDEN_CALLS:
@@ -125,7 +163,7 @@ def _campaign(campaign_id: str, *, status: str = "RUNNING", **over) -> CampaignP
     base = dict(
         campaign_id=campaign_id,
         status=status,
-        display_state="Running",
+        display_state="In progress",
         is_terminal=False,
         needs_attention=False,
         discovered_count=5,
@@ -173,7 +211,7 @@ def test_full_cycle_never_changes_foreground() -> None:
             _view(
                 "run_a",
                 phase="SUCCESS",
-                display_state="Complete",
+                display_state="Ready",
                 is_terminal=True,
                 liveness_known=True,
             )
@@ -215,7 +253,7 @@ def test_open_twice_refreshes_instead_of_recreating() -> None:
             _view(
                 "run_a",
                 phase="SUCCESS",
-                display_state="Complete",
+                display_state="Ready",
                 is_terminal=True,
                 liveness_known=True,
             )
@@ -245,6 +283,148 @@ def test_rendered_lines_exclude_forbidden_content() -> None:
     blob = "\n".join(lines)
     assert FORBIDDEN not in blob
     assert "http" not in blob
+
+
+def test_workflow_summary_answers_global_progress_questions() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    assert render_workflow_summary_lines(checklist) == (
+        "COMPUTER USE  ·  IN PROGRESS",
+        "Public-source research brief update",
+        "2 completed  ·  3 not started  ·  6 total",
+        "CURRENT STEP 3 OF 6",
+        "Open the research brief",
+        "Microsoft Word",
+    )
+
+
+def test_workflow_summary_hides_tool_budget_and_run_diagnostics() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    lines = render_progress_lines(
+        _projection(_view("run_internal")),
+        workflow=checklist,
+    )
+    blob = "\n".join(lines)
+
+    assert lines[0] == "COMPUTER USE  ·  NEEDS INPUT"
+    assert lines[3] == "APPROVAL NEEDED · STEP 3 OF 6"
+    assert "run_internal" not in blob
+    assert "model" not in blob
+    assert "tool" not in blob
+
+
+def test_workflow_attention_uses_the_shared_amber_visual_role() -> None:
+    api = FakeProgressWindowApi()
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    PassiveProgressWindow(api).open(_projection(), workflow=checklist)
+
+    call = next(item for item in api.calls if item[0] == "set_workflow_lines")
+    assert call[3] == 0xF2C94C
+
+
+def test_expanded_workflow_lists_every_step_and_human_status() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    lines = render_workflow_detail_lines(checklist)
+
+    assert len(lines) == 19
+    assert lines[6] == "WORKFLOW CHECKLIST"
+    assert lines[7:13] == (
+        "✓  1  Prepare the controlled demo workspace",
+        "    Demo setup  ·  Completed",
+        "✓  2  Review the public collaboration guide",
+        "    Google Chrome  ·  Completed",
+        "●  3  Open the research brief",
+        "    Microsoft Word  ·  In progress",
+    )
+    assert lines[-2:] == (
+        "○  6  Verify the saved document",
+        "    Microsoft Word  ·  Not started",
+    )
+
+
+def test_expanded_workflow_rejects_missing_workflow() -> None:
+    with pytest.raises(
+        ProgressWindowError,
+        match="PROGRESS_WORKFLOW_UNAVAILABLE",
+    ):
+        render_progress_lines(_projection(), expanded=True)
+
+
+def test_passive_window_can_open_and_refresh_with_workflow_summary() -> None:
+    api = FakeProgressWindowApi()
+    window = PassiveProgressWindow(api)
+    running = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace",),
+        current_step_id="review_public_source",
+    )
+    verifying = DEMO_WORKFLOW.project(
+        WorkflowStatus.VERIFYING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    hwnd = window.open(_projection(), workflow=running)
+    window.update(_projection(), workflow=verifying)
+
+    assert api.lines[hwnd][0] == "COMPUTER USE  ·  VERIFYING"
+    assert api.foreground() == 4242
+
+
+def test_passive_workflow_defaults_expanded_and_preserves_operator_collapse() -> None:
+    api = FakeProgressWindowApi()
+    window = PassiveProgressWindow(api)
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    hwnd = window.open(_projection(), workflow=checklist)
+    expanded_lines = api.lines[hwnd]
+    window.toggle_details()
+    compact_lines = api.lines[hwnd]
+    window.update(_projection(), workflow=checklist)
+
+    assert len(compact_lines) == 6
+    assert len(expanded_lines) == 19
+    assert api.lines[hwnd] == compact_lines
+    assert window.expanded is False
+    assert api.foreground() == 4242
+
+    api.click_workflow_toggle(hwnd)
+    assert window.expanded is True
+    assert api.lines[hwnd] == expanded_lines
+
+
+def test_diagnostic_progress_cannot_expand_as_workflow() -> None:
+    window = PassiveProgressWindow(FakeProgressWindowApi())
+    window.open(_projection(_view("run_a")))
+
+    with pytest.raises(
+        ProgressWindowError,
+        match="PROGRESS_WORKFLOW_UNAVAILABLE",
+    ):
+        window.set_expanded(True)
 
 
 def test_unknown_facts_are_labelled_not_faked() -> None:
@@ -282,7 +462,7 @@ def test_reobserve_is_marked_and_never_a_retry_button() -> None:
     view = _view(
         "run_unsure",
         phase="UNKNOWN_OUTCOME",
-        display_state="Uncertain; re-observe before retry",
+        display_state="Needs inspection; re-observe before retry",
         is_terminal=True,
         needs_reobserve=True,
     )
@@ -295,7 +475,7 @@ def test_terminal_duration_shown_only_when_present() -> None:
     done = _view(
         "run_done",
         phase="SUCCESS",
-        display_state="Complete",
+        display_state="Ready",
         is_terminal=True,
         duration_ms=1234,
     )
@@ -324,7 +504,7 @@ def test_grouping_prioritizes_attention_over_newer_history() -> None:
         _view(
             f"run_done_{i:03d}",
             phase="SUCCESS",
-            display_state="Complete",
+            display_state="Ready",
             is_terminal=True,
             updated_at_us=1000 + i,
         )
@@ -334,7 +514,7 @@ def test_grouping_prioritizes_attention_over_newer_history() -> None:
         _view(
             "run_needs_operator",
             phase="WAITING_APPROVAL",
-            display_state="Waiting approval",
+            display_state="Needs input",
             updated_at_us=1,
         )
     )
@@ -387,7 +567,7 @@ def test_campaigns_render_before_runs_with_aggregate_counts_only() -> None:
             _campaign(
                 "campaign_paused",
                 status="PAUSED",
-                display_state="Paused; operator attention",
+                display_state="Paused",
                 needs_attention=True,
             ),
             _campaign("campaign_active"),
@@ -409,7 +589,7 @@ def test_campaign_render_cap_preserves_attention_first() -> None:
         _campaign(
             f"campaign_history_{index}",
             status="COMPLETED",
-            display_state="Complete",
+            display_state="Ready",
             is_terminal=True,
             updated_at_us=100 + index,
         )

@@ -113,15 +113,15 @@ Use a fixed mapping:
 
 | Source state | Display state |
 | --- | --- |
-| `WAITING_APPROVAL` | Waiting approval |
-| `SUCCESS` | Complete |
+| `WAITING_APPROVAL` | Needs input |
+| `SUCCESS` | Ready |
 | `FAILED` | Failed |
-| `UNKNOWN_OUTCOME` | Uncertain; re-observe before retry |
+| `UNKNOWN_OUTCOME` | Needs inspection; re-observe before retry |
 | `CANCELLED` | Cancelled |
 | Other nonterminal run phase | In progress at last checkpoint; liveness unknown |
-| Fresh campaign heartbeat and consistent lease | Running |
-| Expired heartbeat or lease | Stale; inspect before reclaim |
-| `CHALLENGE` campaign state | Challenge; operator attention |
+| Fresh campaign heartbeat and consistent lease | In progress |
+| Expired heartbeat or lease | Needs inspection; stale before reclaim |
+| `CHALLENGE` campaign state | Needs input; challenge |
 
 ## Window behavior
 
@@ -129,6 +129,11 @@ The default overlay is passive:
 
 - create a tool window with non-activating behavior;
 - show or refresh it without changing the foreground window;
+- place it in the current foreground monitor's top-right work-area rail;
+- preserve the right edge across compact/expanded workflow geometry, unless an
+  explicit operator move opts out of automatic anchoring;
+- show the bounded workflow checklist on first open, while preserving an
+  operator's explicit collapse across later workflow refreshes;
 - use `SetWindowPos(..., SWP_NOACTIVATE)` for position/topmost updates;
 - do not expose keyboard focus, execution controls, or editable fields;
 - make always-on-top optional and persisted locally.
@@ -152,8 +157,8 @@ action.
 ~~~text
 + Computer Use --------------------------------------+
 | Attention  2                                      |
-| run_cd34  Waiting approval                        |
-| run_ef56  Uncertain; re-observe before retry      |
+| run_cd34  Needs input                             |
+| run_ef56  Needs inspection; re-observe before retry |
 | In progress  1                                    |
 | run_ab12  last checkpoint; liveness unknown       |
 | History  1                                        |

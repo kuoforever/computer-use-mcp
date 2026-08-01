@@ -17,6 +17,9 @@ Config (env):
   CUMCP_ESTOP="ctrl+alt+q"                   panic hotkey
   CUMCP_AUDIT="audit/actions.jsonl"          audit log path
   CUMCP_HUMAN_IDLE_SECONDS="2.5"             yield after recent local input
+  CUMCP_HUMAN_STABLE_SAMPLES="1"             consecutive action-gate samples
+  CUMCP_HUMAN_POLL_INTERVAL_SECONDS="0.25"   interval between stable samples
+  CUMCP_HUMAN_MAX_WAIT_SECONDS="60"          bounded readiness wait
   CUMCP_MODE="safe_local"                    safe_local | full_control_local
   CUMCP_DANGEROUS_CONFIRM="1"                require confirmation for dangerous clicks
 """
@@ -28,7 +31,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
-from . import MCP_SERVER_NAME
+from . import MCP_SERVER_NAME, SAFETY_BASELINE_ATTESTATION_V1
 from .audit import AuditLog
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
@@ -37,7 +40,13 @@ from .document_text import DocumentTextError, serialize_document_text
 from .core import Session
 from .dpi import enable_dpi_awareness
 from .gate import Gate
-from .human_activity import DEFAULT_IDLE_SECONDS, HumanActivity
+from .human_activity import (
+    DEFAULT_IDLE_SECONDS,
+    DEFAULT_MAX_WAIT_SECONDS,
+    DEFAULT_POLL_INTERVAL_SECONDS,
+    DEFAULT_STABLE_SAMPLES,
+    HumanActivity,
+)
 from .ocr import (
     OCR_TIMEOUT_SECONDS,
     OcrError,
@@ -65,6 +74,19 @@ def _env_float(name: str, default: float) -> float:
         return float(os.environ.get(name, default))
     except ValueError:
         return default
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -104,11 +126,26 @@ def build_server(
     if driver is None:
         from .drivers.windows import WindowsDriver
 
-        driver = WindowsDriver()
+        driver = WindowsDriver(
+            type_wait_seconds=_env_float("CUMCP_TYPE_WAIT_SECONDS", 0.0)
+        )
     session = Session(driver)
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
     activity = human_activity or HumanActivity(
-        driver, _env_float("CUMCP_HUMAN_IDLE_SECONDS", DEFAULT_IDLE_SECONDS)
+        driver,
+        _env_float("CUMCP_HUMAN_IDLE_SECONDS", DEFAULT_IDLE_SECONDS),
+        stable_samples=_env_positive_int(
+            "CUMCP_HUMAN_STABLE_SAMPLES",
+            DEFAULT_STABLE_SAMPLES,
+        ),
+        poll_interval_seconds=_env_float(
+            "CUMCP_HUMAN_POLL_INTERVAL_SECONDS",
+            DEFAULT_POLL_INTERVAL_SECONDS,
+        ),
+        max_wait_seconds=_env_float(
+            "CUMCP_HUMAN_MAX_WAIT_SECONDS",
+            DEFAULT_MAX_WAIT_SECONDS,
+        ),
     )
     mode = _control_mode(control_mode or os.environ.get("CUMCP_MODE", SAFE_LOCAL))
     require_dangerous_confirmation = (
@@ -130,7 +167,8 @@ def build_server(
         instructions=(
             "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
             "or screenshot, act with click/scroll/drag/type/key. "
-            f"Operating mode={mode}. A panic hotkey can abort every action."
+            f"Operating mode={mode}. A panic hotkey can abort every action. "
+            f"{SAFETY_BASELINE_ATTESTATION_V1}"
         ),
     )
 
@@ -143,7 +181,7 @@ def build_server(
             return False, "ABORTED: e-stop engaged (restart the server to clear)"
         if mode == FULL_CONTROL_LOCAL:
             return True, ""
-        activity_reason = activity.blocking_reason()
+        activity_reason = activity.wait_until_stable()
         if activity_reason:
             audit.record(
                 tool,

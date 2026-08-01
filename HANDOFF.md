@@ -95,9 +95,130 @@ The Runtime-side Full Cycle Lane A bridge is implemented. `fullcycle manifest`
 derives a versioned capability document from the reviewed registry, and
 `fullcycle export-run` packages only the already-redacted checkpoint and trace.
 Both write canonical bounded JSON to a new absolute path and open no external
-port. The next implementation task belongs in `reliable-agent-model-lifecycle`:
-add the strict offline consumer fixture. Rich episode capture remains a separate,
-explicit-consent design review.
+port. The strict offline consumer fixture was completed in
+`reliable-agent-model-lifecycle` as `FC-BRIDGE-001` and pins producer commit
+`8ace897`; on 2026-08-01 a manifest regenerated from this branch's `HEAD`
+reproduced that pinned digest exactly, so Lane A has not drifted. The next task
+is `GDA-FC-004` freeze validation in this repository. Rich episode capture
+remains a separate, explicit-consent design review.
+
+## Bounded Operator HUD handoff (2026-07-31)
+
+`PROJECT_STATUS.md` remains the only task registry. `GDA-FC-002` closed on
+2026-08-01, so `GDA-FC-004` is now the sole active closure item and exact Full
+Cycle resume point. The notes below
+describe only the user-authorized, bounded `GDA-DEMO-003` detour; they do not
+activate broader operator UI or replace the Full Cycle backlog.
+
+The working branch is `codex/demo-hud-baseline`.
+
+The branch was rebased onto `main` at `9cb38c8` on 2026-07-31, so every commit
+below carries a new identity. The pre-rebase commits are preserved locally at
+`backup/demo-hud-pre-rebase` and the old identities are given here so the
+earlier evidence stays traceable:
+
+- local and remote `codex/demo-hud-baseline` both end at `07efbb6`
+  (`Document Operator HUD handoff`, pre-rebase `f4b0a70`);
+- `3e9af02` (`Map Demo steps to workflow chapters`, pre-rebase `35c5363`) is
+  its parent, and is now pushed;
+- `efc5062` (`Retain isolated operator HUD evidence`, pre-rebase `d1507e3`) is
+  the former remote tip;
+- the worktree is clean before this handoff-document update;
+- the last complete offline gate passed for pre-rebase `d1507e3`; the exact
+  dated result is retained in the `GDA-HUD-011` row of `PROJECT_STATUS.md`.
+  **That result has not been re-established after the rebase.** The rebase base
+  added documentation-only commits and no source change, so the gate is
+  expected to still pass, but it must be re-run before any evidence promotion;
+- pre-rebase `35c5363` had targeted evidence only:
+  `pytest tests/agent/test_demo_cross_app.py -q` and Ruff passed for the
+  changed source and test. This has likewise not been re-run.
+
+Read these files in order for the HUD continuation:
+
+1. `PROJECT_STATUS.md`, especially `GDA-HUD-005`, `GDA-HUD-006`, and
+   `GDA-HUD-011`;
+2. `docs/OPERATOR_HUD_VISUAL_EVIDENCE.md` for the retained 150% DPI matrix and
+   its promotion boundary;
+3. `docs/OPERATOR_EXPERIENCE.md` and `docs/PROGRESS_VIEWER.md` for the default
+   expanded checklist and operator-collapse contract;
+4. `src/computer_use_agent/demo_cross_app.py` and
+   `tests/agent/test_demo_cross_app.py` for the new pure mapping.
+
+The completed HUD foundation includes:
+
+- compact and expanded human-readable Decision Card geometry;
+- default-expanded six-row Progress checklist with explicit collapse
+  preservation;
+- fixed 150% DPI Decision/Progress screenshots retained at `efc5062`
+  (pre-rebase `d1507e3`);
+- exact-title, DPI-aware, compositor-settled capture with fixed output slots;
+- a named mutex that rejects duplicate visual-review instances;
+- exact-process Chrome/Word fixture cleanup that does not scan by executable
+  name and avoids Word AutoRecover on the next run.
+
+`3e9af02` (pre-rebase `35c5363`) adds only the pure transition projector. Its
+fixed mapping is:
+
+- provider steps `0..5`: workspace complete, public-source review current;
+- `6..8`: source review complete, open-research-brief current;
+- `9..14`: brief open, add-verified-note current;
+- `15`: note added, save current;
+- `16..17`: save complete, durable verification current;
+- `18` with `WorkflowStatus.READY`: all six chapters complete.
+
+That projector was connected on 2026-08-01 by
+`src/computer_use_agent/demo_workflow_progress.py` (`DemoWorkflowProgress`),
+without starting the complete Demo. All six prescribed points are done:
+
+1. one Demo-only, UI-thread-owned workflow lifecycle that receives only the
+   fixed provider boundary and the durable Runner phase. It implements the
+   passive progress lifecycle port the Runner already accepts, so it drops into
+   `RunnerPorts.progress` without a second dispatch path;
+2. its latest validated checklist drives `PassiveProgressWindow.open/update`;
+   first open shows all six chapters and an explicit operator collapse survives
+   later refreshes;
+3. `scripts/demo_cross_app.py` sets `OperatorStepContext.workflow` from
+   `WorkflowBreadcrumb.from_checklist(...)` before each Decision Card, and the
+   approval `n/7` count remains a separate field;
+4. approval wait projects `NEEDS_INPUT`; durable success projects `READY` only
+   at provider boundary 18. Between the provider's last turn and the durable
+   phase the final chapter is held open rather than completed, so a late
+   failure lands on that chapter. Cancellation keeps the resolved prefix and
+   claims no current chapter;
+5. `tests/agent/test_demo_workflow_progress.py` covers thread ownership,
+   monotonic chapters, approval breadcrumbs, collapse preservation, and
+   fail-closed invalid state. `CrossAppDemoProvider.on_provider_step` is an
+   integer-only passive observer whose failure drops the observer and never
+   changes the Demo;
+6. the complete offline gate passed on 2026-08-01; the exact dated counts are
+   in the `GDA-HUD-005` row of `PROJECT_STATUS.md`.
+
+That dedicated live smoke now exists as
+`scripts/smoke_demo_workflow_progress.py` and passed three consecutive times on
+2026-08-01. It drives the real non-activating Win32 surface through every
+projected transition and opens no Runner, MCP, provider, or application, so it
+is projection-surface evidence only.
+
+Clipping at 100% and 125% is now covered deterministically:
+`measure_tier_text_width` measures real Segoe UI extents on a memory device
+context, and the tests assert every longest realistic header line, countdown,
+and choice label fits its exact painted rectangle at all three scales. A
+companion test proves that check trips on the layout that produced the observed
+clipping, so the guard cannot rot into a tautology.
+
+What remains for `GDA-HUD-002` is live operator acceptance at 100% and 125%,
+which needs display scaling changed and therefore belongs to the operator. A
+run of `scripts/capture_operator_hud_evidence.py` at each scale would retain it.
+
+The complete Chrome-to-Word Demo must not be restarted until a separate live
+evidence plan is declared.
+
+Do not wire provider prose, tool-budget counts, or raw task text into the
+checklist. Do not add another Runner/MCP dispatch path. Do not treat a provider
+step callback as execution authority or durable side-effect evidence. Do not
+run the full Chrome-to-Word Demo until the offline lifecycle tests pass and a
+separate live evidence plan has been declared. Presence remains
+capture-excluded by design.
 
 Before changing behavior, inspect the current worktree and run the unit suite:
 

@@ -6,7 +6,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from computer_use_agent.decision_card_window import DecisionCardWindow
+from computer_use_agent.decision_card_window import (
+    DecisionCardWindow,
+    OperatorStepContext,
+    WorkflowBreadcrumb,
+)
 from computer_use_agent.decision_cards import (
     ApplicationClass,
     DecisionBinding,
@@ -20,6 +24,8 @@ from computer_use_agent.decision_cards import (
     UnknownFact,
     compile_decision_card,
 )
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.workflow_checklist import WorkflowStatus
 
 NOW = datetime(2026, 7, 22, 15, 0, tzinfo=UTC)
 
@@ -79,24 +85,109 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
         "option_defer",
         "option_deny",
     ]
-    assert "Recommendation is advisory and grants no authority" in call["content"]
-    assert "Expected time seconds:" in call["content"]
-    assert "Expected tokens:" in call["content"]
+    assert [button.label for button in call["buttons"]] == [
+        "Approve once",
+        "Re-observe",
+        "Defer",
+        "Deny",
+    ]
+    assert "A recommendation is advice, not permission" in call["content"]
+    assert "Expected time:" in call["content"]
+    assert "Compute cost:" in call["content"]
     assert "Confidence:" in call["content"]
-    assert "Fallback:" in call["content"]
-    assert "Close or timeout denies" in call["content"]
+    assert "Esc, close, or timeout denies" in call["content"]
     evidence = call["expanded_information"]
-    assert "Evidence references (SHA-256 digests only)" in evidence
-    assert "observation: " + "7" * 64 in evidence
-    assert "completion_outcome" in evidence
-    assert "state: " + "1" * 64 in evidence
-    assert "policy: " + "2" * 64 in evidence
-    assert "task: " + "3" * 64 in evidence
-    assert "registry: " + "4" * 64 in evidence
-    assert "object: " + "5" * 64 in evidence
-    assert "evidence: " + "6" * 64 in evidence
-    assert card.card_digest in evidence
-    assert "not execution authority" in evidence
+    assert "Safety checks" in evidence
+    assert "Observation" in evidence
+    assert "Completion outcome" in evidence
+    assert "Screen state: 1111111111…111111" in evidence
+    assert "Safety policy: 2222222222…222222" in evidence
+    assert "Task: 3333333333…333333" in evidence
+    assert "Tool registry: 4444444444…444444" in evidence
+    assert "Target object: 5555555555…555555" in evidence
+    assert "Evidence set: 6666666666…666666" in evidence
+    assert card.card_digest not in evidence
+    assert "They grant no authority" in evidence
+    assert "completion_outcome" not in evidence
+    assert "7" * 64 not in evidence
+
+
+def test_controller_renders_compact_locked_step_context() -> None:
+    api = Api("option_deny")
+    workflow = DEMO_WORKFLOW.project(
+        WorkflowStatus.NEEDS_INPUT,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+    context = OperatorStepContext(
+        current=4,
+        total=7,
+        label="Switch to the research notes",
+        application="Microsoft Word",
+        workflow=WorkflowBreadcrumb.from_checklist(workflow),
+    )
+
+    asyncio.run(
+        DecisionCardWindow(api, step_context=lambda: context).choose(
+            _card(), timeout_seconds=30
+        )
+    )
+
+    call = api.calls[0]
+    assert call["title"] == "Needs input · approval locked"
+    # The shared HUD tier order: accent micro-label, the one thing being
+    # decided, then the counts and application that qualify it.
+    assert call["instruction"].split("\n") == [
+        "NEEDS INPUT  ·  APPROVAL LOCKED",
+        "Switch to the research notes",
+        "APPROVAL 4/7  ·  Microsoft Word",
+        "WORKFLOW 3/6  ·  Open the research brief",
+    ]
+    assert call["content"].startswith("Decision scope")
+    assert "Switch to the research notes" not in call["content"]
+    assert "Microsoft Word" not in call["content"]
+    assert "Open the research brief" not in call["content"]
+
+
+def test_workflow_breadcrumb_requires_a_validated_current_step() -> None:
+    ready = DEMO_WORKFLOW.project(
+        WorkflowStatus.READY,
+        completed_step_ids=tuple(step.step_id for step in DEMO_WORKFLOW.steps),
+    )
+
+    with pytest.raises(
+        Exception,
+        match="DECISION_CARD_WORKFLOW_INVALID",
+    ):
+        WorkflowBreadcrumb.from_checklist(ready)
+
+
+def test_operator_context_rejects_untyped_workflow_breadcrumb() -> None:
+    with pytest.raises(
+        Exception,
+        match="DECISION_CARD_WORKFLOW_INVALID",
+    ):
+        OperatorStepContext(
+            1,
+            7,
+            "Open the public source",
+            "Google Chrome",
+            workflow="workflow 2/6",  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        (0, 7, "label", "Word"),
+        (8, 7, "label", "Word"),
+        (1, 0, "label", "Word"),
+        (1, 7, "", "Word"),
+    ],
+)
+def test_operator_step_context_is_bounded(context: tuple[object, ...]) -> None:
+    with pytest.raises(Exception, match="DECISION_CARD_STEP"):
+        OperatorStepContext(*context)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("result", [None, "option_missing"])

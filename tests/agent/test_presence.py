@@ -72,7 +72,8 @@ def test_reduced_motion_and_high_contrast_are_explicit_not_color_only() -> None:
     )
 
     assert view is not None
-    assert view.label == "Waiting approval"
+    assert view.visual_role == "needs_input"
+    assert view.label == "Needs input"
     assert view.glyph == "APPROVAL"
     assert view.motion == PresenceMotion.PULSE.value
     assert view.motion_enabled is False
@@ -91,6 +92,7 @@ def test_display_model_has_no_identity_content_or_authority_fields() -> None:
 
     assert set(payload) == {
         "phase",
+        "visual_role",
         "label",
         "glyph",
         "color_rgb",

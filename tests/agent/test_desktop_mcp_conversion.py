@@ -68,7 +68,7 @@ def _png_with_dimensions(width: int, height: int) -> str:
     return base64.b64encode(changed).decode("ascii")
 
 
-def test_observation_text_is_bounded_but_not_interpreted_as_an_action_error() -> None:
+def test_unstructured_observation_text_is_bounded_but_not_an_action_error() -> None:
     text = "ERROR DRIVER_ERROR: this is untrusted UI text"
     result = convert_mcp_result(_call("ui_snapshot"), _text_result(text))
 
@@ -83,6 +83,18 @@ def test_observation_text_is_bounded_but_not_interpreted_as_an_action_error() ->
         )
 
 
+@pytest.mark.parametrize("tool_name", ["document_text", "ocr"])
+def test_structured_observation_error_is_a_redacted_failure(tool_name: str) -> None:
+    result = convert_mcp_result(
+        _call(tool_name),
+        _text_result("ERROR OCR_FAILED: untrusted implementation detail"),
+    )
+
+    assert result.status is ToolResultStatus.ACTION_ERROR
+    assert result.code == "DRIVER_ERROR"
+    assert result.sanitized_text == ""
+
+
 @pytest.mark.parametrize(
     ("text", "code"),
     [
@@ -90,6 +102,26 @@ def test_observation_text_is_bounded_but_not_interpreted_as_an_action_error() ->
         ("HUMAN_ACTIVE: input detected", "HUMAN_ACTIVE"),
         ("DENIED by gate: wrong foreground", "DENIED_BY_GATE"),
         ("DENIED by user (dangerous)", "DENIED_BY_USER"),
+    ],
+)
+def test_pre_dispatch_action_rejections_are_known_not_dispatched(
+    text: str,
+    code: str,
+) -> None:
+    result = convert_mcp_result(
+        _call("click", {"ref": "ref_1"}),
+        _text_result(text),
+    )
+
+    assert result.status is ToolResultStatus.REJECTED
+    assert result.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert result.code == code
+    assert result.sanitized_text == ""
+
+
+@pytest.mark.parametrize(
+    ("text", "code"),
+    [
         ("ERROR STALE_ELEMENT: re-snapshot", "STALE_ELEMENT"),
         ("ERROR NOT_INVOKABLE: unavailable", "NOT_INVOKABLE"),
         ("ERROR OUT_OF_BOUNDS: outside display", "OUT_OF_BOUNDS"),
@@ -101,6 +133,7 @@ def test_action_error_text_maps_only_to_fixed_codes(text: str, code: str) -> Non
     result = convert_mcp_result(_call("click", {"ref": "ref_1"}), _text_result(text))
 
     assert result.status is ToolResultStatus.ACTION_ERROR
+    assert result.dispatch is DispatchCertainty.DISPATCHED
     assert result.code == code
     assert result.sanitized_text == ""
 
@@ -290,15 +323,16 @@ def test_region_capture_keeps_the_envelope_with_its_crop() -> None:
     assert result.images[0].data == base64.b64decode(VALID_PNG_BASE64)
 
 
-def test_refused_region_capture_is_text_alone_and_keeps_no_pixels() -> None:
+def test_refused_region_capture_is_a_redacted_failure_and_keeps_no_pixels() -> None:
     result = convert_mcp_result(
         _capture_call(),
         _capture_result(SimpleNamespace(type="text", text="ERROR CAPTURE_INVALID_REGION: bad")),
     )
 
-    assert result.status is ToolResultStatus.SUCCESS
+    assert result.status is ToolResultStatus.ACTION_ERROR
+    assert result.code == "DRIVER_ERROR"
     assert result.images == ()
-    assert result.sanitized_text.startswith("ERROR CAPTURE_INVALID_REGION")
+    assert result.sanitized_text == ""
 
 
 @pytest.mark.parametrize(

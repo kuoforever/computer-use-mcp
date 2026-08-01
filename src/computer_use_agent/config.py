@@ -35,6 +35,12 @@ SUPPORTED_PRIVACY_DETECTORS = frozenset(
     {"email", "phone", "ipv4", "cn_id", "bank_card", "secret"}
 )
 MINIMUM_HUMAN_IDLE_SECONDS = 2.5
+MINIMUM_HUMAN_POLL_INTERVAL_SECONDS = 0.05
+MAXIMUM_HUMAN_POLL_INTERVAL_SECONDS = 5.0
+MINIMUM_HUMAN_MAX_WAIT_SECONDS = 1.0
+MAXIMUM_HUMAN_MAX_WAIT_SECONDS = 300.0
+MAXIMUM_HUMAN_STABLE_SAMPLES = 20
+MAXIMUM_TYPE_WAIT_SECONDS = 0.1
 
 # These are the only server configuration inputs the host is willing to pass
 # through. Audit and screenshot-redaction destinations remain server defaults so
@@ -44,6 +50,10 @@ REVIEWED_MCP_ENVIRONMENT_NAMES = frozenset(
         "CUMCP_ALLOWLIST",
         "CUMCP_MODE",
         "CUMCP_HUMAN_IDLE_SECONDS",
+        "CUMCP_HUMAN_STABLE_SAMPLES",
+        "CUMCP_HUMAN_POLL_INTERVAL_SECONDS",
+        "CUMCP_HUMAN_MAX_WAIT_SECONDS",
+        "CUMCP_TYPE_WAIT_SECONDS",
         "CUMCP_DANGEROUS_CONFIRM",
     }
 )
@@ -114,6 +124,64 @@ def _validate_mcp_environment_value(key: str, value: str) -> None:
         if not isfinite(seconds) or seconds < MINIMUM_HUMAN_IDLE_SECONDS:
             raise ConfigError(
                 f"CUMCP_HUMAN_IDLE_SECONDS must be at least {MINIMUM_HUMAN_IDLE_SECONDS}"
+            )
+    elif key == "CUMCP_HUMAN_STABLE_SAMPLES":
+        try:
+            samples = int(value)
+        except ValueError as exc:
+            raise ConfigError(
+                "CUMCP_HUMAN_STABLE_SAMPLES must be an integer"
+            ) from exc
+        if not 1 <= samples <= MAXIMUM_HUMAN_STABLE_SAMPLES:
+            raise ConfigError(
+                "CUMCP_HUMAN_STABLE_SAMPLES must be between "
+                f"1 and {MAXIMUM_HUMAN_STABLE_SAMPLES}"
+            )
+    elif key == "CUMCP_HUMAN_POLL_INTERVAL_SECONDS":
+        try:
+            seconds = float(value)
+        except ValueError as exc:
+            raise ConfigError(
+                "CUMCP_HUMAN_POLL_INTERVAL_SECONDS must be numeric"
+            ) from exc
+        if (
+            not isfinite(seconds)
+            or not MINIMUM_HUMAN_POLL_INTERVAL_SECONDS
+            <= seconds
+            <= MAXIMUM_HUMAN_POLL_INTERVAL_SECONDS
+        ):
+            raise ConfigError(
+                "CUMCP_HUMAN_POLL_INTERVAL_SECONDS must be between "
+                f"{MINIMUM_HUMAN_POLL_INTERVAL_SECONDS} and "
+                f"{MAXIMUM_HUMAN_POLL_INTERVAL_SECONDS}"
+            )
+    elif key == "CUMCP_HUMAN_MAX_WAIT_SECONDS":
+        try:
+            seconds = float(value)
+        except ValueError as exc:
+            raise ConfigError(
+                "CUMCP_HUMAN_MAX_WAIT_SECONDS must be numeric"
+            ) from exc
+        if (
+            not isfinite(seconds)
+            or not MINIMUM_HUMAN_MAX_WAIT_SECONDS
+            <= seconds
+            <= MAXIMUM_HUMAN_MAX_WAIT_SECONDS
+        ):
+            raise ConfigError(
+                "CUMCP_HUMAN_MAX_WAIT_SECONDS must be between "
+                f"{MINIMUM_HUMAN_MAX_WAIT_SECONDS} and "
+                f"{MAXIMUM_HUMAN_MAX_WAIT_SECONDS}"
+            )
+    elif key == "CUMCP_TYPE_WAIT_SECONDS":
+        try:
+            seconds = float(value)
+        except ValueError as exc:
+            raise ConfigError("CUMCP_TYPE_WAIT_SECONDS must be numeric") from exc
+        if not isfinite(seconds) or not 0.0 <= seconds <= MAXIMUM_TYPE_WAIT_SECONDS:
+            raise ConfigError(
+                f"CUMCP_TYPE_WAIT_SECONDS must be between 0 and "
+                f"{MAXIMUM_TYPE_WAIT_SECONDS}"
             )
 
 

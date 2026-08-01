@@ -3,19 +3,123 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from datetime import UTC
+from typing import Callable, Protocol, runtime_checkable
 
 from .decision_cards import DecisionCard, DecisionSelection
+from .operator_visuals import (
+    OperatorVisualRole,
+    OperatorVisualToken,
+    operator_visual,
+)
+from .workflow_checklist import WorkflowChecklist
 
 
 class DecisionCardWindowError(RuntimeError):
     """A fixed local-card failure without card or desktop content."""
 
 
+def decision_attention_visual() -> OperatorVisualToken:
+    """Return the shared attention token used by every approval card."""
+
+    return operator_visual(OperatorVisualRole.NEEDS_INPUT)
+
+
 @dataclass(frozen=True)
 class DecisionCardButton:
     option_id: str
     label: str
+
+
+_COMPACT_BUTTON_LABELS = {
+    "option_approve_exact_effect": "Approve once",
+    "option_reobserve": "Re-observe",
+    "option_defer": "Defer",
+    "option_deny": "Deny",
+    "option_human_takeover": "Take over",
+}
+
+
+@dataclass(frozen=True)
+class WorkflowBreadcrumb:
+    """One trusted workflow location; it carries no checklist or authority."""
+
+    current: int
+    total: int
+    label: str
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.current, bool)
+            or not isinstance(self.current, int)
+            or isinstance(self.total, bool)
+            or not isinstance(self.total, int)
+            or not 1 <= self.current <= self.total <= 999
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_INVALID")
+        if (
+            not isinstance(self.label, str)
+            or not self.label.strip()
+            or self.label != self.label.strip()
+            or len(self.label) > 120
+            or any(ord(character) < 32 for character in self.label)
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_TEXT_INVALID")
+
+    @classmethod
+    def from_checklist(cls, checklist: WorkflowChecklist) -> WorkflowBreadcrumb:
+        """Derive a breadcrumb only from one validated current workflow row."""
+
+        if (
+            not isinstance(checklist, WorkflowChecklist)
+            or checklist.current_step_id is None
+            or checklist.current_step_number is None
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_INVALID")
+        current = next(
+            step
+            for step in checklist.steps
+            if step.step_id == checklist.current_step_id
+        )
+        return cls(
+            current=checklist.current_step_number,
+            total=len(checklist.steps),
+            label=current.label,
+        )
+
+
+@dataclass(frozen=True)
+class OperatorStepContext:
+    """Exact approval action plus an optional trusted workflow breadcrumb."""
+
+    current: int
+    total: int
+    label: str
+    application: str
+    workflow: WorkflowBreadcrumb | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.current, bool)
+            or not isinstance(self.current, int)
+            or isinstance(self.total, bool)
+            or not isinstance(self.total, int)
+            or not 1 <= self.current <= self.total <= 999
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_STEP_INVALID")
+        for value in (self.label, self.application):
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or len(value) > 120
+                or any(ord(character) < 32 for character in value)
+            ):
+                raise DecisionCardWindowError("DECISION_CARD_STEP_TEXT_INVALID")
+        if self.workflow is not None and not isinstance(
+            self.workflow,
+            WorkflowBreadcrumb,
+        ):
+            raise DecisionCardWindowError("DECISION_CARD_WORKFLOW_INVALID")
 
 
 @runtime_checkable
@@ -37,6 +141,7 @@ class DecisionCardWindowApi(Protocol):
 @dataclass
 class DecisionCardWindow:
     api: DecisionCardWindowApi
+    step_context: Callable[[], OperatorStepContext | None] | None = None
 
     async def choose(
         self, card: DecisionCard, *, timeout_seconds: int
@@ -50,16 +155,47 @@ class DecisionCardWindow:
         ):
             raise DecisionCardWindowError("DECISION_CARD_WINDOW_TIMEOUT_INVALID")
         buttons = tuple(
-            DecisionCardButton(option.option_id, option.title)
+            DecisionCardButton(
+                option.option_id,
+                _COMPACT_BUTTON_LABELS.get(option.option_id, option.title),
+            )
             for option in card.options
         )
         content = self._content(card)
+        context = self.step_context() if self.step_context is not None else None
+        if context is not None and not isinstance(context, OperatorStepContext):
+            raise DecisionCardWindowError("DECISION_CARD_STEP_INVALID")
+        attention = decision_attention_visual()
+        title = "Decision required"
+        # Exactly four lines, always, in the shared HUD tier order: accent
+        # micro-label, the one thing being decided, then the counts and
+        # application that qualify it. A backend zips these against a fixed
+        # type scale, so the count must not vary with the context.
+        instruction_lines = [
+            f"{attention.label.upper()}  ·  APPROVAL LOCKED",
+            "Choose one bounded option",
+            "",
+            "",
+        ]
+        if context is not None:
+            title = f"{attention.label} · approval locked"
+            instruction_lines[1] = context.label
+            instruction_lines[2] = (
+                f"APPROVAL {context.current}/{context.total}"
+                f"  ·  {context.application}"
+            )
+            if context.workflow is not None:
+                instruction_lines[3] = (
+                    f"WORKFLOW {context.workflow.current}/{context.workflow.total}"
+                    f"  ·  {context.workflow.label}"
+                )
+        instruction = "\n".join(instruction_lines)
         try:
             async with asyncio.timeout(timeout_seconds + 2):
                 option_id = await asyncio.to_thread(
                     self.api.choose,
-                    title="Decision required",
-                    instruction="Choose one bounded option",
+                    title=title,
+                    instruction=instruction,
                     content=content,
                     expanded_information=self._evidence_content(card),
                     buttons=buttons,
@@ -75,76 +211,111 @@ class DecisionCardWindow:
 
     @staticmethod
     def _content(card: DecisionCard) -> str:
-        def estimate(value) -> str:  # noqa: ANN001
+        def estimate(value, unit: str) -> str:  # noqa: ANN001
             if value.minimum is None:
-                return value.kind.value
-            return f"{value.kind.value} {value.minimum}-{value.maximum}"
+                return "Not estimated"
+            provenance = value.kind.value.replace("_", " ")
+            if value.minimum == value.maximum == 0:
+                return f"None ({provenance})"
+            if value.minimum == value.maximum:
+                return f"{value.minimum} {unit} ({provenance})"
+            return (
+                f"{value.minimum}–{value.maximum} {unit}"
+                f" ({provenance})"
+            )
+
+        def readable(value: str) -> str:
+            return value.replace("_", " ").capitalize()
+
+        def fingerprint(value: str) -> str:
+            return f"{value[:10]}…{value[-6:]}"
 
         lines = [
-            f"Class: {card.decision_class.value}",
-            f"Application: {card.application.value}",
-            f"Intended effect: {card.intended_effect.value}",
-            f"Recipient scope: {card.recipient_scope.value}",
-            "Recommendation is advisory and grants no authority.",
+            "Decision scope",
+            "This card controls one bounded desktop action only.",
+            "A recommendation is advice, not permission for later actions.",
             "",
+            "Your choices",
         ]
         for index, option in enumerate(card.options, start=1):
             recommendation = (
-                " [Recommended]"
+                " — recommended"
                 if option.option_id == card.recommended_option_id
                 else ""
             )
+            confidence = readable(option.confidence.kind.value)
+            if option.confidence.label is not None:
+                confidence = (
+                    f"{readable(option.confidence.label.value)}"
+                    f" ({readable(option.confidence.kind.value).lower()})"
+                )
             lines.extend(
                 [
                     f"{index}. {option.title}{recommendation}",
-                    f"Effect: {option.effect}",
-                    f"Benefit: {'; '.join(option.benefits)}",
-                    f"Cost: {'; '.join(option.costs)}",
-                    f"Risk: {'; '.join(option.risks)}",
-                    f"Reversible: {'yes' if option.reversible else 'no'}",
-                    f"Expected time seconds: {estimate(option.expected_time_seconds)}",
-                    f"Expected tokens: {estimate(option.expected_tokens)}",
-                    "Confidence: "
-                    + option.confidence.kind.value
-                    + (
-                        ""
-                        if option.confidence.label is None
-                        else f" {option.confidence.label.value}"
-                    ),
-                    f"Authority: {option.required_authority.value}",
-                    f"Fallback: {option.fallback.value}",
+                    f"   Outcome: {option.effect}.",
+                    f"   Benefit: {'; '.join(option.benefits)}.",
+                    f"   Trade-off: {'; '.join(option.costs)}.",
+                    f"   Risk: {'; '.join(option.risks)}.",
+                    f"   Can be undone: {'Yes' if option.reversible else 'No'}.",
+                    "   Expected time: "
+                    + estimate(option.expected_time_seconds, "seconds")
+                    + ".",
+                    "   Compute cost: "
+                    + estimate(option.expected_tokens, "tokens")
+                    + ".",
+                    f"   Confidence: {confidence}.",
                     "",
                 ]
             )
-        lines.append("Close or timeout denies this request.")
+        lines.extend(
+            [
+                "Safe exit",
+                "Esc, close, or timeout denies this action.",
+                "",
+                "Support fingerprint",
+                fingerprint(card.card_digest),
+            ]
+        )
         return "\n".join(lines)
 
     @staticmethod
     def _evidence_content(card: DecisionCard) -> str:
         binding = card.binding
+
+        def readable(value: str) -> str:
+            return value.replace("_", " ").capitalize()
+
+        def fingerprint(value: str) -> str:
+            return f"{value[:10]}…{value[-6:]}"
+
         lines = [
-            "Evidence references (SHA-256 digests only):",
+            "Safety checks",
+            "- The current screen evidence is bound to this card.",
+            "- If the task, policy, application, or target changes, this card expires.",
+            "- Choosing an option does not authorize any later action.",
+            "",
+            "Evidence available",
             *(
-                f"- {reference.kind.value}: {reference.digest}"
+                f"- {readable(reference.kind.value)}"
                 for reference in card.evidence
             ),
             "",
-            "Unknown facts:",
+            "Still unknown",
             *(
-                f"- {fact.value}" for fact in card.unknown_facts
+                f"- {readable(fact.value)}" for fact in card.unknown_facts
             ),
             "",
-            "Host binding digests:",
-            f"- state: {binding.state_digest}",
-            f"- policy: {binding.policy_digest}",
-            f"- task: {binding.task_digest}",
-            f"- registry: {binding.registry_digest}",
-            f"- object: {binding.object_digest}",
-            f"- evidence: {binding.evidence_digest}",
-            f"- card: {card.card_digest}",
-            f"- expires: {card.expires_at.isoformat()}",
+            "Technical verification (short fingerprints)",
+            f"- Screen state: {fingerprint(binding.state_digest)}",
+            f"- Safety policy: {fingerprint(binding.policy_digest)}",
+            f"- Task: {fingerprint(binding.task_digest)}",
+            f"- Tool registry: {fingerprint(binding.registry_digest)}",
+            f"- Target object: {fingerprint(binding.object_digest)}",
+            f"- Evidence set: {fingerprint(binding.evidence_digest)}",
+            f"- Card: {fingerprint(card.card_digest)}",
+            f"- Expires: {card.expires_at.astimezone(UTC).strftime('%H:%M:%S UTC')}",
             "",
-            "These digests are correlation evidence, not execution authority.",
+            "Fingerprints help support staff correlate records. They grant no authority.",
         ]
         return "\n".join(lines)
 
@@ -154,4 +325,7 @@ __all__ = [
     "DecisionCardWindow",
     "DecisionCardWindowApi",
     "DecisionCardWindowError",
+    "OperatorStepContext",
+    "WorkflowBreadcrumb",
+    "decision_attention_visual",
 ]

@@ -70,21 +70,51 @@ Card is a deliberate transition into operator interaction; it may take focus and
 therefore triggers normal human-activity yielding until the decision is closed
 and the desktop is explicitly returned to the Agent.
 
-The native card is a normal Windows overlapped window rather than a modal Task
-Dialog. It starts compact in one configured work-area corner (bottom-right by
-default), can be dragged, minimized, maximized, covered by another application,
-or resized by the operator, and never remains topmost. Decision detail and
-digest-only evidence use independent read-only scroll areas; resizing gives
-those panes more space instead of expanding the initial window to fit all text.
-Buttons use a responsive two-column layout and stack when the window is narrow.
-Close and timeout still deny without dispatch.
+The implemented default composition reserves two corners of the foreground
+application's monitor work area. Passive Progress occupies a top-right HUD rail
+and keeps its right edge fixed while its checklist expands or collapses. An
+explicit operator move opts out of automatic anchoring. Decision Card occupies
+the bottom-right rail, takes focus only for the bound decision, and restores the
+captured prior foreground window on every exit. Pure geometry covers 100%,
+125%, and 150% DPI against the bounded Demo application rectangle. An isolated
+Computer Use review at the current DPI confirmed the passive foreground,
+focus-taking card, and `Esc` restoration sequence; this is not retained
+Chrome/Word or multi-monitor evidence.
+
+Closing a Decision Card does not create a separately sampled readiness lease.
+The card first completes its exit path and restores the captured foreground.
+The Runner then makes exactly one MCP action call. Inside that call, the MCP
+guard waits for the configured consecutive healthy idle samples, verifies the
+foreground allowlist, and only then invokes the driver at most once. An idle
+timeout, unavailable idle observation, E-stop, foreground denial, or user
+denial is a known pre-dispatch rejection. It is reported as `not_dispatched`
+and must not be replayed. The bounded Demo configures three samples; the
+generic server keeps the legacy one-sample default unless a reviewed Host
+configuration raises it.
+
+The current native card is a normal Windows overlapped window rather than a
+modal Task Dialog. It can be dragged, minimized, covered by another
+application, or resized by the operator, and never remains topmost. Decision
+detail and digest-only evidence use independent read-only scroll areas. Buttons
+use a responsive layout and stack when the window is narrow. Close and timeout
+deny without dispatch.
+
+`GDA-DEMO-003` targets a compact Operator HUD that adds the current approval
+number, total approvals, fixed action label, target application, a genuine
+compact/expanded details state, and safe `Esc` rejection. The first live review
+did not meet that target: content overlapped, buttons stacked and clipped, and
+the details affordance was not a true collapsed state. The classified issue
+inventory and acceptance criteria are owned by `PROJECT_STATUS.md`; these
+sentences describe the target, not promoted implementation evidence.
 
 ## Desktop presence indicator
 
 The indicator provides ambient feedback comparable to a computer-use border or
 halo. It appears only while the Agent owns or is waiting to regain the shared
 desktop. State is conveyed by label/icon/motion as well as color so color is
-never the only signal.
+never the only signal. A thicker border and solid phase tab are present as
+unverified `GDA-DEMO-003` worktree changes; the first live review reported no
+visible halo, so high-visibility behavior is not yet an evidence-backed claim.
 
 | Host state | Suggested presentation | Meaning |
 | --- | --- | --- |
@@ -93,9 +123,18 @@ never the only signal.
 | Executing | green, directional motion, action label | One authorized desktop action is in progress. |
 | Verifying | cyan, short pulse, verify label | A fresh observation is checking the preceding action. |
 | Recovering | orange, slow pulse, recovery label | The Agent is re-observing or preparing a bounded recovery path. |
-| Waiting approval | amber, attention pulse, approval label | No further side effect may execute until a bound decision is returned. |
+| Needs input | amber, attention pulse, approval label | No further side effect may execute until a bound decision is returned. |
 | Paused / human takeover | neutral white/gray, paused label | Agent desktop authority is released or yielding to local input. |
-| Unknown outcome / blocked | red, fixed warning, inspect label | Automatic replay is forbidden; evidence or human action is required. |
+| Needs inspection | red, fixed warning, inspect label | Automatic replay is forbidden; evidence or human action is required. |
+
+The implemented shared token contract is now the source of truth for these
+labels, glyphs, and RGB roles. Presence phase projection and workflow progress
+both consume it directly. Decision Card uses the same amber `Needs input`
+token while retaining the separate `approval locked` boundary. The older
+run/campaign diagnostic projection also uses `In progress`, `Needs input`,
+`Paused`, `Ready`, `Failed`, `Cancelled`, and `Needs inspection` rather than a
+second vocabulary. High contrast may replace color with white, but never
+removes the fixed label or glyph.
 
 Implementation requirements:
 
@@ -158,7 +197,7 @@ execution starts the same poller directly over validated campaign state and
 releases it at command cleanup; zero-port campaign control commands do not open
 the window.
 
-The compact summary may show:
+The diagnostic summary may show:
 
 - campaign, chapter, batch, and committed-item counts;
 - current application class and sanitized fixed phase;
@@ -166,6 +205,50 @@ The compact summary may show:
 - waiting approval, human takeover, challenge, recovery, uncertain, and
   terminal states;
 - last validated checkpoint time and whether liveness is known or unknown.
+
+An unpromoted `GDA-DEMO-003` worktree change leads the first line with
+`STEP current/total`, where the total is the Host tool-call budget and current
+is derived only from the durable checkpoint. The issue inventory records that
+this is not yet a truthful end-user workflow-step model and has not passed live
+visual review.
+
+The first `GDA-HUD-005` model slice now defines a separate, immutable linear
+workflow checklist. Its labels and application names are reviewed Host data,
+not task text or provider prose. A checklist row can be not started, in
+progress, waiting for approval, completed, skipped, failed, or uncertain;
+overall paused and verifying states do not falsely complete the current row.
+Completed and skipped rows form an ordered prefix, only one current row may
+exist, and future rows remain not started. Contradictory or unknown state fails
+closed. The controlled Chrome-to-Word Demo has six fixed workflow chapters:
+prepare the workspace, review the public source, open the brief, add the note,
+save the brief, and verify the saved document.
+
+These six workflow chapters are deliberately independent of the seven
+side-effect approvals and the Host tool-call budget. The model is not yet wired
+to durable Demo transitions. The passive native window can now render a
+workflow-aware compact summary from an explicitly supplied checklist: overall
+state, completed/skipped/not-started counts, total chapters, exact current
+chapter, and application. In this mode run IDs, provider/tool counters, and the
+seven-approval count are absent. Ordinary poller paths retain their existing
+diagnostic rendering until a later slice supplies durable workflow state. The
+native summary sizes both its window and text geometry from the observed DPI;
+an isolated Computer Use review at the current desktop DPI confirmed that the
+fixed title, counts, current chapter, action, and application fit without
+overlap or clipping. This is visual review, not retained production lifecycle
+evidence.
+
+The workflow-aware window also has a bounded checklist projection. It retains
+the summary and appends all six ordered rows, each with a fixed glyph, step
+number, Host-owned label, application, and human status. The checklist is the
+default first-open state so the operator can immediately see completed,
+current, and not-started work. Collapsing restores the reviewed compact size;
+subsequent workflow refreshes preserve that explicit operator choice. The
+toggle exists on the controller and as a non-activating `SHOW STEPS` /
+`HIDE STEPS` mouse affordance; it does not dispatch, approve, replay, or alter
+workflow state. Isolated Computer Use review at 150% DPI confirmed the default
+six-row checklist and explicit collapsed summary. The retained matrix is
+[recorded separately](OPERATOR_HUD_VISUAL_EVIDENCE.md). Durable Demo-state
+wiring and complete production lifecycle evidence remain separate work.
 
 New run checkpoints now preserve creation time and separately count complete
 provider-usage reports and successful `screenshot` results. The passive viewer
@@ -217,6 +300,70 @@ Each card contains:
 - a clearly labeled Agent recommendation when one exists;
 - an explicit statement that the recommendation is advisory and grants no
   authority.
+
+The native card uses progressive disclosure. Its compact state shows only the
+approval lock, approval count, current fixed action, application, safe-close
+countdown, details affordance, and a two-by-two grid of short choices. Decision
+trade-offs and evidence are absent from that state. Expanding intentionally
+resizes the same pending card and reveals two read-only panes: human-readable
+option outcomes/trade-offs and human-readable safety checks. Internal enum
+values and complete digests are not operator prose; technical correlation is
+shown only as labeled short fingerprints. Collapsing restores the saved compact
+geometry and does not create a new decision or selection.
+
+At the current desktop DPI, Computer Use inspected a visual-only card carrying
+the same trusted labels used by the bounded Demo. Compact state visibly showed
+`APPROVAL 4/7`, `Microsoft Word`, the exact source-note action,
+`WORKFLOW 4/6`, the safe-close countdown, details affordance, and four short
+choices without clipping. Expanded state visibly showed separate readable
+decision-scope and safety-check panes above the same choices; `Esc` then
+removed the window. These are session-visible screenshots, not retained
+repository artifacts, multi-DPI evidence, or Chrome/Word acceptance.
+
+The card may also show one Host-owned workflow breadcrumb derived from the
+validated checklist's exact current row. Approval count and workflow position
+remain different facts: for example, `APPROVAL 4/7` can appear with
+`WORKFLOW 3/6 · Open the research brief`. The primary line remains the exact
+action being approved. The card never copies the complete checklist, derives a
+workflow location from provider prose, or treats the breadcrumb as authority.
+An isolated Computer Use review at the current DPI confirmed the approval
+count, exact action, application, workflow breadcrumb, countdown, details
+affordance, and 2x2 choices fit in compact mode without clipping.
+
+## Disposable Demo lifecycle
+
+The bounded Chrome-to-Word Demo declares both its start and end state. Each run
+creates a unique root, empty Chrome profile, pristine DOCX copy, initial-state
+manifest, and run ID. The manifest also declares that cleanup is limited to
+exact processes launched by that run.
+
+Word starts as a separate `/x` instance and Chrome starts with the unique
+profile. The launcher retains only those two exact process handles. One
+`finally` block executes for normal completion, Runner failure, safe denial or
+cancel, keyboard interruption, and partial startup. It delegates to the shared
+disposable-process cleanup component, which posts `WM_CLOSE` only to visible
+unowned top-level windows belonging to each retained PID, then waits for every
+visible top-level window for that PID, including owned dialogs, to disappear. A
+process may drain naturally after its operator-visible windows are gone. Force
+termination is reserved for a bounded close timeout or a partial launch that
+exposed no window. Unavailable window observation becomes
+`handoff_required`; it never causes a process-name scan.
+
+The per-run `final-state.json` contains only its schema version, run identity,
+fixed outcome, sanitized failure class, document/profile identity, cleanup
+scope, close-request count, per-process disposition, exit-code snapshot, and
+process-running snapshot. `cleanup_complete` means every exact owned window was
+closed or the exact process was already gone; it does not require killing an
+otherwise windowless application process.
+
+An initial live diagnostic proved why that distinction matters:
+force-terminating Word after its windows closed caused prior disposable
+documents to reappear as AutoRecover windows on the next launch. The shared
+window-first fallback then closed those exact windows without touching the
+pre-existing Chrome window. Two subsequent real fixture-cleanup runs each
+started exactly one disposable Chrome and one disposable Word window, closed
+both as `windows_closed`, preserved the pre-existing Chrome window, and did not
+reproduce the recovery windows.
 
 Each option uses a typed trade-off record:
 
@@ -298,7 +445,10 @@ There is no global "always allow" control in the first interactive version.
 2. Indicator state follows validated Host phases and disappears on authority
    release, crash detection, terminal close, and E-stop.
 3. A Decision Card may take focus only after the Agent has yielded; no desktop
-   action executes while the decision is open.
+   action executes while the decision is open. After it closes, foreground
+   restoration, stable-idle sampling, the foreground gate, and at most one
+   driver dispatch remain one ordered readiness boundary; a pre-dispatch
+   rejection is not replayed.
 4. Every option is schema bounded, mutually exclusive, and includes effect,
    risk, reversibility, authority, cost provenance, and fallback.
 5. Selecting an option with stale evidence, identity, policy, or object version
