@@ -26,7 +26,15 @@ _LWA_COLORKEY = 0x00000001
 _WDA_EXCLUDEFROMCAPTURE = 0x00000011
 _SM_CXSCREEN = 0
 _SM_CYSCREEN = 1
-_MAGENTA = 0x00FF00FF
+#: The halo has no alpha blending. The whole window is filled with this key and
+#: ``LWA_COLORKEY`` removes it outright, so the interior is fully transparent
+#: while the border and phase tab stay fully opaque. That is what lets the halo
+#: be unmistakable without covering anything the operator could act on.
+#:
+#: Consequence: any colour equal to this key renders as a hole. No phase colour
+#: may collide with it, which `test_presence_window` asserts.
+PRESENCE_TRANSPARENT_COLOR_KEY = 0x00FF00FF
+_MAGENTA = PRESENCE_TRANSPARENT_COLOR_KEY
 _ANIMATION_TIMER_ID = 1
 
 _WNDPROC = ctypes.WINFUNCTYPE(
@@ -80,13 +88,25 @@ class Win32PresenceWindowApi:
         self._register_class()
 
     def display_bounds(self) -> DisplayBounds:
-        desktop = self._user32.GetDesktopWindow()
+        # GetDpiForWindow(GetDesktopWindow()) always reports 96: the desktop
+        # window is not per-monitor DPI aware, so it never reflects the primary
+        # display's scaling. Reading it made the halo scale by 1.0 on a 150%
+        # display, so the border rendered at 10px where the contract asks for
+        # 15px -- the concrete reason the full-screen halo was reported as not
+        # visible. GetDpiForSystem returns the primary display's DPI for a
+        # per-monitor-aware process, and is what every other HUD surface uses.
         dpi = 96
-        get_dpi = getattr(self._user32, "GetDpiForWindow", None)
-        if get_dpi is not None:
-            observed = int(get_dpi(desktop))
+        for name, argument in (
+            ("GetDpiForSystem", None),
+            ("GetDpiForWindow", self._user32.GetDesktopWindow()),
+        ):
+            get_dpi = getattr(self._user32, name, None)
+            if get_dpi is None:
+                continue
+            observed = int(get_dpi() if argument is None else get_dpi(argument))
             if observed:
                 dpi = observed
+                break
         return DisplayBounds(
             0,
             0,

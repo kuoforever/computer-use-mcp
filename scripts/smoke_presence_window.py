@@ -30,6 +30,7 @@ from computer_use_agent.presence import (  # noqa: E402
 from computer_use_agent.presence_window import (  # noqa: E402
     PRESENCE_EX_STYLE,
     PassivePresenceWindow,
+    presence_geometry,
 )
 from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi  # noqa: E402
 
@@ -119,12 +120,16 @@ def main() -> int:
             or view.color_rgb != 0xFFFFFF
         ):
             problems.append("reduced-motion/high-contrast projection was not applied")
-        if (
-            geometry.width != bounds.right - bounds.left
-            or geometry.height != bounds.bottom - bounds.top
-            or geometry.border_px != max(4, min(24, round(6 * bounds.dpi / 96)))
-        ):
-            problems.append("primary-display DPI geometry was inconsistent")
+        # Compare against the reviewed contract rather than a restated formula.
+        # This check previously duplicated the border expression, so when the
+        # halo border was widened the probe kept asserting the old value and
+        # nobody noticed, because it was never run afterwards.
+        expected = presence_geometry(bounds)
+        if geometry != expected:
+            problems.append(
+                "primary-display DPI geometry was inconsistent: "
+                f"observed {geometry}, contract {expected}"
+            )
 
     estopped = window.sync(
         _snapshot(PresencePhase.EXECUTING, estop_engaged=True)
