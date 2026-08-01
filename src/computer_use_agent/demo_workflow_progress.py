@@ -152,7 +152,9 @@ class DemoWorkflowProgress:
             # sentinel in :meth:`_apply` and be silently treated as no news.
             self._reject()
             return
-        self._apply(provider_step=provider_step)
+        # A display notification never starts the UI. Only the durable
+        # lifecycle does, through on_phase or an explicit wake.
+        self._apply(provider_step=provider_step, start=False)
 
     def on_phase(self, phase: RunPhase) -> None:
         """Track the durable Runner phase; it owns overall workflow status."""
@@ -237,6 +239,7 @@ class DemoWorkflowProgress:
         *,
         provider_step: int | None = None,
         status: WorkflowStatus | None = None,
+        start: bool = True,
     ) -> None:
         with self._guard:
             if self._suppressed or self._failed:
@@ -263,8 +266,10 @@ class DemoWorkflowProgress:
             self._provider_step = next_step
             self._status = next_status
             self._checklist = checklist
-        # Start or wake the UI-owning worker; it, not this thread, redraws.
-        self.wake()
+            already_running = self._thread is not None
+        if start or already_running:
+            # Wake the UI-owning worker; it, not this thread, redraws.
+            self.wake()
 
     def _project_locked(
         self, provider_step: int, status: WorkflowStatus

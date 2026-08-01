@@ -57,22 +57,73 @@ def _current(coordinator: DemoWorkflowProgress) -> tuple[str | None, WorkflowSta
     return checklist.current_step_id, checklist.status
 
 
+class _ThreadRecordingApi(FakeProgressWindowApi):
+    """Record which thread made each native call.
+
+    Asserting that no call happened at all was wrong: a durable phase starts
+    the worker, so the check raced it and passed only when the worker had not
+    scheduled yet. The property that actually matters is *which thread* calls
+    Win32, and that is what this records.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.call_threads: list[int] = []
+
+    def _record(self) -> None:
+        self.call_threads.append(threading.get_ident())
+
+    def create(self, **kwargs: object) -> int:
+        self._record()
+        return super().create(**kwargs)  # type: ignore[arg-type]
+
+    def set_lines(self, hwnd: int, lines: object) -> None:
+        self._record()
+        super().set_lines(hwnd, lines)  # type: ignore[arg-type]
+
+    def set_workflow_lines(self, hwnd: int, **kwargs: object) -> None:
+        self._record()
+        super().set_workflow_lines(hwnd, **kwargs)  # type: ignore[arg-type]
+
+    def show_noactivate(self, hwnd: int) -> None:
+        self._record()
+        super().show_noactivate(hwnd)
+
+    def reposition_noactivate(self, hwnd: int, **kwargs: object) -> None:
+        self._record()
+        super().reposition_noactivate(hwnd, **kwargs)  # type: ignore[arg-type]
+
+    def destroy(self, hwnd: int) -> None:
+        self._record()
+        super().destroy(hwnd)
+
+
 def test_runner_thread_notifications_never_touch_the_native_window() -> None:
     """The Runner thread may only mutate state; the worker owns every Win32 call."""
 
-    coordinator, api = _coordinator()
+    api = _ThreadRecordingApi()
+    coordinator = DemoWorkflowProgress(
+        PassiveProgressWindow(api),
+        pump=lambda: None,
+        interval_seconds=0.01,
+        join_timeout_seconds=1.0,
+    )
+    runner_thread = threading.get_ident()
 
     for step in range(0, 16):
         coordinator.on_provider_step(step)
-    coordinator.on_phase(RunPhase.OBSERVING)
-    coordinator.on_phase(RunPhase.WAITING_APPROVAL)
-
-    assert api.calls == []
+    # A provider boundary is a display notification and must not start the UI.
+    assert api.call_threads == []
     assert coordinator.window.hwnd is None
 
-    assert coordinator.render_once() is True
-    assert api.kinds() == ["create", "set_workflow_lines", "show_noactivate"]
+    coordinator.on_phase(RunPhase.OBSERVING)
+    coordinator.on_phase(RunPhase.WAITING_APPROVAL)
+    assert _wait_until(lambda: coordinator.window.hwnd is not None)
+
     coordinator.release()
+    assert api.call_threads, "the worker never drew, so the check is vacuous"
+    assert runner_thread not in api.call_threads
+    assert api.kinds()[:3] == ["create", "set_workflow_lines", "show_noactivate"]
 
 
 def test_first_open_shows_every_chapter_and_operator_collapse_survives() -> None:
@@ -144,6 +195,7 @@ def test_approval_wait_and_terminal_success_use_distinct_statuses() -> None:
     assert all(
         step.status is WorkflowStepStatus.COMPLETED for step in checklist.steps
     )
+    coordinator.release()
 
 
 def test_failure_and_cancellation_never_complete_the_current_chapter() -> None:
@@ -159,6 +211,7 @@ def test_failure_and_cancellation_never_complete_the_current_chapter() -> None:
         assert checklist.status is status
         assert checklist.current_step_id == "verify_saved_document"
         assert checklist.completed_count == 5
+        coordinator.release()
 
     coordinator, _ = _coordinator()
     coordinator.on_provider_step(9)
@@ -169,6 +222,7 @@ def test_failure_and_cancellation_never_complete_the_current_chapter() -> None:
     assert checklist.current_step_id is None
     assert checklist.completed_count == 3
     assert checklist.not_started_count == 3
+    coordinator.release()
 
 
 def test_contradictory_state_is_discarded_instead_of_rendered() -> None:
@@ -207,6 +261,7 @@ def test_breadcrumb_tracks_the_validated_current_chapter_only() -> None:
     coordinator.on_provider_step(DEMO_TERMINAL_PROVIDER_STEP)
     coordinator.on_phase(RunPhase.SUCCESS)
     assert coordinator.breadcrumb() is None, "a resolved workflow has no current step"
+    coordinator.release()
 
 
 def test_worker_thread_owns_open_repaint_and_close() -> None:
