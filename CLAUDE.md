@@ -16,7 +16,8 @@ roadmap, or archived plans.
 If the user explicitly resumes one bounded `GDA-DEMO-003` Operator HUD issue,
 read `HANDOFF.md` section **Bounded Operator HUD handoff (2026-07-31)** after
 the standard files above. That section is a safe resume note, not a second
-tracker and not permission to displace `GDA-FC-002`.
+tracker and not permission to displace the active `GDA-FC-*` item, which is
+`GDA-FC-004` as of 2026-08-01.
 
 ## Expected completion response
 

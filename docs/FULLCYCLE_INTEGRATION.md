@@ -1,7 +1,8 @@
 # Full Cycle integration contract
 
-> **Status: Lane A manifest/export v1 is implemented and offline verified.
-> The Full Cycle consumer is next. Rich multimodal capture is not implemented.**
+> **Status: Lane A manifest/export v1 is implemented and offline verified, and
+> the Full Cycle consumer is complete. Freeze validation is next. Rich
+> multimodal capture is not implemented.**
 
 ## Purpose
 
@@ -170,9 +171,13 @@ bounded to 24 MiB.
 ## Closure gates
 
 1. ~~Implement and test the Lane A manifest/export commands.~~ Complete.
-2. Add an offline consumer fixture in the Full Cycle project. This is the exact
-   next task.
-3. Decide whether Lane B is accepted or deferred.
-4. Pin the Runtime and export schema versions in the consumer project.
-5. Run the complete repository validation gate and update
+2. ~~Add an offline consumer fixture in the Full Cycle project.~~ Complete as
+   `FC-BRIDGE-001` in `reliable-agent-model-lifecycle`.
+3. ~~Pin the Runtime and export schema versions in the consumer project.~~
+   Complete: producer commit `8ace897`, consumer schema `1.0.0`, and every
+   contract version are pinned in `fixtures/bridge_v1/fixture-metadata.json`.
+4. Decide whether Lane B is accepted or deferred.
+5. Rerun release preflight from a clean, branch-reachable candidate and record
+   that exact commit in both repositories. This is the exact next task.
+6. Run the complete repository validation gate and update
    `PROJECT_STATUS.md`.

@@ -95,14 +95,18 @@ The Runtime-side Full Cycle Lane A bridge is implemented. `fullcycle manifest`
 derives a versioned capability document from the reviewed registry, and
 `fullcycle export-run` packages only the already-redacted checkpoint and trace.
 Both write canonical bounded JSON to a new absolute path and open no external
-port. The next implementation task belongs in `reliable-agent-model-lifecycle`:
-add the strict offline consumer fixture. Rich episode capture remains a separate,
-explicit-consent design review.
+port. The strict offline consumer fixture was completed in
+`reliable-agent-model-lifecycle` as `FC-BRIDGE-001` and pins producer commit
+`8ace897`; on 2026-08-01 a manifest regenerated from this branch's `HEAD`
+reproduced that pinned digest exactly, so Lane A has not drifted. The next task
+is `GDA-FC-004` freeze validation in this repository. Rich episode capture
+remains a separate, explicit-consent design review.
 
 ## Bounded Operator HUD handoff (2026-07-31)
 
-`PROJECT_STATUS.md` remains the only task registry. `GDA-FC-002` is still the
-sole active closure item and exact Full Cycle resume point. The notes below
+`PROJECT_STATUS.md` remains the only task registry. `GDA-FC-002` closed on
+2026-08-01, so `GDA-FC-004` is now the sole active closure item and exact Full
+Cycle resume point. The notes below
 describe only the user-authorized, bounded `GDA-DEMO-003` detour; they do not
 activate broader operator UI or replace the Full Cycle backlog.
 
@@ -162,22 +166,52 @@ fixed mapping is:
 - `16..17`: save complete, durable verification current;
 - `18` with `WorkflowStatus.READY`: all six chapters complete.
 
-The exact next HUD action is to connect that projector without starting the
-complete Demo:
+That projector was connected on 2026-08-01 by
+`src/computer_use_agent/demo_workflow_progress.py` (`DemoWorkflowProgress`),
+without starting the complete Demo. All six prescribed points are done:
 
-1. add one Demo-only, UI-thread-owned workflow lifecycle that receives only
-   the fixed provider-step projection and durable Runner phase;
-2. feed its latest validated checklist to `PassiveProgressWindow.open/update`;
-   first open must show all steps, and an explicit operator collapse must
-   survive later refreshes;
-3. set `OperatorStepContext.workflow` from
-   `WorkflowBreadcrumb.from_checklist(...)` before each Decision Card while
-   preserving the separate approval `n/7` count;
-4. project approval wait as `NEEDS_INPUT`, terminal success as `READY`, and
-   failure/uncertainty without falsely completing the current chapter;
-5. add deterministic tests for thread ownership, monotonic chapter changes,
-   approval breadcrumbs, collapse preservation, and fail-closed invalid state;
-6. rerun the complete offline validation gate before any commit or live smoke.
+1. one Demo-only, UI-thread-owned workflow lifecycle that receives only the
+   fixed provider boundary and the durable Runner phase. It implements the
+   passive progress lifecycle port the Runner already accepts, so it drops into
+   `RunnerPorts.progress` without a second dispatch path;
+2. its latest validated checklist drives `PassiveProgressWindow.open/update`;
+   first open shows all six chapters and an explicit operator collapse survives
+   later refreshes;
+3. `scripts/demo_cross_app.py` sets `OperatorStepContext.workflow` from
+   `WorkflowBreadcrumb.from_checklist(...)` before each Decision Card, and the
+   approval `n/7` count remains a separate field;
+4. approval wait projects `NEEDS_INPUT`; durable success projects `READY` only
+   at provider boundary 18. Between the provider's last turn and the durable
+   phase the final chapter is held open rather than completed, so a late
+   failure lands on that chapter. Cancellation keeps the resolved prefix and
+   claims no current chapter;
+5. `tests/agent/test_demo_workflow_progress.py` covers thread ownership,
+   monotonic chapters, approval breadcrumbs, collapse preservation, and
+   fail-closed invalid state. `CrossAppDemoProvider.on_provider_step` is an
+   integer-only passive observer whose failure drops the observer and never
+   changes the Demo;
+6. the complete offline gate passed on 2026-08-01; the exact dated counts are
+   in the `GDA-HUD-005` row of `PROJECT_STATUS.md`.
+
+That dedicated live smoke now exists as
+`scripts/smoke_demo_workflow_progress.py` and passed three consecutive times on
+2026-08-01. It drives the real non-activating Win32 surface through every
+projected transition and opens no Runner, MCP, provider, or application, so it
+is projection-surface evidence only.
+
+Clipping at 100% and 125% is now covered deterministically:
+`measure_tier_text_width` measures real Segoe UI extents on a memory device
+context, and the tests assert every longest realistic header line, countdown,
+and choice label fits its exact painted rectangle at all three scales. A
+companion test proves that check trips on the layout that produced the observed
+clipping, so the guard cannot rot into a tautology.
+
+What remains for `GDA-HUD-002` is live operator acceptance at 100% and 125%,
+which needs display scaling changed and therefore belongs to the operator. A
+run of `scripts/capture_operator_hud_evidence.py` at each scale would retain it.
+
+The complete Chrome-to-Word Demo must not be restarted until a separate live
+evidence plan is declared.
 
 Do not wire provider prose, tool-budget counts, or raw task text into the
 checklist. Do not add another Runner/MCP dispatch path. Do not treat a provider
