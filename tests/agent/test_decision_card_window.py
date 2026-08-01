@@ -135,9 +135,12 @@ def test_controller_renders_compact_locked_step_context() -> None:
 
     call = api.calls[0]
     assert call["title"] == "Needs input · approval locked"
-    assert call["instruction"].splitlines() == [
-        "APPROVAL 4/7  ·  Microsoft Word",
+    # The shared HUD tier order: accent micro-label, the one thing being
+    # decided, then the counts and application that qualify it.
+    assert call["instruction"].split("\n") == [
+        "NEEDS INPUT  ·  APPROVAL LOCKED",
         "Switch to the research notes",
+        "APPROVAL 4/7  ·  Microsoft Word",
         "WORKFLOW 3/6  ·  Open the research brief",
     ]
     assert call["content"].startswith("Decision scope")

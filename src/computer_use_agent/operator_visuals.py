@@ -141,7 +141,91 @@ def operator_visual(role: OperatorVisualRole) -> OperatorVisualToken:
     return _TOKENS[role]
 
 
+@dataclass(frozen=True)
+class OperatorSurfaceTokens:
+    """The fixed chrome every HUD surface draws on.
+
+    Status colour already came from one contract; background, text, and
+    hairline did not, which is how Presence, Progress, and the Decision Card
+    drifted onto three different dark greys. These are RGB, matching
+    :attr:`OperatorVisualToken.color_rgb`; a platform backend converts.
+    """
+
+    background_rgb: int
+    surface_rgb: int
+    text_rgb: int
+    muted_text_rgb: int
+    hairline_rgb: int
+
+    def __post_init__(self) -> None:
+        for value in (
+            self.background_rgb,
+            self.surface_rgb,
+            self.text_rgb,
+            self.muted_text_rgb,
+            self.hairline_rgb,
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or not 0 <= value <= 0xFFFFFF
+            ):
+                raise OperatorVisualError("OPERATOR_SURFACE_TOKEN_INVALID")
+
+
+@dataclass(frozen=True)
+class OperatorTypeTier:
+    """One shared text tier: point size plus weight."""
+
+    points: int
+    weight: int
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.points, bool)
+            or not isinstance(self.points, int)
+            or not 6 <= self.points <= 48
+            or self.weight not in {OPERATOR_WEIGHT_NORMAL, OPERATOR_WEIGHT_SEMIBOLD}
+        ):
+            raise OperatorVisualError("OPERATOR_TYPE_TIER_INVALID")
+
+
+OPERATOR_WEIGHT_NORMAL = 400
+OPERATOR_WEIGHT_SEMIBOLD = 600
+
+#: The canonical HUD chrome. These are the values the workflow Progress HUD
+#: already shipped, so adopting them moves the Decision Card without repainting
+#: a surface that already reads correctly.
+OPERATOR_SURFACE = OperatorSurfaceTokens(
+    background_rgb=0x13171E,
+    # An elevated pane must be legible as its own region, including the system
+    # scrollbar drawn inside it. The first value sat too close to the
+    # background and the scroll affordance disappeared into the card.
+    surface_rgb=0x232A36,
+    text_rgb=0xF5F5F5,
+    muted_text_rgb=0xB8B8B8,
+    hairline_rgb=0x39424F,
+)
+
+#: The shared type scale. An uppercase accent micro-label introduces a surface,
+#: one large semibold line names the current thing, and muted body text carries
+#: the counts and application that qualify it.
+OPERATOR_TYPE_MICRO_LABEL = OperatorTypeTier(9, OPERATOR_WEIGHT_SEMIBOLD)
+OPERATOR_TYPE_TITLE = OperatorTypeTier(16, OPERATOR_WEIGHT_SEMIBOLD)
+OPERATOR_TYPE_META = OperatorTypeTier(10, OPERATOR_WEIGHT_NORMAL)
+OPERATOR_TYPE_ACTION = OperatorTypeTier(11, OPERATOR_WEIGHT_SEMIBOLD)
+
+
 __all__ = [
+    "OPERATOR_SURFACE",
+    "OPERATOR_TYPE_ACTION",
+    "OPERATOR_TYPE_META",
+    "OPERATOR_TYPE_MICRO_LABEL",
+    "OPERATOR_TYPE_TITLE",
+    "OPERATOR_WEIGHT_NORMAL",
+    "OPERATOR_WEIGHT_SEMIBOLD",
+    "OperatorSurfaceTokens",
+    "OperatorTypeTier",
     "OperatorVisualError",
     "OperatorVisualRole",
     "OperatorVisualToken",

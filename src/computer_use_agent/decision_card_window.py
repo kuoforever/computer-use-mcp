@@ -165,21 +165,31 @@ class DecisionCardWindow:
         context = self.step_context() if self.step_context is not None else None
         if context is not None and not isinstance(context, OperatorStepContext):
             raise DecisionCardWindowError("DECISION_CARD_STEP_INVALID")
+        attention = decision_attention_visual()
         title = "Decision required"
-        instruction = "Choose one bounded option"
+        # Exactly four lines, always, in the shared HUD tier order: accent
+        # micro-label, the one thing being decided, then the counts and
+        # application that qualify it. A backend zips these against a fixed
+        # type scale, so the count must not vary with the context.
+        instruction_lines = [
+            f"{attention.label.upper()}  ·  APPROVAL LOCKED",
+            "Choose one bounded option",
+            "",
+            "",
+        ]
         if context is not None:
-            attention = decision_attention_visual()
             title = f"{attention.label} · approval locked"
-            instruction = (
+            instruction_lines[1] = context.label
+            instruction_lines[2] = (
                 f"APPROVAL {context.current}/{context.total}"
-                f"  ·  {context.application}\n"
-                f"{context.label}"
+                f"  ·  {context.application}"
             )
             if context.workflow is not None:
-                instruction += (
-                    f"\nWORKFLOW {context.workflow.current}/{context.workflow.total}"
+                instruction_lines[3] = (
+                    f"WORKFLOW {context.workflow.current}/{context.workflow.total}"
                     f"  ·  {context.workflow.label}"
                 )
+        instruction = "\n".join(instruction_lines)
         try:
             async with asyncio.timeout(timeout_seconds + 2):
                 option_id = await asyncio.to_thread(

@@ -19,6 +19,12 @@ from ctypes import wintypes
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .operator_visuals import (
+    OPERATOR_SURFACE,
+    OPERATOR_WEIGHT_NORMAL,
+    OPERATOR_WEIGHT_SEMIBOLD,
+)
+
 _SW_SHOWNOACTIVATE = 4
 
 _HWND_TOPMOST = -1
@@ -44,12 +50,25 @@ _EXPANDED_WIN_H = 560
 _CORNER_MARGIN = 20
 _LINE_H = 20
 _PAD = 14
-_HUD_BACKGROUND = 0x001E1713
-_HUD_TEXT = 0x00F5F5F5
-_HUD_MUTED = 0x00B8B8B8
+
+
+def _colorref(rgb: int) -> int:
+    """Convert one shared RGB token to a Win32 BGR ``COLORREF``."""
+
+    red = (rgb >> 16) & 0xFF
+    green = (rgb >> 8) & 0xFF
+    blue = rgb & 0xFF
+    return red | (green << 8) | (blue << 16)
+
+
+# These were literals until the Decision Card needed the same chrome and drifted
+# onto a second dark grey. The values are unchanged; the source of truth moved.
+_HUD_BACKGROUND = _colorref(OPERATOR_SURFACE.background_rgb)
+_HUD_TEXT = _colorref(OPERATOR_SURFACE.text_rgb)
+_HUD_MUTED = _colorref(OPERATOR_SURFACE.muted_text_rgb)
 _DEFAULT_ACCENT_RGB = 0x2F80ED
-_FW_NORMAL = 400
-_FW_SEMIBOLD = 600
+_FW_NORMAL = OPERATOR_WEIGHT_NORMAL
+_FW_SEMIBOLD = OPERATOR_WEIGHT_SEMIBOLD
 
 _WNDPROC = ctypes.WINFUNCTYPE(
     ctypes.c_longlong, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM
