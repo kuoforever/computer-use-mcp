@@ -198,6 +198,85 @@ def test_capture_exclusion_failure_is_reported_without_becoming_a_secrecy_claim(
     assert window.hwnd in api.alive
 
 
+class _FakeUser32:
+    """Mimic the Win32 DPI APIs, including the one that lies.
+
+    ``GetDpiForWindow(GetDesktopWindow())`` reports 96 on a scaled display,
+    because the desktop window is not per-monitor DPI aware.
+    """
+
+    def __init__(self, *, system_dpi: int | None, window_dpi: int = 96) -> None:
+        self._window_dpi = window_dpi
+        if system_dpi is not None:
+            self.GetDpiForSystem = lambda: system_dpi  # noqa: N815
+
+    def GetDesktopWindow(self) -> int:  # noqa: N802
+        return 65548
+
+    def GetDpiForWindow(self, _hwnd: int) -> int:  # noqa: N802
+        return self._window_dpi
+
+    def GetSystemMetrics(self, index: int) -> int:  # noqa: N802
+        return 2560 if index == 0 else 1600
+
+
+def _bounds_with(user32: _FakeUser32) -> DisplayBounds:
+    from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi
+
+    api = Win32PresenceWindowApi.__new__(Win32PresenceWindowApi)
+    api._user32 = user32  # type: ignore[attr-defined]
+    return api.display_bounds()
+
+
+def test_display_bounds_prefers_the_dpi_source_that_is_not_always_96() -> None:
+    """The halo must scale by the primary display's real DPI.
+
+    Reading `GetDpiForWindow(GetDesktopWindow())` pinned the halo to 96 on a
+    150% display, so the border rendered at 10px where the contract asks for
+    15px. That is the concrete reason a full-screen halo was reported as not
+    visible during a live run.
+    """
+
+    assert _bounds_with(_FakeUser32(system_dpi=144, window_dpi=96)).dpi == 144
+    # Falling back is still better than 96, and a zero must not be trusted.
+    assert _bounds_with(_FakeUser32(system_dpi=None, window_dpi=120)).dpi == 120
+    assert _bounds_with(_FakeUser32(system_dpi=0, window_dpi=120)).dpi == 120
+    assert _bounds_with(_FakeUser32(system_dpi=None, window_dpi=0)).dpi == 96
+
+
+def test_no_phase_colour_collides_with_the_transparency_key() -> None:
+    """A phase colour equal to the colour key would render as a hole.
+
+    The halo has no alpha: `LWA_COLORKEY` removes one exact colour so the
+    interior is transparent while the border stays opaque. A phase whose colour
+    matched that key would be punched out of the border and would look exactly
+    like the halo not being drawn -- the original `GDA-HUD-001` report.
+    """
+
+    from computer_use_agent.operator_visuals import (
+        OperatorVisualRole,
+        operator_visual,
+    )
+    from computer_use_agent.presence_window_win32 import (
+        PRESENCE_TRANSPARENT_COLOR_KEY,
+    )
+
+    key = PRESENCE_TRANSPARENT_COLOR_KEY & 0xFFFFFF
+    for role in OperatorVisualRole:
+        assert operator_visual(role).color_rgb != key, f"{role.value} is the colour key"
+    # The high-contrast projection substitutes white; it must not collide either.
+    assert key != 0xFFFFFF
+
+
+def test_a_scaled_display_yields_a_visibly_thicker_halo_than_the_unscaled_one() -> None:
+    scaled = presence_geometry(_bounds_with(_FakeUser32(system_dpi=144)))
+    unscaled = presence_geometry(_bounds_with(_FakeUser32(system_dpi=96)))
+
+    assert scaled.border_px == 15
+    assert unscaled.border_px == 10
+    assert scaled.border_px > unscaled.border_px
+
+
 @pytest.mark.parametrize(
     ("dpi", "border", "inset"),
     [(96, 10, 16), (144, 15, 24), (192, 20, 32), (768, 32, 48)],

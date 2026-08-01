@@ -8,7 +8,7 @@ from ctypes import wintypes
 from collections.abc import Iterator
 
 _ERROR_ALREADY_EXISTS = 183
-_REVIEW_NAMES = frozenset({"decision-card", "progress-hud"})
+_REVIEW_NAMES = frozenset({"decision-card", "progress-hud", "presence-phases"})
 
 
 class ReviewAlreadyRunningError(RuntimeError):

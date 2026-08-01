@@ -110,28 +110,26 @@ Cycle resume point. The notes below
 describe only the user-authorized, bounded `GDA-DEMO-003` detour; they do not
 activate broader operator UI or replace the Full Cycle backlog.
 
-The working branch is `codex/demo-hud-baseline`.
+`codex/demo-hud-baseline` merged into `main` as `6a21d33` through PR #221 on
+2026-08-01 and was deleted from the remote and the local checkout. There is no
+HUD working branch; `main` carries the work.
 
-The branch was rebased onto `main` at `9cb38c8` on 2026-07-31, so every commit
-below carries a new identity. The pre-rebase commits are preserved locally at
-`backup/demo-hud-pre-rebase` and the old identities are given here so the
-earlier evidence stays traceable:
+The branch had been rebased onto `main` at `9cb38c8` on 2026-07-31, which gave
+every commit a new identity. The pre-rebase commits were kept on a local
+`backup/demo-hud-pre-rebase` branch, which was deleted on 2026-08-01 once the
+rebased history merged. The old identities are recorded here so an earlier
+document or note that names one still resolves to something:
 
-- local and remote `codex/demo-hud-baseline` both end at `07efbb6`
-  (`Document Operator HUD handoff`, pre-rebase `f4b0a70`);
-- `3e9af02` (`Map Demo steps to workflow chapters`, pre-rebase `35c5363`) is
-  its parent, and is now pushed;
-- `efc5062` (`Retain isolated operator HUD evidence`, pre-rebase `d1507e3`) is
-  the former remote tip;
-- the worktree is clean before this handoff-document update;
-- the last complete offline gate passed for pre-rebase `d1507e3`; the exact
-  dated result is retained in the `GDA-HUD-011` row of `PROJECT_STATUS.md`.
-  **That result has not been re-established after the rebase.** The rebase base
-  added documentation-only commits and no source change, so the gate is
-  expected to still pass, but it must be re-run before any evidence promotion;
-- pre-rebase `35c5363` had targeted evidence only:
-  `pytest tests/agent/test_demo_cross_app.py -q` and Ruff passed for the
-  changed source and test. This has likewise not been re-run.
+- `07efbb6` `Document Operator HUD handoff`, pre-rebase `f4b0a70`;
+- `3e9af02` `Map Demo steps to workflow chapters`, pre-rebase `35c5363`;
+- `efc5062` `Retain isolated operator HUD evidence`, pre-rebase `d1507e3`.
+
+The pre-rebase hashes are no longer reachable from any branch. Only the rebased
+identities on the left are resolvable, and all three are ancestors of `main`.
+
+The offline gate that had been outstanding for the rebased branch was
+re-established on 2026-08-01 and again after the merge; the dated results are
+in `PROJECT_STATUS.md`.
 
 Read these files in order for the HUD continuation:
 
