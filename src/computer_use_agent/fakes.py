@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from .planner import PlannerRequest
 from .tool_registry import ToolSpec, reviewed_mcp_descriptors
@@ -193,6 +193,8 @@ class FakeProgressWindowApi:
     def __init__(self, foreground: int = 4242) -> None:
         self.calls: list[tuple] = []
         self.lines: dict[int, tuple[str, ...]] = {}
+        self.workflow_lines: dict[int, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+        self.toggle_handlers: dict[int, Callable[[bool], None]] = {}
         self.alive: set[int] = set()
         self._foreground = foreground
         self._next_hwnd = 1000
@@ -205,8 +207,26 @@ class FakeProgressWindowApi:
         return hwnd
 
     def set_lines(self, hwnd: int, lines: Sequence[str]) -> None:
+        self.workflow_lines.pop(hwnd, None)
+        self.toggle_handlers.pop(hwnd, None)
         self.lines[hwnd] = tuple(lines)
         self.calls.append(("set_lines", hwnd, tuple(lines)))
+
+    def set_workflow_lines(
+        self,
+        hwnd: int,
+        *,
+        compact_lines: Sequence[str],
+        expanded_lines: Sequence[str],
+        expanded: bool,
+        accent_rgb: int,
+        on_toggle: Callable[[bool], None],
+    ) -> None:
+        variants = (tuple(compact_lines), tuple(expanded_lines))
+        self.workflow_lines[hwnd] = variants
+        self.toggle_handlers[hwnd] = on_toggle
+        self.lines[hwnd] = variants[1] if expanded else variants[0]
+        self.calls.append(("set_workflow_lines", hwnd, expanded, accent_rgb))
 
     def show_noactivate(self, hwnd: int) -> None:
         self.calls.append(("show_noactivate", hwnd))
@@ -219,7 +239,17 @@ class FakeProgressWindowApi:
 
     def destroy(self, hwnd: int) -> None:
         self.alive.discard(hwnd)
+        self.workflow_lines.pop(hwnd, None)
+        self.toggle_handlers.pop(hwnd, None)
         self.calls.append(("destroy", hwnd))
+
+    def click_workflow_toggle(self, hwnd: int) -> None:
+        """Simulate the operator's non-activating SHOW/HIDE STEPS affordance."""
+
+        variants = self.workflow_lines[hwnd]
+        next_expanded = self.lines[hwnd] != variants[1]
+        self.lines[hwnd] = variants[1] if next_expanded else variants[0]
+        self.toggle_handlers[hwnd](next_expanded)
 
     def __getattr__(self, name: str):  # pragma: no cover - only hit on misuse
         if name in _FORBIDDEN_WINDOW_CALLS:

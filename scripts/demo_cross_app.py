@@ -46,6 +46,9 @@ from computer_use_agent.demo_cross_app import (  # noqa: E402
     DEMO_TYPED_MARKER,
     CrossAppDemoProvider,
 )
+from computer_use_agent.demo_workflow_progress import (  # noqa: E402
+    DemoWorkflowProgress,
+)
 from computer_use_agent.desktop_mcp import StdioDesktopMCP  # noqa: E402
 from computer_use_agent.disposable_process import (  # noqa: E402
     DisposableCleanup as FixtureCleanup,
@@ -57,8 +60,6 @@ from computer_use_agent.presence import PresencePreferences  # noqa: E402
 from computer_use_agent.presence_lifecycle import RunPresenceCoordinator  # noqa: E402
 from computer_use_agent.presence_window import PassivePresenceWindow  # noqa: E402
 from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi  # noqa: E402
-from computer_use_agent.progress_lifecycle import RunProgressCoordinator  # noqa: E402
-from computer_use_agent.progress_poller import ProgressPoller  # noqa: E402
 from computer_use_agent.progress_window import PassiveProgressWindow  # noqa: E402
 from computer_use_agent.progress_window_win32 import Win32ProgressWindowApi  # noqa: E402
 from computer_use_agent.runner import AgentRunner, RunnerPorts  # noqa: E402
@@ -100,9 +101,11 @@ class DemoDecisionCards:
         inner: DecisionCardApprovalPort,
         *,
         step_context: list[OperatorStepContext | None],
+        workflow: DemoWorkflowProgress | None = None,
     ) -> None:
         self._inner = inner
         self._step_context = step_context
+        self._workflow = workflow
         self._approval_index = 0
 
     async def request_approval(self, request: ApprovalRequest) -> PolicyDecision:
@@ -119,11 +122,14 @@ class DemoDecisionCards:
             raise RuntimeError("DEMO_APPROVAL_STEP_OVERFLOW")
         label, application = labels[self._approval_index]
         self._approval_index += 1
+        # The workflow breadcrumb and the approval count answer different
+        # questions and stay separate: "which chapter" versus "approval n/7".
         self._step_context[0] = OperatorStepContext(
             self._approval_index,
             len(labels),
             label,
             application,
+            workflow=None if self._workflow is None else self._workflow.breadcrumb(),
         )
         decision = await self._inner.request_approval(request)
         return decision
@@ -311,14 +317,20 @@ def _presence() -> RunPresenceCoordinator:
     )
 
 
-def _progress(config: AgentConfig) -> RunProgressCoordinator:
+def _progress() -> DemoWorkflowProgress:
+    """Show the six Host-owned Demo chapters instead of run diagnostics.
+
+    The generic ``state_dir`` poller renders tool-call budgets, which is exactly
+    the mixed-total problem `GDA-HUD-005` records. This surface shows only the
+    fixed workflow chapters; the approval `n/7` count stays on the Decision Card.
+    """
+
     api = Win32ProgressWindowApi()
-    poller = ProgressPoller(
-        config.state_dir,
+    return DemoWorkflowProgress(
         PassiveProgressWindow(api),
+        pump=api.pump,
         interval_seconds=0.5,
     )
-    return RunProgressCoordinator(poller, pump=api.pump)
 
 
 async def _run() -> dict[str, object]:
@@ -337,10 +349,12 @@ async def _run() -> dict[str, object]:
             ownership=ownership,
         )
         config = _config(stamp)
+        workflow = _progress()
         provider = CrossAppDemoProvider(
             chrome_title_fragment=SOURCE_TITLE,
             word_title_fragment=document.name,
             summary_text=SUMMARY,
+            on_provider_step=workflow.on_provider_step,
         )
         step_context: list[OperatorStepContext | None] = [None]
         inner_cards = DecisionCardApprovalPort(
@@ -355,6 +369,7 @@ async def _run() -> dict[str, object]:
         approvals = DemoDecisionCards(
             inner_cards,
             step_context=step_context,
+            workflow=workflow,
         )
         desktop = StdioDesktopMCP(config.mcp)
         runner_outcome = await AgentRunner(
@@ -364,7 +379,7 @@ async def _run() -> dict[str, object]:
                 desktop=desktop,
                 approvals=approvals,
                 presence=_presence(),
-                progress=_progress(config),
+                progress=workflow,
             ),
         ).run(
             "Review the public Microsoft Support page in Chrome, update the "

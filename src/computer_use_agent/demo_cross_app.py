@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from .tool_registry import ToolSpec
 from .types import (
@@ -75,6 +75,22 @@ _REF = re.compile(r'^(ref_[1-9][0-9]*) \| edit "页面 1 内容" \|', re.MULTILI
 _DEMO_STEP_IDS = tuple(step.step_id for step in DEMO_WORKFLOW.steps)
 
 
+def _demo_completed_count(provider_step: int) -> int:
+    """Return how many fixed chapters one provider boundary has resolved."""
+
+    if provider_step == 18:
+        return len(_DEMO_STEP_IDS)
+    if provider_step <= 5:
+        return 1
+    if provider_step <= 8:
+        return 2
+    if provider_step <= 14:
+        return 3
+    if provider_step == 15:
+        return 4
+    return 5
+
+
 def project_demo_workflow(
     provider_step: int,
     *,
@@ -90,6 +106,14 @@ def project_demo_workflow(
         raise ValueError("controlled Demo provider step is invalid")
     if not isinstance(status, WorkflowStatus):
         raise ValueError("controlled Demo workflow status is invalid")
+    completed_count = _demo_completed_count(provider_step)
+    if status is WorkflowStatus.CANCELLED:
+        # A cancelled Demo keeps its resolved prefix and claims no current
+        # chapter. It must never promote the interrupted chapter to completed.
+        return DEMO_WORKFLOW.project(
+            status,
+            completed_step_ids=_DEMO_STEP_IDS[:completed_count],
+        )
     if provider_step == 18:
         if status is not WorkflowStatus.READY:
             raise ValueError("completed controlled Demo must be ready")
@@ -99,17 +123,6 @@ def project_demo_workflow(
         )
     if status is WorkflowStatus.READY:
         raise ValueError("incomplete controlled Demo cannot be ready")
-
-    if provider_step <= 5:
-        completed_count = 1
-    elif provider_step <= 8:
-        completed_count = 2
-    elif provider_step <= 14:
-        completed_count = 3
-    elif provider_step == 15:
-        completed_count = 4
-    else:
-        completed_count = 5
     return DEMO_WORKFLOW.project(
         status,
         completed_step_ids=_DEMO_STEP_IDS[:completed_count],
@@ -162,6 +175,10 @@ class CrossAppDemoProvider:
     continuation_strategy: ProviderContinuationStrategy = (
         ProviderContinuationStrategy.STATELESS_REPLAY
     )
+    #: Optional passive observer of the fixed provider boundary. It receives one
+    #: integer and nothing else: no prose, tool result, window id, or typed text.
+    #: It carries no authority and can never change what the provider requests.
+    on_provider_step: Callable[[int], None] | None = None
     _step: int = field(default=0, init=False, repr=False)
     _chrome_window_id: str | None = field(default=None, init=False, repr=False)
     _word_window_id: str | None = field(default=None, init=False, repr=False)
@@ -388,6 +405,7 @@ class CrossAppDemoProvider:
             "response_id": response_id,
         }
         self._step += 1
+        self._notify_step()
         return ModelTurn(
             run_id,
             turn_id,
@@ -395,6 +413,22 @@ class CrossAppDemoProvider:
             DEMO_COMPLETE_TEXT if call is None else "",
             () if call is None else (call,),
         )
+
+    def _notify_step(self) -> None:
+        """Tell a passive observer which fixed boundary the provider reached.
+
+        The observer is a display surface, so its failure must never change the
+        Demo. Any exception is swallowed and the observer is dropped rather than
+        retried, matching the fail-silent contract of the other passive surfaces.
+        """
+
+        observer = self.on_provider_step
+        if observer is None:
+            return
+        try:
+            observer(self._step)
+        except Exception:
+            self.on_provider_step = None
 
     def _required_word_id(self) -> str:
         if self._word_window_id is None:

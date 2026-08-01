@@ -11,6 +11,23 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from computer_use_agent.demo_workflow_progress import DemoWorkflowProgress
+from computer_use_agent.fakes import FakeProgressWindowApi
+from computer_use_agent.progress_window import PassiveProgressWindow
+
+
+def _offline_workflow_progress() -> DemoWorkflowProgress:
+    """The real workflow HUD over a recording fake, so the wiring is exercised.
+
+    Nothing here starts the worker thread: these tests never deliver a run
+    phase, so no native call and no window can occur.
+    """
+
+    return DemoWorkflowProgress(
+        PassiveProgressWindow(FakeProgressWindowApi()),
+        pump=lambda: None,
+    )
+
 
 def _load_demo_script() -> ModuleType:
     path = Path(__file__).resolve().parents[2] / "scripts" / "demo_cross_app.py"
@@ -373,7 +390,7 @@ def test_run_cleans_exact_fixtures_and_records_failure_or_cancel(
     monkeypatch.setattr(demo, "_fixtures", lambda: (document, profile, "test"))
     monkeypatch.setattr(demo, "_launch_fixtures", launch)
     monkeypatch.setattr(demo, "_presence", object)
-    monkeypatch.setattr(demo, "_progress", lambda _config: object())
+    monkeypatch.setattr(demo, "_progress", _offline_workflow_progress)
     monkeypatch.setattr(
         demo,
         "DecisionCardApprovalPort",
@@ -442,7 +459,7 @@ def test_run_records_normal_completion_and_cleanup(
     monkeypatch.setattr(demo, "_fixtures", lambda: (document, profile, "test"))
     monkeypatch.setattr(demo, "_launch_fixtures", launch)
     monkeypatch.setattr(demo, "_presence", object)
-    monkeypatch.setattr(demo, "_progress", lambda _config: object())
+    monkeypatch.setattr(demo, "_progress", _offline_workflow_progress)
     monkeypatch.setattr(
         demo,
         "DecisionCardApprovalPort",

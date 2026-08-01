@@ -23,6 +23,7 @@ from computer_use_agent.demo_cross_app import (
 )
 from computer_use_agent.fakes import FakeDesktopMCP
 from computer_use_agent.runner import AgentRunner, RunnerPorts
+from computer_use_agent.tool_registry import REVIEWED_TOOLS
 from computer_use_agent.types import (
     ApprovalRequest,
     CallIdentity,
@@ -39,6 +40,9 @@ from computer_use_agent.workflow_checklist import (
 
 RUN_ID = "cross-app-demo-test"
 SUMMARY = f"\n{DEMO_TYPED_MARKER}\n- bounded fixture"
+_LIST_WINDOWS_ONLY = tuple(
+    tool for tool in REVIEWED_TOOLS if tool.name == "list_windows"
+)
 
 
 def test_controlled_demo_provider_steps_map_to_human_workflow_chapters() -> None:
@@ -78,6 +82,43 @@ def test_controlled_demo_workflow_mapping_fails_closed() -> None:
         project_demo_workflow(17, status=WorkflowStatus.READY)
     with pytest.raises(ValueError, match="must be ready"):
         project_demo_workflow(18)
+
+
+def test_cancelled_demo_keeps_its_prefix_without_claiming_a_current_chapter() -> None:
+    checklist = project_demo_workflow(9, status=WorkflowStatus.CANCELLED)
+
+    assert checklist.status is WorkflowStatus.CANCELLED
+    assert checklist.current_step_id is None
+    assert checklist.completed_count == 3
+    assert checklist.not_started_count == 3
+    assert all(
+        row.status is not WorkflowStepStatus.IN_PROGRESS for row in checklist.steps
+    )
+
+
+def test_a_failing_step_observer_never_changes_the_demo() -> None:
+    def explode(_: int) -> None:
+        raise RuntimeError("observer failure must stay outside the Demo")
+
+    provider = CrossAppDemoProvider(
+        "Guarded Desktop Agent Demo Source test",
+        "summary-test.rtf",
+        SUMMARY,
+        on_provider_step=explode,
+    )
+
+    async def scenario() -> None:
+        turn = await provider.create_turn(
+            run_id=RUN_ID,
+            turn_id="turn_1",
+            task="controlled",
+            ledger=(),
+            tools=_LIST_WINDOWS_ONLY,
+        )
+        assert turn.tool_calls[0].name == "list_windows"
+
+    asyncio.run(scenario())
+    assert provider.on_provider_step is None, "a failed observer is dropped, not retried"
 
 
 def _result(
@@ -137,10 +178,12 @@ def test_controlled_cross_app_demo_uses_runner_approval_and_verification(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    boundaries: list[int] = []
     provider = CrossAppDemoProvider(
         "Guarded Desktop Agent Demo Source test",
         "summary-test.rtf",
         SUMMARY,
+        on_provider_step=boundaries.append,
     )
     desktop = FakeDesktopMCP(
         satisfied_safety_baselines=frozenset(
@@ -274,6 +317,9 @@ def test_controlled_cross_app_demo_uses_runner_approval_and_verification(
         "ref_supplied": False,
     }
     assert SUMMARY not in repr(outcome.state.event_log)
+    # The passive HUD observer sees every fixed boundary in order, ending at the
+    # terminal one. It receives integers only: no prose, window id, or content.
+    assert boundaries == list(range(1, 19))
 
 
 def test_controlled_provider_rejects_a_missing_required_tool() -> None:
