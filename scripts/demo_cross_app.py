@@ -7,6 +7,8 @@ desktop operation is requested through AgentRunner and StdioDesktopMCP.
 from __future__ import annotations
 
 import asyncio
+import ctypes
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 import hashlib
@@ -16,6 +18,7 @@ import subprocess
 import sys
 import time
 import zipfile
+from ctypes import wintypes
 from xml.etree import ElementTree
 from datetime import datetime, timezone
 from pathlib import Path
@@ -248,6 +251,7 @@ def _write_final_state(
     outcome: str,
     failure_class: str | None,
     cleanup: Sequence[FixtureCleanup],
+    presence: dict[str, object] | None = None,
 ) -> None:
     cleanup_complete = all(
         item.disposition != "handoff_required" for item in cleanup
@@ -265,6 +269,8 @@ def _write_final_state(
         },
         "fixtures": [asdict(item) for item in cleanup],
     }
+    if presence is not None:
+        state["presence"] = presence
     (root / "final-state.json").write_text(
         json.dumps(state, ensure_ascii=True, sort_keys=True),
         encoding="utf-8",
@@ -310,10 +316,93 @@ def _config(stamp: str) -> AgentConfig:
     )
 
 
-def _presence() -> RunPresenceCoordinator:
-    return RunPresenceCoordinator(
-        PassivePresenceWindow(Win32PresenceWindowApi()),
-        preferences=PresencePreferences(enabled=True),
+class _PresenceProbe:
+    """Record what the halo was actually asked to show, and whether it painted.
+
+    Presence is `WDA_EXCLUDEFROMCAPTURE` by design, so it can never appear in a
+    screenshot and its evidence would otherwise rest entirely on an operator
+    saying they saw it. Two complete runs passed while the halo was in fact
+    invisible, because nothing pumped it and a colour-keyed layered window that
+    never receives `WM_PAINT` is fully transparent.
+
+    This wraps the surface to record every projection, and samples the native
+    window from a separate thread. A window with a pending update region has
+    not been painted; an empty update region means it has.
+    """
+
+    def __init__(self, window: PassivePresenceWindow) -> None:
+        self._window = window
+        self._projections: list[dict[str, str]] = []
+        self._painted = 0
+        self._unpainted = 0
+        self._missing = 0
+        self._stop = threading.Event()
+        self._sampler = threading.Thread(
+            target=self._sample, name="demo-presence-probe", daemon=True
+        )
+        self._sampler.start()
+
+    def sync(self, snapshot: object) -> object:
+        phase = getattr(getattr(snapshot, "phase", None), "value", "?")
+        authority = getattr(getattr(snapshot, "authority", None), "value", "?")
+        self._projections.append({"phase": phase, "authority": authority})
+        return self._window.sync(snapshot)  # type: ignore[arg-type]
+
+    def close(self) -> None:
+        self._stop.set()
+        self._window.close()
+
+    def _sample(self) -> None:
+        user32 = ctypes.windll.user32
+        while not self._stop.wait(0.25):
+            hwnd = self._window.hwnd
+            if hwnd is None or not user32.IsWindow(wintypes.HWND(hwnd)):
+                self._missing += 1
+                continue
+            rect = wintypes.RECT()
+            pending = bool(
+                user32.GetUpdateRect(wintypes.HWND(hwnd), ctypes.byref(rect), False)
+            )
+            if pending:
+                self._unpainted += 1
+            else:
+                self._painted += 1
+
+    def report(self) -> dict[str, object]:
+        self._stop.set()
+        ordered: list[dict[str, str]] = []
+        for entry in self._projections:
+            if not ordered or ordered[-1] != entry:
+                ordered.append(entry)
+        return {
+            "projection_count": len(self._projections),
+            "projection_sequence": ordered,
+            "distinct_states": sorted({
+                f"{e['phase']}/{e['authority']}" for e in self._projections
+            }),
+            "samples_painted": self._painted,
+            "samples_unpainted": self._unpainted,
+            "samples_window_absent": self._missing,
+        }
+
+
+def _presence() -> tuple[RunPresenceCoordinator, _PresenceProbe]:
+    """Give the halo a message pump, without which it paints nothing.
+
+    A Win32 window that is never pumped never receives `WM_PAINT`. The halo was
+    created, visible, and colour-key transparent, so it drew no border and no
+    phase tab and no operator ever saw it during a complete Demo.
+    """
+
+    api = Win32PresenceWindowApi()
+    probe = _PresenceProbe(PassivePresenceWindow(api))
+    return (
+        RunPresenceCoordinator(
+            probe,  # type: ignore[arg-type]
+            preferences=PresencePreferences(enabled=True),
+            pump=api.pump,
+        ),
+        probe,
     )
 
 
@@ -341,6 +430,7 @@ async def _run() -> dict[str, object]:
     result: dict[str, object] | None = None
     outcome = "failed"
     failure_class: str | None = None
+    presence_coordinator, presence_probe = _presence()
     try:
         _launch_fixtures(
             SOURCE_URL,
@@ -378,7 +468,7 @@ async def _run() -> dict[str, object]:
                 provider=provider,
                 desktop=desktop,
                 approvals=approvals,
-                presence=_presence(),
+                presence=presence_coordinator,
                 progress=workflow,
             ),
         ).run(
@@ -429,6 +519,7 @@ async def _run() -> dict[str, object]:
             outcome=outcome,
             failure_class=failure_class,
             cleanup=cleanup,
+            presence=presence_probe.report(),
         )
     if result is None:
         raise RuntimeError("DEMO_RESULT_UNAVAILABLE")
