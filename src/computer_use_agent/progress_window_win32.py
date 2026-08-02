@@ -19,6 +19,7 @@ from ctypes import wintypes
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .win32_dll import private_windll
 from .operator_visuals import (
     OPERATOR_SURFACE,
     OPERATOR_WEIGHT_NORMAL,
@@ -162,9 +163,9 @@ class Win32ProgressWindowApi:
 
     def __init__(self) -> None:
         enable_dpi_awareness()
-        self._user32 = ctypes.windll.user32
-        self._gdi32 = ctypes.windll.gdi32
-        self._kernel32 = ctypes.windll.kernel32
+        self._user32 = private_windll("user32")
+        self._gdi32 = private_windll("gdi32")
+        self._kernel32 = private_windll("kernel32")
         self._lines: dict[int, tuple[str, ...]] = {}
         self._workflow_lines: dict[
             int,
