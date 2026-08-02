@@ -562,7 +562,11 @@ class AgentRunner:
             recorder.record(state, RunPhase.WAITING_APPROVAL)
             if isinstance(self.ports.approvals, FocusTakingApprovalPort):
                 if self.ports.approvals.focus_taking:
-                    safe_presence.release()
+                    # Yield the desktop before the card appears, but do not end
+                    # the surface. Releasing here latched the presence
+                    # lifecycle, so the halo vanished at the first approval and
+                    # never came back for the rest of the run.
+                    safe_presence.yield_authority()
             decision = await self.ports.approvals.request_approval(request)
             if not request.matches(decision) or decision.kind not in {
                 PolicyDecisionKind.ALLOW,
