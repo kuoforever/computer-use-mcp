@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from computer_use_agent.decision_card_window_win32 import (
@@ -213,6 +215,64 @@ def test_the_text_fit_check_would_have_caught_the_clipped_title() -> None:
     assert measured > title_width - countdown_width, (
         "the old shared-reserve layout must still be provably too narrow"
     )
+
+
+#: Win32 entry points that can take an operator's input away from them. A
+#: focus-taking approval gate is the one surface in this product with a motive
+#: to reach for them, and `GDA-HUD-004` states the rule plainly: "Locked" must
+#: never mean trapping the operator. Alt+Tab, the Windows key, and Ctrl+Alt+Del
+#: stay available because the card never installs a hook, claims a hotkey,
+#: blocks input, or confines the cursor.
+_TRAPPING_WIN32_CALLS = (
+    "SetWindowsHookEx",
+    "RegisterHotKey",
+    "BlockInput",
+    "ClipCursor",
+    "SetCapture",
+    "SetWindowDisplayAffinity",
+    "SystemParametersInfo",
+    "LockWorkStation",
+    "SetForegroundWindowLockTimeout",
+)
+
+
+def test_the_decision_card_never_reaches_for_an_input_trapping_api() -> None:
+    """Read the source: the trapping calls must be absent, not merely unused.
+
+    An approval gate that pauses dispatch is exactly where someone would be
+    tempted to enforce the pause with a keyboard hook. This asserts the module
+    cannot, because the calls do not appear in it at all.
+    """
+
+    source = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "src"
+        / "computer_use_agent"
+        / "decision_card_window_win32.py"
+    ).read_text(encoding="utf-8")
+
+    for name in _TRAPPING_WIN32_CALLS:
+        assert name not in source, f"the Decision Card must not call {name}"
+
+
+def test_every_non_choice_exit_denies_rather_than_selecting() -> None:
+    """Esc, close, timeout, and an unknown id must all resolve to no selection.
+
+    A positive approval must come from an explicit bounded choice, so any exit
+    that is not one of the card's own option ids has to be indistinguishable
+    from a denial at this boundary.
+    """
+
+    card_options = {
+        "option_approve_exact_effect",
+        "option_reobserve",
+        "option_defer",
+        "option_deny",
+    }
+    for exit_value in (None, "", "option_unknown", "OPTION_APPROVE_EXACT_EFFECT"):
+        assert exit_value not in card_options, (
+            f"{exit_value!r} must not be mistaken for a bounded choice"
+        )
 
 
 def test_owner_drawn_labels_are_sized_from_get_window_text_length() -> None:
