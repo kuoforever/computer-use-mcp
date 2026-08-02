@@ -6,6 +6,7 @@ from ctypes import wintypes
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .win32_dll import private_windll
 from .presence import PresenceView
 from .presence_window import DisplayBounds, PresenceGeometry
 
@@ -77,9 +78,9 @@ class Win32PresenceWindowApi:
 
     def __init__(self) -> None:
         enable_dpi_awareness()
-        self._user32 = ctypes.windll.user32
-        self._gdi32 = ctypes.windll.gdi32
-        self._kernel32 = ctypes.windll.kernel32
+        self._user32 = private_windll("user32")
+        self._gdi32 = private_windll("gdi32")
+        self._kernel32 = private_windll("kernel32")
         self._states: dict[int, tuple[PresenceView, PresenceGeometry]] = {}
         self._frames: dict[int, int] = {}
         self._wndproc = _WNDPROC(self._on_message)

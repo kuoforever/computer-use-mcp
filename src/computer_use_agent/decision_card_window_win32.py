@@ -14,6 +14,7 @@ from typing import Literal
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .win32_dll import private_windll
 from .operator_visuals import (
     OPERATOR_SURFACE,
     OPERATOR_TYPE_META,
@@ -262,6 +263,12 @@ def _toggle_label(expanded: bool) -> str:
     return "HIDE DETAILS  ∧" if expanded else "SHOW DETAILS  ∨"
 
 
+#: Private handles for the measurement helper. It prototypes GDI calls too, and
+#: it runs from tests, so it must not reach into the process-wide table either.
+_MEASURE_GDI32 = private_windll("gdi32")
+_MEASURE_USER32 = private_windll("user32")
+
+
 def _tier_font_height(tier: OperatorTypeTier, dpi: int) -> int:
     """The exact ``CreateFontW`` height every tier resolves to at one DPI."""
 
@@ -280,8 +287,8 @@ def measure_tier_text_width(
     and cannot disturb an operator. Windows-only, like the rest of this module.
     """
 
-    gdi32 = ctypes.windll.gdi32
-    user32 = ctypes.windll.user32
+    gdi32 = _MEASURE_GDI32
+    user32 = _MEASURE_USER32
     gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
     gdi32.CreateCompatibleDC.restype = wintypes.HDC
     gdi32.DeleteDC.argtypes = [wintypes.HDC]
@@ -292,6 +299,14 @@ def measure_tier_text_width(
         ctypes.POINTER(wintypes.SIZE),
     ]
     gdi32.GetTextExtentPoint32W.restype = wintypes.BOOL
+    # Handle-returning calls must be prototyped here, not inherited. On a
+    # private library handle nothing else has declared them, and a default
+    # c_int return truncates a 64-bit HDC or HGDIOBJ.
+    gdi32.CreateFontW.restype = wintypes.HGDIOBJ
+    gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+    gdi32.SelectObject.restype = wintypes.HGDIOBJ
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    gdi32.SetTextColor.argtypes = [wintypes.HDC, wintypes.COLORREF]
     user32.GetDC.argtypes = [wintypes.HWND]
     user32.GetDC.restype = wintypes.HDC
     user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
@@ -450,11 +465,11 @@ class Win32DecisionCardWindowApi:
             raise ValueError("decision card corner is invalid")
         enable_dpi_awareness()
         self.corner = corner
-        self._user32 = ctypes.windll.user32
-        self._kernel32 = ctypes.windll.kernel32
-        self._gdi32 = ctypes.windll.gdi32
-        self._dwmapi = ctypes.windll.dwmapi
-        self._uxtheme = ctypes.windll.uxtheme
+        self._user32 = private_windll("user32")
+        self._kernel32 = private_windll("kernel32")
+        self._gdi32 = private_windll("gdi32")
+        self._dwmapi = private_windll("dwmapi")
+        self._uxtheme = private_windll("uxtheme")
         self._configure_apis()
 
     def _configure_apis(self) -> None:
