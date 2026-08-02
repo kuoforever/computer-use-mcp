@@ -97,10 +97,12 @@ derives a versioned capability document from the reviewed registry, and
 Both write canonical bounded JSON to a new absolute path and open no external
 port. The strict offline consumer fixture was completed in
 `reliable-agent-model-lifecycle` as `FC-BRIDGE-001` and pins producer commit
-`8ace897`; on 2026-08-01 a manifest regenerated from this branch's `HEAD`
-reproduced that pinned digest exactly, so Lane A has not drifted. The next task
-is `GDA-FC-004` freeze validation in this repository. Rich episode capture
-remains a separate, explicit-consent design review.
+`8ace897`; on 2026-08-02 a manifest regenerated from freeze commit
+`324ff2fb5911e332ddb5c5f90eb41296e8faf7a9` reproduced that pinned digest
+exactly, so Lane A has not drifted. `GDA-FC-004` is complete locally and no
+Runtime item is active. Rich episode capture is explicitly deferred to the
+Full Cycle project's separate `FC-BRIDGE-003` review and remains disabled by
+default.
 
 ## Bounded Operator HUD handoff (2026-07-31)
 
@@ -244,10 +246,8 @@ Surfaces verified alone hid a defect that only appeared when two were composed
 hid three defects behind one operator report. Compose surfaces in smokes, and
 instrument what cannot be photographed.
 
-After this, `GDA-DEMO-003` should return to paused and the active item is
-`GDA-FC-004` freeze validation, whose first step is a `release preflight` from
-a clean `main` checkout with the resulting commit pinned in both repositories
-in one change.
+After this, `GDA-DEMO-003` returned to paused and `GDA-FC-004` freeze
+validation completed locally. The exact freeze result is recorded below.
 
 The complete Chrome-to-Word Demo must not be restarted until a separate live
 evidence plan is declared.
@@ -258,6 +258,27 @@ step callback as execution authority or durable side-effect evidence. Do not
 run the full Chrome-to-Word Demo until the offline lifecycle tests pass and a
 separate live evidence plan has been declared. Presence remains
 capture-excluded by design.
+
+## Full Cycle freeze handoff (2026-08-02)
+
+Local `main` was fast-forwarded to the three presence commits without rewriting
+them. Clean release preflight then passed at
+`324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, with the same start/end commit and
+clean source at both endpoints: CPython 3.13.7, report schema 5, the full
+pytest/Ruff/diff gates, 13/13 E1/E2 cases, 15 crash-reconstruction cases, 9
+stateless-replay cases, and clean wheel build/install all passed. The dated
+pytest count is retained in `PROJECT_STATUS.md`; the sanitized report SHA-256 is
+`dc78f08030b4d3c4fac255a91fb7badf2b06fdb0eb0c487073e1f825260c6d0e`.
+
+The candidate manifest SHA-256 remains
+`6abe3431ea0e6b4065f21e9a6c6fe34de772f9c3c86a2437f8d14f95a5d6f522`.
+The Full Cycle repository records the matching freeze SHA and all contract
+versions in `baseline/runtime-freeze-v1.json`; its old `FC-BRIDGE-001` fixture
+continues to name `8ace897` as immutable generation provenance.
+
+No Runtime item is active. Continue `FC-MVP-001` in the Full Cycle repository.
+Do not resume Runtime feature work, Lane B, or a paused HUD issue unless
+`PROJECT_STATUS.md` explicitly changes the active scope.
 
 Before changing behavior, inspect the current worktree and run the unit suite:
 

@@ -15,7 +15,7 @@ not a line-by-line mirror of every reference page.
 
 | Audience or question | Document |
 | --- | --- |
-| I am continuing the active closure task in a fresh Codex or Claude Code session | [Project status](../PROJECT_STATUS.md) |
+| I am inspecting the frozen Full Cycle Runtime baseline or intentionally reopening work | [Project status](../PROJECT_STATUS.md) |
 | I am integrating this Runtime with the Multimodal LLM Full Cycle project | [Full Cycle integration](FULLCYCLE_INTEGRATION.md) |
 | I need the complete project map: features, implementation, quality attributes, status, evidence, and next gates | [Project overview](PROJECT_OVERVIEW.md) |
 | I need the current product names and compatibility aliases | [Naming migration](BRAND_MIGRATION.md) |
@@ -85,7 +85,7 @@ not a line-by-line mirror of every reference page.
 
 | Document | Owns |
 | --- | --- |
-| Project status | Active closure backlog, exact next task, session protocol, and freeze scope |
+| Project status | Frozen closure backlog, reactivation rule, session protocol, and freeze scope |
 | Full Cycle integration | Runtime/model-factory ownership boundary, safe export schema, rich-capture boundary, and closure gates |
 | Project overview | Cross-system project shape, exhaustive feature-family inventory, implementation map, quality-attribute mapping, and role-based reading paths |
 | Root README | Current product scope, safe quick start, and high-level limitations |

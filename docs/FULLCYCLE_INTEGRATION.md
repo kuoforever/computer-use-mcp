@@ -176,8 +176,15 @@ bounded to 24 MiB.
 3. ~~Pin the Runtime and export schema versions in the consumer project.~~
    Complete: producer commit `8ace897`, consumer schema `1.0.0`, and every
    contract version are pinned in `fixtures/bridge_v1/fixture-metadata.json`.
-4. Decide whether Lane B is accepted or deferred.
-5. Rerun release preflight from a clean, branch-reachable candidate and record
-   that exact commit in both repositories. This is the exact next task.
-6. Run the complete repository validation gate and update
-   `PROJECT_STATUS.md`.
+4. ~~Decide whether Lane B is accepted or deferred.~~ Deferred to the Full
+   Cycle project's separate `FC-BRIDGE-003` consent, security, and privacy
+   review; it remains disabled by default.
+5. ~~Rerun release preflight from a clean, branch-reachable candidate and
+   record that exact commit in both repositories.~~ Complete locally at
+   `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; the consumer records the same
+   freeze SHA in `baseline/runtime-freeze-v1.json` while preserving the
+   immutable `8ace897` fixture provenance.
+6. ~~Run the complete repository validation gate and update
+   `PROJECT_STATUS.md`.~~ Complete on 2026-08-02. This closes the offline
+   Runtime handoff only; it does not promote provider, desktop, application,
+   or release evidence.

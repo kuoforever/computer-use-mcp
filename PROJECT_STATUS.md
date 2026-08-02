@@ -1,9 +1,9 @@
 # Project status
 
-> **Mode: Full Cycle closure; the external consumer (`GDA-FC-002`) is complete,
-> so `GDA-FC-004` freeze validation is the single active item. Two bounded GUI
-> Demo items are complete and the Operator HUD polish item is paused with a
-> classified issue inventory.**
+> **Mode: Full Cycle Runtime baseline frozen locally at
+> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. No Runtime item is active. Two
+> bounded GUI Demo items are complete and the Operator HUD polish item remains
+> paused with a classified issue inventory.**
 > Updated: 2026-08-02.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
@@ -34,9 +34,9 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1440 passed, 8 skipped` on 2026-07-30 during `GDA-DEMO-002` |
+| Offline baseline | `1566 passed, 8 skipped` in the 2026-08-02 release preflight |
 | Worktree at start | Clean |
-| Branch at start | `main`; the HUD branch merged as `4d12bd2` |
+| Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
 The test count is a dated working snapshot, not a permanent capability claim.
 Run the current suite before relying on it.
@@ -48,9 +48,8 @@ closed after retained run `cross-app-demo-20260730-034539` passed. The
 temporary exception did not erase, silently supersede, or strand
 `GDA-FC-002`. The user subsequently requested the bounded `GDA-DEMO-002`
 realism enhancement and `GDA-DEMO-003` Operator HUD polish. The latter is
-paused for separate issue-by-issue sessions; `GDA-FC-004` is now the sole
-active item and explicit resume point, because `GDA-FC-002` closed in the
-consumer repository.
+paused for separate issue-by-issue sessions. It did not displace the Full Cycle
+resume point, and `GDA-FC-004` subsequently closed the Runtime freeze.
 
 Continue to exclude:
 
@@ -74,13 +73,13 @@ delivery work.
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |
-| `GDA-FC-003` | Pending review | Explicit-consent rich episode capture contract owned by Full Cycle | Separate security/privacy review; disabled by default |
-| `GDA-FC-004` | Next | Freeze validation and handoff | Not yet established for a reachable candidate. See the commit-identity correction below |
+| `GDA-FC-003` | Deferred to Full Cycle review | Explicit-consent rich episode capture contract owned by Full Cycle | Excluded from this freeze; remains disabled by default pending the separate `FC-BRIDGE-003` security/privacy review |
+| `GDA-FC-004` | Complete locally | Freeze validation and handoff | Clean release preflight passed at branch-reachable commit `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; the matching Full Cycle `FC-BRIDGE-004` record pins the same commit |
 | `GDA-DEMO-001` | Complete | Real Chrome-to-Word interview Demo through existing Runtime authority | Retained run `cross-app-demo-20260730-034539`; [evidence](docs/CROSS_APP_DEMO_EVIDENCE.md) |
 | `GDA-DEMO-002` | Complete; restart hardening offline-verified | Improve Demo realism without broadening authority | Retained run `cross-app-demo-20260730-042826`; deterministic fresh-start tests; [evidence](docs/PUBLIC_WEB_WORD_DEMO_EVIDENCE.md) |
 | `GDA-DEMO-003` | Paused; issues classified; no evidence promotion | Operator HUD visual hierarchy, step status, safe lock interaction, and live reliability | Issue inventory below; failed exploratory run `cross-app-demo-20260730-044009-247254` |
 
-Only one item may be active.
+No item is active. Any future Runtime work must explicitly reopen one item here.
 
 ## Defect found by composing the HUD surfaces (2026-08-01)
 
@@ -279,31 +278,53 @@ implemented there:
 5. producer commit `8ace897`, PR #219, consumer schema `1.0.0`, and every
    contract version pinned in `fixtures/bridge_v1/fixture-metadata.json`.
 
-Rich multimodal capture was correctly excluded and remains `GDA-FC-003`.
+Rich multimodal capture was correctly excluded. `GDA-FC-003` is explicitly
+deferred to the Full Cycle project's separate `FC-BRIDGE-003` consent,
+security, and privacy review and remains disabled by default.
 
-## Exact active task: GDA-FC-004
+## Completed task: GDA-FC-004
 
-Freeze validation and handoff, in this repository:
+The 2026-08-02 freeze candidate is
+`324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. The presence branch was
+fast-forwarded into local `main` without rewriting its three reviewed commits,
+and `git merge-base --is-ancestor 324ff2fb main` passed before the preflight.
+The clean [release preflight](docs/RELEASE.md) passed with the same start and
+end commit and clean source at both endpoints:
 
-1. Decide the disposition of the unmerged `codex/demo-hud-baseline` branch
-   before freezing. `GDA-DEMO-003` is paused with eleven open issues, so the
-   freeze candidate must be either `main` or an explicitly reviewed branch;
-   do not freeze an in-progress HUD state by accident.
-2. Rerun `release preflight` from a clean candidate checkout per
-   [docs/RELEASE.md](docs/RELEASE.md), and record the resulting commit as a
-   commit that is reachable from a branch, not a pre-merge candidate.
-3. Confirm the consumer's `FC-BRIDGE-004` pin against that exact commit, and
-   update both repositories in the same change.
-4. Resolve `GDA-FC-003` as accepted-with-review or explicitly deferred.
-5. Freeze Runtime feature work and check every clause in
-   `Definition of closed` below.
+- CPython `3.13.7`, report schema `5`;
+- `1566 passed, 8 skipped`, Ruff passed, and the diff check passed;
+- 13/13 frozen E1/E2 cases with zero safety escapes;
+- 15 crash-reconstruction cases (`22` tests) and 9 stateless-replay cases
+  (`11` tests), with zero failures or skips;
+- wheel `guarded_desktop_agent-0.1.0-py3-none-any.whl` built and installed in
+  the no-deps smoke environment;
+- report SHA-256
+  `dc78f08030b4d3c4fac255a91fb7badf2b06fdb0eb0c487073e1f825260c6d0e`.
+
+A manifest regenerated from the candidate has SHA-256
+`6abe3431ea0e6b4065f21e9a6c6fe34de772f9c3c86a2437f8d14f95a5d6f522`,
+identical to the immutable `FC-BRIDGE-001` fixture produced at `8ace897`.
+The consumer's `baseline/runtime-freeze-v1.json` separately pins the freeze
+commit and contract versions without rewriting that fixture's provenance.
 
 The local preflight records one Python runtime; supported-version evidence
-still comes from the CI Python 3.11-3.13 matrix.
+still comes from the CI Python 3.11-3.13 matrix. This is an offline Runtime
+freeze, not new provider, desktop, application, or release approval evidence.
+After the coordinated records were written, the complete repository gate also
+passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
+source files, documentation consistency reported 13 reviewed tools, and
+`git diff --check` passed.
+
+## Exact next task: none in this Runtime
+
+Runtime feature work remains frozen. The Full Cycle repository keeps its own
+single active objective (`FC-MVP-001` safety-repair data gate); Lane B remains
+`FC-BRIDGE-003` pending review. Resume a Runtime or paused `GDA-DEMO-003` item
+only after explicitly changing the active scope in this file.
 
 ## Definition of closed
 
-This repository is considered closed for the Full Cycle handoff when:
+This repository is closed locally for the Full Cycle handoff because:
 
 - `GDA-FC-001` and `GDA-FC-002` are complete;
 - the rich-capture boundary is either accepted with a separate reviewed design
@@ -360,3 +381,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-07-30 | Operator HUD polish was paused after a failed live review. Eleven issues are classified under `GDA-DEMO-003`; they may be resumed one bounded session at a time without displacing the Full Cycle resume point. |
 | 2026-08-01 | `GDA-FC-002` is complete; the consumer contract is owned and gated by `reliable-agent-model-lifecycle`. `GDA-FC-004` becomes the single active item. |
 | 2026-08-01 | Durable evidence must name a commit reachable from a branch. Pre-merge candidate `45bee82` was replaced by its squash merge `8ace897`; the earlier preflight result is retained, its unreachable identity is not. |
+| 2026-08-02 | Lane B is explicitly deferred from the Runtime freeze to the Full Cycle project's separate `FC-BRIDGE-003` consent, security, and privacy review; it remains disabled by default. |
+| 2026-08-02 | `GDA-FC-004` completed locally at branch-reachable Runtime commit `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; clean release preflight and the matching consumer freeze record passed without changing Lane A contracts or fixture provenance. |
