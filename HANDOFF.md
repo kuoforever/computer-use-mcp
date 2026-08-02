@@ -208,6 +208,47 @@ What remains for `GDA-HUD-002` is live operator acceptance at 100% and 125%,
 which needs display scaling changed and therefore belongs to the operator. A
 run of `scripts/capture_operator_hud_evidence.py` at each scale would retain it.
 
+## State at the 2026-08-02 handoff
+
+`main` is at the merge of PR #225 plus the presence work described below. Nine
+of the eleven `GDA-HUD-*` rows have implementation and offline or isolated live
+evidence; **no row is marked passed**. What is left is short and specific:
+
+1. **One complete Demo run with the presence fixes in place.** Three runs
+   completed successfully on 2026-08-02 — `...141038-994636`,
+   `...142840-759829`, and `...144124-559107` — but all three had an invisible
+   halo. The fixes landed
+   after the last one, and the halo's behaviour is verified programmatically
+   against the real window, not by a run. Running
+   `scripts/demo_cross_app.py` and reading the `presence` section of
+   `final-state.json` closes this: expect a non-empty `projection_sequence`
+   containing `WAITING_APPROVAL/WAITING`, `samples_painted` well above zero,
+   and `samples_unpainted` near zero.
+2. **100% and 125% DPI acceptance** for `GDA-HUD-002`. Needs the operator to
+   change display scaling, then `scripts/capture_operator_hud_evidence.py`.
+3. **A real Alt+Tab press** while a card is open, for `GDA-HUD-004`. Every
+   other clause of that row is done; synthesising the keystroke would prove
+   nothing, so it needs a person.
+4. `GDA-HUD-001` can never have a retained image: Presence is
+   `WDA_EXCLUDEFROMCAPTURE` and must not be made capturable to produce one.
+   The probe report is its evidence instead.
+
+Operating requirement discovered by the runs: **leave the desktop alone from
+launch until the first Decision Card appears**, and for a few seconds after
+each approval. The Demo binds Chrome by requiring it to be foreground and
+cannot pre-activate it, because activation is approval number one.
+
+Two defect classes found this session are worth carrying forward as habits.
+Surfaces verified alone hid a defect that only appeared when two were composed
+(shared `ctypes` prototype tables), and a surface that cannot be screenshotted
+hid three defects behind one operator report. Compose surfaces in smokes, and
+instrument what cannot be photographed.
+
+After this, `GDA-DEMO-003` should return to paused and the active item is
+`GDA-FC-004` freeze validation, whose first step is a `release preflight` from
+a clean `main` checkout with the resulting commit pinned in both repositories
+in one change.
+
 The complete Chrome-to-Word Demo must not be restarted until a separate live
 evidence plan is declared.
 
