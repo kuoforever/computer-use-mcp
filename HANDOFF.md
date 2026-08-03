@@ -212,6 +212,22 @@ run of `scripts/capture_operator_hud_evidence.py` at each scale would retain it.
 
 ## State at the 2026-08-02 handoff
 
+### 2026-08-03 completion update
+
+The requested post-fix complete run is now retained as
+`cross-app-demo-20260803-024517-764321`. It reached durable `SUCCESS` with 17
+tool calls, seven approved side effects, zero tool failures, and exact-process
+fixture cleanup. Its Presence probe recorded 85 projections, 247 painted
+samples, zero unpainted samples, and all seven approval-wait boundaries. The
+saved 19-entry DOCX contains the fixed marker and has SHA-256
+`48d8393e70e9305dfb4aa8537a1a9d49aa2d1eb18202a55a422c008036c52629`.
+[The dated evidence](docs/OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md) owns the
+claim. Item 1 below is closed. Live compact/expanded review at 100% and 125%
+also passed on 2026-08-03 and is retained in
+`docs/OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md`; item 2 below is closed. Only a
+physical Alt+Tab press remained operator-only evidence at that point; the
+final closure update below records its subsequent pass.
+
 `main` is at the merge of PR #225 plus the presence work described below. Nine
 of the eleven `GDA-HUD-*` rows have implementation and offline or isolated live
 evidence; **no row is marked passed**. What is left is short and specific:
@@ -234,6 +250,27 @@ evidence; **no row is marked passed**. What is left is short and specific:
 4. `GDA-HUD-001` can never have a retained image: Presence is
    `WDA_EXCLUDEFROMCAPTURE` and must not be made capturable to produce one.
    The probe report is its evidence instead.
+
+### 2026-08-03 final Operator HUD closure update
+
+The operator physically pressed Alt+Tab while the synthetic, non-dispatching
+Decision Card was presented and confirmed that Windows switched windows. The
+test left no matching Decision Card window behind. The bounded acceptance
+standard and non-promotion boundary are retained in
+`docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md`.
+
+All three operator actions listed above are now closed. `GDA-DEMO-003` is
+complete locally; no Operator HUD item or Runtime feature item is active. This
+does not promote high-contrast, every-DPI Chrome/Word, provider, release, or
+universal-GUI evidence. Resume Full Cycle work in
+`C:\Users\Alienware\reliable-agent-model-lifecycle`, whose current single
+active `FC-MVP-001` objective is the v2 failure-classification gate. Lane B
+remains the separately reviewed `FC-BRIDGE-003` rich-capture path.
+
+The final Runtime validation after these records passed. The exact dated
+outputs are retained in
+`docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md` rather than copied into
+this durable handoff.
 
 Operating requirement discovered by the runs: **leave the desktop alone from
 launch until the first Decision Card appears**, and for a few seconds after
