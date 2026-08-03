@@ -1,10 +1,10 @@
 # Project status
 
-> **Mode: Full Cycle closure; the external consumer (`GDA-FC-002`) is complete,
-> so `GDA-FC-004` freeze validation is the single active item. Two bounded GUI
-> Demo items are complete and the Operator HUD polish item is paused with a
-> classified issue inventory.**
-> Updated: 2026-08-01.
+> **Mode: Full Cycle Runtime baseline frozen locally at
+> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. No Runtime item is active. Two
+> bounded GUI Demo items are complete and the Operator HUD polish item remains
+> paused with a classified issue inventory.**
+> Updated: 2026-08-02.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
@@ -34,9 +34,9 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1440 passed, 8 skipped` on 2026-07-30 during `GDA-DEMO-002` |
+| Offline baseline | `1566 passed, 8 skipped` in the 2026-08-02 release preflight |
 | Worktree at start | Clean |
-| Branch at start | `codex/demo-hud-baseline`, 14 commits ahead of `main` at `9cb38c8` |
+| Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
 The test count is a dated working snapshot, not a permanent capability claim.
 Run the current suite before relying on it.
@@ -48,9 +48,8 @@ closed after retained run `cross-app-demo-20260730-034539` passed. The
 temporary exception did not erase, silently supersede, or strand
 `GDA-FC-002`. The user subsequently requested the bounded `GDA-DEMO-002`
 realism enhancement and `GDA-DEMO-003` Operator HUD polish. The latter is
-paused for separate issue-by-issue sessions; `GDA-FC-004` is now the sole
-active item and explicit resume point, because `GDA-FC-002` closed in the
-consumer repository.
+paused for separate issue-by-issue sessions. It did not displace the Full Cycle
+resume point, and `GDA-FC-004` subsequently closed the Runtime freeze.
 
 Continue to exclude:
 
@@ -74,13 +73,13 @@ delivery work.
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |
-| `GDA-FC-003` | Pending review | Explicit-consent rich episode capture contract owned by Full Cycle | Separate security/privacy review; disabled by default |
-| `GDA-FC-004` | Next | Freeze validation and handoff | Not yet established for a reachable candidate. See the commit-identity correction below |
+| `GDA-FC-003` | Deferred to Full Cycle review | Explicit-consent rich episode capture contract owned by Full Cycle | Excluded from this freeze; remains disabled by default pending the separate `FC-BRIDGE-003` security/privacy review |
+| `GDA-FC-004` | Complete locally | Freeze validation and handoff | Clean release preflight passed at branch-reachable commit `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; the matching Full Cycle `FC-BRIDGE-004` record pins the same commit |
 | `GDA-DEMO-001` | Complete | Real Chrome-to-Word interview Demo through existing Runtime authority | Retained run `cross-app-demo-20260730-034539`; [evidence](docs/CROSS_APP_DEMO_EVIDENCE.md) |
 | `GDA-DEMO-002` | Complete; restart hardening offline-verified | Improve Demo realism without broadening authority | Retained run `cross-app-demo-20260730-042826`; deterministic fresh-start tests; [evidence](docs/PUBLIC_WEB_WORD_DEMO_EVIDENCE.md) |
 | `GDA-DEMO-003` | Paused; issues classified; no evidence promotion | Operator HUD visual hierarchy, step status, safe lock interaction, and live reliability | Issue inventory below; failed exploratory run `cross-app-demo-20260730-044009-247254` |
 
-Only one item may be active.
+No item is active. Any future Runtime work must explicitly reopen one item here.
 
 ## Defect found by composing the HUD surfaces (2026-08-01)
 
@@ -111,6 +110,27 @@ measurement helper had been inheriting `CreateFontW`, `SelectObject`, and
 `DeleteObject` prototypes that an adapter happened to set on the shared table.
 On a private handle nothing had declared them and a default `c_int` return
 truncated a 64-bit handle. It now declares every prototype it uses.
+
+## Presence halo: three causes, none of them the suspected one (2026-08-02)
+
+`GDA-HUD-001` opened with an operator reporting no visible halo. Chasing it by
+eye across three complete Demo runs found one cause at a time, and each fix
+looked correct in isolation while the symptom persisted. Instrumenting the run
+settled it in one pass. The lesson is recorded because it generalises: a
+surface that is capture-excluded by design cannot be verified by asking an
+operator what they saw.
+
+`scripts/demo_cross_app.py` now writes a presence probe report into
+`final-state.json` — the projection sequence the halo was asked to show, plus
+sample counts for painted, unpainted, and window-absent. The sampled run
+`cross-app-demo-20260802-144124-559107` reported `projection_count: 0` and
+`samples_window_absent: 32`, which named the third cause immediately.
+
+The three causes were: a DPI source that always reports 96; a coordinator that
+never pumped a message loop, so the window never painted and a colour-keyed
+layered window that never paints is fully transparent; and a transient approval
+yield expressed with the latching `release()`. The second had made the halo
+invisible in every Demo run this repository has ever recorded.
 
 ## Cross-repository correction (2026-08-01)
 
@@ -213,7 +233,7 @@ Word editing or save verification. No Demo process remains running.
 
 | ID | Category | Current problem | Current implementation state | Acceptance before closure |
 | --- | --- | --- | --- | --- |
-| `GDA-HUD-001` | Presence visibility | The operator reported no visible full-screen halo during the live run. The effect may be too brief, may disappear during approval yield, and has no retained visual proof. | The root cause was found on 2026-08-01. `display_bounds()` read `GetDpiForWindow(GetDesktopWindow())`, which always reports 96 because the desktop window is not per-monitor DPI aware. The halo therefore scaled by 1.0 on a 150% display and drew a 10px border where the contract asks for 15px, so the earlier 6px-to-10px increase was multiplied by 1 and never reached the screen. It now reads `GetDpiForSystem`, the source every other HUD surface uses, and falls back only to non-zero values. Offline tests pin the source and assert a scaled display yields a visibly thicker halo. `scripts/show_presence_phases.py` holds each phase, including `WAITING_APPROVAL` with authority released, long enough to inspect; a run confirmed 2560x1600 at a 15px border with the foreground unchanged, and **the operator confirmed on 2026-08-01 that the halo is now clearly visible**. The halo has no alpha: `LWA_COLORKEY` removes one exact colour so the interior is fully transparent while the border and phase tab stay fully opaque, which is how it stays unmistakable without covering actionable content. That key is now named, and a test asserts no phase colour collides with it, since a collision would punch the border out and reproduce the original report. Approval-wait visibility is specified and was held for inspection; a retained visual record is impossible by design because Presence is capture-excluded. | A dedicated live smoke holds every phase long enough to inspect; the border and phase tab are unmistakable without covering actionable content; approval-wait visibility is explicitly specified and verified. |
+| `GDA-HUD-001` | Presence visibility | The operator reported no visible full-screen halo during the live run. The effect may be too brief, may disappear during approval yield, and has no retained visual proof. | Three separate causes made the halo invisible; all are fixed and none was the one originally suspected. (1) `display_bounds()` read `GetDpiForWindow(GetDesktopWindow())`, which always reports 96, so the halo scaled by 1.0 on a 150% display and drew a 10px border where the contract asks for 15px. (2) `RunPresenceCoordinator` never pumped a message loop, so the window received no `WM_PAINT` and a colour-keyed layered window that never paints is fully transparent -- the dominant cause, and the reason the halo had never been visible in any real Demo run. (3) The Runner expressed a transient approval yield with `release()`, which latches, so even a painted halo would have vanished at the first approval. `yield_authority()` now expresses that yield reversibly while keeping the pinned yield-then-card-then-dispatch ordering. Verified programmatically against the real window across the Demo's exact phase order: `CREATED` shows nothing, every active phase and both approval yields are painted, `SUCCESS` destroys it, zero errors. `scripts/demo_cross_app.py` now writes a presence probe report into `final-state.json` (projection sequence plus painted/unpainted/absent sample counts), so this evidence never depends on an operator saying they saw a halo -- which matters because Presence is capture-excluded by design and can never be screenshotted. **A complete Demo run has not been performed since these fixes.** |
 | `GDA-HUD-002` | Decision Card layout | The first card is not a compact Codex/Claude-style HUD. The instruction wraps into the timeout, dense technical text is visible immediately, four long buttons stack vertically, the bottom is clipped, and typography/spacing look like a legacy form. | Rebuilt on 2026-08-01 against the Claude Code/Codex reference the operator was targeting. The frame dropped `WS_THICKFRAME` and the min/max boxes, so the reviewed geometry can no longer be broken; the header is painted from the shared type scale instead of system STATIC controls; choices and the expand affordance are owner-drawn flat; and both surfaces now consume one `OPERATOR_SURFACE` chrome contract. Three defects the operator caught during the live review were fixed in the same session: empty owner-drawn labels, an overdrawn expand affordance, and unreadable pane/scrollbar contrast. [Live 150% DPI evidence](docs/OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md) is retained. Clipping is now checked by measuring real Segoe UI glyph extents against the exact painted rectangles at 100%, 125%, and 150% DPI, on a memory device context that touches no desktop; a further test proves that check trips on the layout that produced the observed clipping. Pure geometry alone did not catch it, because the boxes fitted while their text did not. Live operator acceptance at 100% and 125% still remains, since changing display scaling is an operator action. | Default view fits wholly in the work area and shows only lock state, `1/7`, current action, application, countdown, a details affordance, and a 2x2 set of short choices. No overlap, clipping, or scroll is present in compact mode at 100%, 125%, and 150% DPI. |
 | `GDA-HUD-003` | Expandable details | “Expand technical details” currently toggles only the evidence pane inside the same crowded layout; it is not a genuine compact/expanded state. | The same synthetic card intentionally resizes between compact and expanded geometry. Compact hides both panes; expanded shows human-readable decision trade-offs and safety checks with abbreviated support fingerprints; collapse restores the saved compact rectangle without changing the pending decision. The sunken `WS_EX_CLIENTEDGE` bevel was replaced by hairline-bounded panes with legible scrollbars, and the toggle now matches the Progress HUD's `SHOW/HIDE DETAILS` chevron. [Live 150% DPI acceptance](docs/OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md) is retained for both states. | Compact mode hides both decision trade-offs and digest evidence. Expanding reveals bounded decision details and evidence; collapsing restores the exact compact geometry without losing the pending decision. |
 | `GDA-HUD-004` | Approval lock and exit | Host dispatch is paused while the bound card is open, but the visual lock is weak and keyboard behavior lacks retained live evidence. “Locked” must never mean trapping the operator. | Top-level and child-control message paths map `Esc` to a null selection; close and timeout already deny. Dispatch pausing is structural rather than enforced: the Runner awaits `request_approval`, so no later action can be reached while the card is open. `scripts/smoke_decision_card_exits.py` drives all three non-choice exits against the real window and passed twice consecutively on 2026-08-01: `Esc`, `WM_CLOSE`, and countdown expiry each returned no selection and each restored the exact prior foreground window. A source-level test asserts the module never reaches for `SetWindowsHookEx`, `RegisterHotKey`, `BlockInput`, `ClipCursor`, `SetCapture`, or `LockWorkStation`, so Alt+Tab and the Windows security keys cannot have been taken away. Live keyboard evidence for Alt+Tab itself still requires an operator, since synthesizing it would prove nothing about a real key press. | While open, no later action dispatches. `Esc`, close, and timeout all produce safe deny/defer and restore the previous foreground application. Alt+Tab and Windows security keys remain available. Positive approval still requires an explicit bounded choice. |
@@ -258,31 +278,53 @@ implemented there:
 5. producer commit `8ace897`, PR #219, consumer schema `1.0.0`, and every
    contract version pinned in `fixtures/bridge_v1/fixture-metadata.json`.
 
-Rich multimodal capture was correctly excluded and remains `GDA-FC-003`.
+Rich multimodal capture was correctly excluded. `GDA-FC-003` is explicitly
+deferred to the Full Cycle project's separate `FC-BRIDGE-003` consent,
+security, and privacy review and remains disabled by default.
 
-## Exact active task: GDA-FC-004
+## Completed task: GDA-FC-004
 
-Freeze validation and handoff, in this repository:
+The 2026-08-02 freeze candidate is
+`324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. The presence branch was
+fast-forwarded into local `main` without rewriting its three reviewed commits,
+and `git merge-base --is-ancestor 324ff2fb main` passed before the preflight.
+The clean [release preflight](docs/RELEASE.md) passed with the same start and
+end commit and clean source at both endpoints:
 
-1. Decide the disposition of the unmerged `codex/demo-hud-baseline` branch
-   before freezing. `GDA-DEMO-003` is paused with eleven open issues, so the
-   freeze candidate must be either `main` or an explicitly reviewed branch;
-   do not freeze an in-progress HUD state by accident.
-2. Rerun `release preflight` from a clean candidate checkout per
-   [docs/RELEASE.md](docs/RELEASE.md), and record the resulting commit as a
-   commit that is reachable from a branch, not a pre-merge candidate.
-3. Confirm the consumer's `FC-BRIDGE-004` pin against that exact commit, and
-   update both repositories in the same change.
-4. Resolve `GDA-FC-003` as accepted-with-review or explicitly deferred.
-5. Freeze Runtime feature work and check every clause in
-   `Definition of closed` below.
+- CPython `3.13.7`, report schema `5`;
+- `1566 passed, 8 skipped`, Ruff passed, and the diff check passed;
+- 13/13 frozen E1/E2 cases with zero safety escapes;
+- 15 crash-reconstruction cases (`22` tests) and 9 stateless-replay cases
+  (`11` tests), with zero failures or skips;
+- wheel `guarded_desktop_agent-0.1.0-py3-none-any.whl` built and installed in
+  the no-deps smoke environment;
+- report SHA-256
+  `dc78f08030b4d3c4fac255a91fb7badf2b06fdb0eb0c487073e1f825260c6d0e`.
+
+A manifest regenerated from the candidate has SHA-256
+`6abe3431ea0e6b4065f21e9a6c6fe34de772f9c3c86a2437f8d14f95a5d6f522`,
+identical to the immutable `FC-BRIDGE-001` fixture produced at `8ace897`.
+The consumer's `baseline/runtime-freeze-v1.json` separately pins the freeze
+commit and contract versions without rewriting that fixture's provenance.
 
 The local preflight records one Python runtime; supported-version evidence
-still comes from the CI Python 3.11-3.13 matrix.
+still comes from the CI Python 3.11-3.13 matrix. This is an offline Runtime
+freeze, not new provider, desktop, application, or release approval evidence.
+After the coordinated records were written, the complete repository gate also
+passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
+source files, documentation consistency reported 13 reviewed tools, and
+`git diff --check` passed.
+
+## Exact next task: none in this Runtime
+
+Runtime feature work remains frozen. The Full Cycle repository keeps its own
+single active objective (`FC-MVP-001` safety-repair data gate); Lane B remains
+`FC-BRIDGE-003` pending review. Resume a Runtime or paused `GDA-DEMO-003` item
+only after explicitly changing the active scope in this file.
 
 ## Definition of closed
 
-This repository is considered closed for the Full Cycle handoff when:
+This repository is closed locally for the Full Cycle handoff because:
 
 - `GDA-FC-001` and `GDA-FC-002` are complete;
 - the rich-capture boundary is either accepted with a separate reviewed design
@@ -339,3 +381,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-07-30 | Operator HUD polish was paused after a failed live review. Eleven issues are classified under `GDA-DEMO-003`; they may be resumed one bounded session at a time without displacing the Full Cycle resume point. |
 | 2026-08-01 | `GDA-FC-002` is complete; the consumer contract is owned and gated by `reliable-agent-model-lifecycle`. `GDA-FC-004` becomes the single active item. |
 | 2026-08-01 | Durable evidence must name a commit reachable from a branch. Pre-merge candidate `45bee82` was replaced by its squash merge `8ace897`; the earlier preflight result is retained, its unreachable identity is not. |
+| 2026-08-02 | Lane B is explicitly deferred from the Runtime freeze to the Full Cycle project's separate `FC-BRIDGE-003` consent, security, and privacy review; it remains disabled by default. |
+| 2026-08-02 | `GDA-FC-004` completed locally at branch-reachable Runtime commit `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; clean release preflight and the matching consumer freeze record passed without changing Lane A contracts or fixture provenance. |

@@ -29,6 +29,17 @@ def _offline_workflow_progress() -> DemoWorkflowProgress:
     )
 
 
+class _OfflineProbe:
+    """Stand in for the presence probe without opening a native window."""
+
+    def report(self) -> dict[str, object]:
+        return {"projection_count": 0, "samples_painted": 0}
+
+
+def _offline_presence() -> tuple[object, _OfflineProbe]:
+    return object(), _OfflineProbe()
+
+
 def _load_demo_script() -> ModuleType:
     path = Path(__file__).resolve().parents[2] / "scripts" / "demo_cross_app.py"
     spec = importlib.util.spec_from_file_location("demo_cross_app_script", path)
@@ -389,7 +400,7 @@ def test_run_cleans_exact_fixtures_and_records_failure_or_cancel(
 
     monkeypatch.setattr(demo, "_fixtures", lambda: (document, profile, "test"))
     monkeypatch.setattr(demo, "_launch_fixtures", launch)
-    monkeypatch.setattr(demo, "_presence", object)
+    monkeypatch.setattr(demo, "_presence", _offline_presence)
     monkeypatch.setattr(demo, "_progress", _offline_workflow_progress)
     monkeypatch.setattr(
         demo,
@@ -458,7 +469,7 @@ def test_run_records_normal_completion_and_cleanup(
 
     monkeypatch.setattr(demo, "_fixtures", lambda: (document, profile, "test"))
     monkeypatch.setattr(demo, "_launch_fixtures", launch)
-    monkeypatch.setattr(demo, "_presence", object)
+    monkeypatch.setattr(demo, "_presence", _offline_presence)
     monkeypatch.setattr(demo, "_progress", _offline_workflow_progress)
     monkeypatch.setattr(
         demo,
@@ -477,3 +488,23 @@ def test_run_records_normal_completion_and_cleanup(
     assert state["outcome"] == "passed"
     assert state["failure_class"] is None
     assert state["cleanup_complete"] is True
+
+
+def test_the_demo_gives_its_presence_halo_a_message_pump() -> None:
+    """The exact wiring whose absence made the halo invisible for every run.
+
+    `_presence()` built a coordinator with no pump, so the halo window was
+    created and shown but never received WM_PAINT. It drew no border and no
+    phase tab, and a colour-keyed layered window that never paints is fully
+    transparent. Two complete Demo runs passed with an operator watching and
+    neither showed a halo.
+    """
+
+    demo = _load_demo_script()
+    coordinator, probe = demo._presence()
+
+    assert coordinator.pump is not None, "the halo would never paint"
+    assert callable(coordinator.pump)
+    report = probe.report()
+    assert "samples_painted" in report
+    assert "projection_sequence" in report
