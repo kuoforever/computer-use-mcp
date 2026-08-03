@@ -58,6 +58,9 @@ not a line-by-line mirror of every reference page.
 | I am designing computer-use presence, progress, Decision Cards, or operator trade-offs | [Operator experience](OPERATOR_EXPERIENCE.md) |
 | I am implementing the non-activating multi-run UI | [Operator progress viewer](PROGRESS_VIEWER.md) |
 | I need the retained isolated Decision Card and workflow Progress HUD images | [Operator HUD visual evidence, 2026-08-01](OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md); the superseded presentation is retained in [the 2026-07-30 record](OPERATOR_HUD_VISUAL_EVIDENCE.md) |
+| I need the post-fix complete Operator HUD Demo result | [Post-fix Operator HUD Demo evidence, 2026-08-03](OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md) |
+| I need Decision Card evidence at 100%, 125%, and 150% scaling | [100%/125% live DPI acceptance, 2026-08-03](OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md); [150% visual evidence, 2026-08-01](OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md) |
+| I need the physical Alt+Tab acceptance result | [Decision Card keyboard evidence, 2026-08-03](OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md) |
 | I need sanitized findings from live desktop sessions | [Operator session notes](OPERATOR_SESSION_NOTES.md) |
 | I need the retained bounded BOSS MCP observation | [BOSS observation evidence](BOSS_EVIDENCE.md) |
 | I need the retained BOSS static-content OCR result | [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
