@@ -43,7 +43,9 @@ same-desktop background control safe or parallel.
 | `CUMCP_HUMAN_STABLE_SAMPLES` | `1` | Consecutive healthy idle samples required inside one MCP action call. The bounded Demo uses `3`; a timeout rejects before dispatch and is never replayed. |
 | `CUMCP_HUMAN_POLL_INTERVAL_SECONDS` | `0.25` | Interval between consecutive readiness samples. The Host accepts only `0.05` through `5.0` seconds. |
 | `CUMCP_HUMAN_MAX_WAIT_SECONDS` | `60` | Maximum time one action call may wait for a stable idle streak. The Host accepts only `1` through `300` seconds. |
-| `CUMCP_TYPE_WAIT_SECONDS` | `0` | Optional delay between visible keystrokes for the focused-control `type` fallback. Accepted range is `0` to `0.1`; the bounded Demo uses `0.035`. Ref-based ValuePattern writes remain immediate. |
+| `CUMCP_INTERACTION_SPEED` | unset | Optional Host-owned presentation profile: `fast`, `normal`, or `deliberate`. It changes only bounded pointer motion, pre/post-action dwell, and the default typing delay. Unset preserves native timing. It never changes observation, approval, readiness, policy, budgets, or verification. |
+| `CUMCP_ACTION_FEEDBACK` | `0` | Shows a passive, click-through, non-activating, capture-excluded mouse halo and content-free `AGENT TYPING` / `AGENT KEY` badge. During visible typing, a pulsing caret, cycling dots, and progress bar follow the foreground editor's native caret using bounded geometry plus length/timing metadata. If no native caret exists, the badge stays at its last safe fallback. It never receives typed text or key values. |
+| `CUMCP_TYPE_WAIT_SECONDS` | profile value or `0` | Optional explicit delay between visible keystrokes for the focused-control `type` fallback. Accepted range is `0` to `0.1`; it overrides the selected presentation profile. Ref-based ValuePattern writes remain atomic rather than per-character. |
 | `CUMCP_DANGEROUS_CONFIRM` | on in safe mode; off in full-control mode | Enables confirmation for dangerous `click(ref=...)` targets. |
 | `CUMCP_ESTOP` | `ctrl+alt+q` | Global hotkey that latches all actions off until the server restarts. |
 | `CUMCP_AUDIT` | `audit/actions.jsonl` | JSONL audit-log path. |
@@ -56,6 +58,12 @@ Examples:
 ~~~powershell
 # Default guardrails; only foreground Notepad actions are permitted.
 $env:CUMCP_MODE = "safe_local"
+$env:CUMCP_ALLOWLIST = "notepad.exe"
+.\.venv\Scripts\guarded-desktop-mcp.exe
+
+# Operator-visible presentation without weakening any safety boundary.
+$env:CUMCP_INTERACTION_SPEED = "normal"
+$env:CUMCP_ACTION_FEEDBACK = "1"
 $env:CUMCP_ALLOWLIST = "notepad.exe"
 .\.venv\Scripts\guarded-desktop-mcp.exe
 
@@ -78,6 +86,10 @@ $env:CUMCP_DANGEROUS_CONFIRM = "1"
   security boundary.
 - A single desktop still has shared focus, pointer, keyboard, and screenshot
   resources.
+
+The presentation profile is not a model/reasoning-speed control. Provider
+latency depends on the selected provider/model and service; the profile only
+makes already-authorized desktop actions easier for an operator to follow.
 
 ## Audit and recovery
 

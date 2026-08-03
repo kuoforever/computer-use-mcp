@@ -1,9 +1,10 @@
 # Project status
 
-> **Mode: Full Cycle Runtime baseline frozen locally at
-> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. No Runtime item is active. The
-> bounded post-fix Operator HUD Demo, multi-DPI review, and physical Alt+Tab
-> acceptance have all passed. No Demo item is active.**
+> **Mode: the Full Cycle Runtime baseline remains frozen at
+> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. The user-requested bounded
+> `GDA-DEMO-004` presentation-speed and action-visibility enhancement is
+> complete locally. No Runtime item is active; Full Cycle remains paused until
+> the user explicitly resumes it.**
 > Updated: 2026-08-03.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
@@ -34,7 +35,7 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1566 passed, 8 skipped` in the 2026-08-03 final Demo-closure revalidation |
+| Offline baseline | `1577 passed, 8 skipped` in the 2026-08-03 `GDA-DEMO-004` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -50,7 +51,8 @@ temporary exception did not erase, silently supersede, or strand
 realism enhancement and `GDA-DEMO-003` Operator HUD polish. The latter is
 complete locally after separate issue-by-issue sessions. It did not displace
 the Full Cycle resume point, and `GDA-FC-004` subsequently closed the Runtime
-freeze.
+freeze. On 2026-08-03 the user explicitly reopened only `GDA-DEMO-004` for
+operator-selectable action pacing and more visible mouse/keyboard activity.
 
 Continue to exclude:
 
@@ -60,8 +62,8 @@ Continue to exclude:
 - additional desktop tools or platform drivers;
 - Multi-Agent coordination;
 - automatic continual learning;
-- operator-UI work beyond the individually resumed `GDA-DEMO-003` issues that
-  compose the existing Presence, Progress, and Decision Card surfaces;
+- operator-UI work beyond the closed `GDA-DEMO-003` surfaces and the active,
+  bounded `GDA-DEMO-004` action-presentation enhancement;
 - broad refactors unrelated to the bridge.
 
 Existing planned documents remain valid design records, but they are not active
@@ -79,8 +81,10 @@ delivery work.
 | `GDA-DEMO-001` | Complete | Real Chrome-to-Word interview Demo through existing Runtime authority | Retained run `cross-app-demo-20260730-034539`; [evidence](docs/CROSS_APP_DEMO_EVIDENCE.md) |
 | `GDA-DEMO-002` | Complete; restart hardening offline-verified | Improve Demo realism without broadening authority | Retained run `cross-app-demo-20260730-042826`; deterministic fresh-start tests; [evidence](docs/PUBLIC_WEB_WORD_DEMO_EVIDENCE.md) |
 | `GDA-DEMO-003` | Complete locally | Operator HUD visual hierarchy, step status, safe lock interaction, and live reliability | [Demo evidence](docs/OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md); [100%/125% DPI evidence](docs/OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md); [physical Alt+Tab evidence](docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md) |
+| `GDA-DEMO-004` | Complete locally | Operator-selectable Demo action pacing plus visible mouse and content-free keyboard feedback | [Native probe and retained Demo evidence](docs/DEMO_ACTION_PRESENTATION_EVIDENCE_2026-08-03.md) |
+| `GDA-DEMO-005` | Proposed; not active | Cooperative desktop authority handoff, explicit pause/re-observe/resume, and complete Decision Card consequences | Await a separate control-lifecycle contract; must never use `BlockInput` or make physical input unavailable |
 
-No `GDA-HUD-*` issue is active. Runtime feature work remains frozen.
+No `GDA-HUD-*` or Demo issue is active. Runtime feature work remains frozen.
 
 ## Defect found by composing the HUD surfaces (2026-08-01)
 
@@ -316,13 +320,26 @@ passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
 source files, documentation consistency reported 13 reviewed tools, and
 `git diff --check` passed.
 
-## Exact next task: none in this Runtime
+## Exact next task: none until explicit user direction
 
-`GDA-DEMO-003` is complete locally and Runtime feature work remains frozen.
-Resume in `C:\Users\Alienware\reliable-agent-model-lifecycle`, where the
-single active `FC-MVP-001` objective is the v2 failure-classification gate.
-Lane B remains `FC-BRIDGE-003` pending its separate consent, security, and
-privacy review.
+`GDA-DEMO-004` is complete locally. Do not infer that closing the Demo resumes
+Full Cycle automatically. Await the user's next priority.
+
+The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
+rejection. If explicitly resumed, implement a cooperative lease rather than a
+physical input lock: an operator interrupt requests pause at the next safe
+boundary, releases authority, and requires explicit resume plus mandatory
+re-observation. An interrupt during a possibly dispatched side effect remains
+unknown outcome and cannot auto-continue. Wire the already-defined human
+takeover option and ensure approve, re-observe, defer, deny, and takeover each
+produce their documented distinct state transition. Keep this out of the
+single-purpose `GDA-DEMO-004` presentation change.
+
+Full Cycle remains paused after merged PRs #10 and #11. Three uncommitted BF16
+merge-probe files in `C:\Users\Alienware\reliable-agent-model-lifecycle` are
+preserved as work in progress; do not continue, delete, or publish them until
+the user explicitly resumes Full Cycle. Lane B remains `FC-BRIDGE-003` pending
+its separate consent, security, and privacy review.
 
 The final Demo-closure gate passed on 2026-08-03: `1566 passed, 8 skipped`,
 Ruff passed, mypy reported no issues in 118 source files, documentation

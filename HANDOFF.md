@@ -317,6 +317,42 @@ No Runtime item is active. Continue `FC-MVP-001` in the Full Cycle repository.
 Do not resume Runtime feature work, Lane B, or a paused HUD issue unless
 `PROJECT_STATUS.md` explicitly changes the active scope.
 
+### 2026-08-03 bounded Demo action-presentation closure
+
+The user explicitly reopened one bounded item, `GDA-DEMO-004`, after the HUD
+closure. It adds `fast`, `normal`, and `deliberate` Host-owned presentation
+profiles plus a capture-excluded high-contrast pointer ring and content-free
+keyboard activity badge. Unset Runtime timing is unchanged. The profile can
+only slow presentation; it does not shorten or bypass observation, approval,
+human-idle readiness, policy, budgets, re-observation, or verification. The
+feedback protocol accepts fixed activity classes only and cannot receive typed
+text, a key combination, model prose, or tool-result text.
+
+The native Win32 probe passed paint, visibility, click-through/no-activate,
+capture-exclusion, foreground-preservation, and live typing-progress checks.
+Retained caret-following deliberate-mode run
+`cross-app-demo-20260803-043417-697826` then passed with 17 tool calls,
+seven approved side effects, durable DOCX verification, and complete exact
+window cleanup. The full offline gate, Ruff, mypy, documentation consistency,
+and diff checks passed; the dated totals are retained in
+`docs/DEMO_ACTION_PRESENTATION_EVIDENCE_2026-08-03.md`.
+
+No Runtime item is active. Do not infer that Demo closure automatically resumes
+Full Cycle. The consumer is paused after merged PRs #10 and #11; its three
+uncommitted BF16 merge-probe files remain preserved and unpublished until the
+user explicitly resumes that work.
+
+The user then proposed, but did not merge into this presentation item, a
+cooperative desktop-authority lifecycle. Track it only as proposed
+`GDA-DEMO-005`: never block physical input; expose an explicit operator pause or
+takeover; pause at a known safe boundary; require a fresh observation and
+explicit resume; and keep an interrupted possibly-dispatched action in unknown
+outcome. The generic Decision Card already compiles approve, re-observe, defer,
+deny, and human-takeover semantics, but the ordinary approval port offers only
+the first four, and the deterministic Demo provider cannot currently recover
+from re-observe or resume a defer. Those integration gaps are the bounded work,
+not a reason to weaken the existing side-effect contract.
+
 Before changing behavior, inspect the current worktree and run the unit suite:
 
 ~~~powershell

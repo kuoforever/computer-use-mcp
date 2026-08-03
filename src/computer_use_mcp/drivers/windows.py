@@ -22,6 +22,11 @@ import mss.tools
 import psutil
 import uiautomation as auto
 
+from ..interaction_feedback import (
+    ActionFeedback,
+    InteractionPacing,
+    resolve_interaction_pacing,
+)
 from ..contract import (
     CONTRACT_VERSION,
     DRIVER_ERROR,
@@ -165,21 +170,120 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
 
 
 class WindowsDriver(Driver):
-    def __init__(self, *, type_wait_seconds: float = 0.0) -> None:
+    def __init__(
+        self,
+        *,
+        type_wait_seconds: float | None = None,
+        interaction_speed: str | None = None,
+        action_feedback: ActionFeedback | None = None,
+        sleep: object = time.sleep,
+    ) -> None:
+        pacing = resolve_interaction_pacing(interaction_speed)
+        resolved_type_wait = (
+            pacing.type_wait_seconds
+            if type_wait_seconds is None and pacing is not None
+            else 0.0 if type_wait_seconds is None else type_wait_seconds
+        )
         if (
-            isinstance(type_wait_seconds, bool)
-            or not isinstance(type_wait_seconds, (int, float))
-            or not math.isfinite(type_wait_seconds)
-            or not 0.0 <= float(type_wait_seconds) <= 0.1
+            isinstance(resolved_type_wait, bool)
+            or not isinstance(resolved_type_wait, (int, float))
+            or not math.isfinite(resolved_type_wait)
+            or not 0.0 <= float(resolved_type_wait) <= 0.1
         ):
             raise ValueError("type_wait_seconds must be between 0 and 0.1")
+        if action_feedback is not None and not isinstance(action_feedback, ActionFeedback):
+            raise ValueError("action_feedback must implement ActionFeedback")
+        if not callable(sleep):
+            raise ValueError("sleep must be callable")
         # Backstop: real entrypoints set this earlier, before uiautomation import.
         self.dpi_mode = enable_dpi_awareness()
-        self._type_wait_seconds = float(type_wait_seconds)
+        self._type_wait_seconds = float(resolved_type_wait)
+        self._typing_interval = (
+            None
+            if type_wait_seconds is None and pacing is None
+            else self._type_wait_seconds
+        )
+        self._pacing = pacing
+        self._action_feedback = action_feedback
+        self._sleep = sleep
         # native_id -> live UIA control, repopulated each get_tree(); actions
         # resolve refs through it. The core owns ref<->native_id; this is the
         # driver-side native_id<->handle half of that mapping.
         self._node_cache: dict[str, object] = {}
+
+    def _pause(self, seconds: float) -> None:
+        if seconds > 0:
+            self._sleep(seconds)  # type: ignore[operator]
+
+    def _show_pointer_feedback(self, x: int, y: int, action: str) -> None:
+        feedback = getattr(self, "_action_feedback", None)
+        if feedback is None:
+            return
+        try:
+            feedback.show_pointer(x, y, action=action)
+        except Exception:
+            self._action_feedback = None
+
+    def _show_keyboard_feedback(
+        self,
+        action: str,
+        *,
+        total_units: int = 0,
+        estimated_seconds: float = 0.0,
+    ) -> None:
+        feedback = getattr(self, "_action_feedback", None)
+        if feedback is None:
+            return
+        try:
+            feedback.show_keyboard(
+                action=action,
+                total_units=total_units,
+                estimated_seconds=estimated_seconds,
+            )
+        except Exception:
+            self._action_feedback = None
+
+    def _finish_feedback(self) -> None:
+        pacing: InteractionPacing | None = getattr(self, "_pacing", None)
+        if pacing is not None:
+            self._pause(pacing.post_action_seconds)
+        feedback = getattr(self, "_action_feedback", None)
+        if feedback is None:
+            return
+        try:
+            feedback.clear()
+        except Exception:
+            self._action_feedback = None
+
+    def _prepare_semantic_target(self, ctrl: object) -> None:
+        rect = self._rect_of(ctrl)
+        if rect.w > 0 and rect.h > 0:
+            self._show_pointer_feedback(
+                rect.x + rect.w // 2,
+                rect.y + rect.h // 2,
+                "target",
+            )
+        pacing: InteractionPacing | None = getattr(self, "_pacing", None)
+        if pacing is not None:
+            self._pause(pacing.pre_action_seconds)
+
+    def _move_pointer(self, user32: object, x: int, y: int, action: str) -> None:
+        pacing: InteractionPacing | None = getattr(self, "_pacing", None)
+        if pacing is None:
+            user32.SetCursorPos(int(x), int(y))
+            self._show_pointer_feedback(x, y, action)
+            return
+        point = wintypes.POINT()
+        if not user32.GetCursorPos(ctypes.byref(point)):
+            point = wintypes.POINT(int(x), int(y))
+        steps = max(1, min(30, pacing.pointer_move_ms // 16 or 1))
+        for step in range(1, steps + 1):
+            next_x = int(point.x + (x - point.x) * step / steps)
+            next_y = int(point.y + (y - point.y) * step / steps)
+            user32.SetCursorPos(next_x, next_y)
+            self._show_pointer_feedback(next_x, next_y, "move" if step < steps else action)
+            self._pause(pacing.pointer_move_ms / steps / 1000)
+        self._pause(pacing.pre_action_seconds)
 
     # --- capabilities --------------------------------------------------------
 
@@ -612,10 +716,13 @@ class WindowsDriver(Driver):
         if pattern is None:
             return Result.fail(NOT_INVOKABLE, "no InvokePattern")
         try:
+            self._prepare_semantic_target(ctrl)
             pattern.Invoke()
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     def set_value(self, native_id: str, text: str) -> Result:
         """Set a control's value via ValuePattern — focus-independent, robust to
@@ -629,10 +736,16 @@ class WindowsDriver(Driver):
         if self._safe(lambda: bool(pattern.IsReadOnly), False):
             return Result.fail(NOT_INVOKABLE, "value is read-only")
         try:
+            self._show_keyboard_feedback("typing")
+            pacing: InteractionPacing | None = getattr(self, "_pacing", None)
+            if pacing is not None:
+                self._pause(pacing.pre_action_seconds)
             pattern.SetValue(text)
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     def select(self, native_id: str) -> Result:
         ctrl = self._resolve(native_id)
@@ -642,19 +755,37 @@ class WindowsDriver(Driver):
         if pattern is None:
             return Result.fail(NOT_INVOKABLE, "no SelectionItemPattern")
         try:
+            self._prepare_semantic_target(ctrl)
             pattern.Select()
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     def type(self, text: str) -> Result:
         # Keyboard fallback for surfaces without a writable ValuePattern; targets
         # whatever holds focus, so callers must focus first.
         try:
-            auto.SendKeys(text, waitTime=self._type_wait_seconds)
+            interval = getattr(self, "_typing_interval", None)
+            estimated_interval = 0.01 if interval is None else interval
+            self._show_keyboard_feedback(
+                "typing",
+                total_units=len(text),
+                estimated_seconds=max(0.15, len(text) * estimated_interval),
+            )
+            pacing: InteractionPacing | None = getattr(self, "_pacing", None)
+            if pacing is not None:
+                self._pause(pacing.pre_action_seconds)
+            if interval is None:
+                auto.SendKeys(text, waitTime=0.0)
+            else:
+                auto.SendKeys(text, interval=interval, waitTime=0.0)
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     @staticmethod
     def _vk(token: str) -> int | None:
@@ -684,6 +815,10 @@ class WindowsDriver(Driver):
             (mods if tok.strip().lower() in _MOD_KEYS else keys).append(vk)
         user32 = ctypes.windll.user32
         try:
+            self._show_keyboard_feedback("key")
+            pacing: InteractionPacing | None = getattr(self, "_pacing", None)
+            if pacing is not None:
+                self._pause(pacing.pre_action_seconds)
             for m in mods:
                 user32.keybd_event(m, 0, 0, 0)
             for k in keys:
@@ -694,6 +829,8 @@ class WindowsDriver(Driver):
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     def activate_window(self, window_id: str) -> Result:
         """Bring a window to the foreground (a prerequisite for keyboard input).
@@ -722,7 +859,7 @@ class WindowsDriver(Driver):
             return Result.fail(DRIVER_ERROR, f"unknown modifier in {modifiers!r}")
         user32 = ctypes.windll.user32
         try:
-            user32.SetCursorPos(int(x), int(y))
+            self._move_pointer(user32, int(x), int(y), "click")
             for m in mod_vks:
                 user32.keybd_event(m, 0, 0, 0)
             down, up = downup
@@ -733,13 +870,15 @@ class WindowsDriver(Driver):
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     def scroll(self, x: int, y: int, delta_x: int, delta_y: int) -> Result:
         """Inject bounded horizontal and vertical wheel movement at one point."""
 
         user32 = ctypes.windll.user32
         try:
-            user32.SetCursorPos(int(x), int(y))
+            self._move_pointer(user32, int(x), int(y), "scroll")
             if delta_y:
                 user32.mouse_event(0x0800, 0, 0, int(delta_y), 0)
             if delta_x:
@@ -747,6 +886,8 @@ class WindowsDriver(Driver):
             return Result.success()
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()
 
     def drag(
         self, x: int, y: int, to_x: int, to_y: int, duration_ms: int = 250
@@ -756,14 +897,15 @@ class WindowsDriver(Driver):
         user32 = ctypes.windll.user32
         steps = max(1, min(60, int(duration_ms) // 16 or 1))
         try:
-            user32.SetCursorPos(int(x), int(y))
+            self._move_pointer(user32, int(x), int(y), "drag")
             user32.mouse_event(0x0002, 0, 0, 0, 0)
             for step in range(1, steps + 1):
                 next_x = int(x + (to_x - x) * step / steps)
                 next_y = int(y + (to_y - y) * step / steps)
                 user32.SetCursorPos(next_x, next_y)
+                self._show_pointer_feedback(next_x, next_y, "drag")
                 if duration_ms:
-                    time.sleep(duration_ms / steps / 1000)
+                    self._pause(duration_ms / steps / 1000)
             user32.mouse_event(0x0004, 0, 0, 0, 0)
             return Result.success()
         except Exception as exc:
@@ -772,3 +914,5 @@ class WindowsDriver(Driver):
             except Exception:
                 pass
             return Result.fail(DRIVER_ERROR, str(exc))
+        finally:
+            self._finish_feedback()

@@ -53,6 +53,8 @@ REVIEWED_MCP_ENVIRONMENT_NAMES = frozenset(
         "CUMCP_HUMAN_STABLE_SAMPLES",
         "CUMCP_HUMAN_POLL_INTERVAL_SECONDS",
         "CUMCP_HUMAN_MAX_WAIT_SECONDS",
+        "CUMCP_INTERACTION_SPEED",
+        "CUMCP_ACTION_FEEDBACK",
         "CUMCP_TYPE_WAIT_SECONDS",
         "CUMCP_DANGEROUS_CONFIRM",
     }
@@ -183,6 +185,25 @@ def _validate_mcp_environment_value(key: str, value: str) -> None:
                 f"CUMCP_TYPE_WAIT_SECONDS must be between 0 and "
                 f"{MAXIMUM_TYPE_WAIT_SECONDS}"
             )
+    elif key == "CUMCP_INTERACTION_SPEED" and value.strip().lower() not in {
+        "fast",
+        "normal",
+        "deliberate",
+    }:
+        raise ConfigError(
+            "CUMCP_INTERACTION_SPEED must be fast, normal, or deliberate"
+        )
+    elif key == "CUMCP_ACTION_FEEDBACK" and value.strip().lower() not in {
+        "0",
+        "1",
+        "false",
+        "true",
+        "no",
+        "yes",
+        "off",
+        "on",
+    }:
+        raise ConfigError("CUMCP_ACTION_FEEDBACK must be boolean")
 
 
 def _read_table(document: Mapping[str, object], name: str, *, required: bool) -> Mapping[str, object]:

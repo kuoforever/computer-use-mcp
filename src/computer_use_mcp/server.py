@@ -20,6 +20,9 @@ Config (env):
   CUMCP_HUMAN_STABLE_SAMPLES="1"             consecutive action-gate samples
   CUMCP_HUMAN_POLL_INTERVAL_SECONDS="0.25"   interval between stable samples
   CUMCP_HUMAN_MAX_WAIT_SECONDS="60"          bounded readiness wait
+  CUMCP_INTERACTION_SPEED="normal"           fast | normal | deliberate
+  CUMCP_ACTION_FEEDBACK="1"                  visible mouse/key activity, no content
+  CUMCP_TYPE_WAIT_SECONDS="0.025"             optional typing-delay override
   CUMCP_MODE="safe_local"                    safe_local | full_control_local
   CUMCP_DANGEROUS_CONFIRM="1"                require confirmation for dangerous clicks
 """
@@ -126,8 +129,20 @@ def build_server(
     if driver is None:
         from .drivers.windows import WindowsDriver
 
+        action_feedback = None
+        if _env_bool("CUMCP_ACTION_FEEDBACK", False):
+            from .interaction_feedback_win32 import Win32ActionFeedback
+
+            action_feedback = Win32ActionFeedback()
+        raw_type_wait = os.environ.get("CUMCP_TYPE_WAIT_SECONDS")
         driver = WindowsDriver(
-            type_wait_seconds=_env_float("CUMCP_TYPE_WAIT_SECONDS", 0.0)
+            type_wait_seconds=(
+                None
+                if raw_type_wait is None
+                else _env_float("CUMCP_TYPE_WAIT_SECONDS", 0.0)
+            ),
+            interaction_speed=os.environ.get("CUMCP_INTERACTION_SPEED"),
+            action_feedback=action_feedback,
         )
     session = Session(driver)
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
