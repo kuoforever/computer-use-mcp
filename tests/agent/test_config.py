@@ -300,6 +300,8 @@ def test_config_rejects_unreviewed_child_environment_names(
         'CUMCP_HUMAN_POLL_INTERVAL_SECONDS = "0"',
         'CUMCP_HUMAN_MAX_WAIT_SECONDS = "0"',
         'CUMCP_TYPE_WAIT_SECONDS = "0.2"',
+        'CUMCP_INTERACTION_SPEED = "turbo"',
+        'CUMCP_ACTION_FEEDBACK = "sometimes"',
     ],
 )
 def test_config_rejects_child_environment_values_that_weaken_server_safety(

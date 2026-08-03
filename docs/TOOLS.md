@@ -74,6 +74,17 @@ Coordinate click, scroll, and drag are necessary for canvas/game-style surfaces
 that UIA cannot expose, but they move the physical pointer and have all normal
 foreground risks.
 
+When the operator enables action feedback, coordinate motion gets a
+high-contrast halo and fixed action label. Ref actions retain their semantic
+UIA dispatch: the overlay pulses at the last observed element bounds without
+converting the ref into a coordinate click. Keyboard feedback says only
+`AGENT TYPING` or `AGENT KEY`; it receives neither typed content nor the key
+combination. The overlay is passive, click-through, non-activating, and excluded
+from capture. Visible typing animates a caret, cycling dots, and an estimated
+progress bar using only bounded text length and the Host-selected interval. The
+badge follows the foreground editor's native caret without reading document
+content; a surface that exposes no native caret uses a stable fallback instead.
+
 ## Result and error behavior
 
 Action tools return `ok` on success. Failures are returned as text with a

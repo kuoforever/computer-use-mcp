@@ -111,6 +111,9 @@ def test_demo_configures_one_mcp_dispatch_readiness_handshake() -> None:
     assert environment["CUMCP_HUMAN_STABLE_SAMPLES"] == "3"
     assert environment["CUMCP_HUMAN_POLL_INTERVAL_SECONDS"] == "0.25"
     assert environment["CUMCP_HUMAN_MAX_WAIT_SECONDS"] == "60.0"
+    assert environment["CUMCP_INTERACTION_SPEED"] == "deliberate"
+    assert environment["CUMCP_ACTION_FEEDBACK"] == "1"
+    assert "CUMCP_TYPE_WAIT_SECONDS" not in environment
     assert hasattr(demo, "DemoDecisionCards")
     assert not hasattr(demo, "HeartbeatDecisionCards")
 

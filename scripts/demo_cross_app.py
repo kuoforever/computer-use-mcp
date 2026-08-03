@@ -7,6 +7,7 @@ desktop operation is requested through AgentRunner and StdioDesktopMCP.
 from __future__ import annotations
 
 import asyncio
+import argparse
 import ctypes
 import threading
 from collections.abc import Callable, Sequence
@@ -277,7 +278,12 @@ def _write_final_state(
     )
 
 
-def _config(stamp: str) -> AgentConfig:
+def _config(
+    stamp: str,
+    *,
+    interaction_speed: str = "deliberate",
+    action_feedback: bool = True,
+) -> AgentConfig:
     state_dir = default_state_dir() / f"demo-cross-app-{stamp}"
     return AgentConfig(
         state_dir=state_dir,
@@ -297,7 +303,8 @@ def _config(stamp: str) -> AgentConfig:
                 "CUMCP_HUMAN_MAX_WAIT_SECONDS": str(
                     HUMAN_MAX_WAIT_SECONDS
                 ),
-                "CUMCP_TYPE_WAIT_SECONDS": "0.035",
+                "CUMCP_INTERACTION_SPEED": interaction_speed,
+                "CUMCP_ACTION_FEEDBACK": "1" if action_feedback else "0",
             },
         ),
         policy=PolicyConfig(
@@ -422,7 +429,11 @@ def _progress() -> DemoWorkflowProgress:
     )
 
 
-async def _run() -> dict[str, object]:
+async def _run(
+    *,
+    interaction_speed: str = "deliberate",
+    action_feedback: bool = True,
+) -> dict[str, object]:
     document, profile, stamp = _fixtures()
     run_id = f"cross-app-demo-{stamp}"
     ownership: list[LaunchedFixture] = []
@@ -438,7 +449,11 @@ async def _run() -> dict[str, object]:
             profile,
             ownership=ownership,
         )
-        config = _config(stamp)
+        config = _config(
+            stamp,
+            interaction_speed=interaction_speed,
+            action_feedback=action_feedback,
+        )
         workflow = _progress()
         provider = CrossAppDemoProvider(
             chrome_title_fragment=SOURCE_TITLE,
@@ -528,8 +543,28 @@ async def _run() -> dict[str, object]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Run the bounded Chrome-to-Word desktop Demo."
+    )
+    parser.add_argument(
+        "--interaction-speed",
+        choices=("fast", "normal", "deliberate"),
+        default="deliberate",
+        help="Host-owned desktop presentation speed (default: deliberate).",
+    )
+    parser.add_argument(
+        "--no-action-feedback",
+        action="store_true",
+        help="Disable the capture-excluded mouse and keyboard activity overlay.",
+    )
+    args = parser.parse_args()
     try:
-        result = asyncio.run(_run())
+        result = asyncio.run(
+            _run(
+                interaction_speed=args.interaction_speed,
+                action_feedback=not args.no_action_feedback,
+            )
+        )
     except KeyboardInterrupt:
         return 130
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
