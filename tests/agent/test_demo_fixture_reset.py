@@ -6,14 +6,25 @@ import json
 import subprocess
 import sys
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from computer_use_agent.demo_workflow_progress import DemoWorkflowProgress
+from computer_use_agent.decision_cards import DecisionSelection
+from computer_use_agent.disposable_process import ProcessWindowSnapshot
 from computer_use_agent.fakes import FakeProgressWindowApi
 from computer_use_agent.progress_window import PassiveProgressWindow
+from computer_use_agent.types import (
+    ApprovalBinding,
+    ApprovalRequest,
+    CallIdentity,
+    PolicyDecision,
+    PolicyDecisionKind,
+    ToolCall,
+)
 
 
 def _offline_workflow_progress() -> DemoWorkflowProgress:
@@ -38,6 +49,136 @@ class _OfflineProbe:
 
 def _offline_presence() -> tuple[object, _OfflineProbe]:
     return object(), _OfflineProbe()
+
+
+def test_demo_starts_and_releases_presence_around_fixture_preparation() -> None:
+    demo = _load_demo_script()
+
+    class RecordingPresence:
+        def __init__(self) -> None:
+            self.phases: list[object] = []
+            self.releases = 0
+
+        def on_phase(self, phase: object) -> None:
+            self.phases.append(phase)
+
+        def release(self) -> None:
+            self.releases += 1
+
+    presence = RecordingPresence()
+    demo._start_presence_while_preparing(presence)
+    demo._release_presence(presence)
+
+    assert presence.phases == [demo.RunPhase.PLANNING]
+    assert presence.releases == 1
+
+
+def _approval_request() -> ApprovalRequest:
+    call = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"),
+        "activate_window",
+        {"window_id": "101"},
+    )
+    return ApprovalRequest.from_tool_call(
+        request_id="approval_1",
+        call=call,
+        reason="side_effect_requires_local_approval",
+        sensitive_arguments=(),
+        binding=ApprovalBinding(
+            "run_1", *(f"{index:x}" * 64 for index in range(1, 7))
+        ),
+    )
+
+
+class _ApprovalSequence:
+    focus_taking = True
+
+    def __init__(self, *kinds: PolicyDecisionKind) -> None:
+        self.kinds = list(kinds)
+
+    async def request_approval(self, request: ApprovalRequest) -> PolicyDecision:
+        return PolicyDecision(
+            request.request_id,
+            request.identity,
+            request.call_digest,
+            self.kinds.pop(0),
+            "test_operator",
+        )
+
+
+class _PauseSurface:
+    def __init__(self, *option_ids: str) -> None:
+        self.option_ids = list(option_ids)
+        self.cards: list[object] = []
+
+    async def choose(self, card: object, *, timeout_seconds: int) -> DecisionSelection:
+        del timeout_seconds
+        self.cards.append(card)
+        return DecisionSelection(
+            card.decision_id,  # type: ignore[attr-defined]
+            card.card_digest,  # type: ignore[attr-defined]
+            self.option_ids.pop(0),
+        )
+
+
+def test_demo_defer_keeps_the_action_paused_until_explicit_resume() -> None:
+    demo = _load_demo_script()
+    context: list[object | None] = [None]
+    surface = _PauseSurface("option_defer", "option_resume")
+    approvals = demo.DemoDecisionCards(
+        _ApprovalSequence(PolicyDecisionKind.DEFER, PolicyDecisionKind.ALLOW),
+        pause_surface=surface,
+        step_context=context,
+        clock=lambda: datetime(2026, 8, 3, tzinfo=UTC),
+    )
+    request = _approval_request()
+
+    resumed = asyncio.run(approvals.request_approval(request))
+
+    assert resumed.kind is PolicyDecisionKind.REOBSERVE
+    assert resumed.reason == "demo_resume_requires_reobservation"
+    assert len(surface.cards) == 2
+    assert [option.kind.value for option in surface.cards[0].options] == [  # type: ignore[attr-defined]
+        "resume",
+        "defer",
+        "deny",
+    ]
+    assert context[0].current == 1  # type: ignore[attr-defined]
+
+    allowed = asyncio.run(approvals.request_approval(request))
+
+    assert allowed.kind is PolicyDecisionKind.ALLOW
+    assert context[0].current == 1  # type: ignore[attr-defined]
+
+
+def test_demo_reobserve_and_deny_do_not_consume_an_approval_number() -> None:
+    demo = _load_demo_script()
+    context: list[object | None] = [None]
+    approvals = demo.DemoDecisionCards(
+        _ApprovalSequence(
+            PolicyDecisionKind.REOBSERVE,
+            PolicyDecisionKind.DENY,
+            PolicyDecisionKind.ALLOW,
+        ),
+        step_context=context,
+    )
+    request = _approval_request()
+
+    assert (
+        asyncio.run(approvals.request_approval(request)).kind
+        is PolicyDecisionKind.REOBSERVE
+    )
+    assert context[0].current == 1  # type: ignore[attr-defined]
+    assert (
+        asyncio.run(approvals.request_approval(request)).kind
+        is PolicyDecisionKind.DENY
+    )
+    assert context[0].current == 1  # type: ignore[attr-defined]
+    assert (
+        asyncio.run(approvals.request_approval(request)).kind
+        is PolicyDecisionKind.ALLOW
+    )
+    assert context[0].current == 1  # type: ignore[attr-defined]
 
 
 def _load_demo_script() -> ModuleType:
@@ -95,8 +236,10 @@ def test_each_demo_run_starts_from_a_fresh_profile_and_template(
             "y": 80,
         }
         assert state["cleanup_contract"] == {
-            "on_exit": "close_exact_owned_windows",
+            "on_exit": "close_exact_launched_process_windows",
+            "owned_dialog": "operator_handoff",
             "scope": "exact_launched_processes_only",
+            "stable_zero_observations": 3,
             "unresolved": "record_explicit_handoff",
         }
 
@@ -107,6 +250,8 @@ def test_demo_configures_one_mcp_dispatch_readiness_handshake() -> None:
     config = demo._config("readiness-contract")
     environment = config.mcp.environment
 
+    assert config.policy.mode == demo.AGENTIC_ACTIONS_MODE
+    assert config.policy.require_approval_for_actions is False
     assert environment["CUMCP_HUMAN_IDLE_SECONDS"] == "2.5"
     assert environment["CUMCP_HUMAN_STABLE_SAMPLES"] == "3"
     assert environment["CUMCP_HUMAN_POLL_INTERVAL_SECONDS"] == "0.25"
@@ -156,15 +301,22 @@ class _Process:
 
 
 class _Windows:
-    def __init__(self, states: dict[int, list[int]]) -> None:
+    def __init__(
+        self,
+        states: dict[int, list[int | ProcessWindowSnapshot]],
+    ) -> None:
         self.states = {pid: list(values) for pid, values in states.items()}
         self.close_requests: list[int] = []
 
-    def visible_count(self, pid: int) -> int:
+    def snapshot(self, pid: int) -> ProcessWindowSnapshot:
         values = self.states[pid]
         if len(values) > 1:
-            return values.pop(0)
-        return values[0]
+            value = values.pop(0)
+        else:
+            value = values[0]
+        if isinstance(value, int):
+            return ProcessWindowSnapshot(value, value, 0)
+        return value
 
     def request_close(self, pid: int) -> int:
         self.close_requests.append(pid)
@@ -198,6 +350,7 @@ def test_fixture_launch_uses_isolated_word_instance_and_exact_process_handles(
         "https://example.invalid/source",
         tmp_path / "fixture.docx",
         tmp_path / "profile",
+        windows=_Windows({101: [1], 202: [1]}),
     )
 
     assert [item.application for item in launched] == [
@@ -207,6 +360,44 @@ def test_fixture_launch_uses_isolated_word_instance_and_exact_process_handles(
     assert [item.process.pid for item in launched] == [101, 202]
     assert calls[0][1:3] == ["/q", "/x"]
     assert f"--user-data-dir={tmp_path / 'profile'}" in calls[1]
+
+
+def test_fixture_launch_waits_until_both_exact_process_windows_are_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    demo = _load_demo_script()
+    chrome = tmp_path / "chrome.exe"
+    word = tmp_path / "winword.exe"
+    mcp = tmp_path / "mcp.exe"
+    for executable in (chrome, word, mcp):
+        executable.write_bytes(b"fixture")
+    demo.CHROME = chrome
+    demo.WORD = word
+    demo.MCP = mcp
+    processes = [_Process(101), _Process(202)]
+    calls = 0
+
+    def popen(_arguments: list[str]) -> _Process:
+        nonlocal calls
+        process = processes[calls]
+        calls += 1
+        return process
+
+    monotonic = iter((0.0, 0.1, 0.2))
+    monkeypatch.setattr(demo.subprocess, "Popen", popen)
+    monkeypatch.setattr(demo.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(demo.time, "monotonic", lambda: next(monotonic))
+
+    launched = demo._launch_fixtures(
+        "https://example.invalid/source",
+        tmp_path / "fixture.docx",
+        tmp_path / "profile",
+        windows=_Windows({101: [0, 1], 202: [0, 1]}),
+        readiness_timeout_seconds=1.0,
+    )
+
+    assert [item.process.pid for item in launched] == [101, 202]
 
 
 def test_cleanup_targets_every_exact_process_and_never_uses_process_names() -> None:
@@ -248,16 +439,99 @@ def test_cleanup_requests_graceful_close_before_any_process_termination() -> Non
 
     assert cleanup == (
         demo.FixtureCleanup(
-            "Microsoft Word",
-            101,
-            "windows_closed",
-            None,
-            1,
-            True,
+            application="Microsoft Word",
+            pid=101,
+            disposition="windows_closed",
+            exit_code=None,
+            close_requests=1,
+            window_cleanup_verified=True,
+            process_running=True,
         ),
     )
     assert word.terminated == 0
     assert word.killed == 0
+
+
+@pytest.mark.parametrize(
+    ("document_text", "expected_resolution"),
+    [
+        ("Clean research template", "discarded"),
+        ("Clean research template VERIFIED SOURCE BRIEF", "saved"),
+    ],
+)
+def test_operator_handoff_records_save_or_discard_after_stable_window_exit(
+    tmp_path: Path,
+    document_text: str,
+    expected_resolution: str,
+) -> None:
+    demo = _load_demo_script()
+    document = tmp_path / "fixture.docx"
+    _minimal_docx(document, document_text)
+    word = _Process(101)
+    launched = (demo.LaunchedFixture("Microsoft Word", word),)
+    cleanup = (
+        demo.FixtureCleanup(
+            application="Microsoft Word",
+            pid=101,
+            disposition="handoff_required",
+            exit_code=None,
+            close_requests=1,
+            window_cleanup_verified=False,
+            process_running=True,
+        ),
+    )
+
+    resolved, handoff = demo._await_operator_handoff_resolution(
+        launched,
+        cleanup,
+        document,
+        wait_seconds=0.03,
+        poll_interval_seconds=0.01,
+        sleep=lambda _seconds: None,
+        windows=_Windows({101: [0, 0, 0]}),
+    )
+
+    assert handoff == demo.OperatorHandoffResolution(
+        detected=True,
+        resolved=True,
+        resolution=expected_resolution,
+        fixture_pids=(101,),
+    )
+    assert resolved[0].disposition == f"handoff_resolved_{expected_resolution}"
+    assert resolved[0].window_cleanup_verified is True
+    assert resolved[0].process_running is True
+
+
+def test_operator_handoff_cancel_or_timeout_remains_unresolved(tmp_path: Path) -> None:
+    demo = _load_demo_script()
+    document = tmp_path / "fixture.docx"
+    _minimal_docx(document)
+    word = _Process(101)
+    cleanup = (
+        demo.FixtureCleanup(
+            application="Microsoft Word",
+            pid=101,
+            disposition="handoff_required",
+            exit_code=None,
+            close_requests=1,
+            window_cleanup_verified=False,
+            process_running=True,
+        ),
+    )
+
+    unresolved, handoff = demo._await_operator_handoff_resolution(
+        (demo.LaunchedFixture("Microsoft Word", word),),
+        cleanup,
+        document,
+        wait_seconds=0.02,
+        poll_interval_seconds=0.01,
+        sleep=lambda _seconds: None,
+        windows=_Windows({101: [1]}),
+    )
+
+    assert unresolved == cleanup
+    assert handoff.resolution == "unresolved"
+    assert handoff.resolved is False
 
 
 def test_partial_launch_failure_cleans_the_process_already_owned(
@@ -302,20 +576,22 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
     demo = _load_demo_script()
     cleanup = (
         demo.FixtureCleanup(
-            "Google Chrome",
-            202,
-            "windows_closed",
-            None,
-            1,
-            True,
+            application="Google Chrome",
+            pid=202,
+            disposition="windows_closed",
+            exit_code=None,
+            close_requests=1,
+            window_cleanup_verified=True,
+            process_running=True,
         ),
         demo.FixtureCleanup(
-            "Microsoft Word",
-            101,
-            "handoff_required",
-            None,
-            0,
-            True,
+            application="Microsoft Word",
+            pid=101,
+            disposition="handoff_required",
+            exit_code=None,
+            close_requests=0,
+            window_cleanup_verified=False,
+            process_running=True,
         ),
     )
 
@@ -324,6 +600,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
         run_id="cross-app-demo-test",
         document_name="fixture.docx",
         profile_name="chrome-profile",
+        permission_mode=demo.AGENTIC_ACTIONS_MODE,
         outcome="failed",
         failure_class="RuntimeError",
         cleanup=cleanup,
@@ -331,7 +608,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
 
     state = json.loads((tmp_path / "final-state.json").read_text())
     assert state == {
-        "cleanup_complete": False,
+        "all_processes_exited": False,
         "cleanup_scope": "exact_launched_processes_only",
         "failure_class": "RuntimeError",
         "fixture_identity": {
@@ -346,6 +623,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
                 "exit_code": None,
                 "pid": 202,
                 "process_running": True,
+                "window_cleanup_verified": True,
             },
             {
                 "application": "Microsoft Word",
@@ -354,11 +632,22 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
                 "exit_code": None,
                 "pid": 101,
                 "process_running": True,
+                "window_cleanup_verified": False,
             },
         ],
         "outcome": "failed",
+        "operator_handoff": {
+            "detected": True,
+            "fixture_pids": [101],
+            "resolution": "unresolved",
+            "resolved": False,
+        },
+        "operator_handoff_required": True,
+        "permission_mode": "agentic_actions",
+        "proposal_rejections": [],
         "run_id": "cross-app-demo-test",
-        "schema_version": 1,
+        "schema_version": 3,
+        "window_cleanup_complete": False,
     }
 
 
@@ -428,7 +717,10 @@ def test_run_cleans_exact_fixtures_and_records_failure_or_cancel(
     state = json.loads((tmp_path / "final-state.json").read_text())
     assert state["outcome"] == expected_outcome
     assert state["failure_class"] == type(raised).__name__
-    assert state["cleanup_complete"] is True
+    assert state["permission_mode"] == "agentic_actions"
+    assert state["window_cleanup_complete"] is True
+    assert state["all_processes_exited"] is True
+    assert state["operator_handoff_required"] is False
     assert [item["pid"] for item in state["fixtures"]] == [202, 101]
     assert all(process.terminated == 1 for process in processes)
 
@@ -439,7 +731,7 @@ def test_run_records_normal_completion_and_cleanup(
 ) -> None:
     demo = _load_demo_script()
     document = tmp_path / "fixture.docx"
-    _minimal_docx(document, demo.DEMO_TYPED_MARKER)
+    _minimal_docx(document, demo.SUMMARY)
     profile = tmp_path / "profile"
     profile.mkdir()
     processes = (_Process(101), _Process(202))
@@ -490,7 +782,10 @@ def test_run_records_normal_completion_and_cleanup(
     state = json.loads((tmp_path / "final-state.json").read_text())
     assert state["outcome"] == "passed"
     assert state["failure_class"] is None
-    assert state["cleanup_complete"] is True
+    assert state["permission_mode"] == "agentic_actions"
+    assert state["window_cleanup_complete"] is True
+    assert state["all_processes_exited"] is True
+    assert state["operator_handoff_required"] is False
 
 
 def test_the_demo_gives_its_presence_halo_a_message_pump() -> None:

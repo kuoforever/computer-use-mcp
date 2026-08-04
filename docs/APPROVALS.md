@@ -1,13 +1,14 @@
-# Experimental approved-action workflow
+# Project permission modes and action authorization
 
-> **Status: implemented with fake-port verification; isolated desktop smoke
-> pending.** The Host can orchestrate locally approved `activate_window`,
-> `click`, and `key` calls. The feature is opt-in and does not alter or bypass
-> any MCP Server safety mechanism. `type` remains disabled.
+> **Status: project-wide `read_only`, `approved_actions`, and
+> `agentic_actions` Host modes are implemented and offline verified.** The
+> latter two can expose reviewed action tools, while only `approved_actions`
+> requires one local decision for every side effect. Neither mode alters or
+> bypasses MCP Server safety mechanisms.
 
 ## Enablement
 
-Set the Agent policy explicitly:
+Set one project-wide Agent policy explicitly. Per-action approval uses:
 
 ~~~toml
 [policy]
@@ -16,10 +17,24 @@ require_approval_for_actions = true
 max_side_effects = 8
 ~~~
 
+Autonomous reviewed actions with the human as fallback use:
+
+~~~toml
+[policy]
+mode = "agentic_actions"
+require_approval_for_actions = false
+max_side_effects = 8
+~~~
+
+Keep the child MCP in `safe_local` mode with a narrow application allowlist.
+Do not substitute `full_control_local`: that lower-level mode bypasses both the
+foreground allowlist and human-activity yielding, while `agentic_actions`
+removes only the Host's per-action approval prompt.
+
 Install a provider extra and run from an interactive local console. In this
-mode the provider receives schemas for `activate_window`, `click`, and `key` in
-addition to text observation tools. The common Runner remains the authority:
-provider output cannot approve, ground, or dispatch an action.
+mode the provider receives schemas for reviewed action tools in addition to
+observation tools. The common Runner remains the authority: provider output
+cannot widen scope, ground, approve, or dispatch an action.
 
 ## Authorization sequence
 
@@ -27,21 +42,21 @@ For each requested action, the Host performs these checks in order:
 
 1. The tool is in the fixed reviewed registry and its arguments pass the Host
    schema.
-2. The policy is `approved_actions`; tools with an unverified required safety
+2. The policy is action-capable; tools with an unverified required safety
    baseline remain denied.
 3. Grounding belongs to the current MCP child generation and satisfies the
    tool-specific requirement.
 4. The side-effect budget has remaining capacity.
-5. The default console displays a non-sensitive argument summary and SHA-256
-   call digest. With explicit Decision Card opt-in, the Runner first yields
-   desktop authority and opens a four-choice native card. Only the explicit
-   exact-effect choice approves that one request; re-observe, defer, and denial
-   cause zero side-effect dispatch.
-6. The returned decision must match request ID, run/turn/call identity, and
-   digest. A stale or mismatched decision is rejected.
-7. The call is marked Host-authorized and dispatched through the serialized
+5. In `approved_actions`, the default console or opt-in Decision Card obtains a
+   fresh exact-effect decision. Re-observe, defer, and denial cause zero
+   side-effect dispatch; a stale or mismatched decision is rejected. In
+   `agentic_actions`, this per-action decision step is skipped.
+6. The call is marked Host-authorized and dispatched through the serialized
    MCP bridge, which independently applies its allowlist, human-activity,
    confirmation, E-stop, and audit checks.
+7. Any dispatched side effect requires a fresh reviewed observation before
+   another action or successful completion. An unknown outcome stops and is
+   never replayed.
 
 The console defaults to deny on empty input, EOF, interruption, or any answer
 other than explicit yes. It never prints raw typed text.
@@ -53,7 +68,8 @@ with benefits, costs, risks, reversibility, authority scope, fallback, and
 provenance for time/token/confidence estimates. See
 [Operator experience](OPERATOR_EXPERIENCE.md).
 
-This is decision support, not delegated authority. A model recommendation cannot
+This is decision support for `approved_actions` or an explicit fallback
+boundary, not delegated authority. A model recommendation cannot
 approve itself. Choosing an option must create a fresh identity- and digest-
 bound Host decision; any resulting side effect still passes the existing
 grounding, budget, approval, MCP safety, and post-action verification path.
@@ -78,9 +94,10 @@ fixed rejected/not-dispatched result and a durable `PAUSED` checkpoint with
 requires trace inspection and a fresh run. Denial stops the run. All three paths
 consume zero side-effect budget. Cancel/close/timeout return no selection and deny. Native
 errors, malformed choices, missing context, and expiry also deny. This creates
-no alternate MCP call site, global allow control, batch approval, model
-approval, or automatic recommendation selection. The console remains the
-default when the card is disabled.
+no alternate MCP call site, model approval, or automatic recommendation
+selection. The console remains the default in `approved_actions` when the card
+is disabled. `agentic_actions` is a separate project policy mode; it does not
+synthesize approvals or show a card before every action.
 
 ## Grounding rules
 
@@ -130,8 +147,9 @@ Do not test approved actions on a sensitive or actively used desktop.
 
 ## Planned enterprise authorization extension
 
-The current approval is intentionally one local confirmation for one GUI
-action. It is not an enterprise authorization model. Future enterprise
+The current `approved_actions` approval is intentionally one local confirmation
+for one GUI action, while `agentic_actions` is a local reviewed-action policy.
+Neither is an enterprise authorization model. Future enterprise
 workflows must introduce a separate, fail-closed authority envelope bound to:
 
 - authenticated user, tenant, role, and policy version;

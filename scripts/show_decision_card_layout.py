@@ -42,7 +42,7 @@ from computer_use_agent.decision_cards import (  # noqa: E402
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW  # noqa: E402
 from computer_use_agent.workflow_checklist import WorkflowStatus  # noqa: E402
 
-_REVIEW_WINDOW_TITLE = "Needs input · approval locked"
+_REVIEW_WINDOW_TITLE = "Decision required · action blocked"
 _WM_COMMAND = 0x0111
 _EVIDENCE_TOGGLE_ID = 2002
 

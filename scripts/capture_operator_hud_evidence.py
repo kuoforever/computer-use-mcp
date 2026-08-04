@@ -44,11 +44,11 @@ class CaptureTarget:
 
 TARGETS: dict[Surface, CaptureTarget] = {
     "decision-card-compact": CaptureTarget(
-        "Needs input · approval locked",
+        "Decision required · action blocked",
         "decision-card-compact.png",
     ),
     "decision-card-expanded": CaptureTarget(
-        "Needs input · approval locked",
+        "Decision required · action blocked",
         "decision-card-expanded.png",
     ),
     "progress-compact": CaptureTarget(

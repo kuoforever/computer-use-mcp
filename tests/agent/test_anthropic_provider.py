@@ -14,6 +14,7 @@ from computer_use_agent.providers.anthropic import (
     AnthropicProviderError,
     _tool_results,
 )
+from computer_use_agent.provider_instructions import ActionInstructionProfile
 from computer_use_agent.token_window import conservative_input_token_bound
 from computer_use_agent.tool_registry import REVIEWED_TOOLS
 from computer_use_agent.types import (
@@ -68,6 +69,43 @@ def _response(
         stop_reason=stop_reason,
         usage=SimpleNamespace(input_tokens=11, output_tokens=5),
     )
+
+
+def test_claude_cross_app_demo_profile_is_closed_and_advertises_actions() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_demo",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            )
+        ]
+    )
+    provider = AnthropicMessagesProvider(
+        model="test-model",
+        messages=scripted,
+        allow_actions=True,
+        action_instruction_profile=ActionInstructionProfile.CROSS_APP_DEMO,
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_demo",
+            turn_id="turn_1",
+            task="bounded demo",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request = scripted.calls[0]
+    assert "disposable" in str(request["system"])
+    assert "collect both a Chrome ui_snapshot" in str(request["system"])
+    assert "document_text alone is not enough" in str(request["system"])
+    assert "does not ground keyboard input" in str(request["system"])
+    assert "Never use Ctrl+A" in str(request["system"])
+    assert "never substitutes a prewritten answer" in str(request["system"])
+    assert "type" in {tool["name"] for tool in request["tools"]}
 
 
 def test_claude_tool_use_and_adjacent_matching_tool_result() -> None:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC
 from typing import Callable, Protocol, runtime_checkable
 
-from .decision_cards import DecisionCard, DecisionSelection
+from .decision_cards import DecisionCard, DecisionSelection, IntendedEffect
 from .operator_visuals import (
     OperatorVisualRole,
     OperatorVisualToken,
@@ -33,10 +33,17 @@ class DecisionCardButton:
 
 _COMPACT_BUTTON_LABELS = {
     "option_approve_exact_effect": "Approve once",
-    "option_reobserve": "Re-observe",
-    "option_defer": "Defer",
-    "option_deny": "Deny",
+    "option_resume": "Resume agent",
+    "option_reobserve": "Check again",
+    "option_defer": "Pause agent",
+    "option_deny": "Stop task",
     "option_human_takeover": "Take over",
+}
+
+_PAUSE_BUTTON_LABELS = {
+    "option_resume": "Resume agent",
+    "option_defer": "Keep paused",
+    "option_deny": "Stop task",
 }
 
 
@@ -154,10 +161,15 @@ class DecisionCardWindow:
             or not 5 <= timeout_seconds <= 3_600
         ):
             raise DecisionCardWindowError("DECISION_CARD_WINDOW_TIMEOUT_INVALID")
+        button_labels = (
+            _PAUSE_BUTTON_LABELS
+            if card.intended_effect is IntendedEffect.PRESERVE_FOR_HANDOFF
+            else _COMPACT_BUTTON_LABELS
+        )
         buttons = tuple(
             DecisionCardButton(
                 option.option_id,
-                _COMPACT_BUTTON_LABELS.get(option.option_id, option.title),
+                button_labels.get(option.option_id, option.title),
             )
             for option in card.options
         )
@@ -172,13 +184,13 @@ class DecisionCardWindow:
         # application that qualify it. A backend zips these against a fixed
         # type scale, so the count must not vary with the context.
         instruction_lines = [
-            f"{attention.label.upper()}  ·  APPROVAL LOCKED",
+            f"{attention.label.upper()}  ·  ACTION BLOCKED",
             "Choose one bounded option",
             "",
             "",
         ]
         if context is not None:
-            title = f"{attention.label} · approval locked"
+            title = "Decision required · action blocked"
             instruction_lines[1] = context.label
             instruction_lines[2] = (
                 f"APPROVAL {context.current}/{context.total}"
@@ -189,6 +201,9 @@ class DecisionCardWindow:
                     f"WORKFLOW {context.workflow.current}/{context.workflow.total}"
                     f"  ·  {context.workflow.label}"
                 )
+        if card.intended_effect is IntendedEffect.PRESERVE_FOR_HANDOFF:
+            title = "Paused · agent held"
+            instruction_lines[0] = "PAUSED  ·  NO ACTION WILL RUN"
         instruction = "\n".join(instruction_lines)
         try:
             async with asyncio.timeout(timeout_seconds + 2):

@@ -21,6 +21,9 @@ max_request_bytes = 8388608
 # would exceed this value. Set it to the reviewed limit for your model ID.
 context_window_tokens = 128000
 output_token_reserve = 1024
+# Project-wide hard wall-clock bound for each provider turn. Timeout stops the
+# run before any unreturned model request can become a desktop action.
+request_timeout_seconds = 120
 
 [mcp]
 # The bridge executes this absolute program directly without a shell.
@@ -36,8 +39,13 @@ cwd = "C:/Users/your-user/guarded-desktop-agent"
 environment = { CUMCP_MODE = "safe_local", CUMCP_ALLOWLIST = "notepad.exe" }
 
 [policy]
-# The default denies all side-effecting tools. Even approved_actions retains a
-# local host approval for every action in the safety MVP.
+# Project-wide Host permission mode:
+# - read_only: deny side effects (default)
+# - approved_actions: require one local approval for every side effect
+# - agentic_actions: execute reviewed, grounded actions autonomously while the
+#   safe_local MCP layer still yields to human activity and retains allowlist,
+#   budgets, e-stop, audit, and no-replay safeguards. To enable it, set both
+#   mode = "agentic_actions" and require_approval_for_actions = false.
 mode = "read_only"
 require_approval_for_actions = true
 max_model_turns = 12

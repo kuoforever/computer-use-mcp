@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Sequence
 from uuid import uuid4
 
-from .config import APPROVED_ACTIONS_MODE, AgentConfig, ConfigError, load_agent_config
+from .config import (
+    ACTION_CAPABLE_MODES,
+    APPROVED_ACTIONS_MODE,
+    AgentConfig,
+    ConfigError,
+    load_agent_config,
+)
 from .discovery_adapters import DEFAULT_DISCOVERY_ADAPTERS
 from .presence_lifecycle import (
     FailSilentLifecycle,
@@ -496,7 +502,7 @@ async def _run_live_async(
 
         provider = OpenAIResponsesProvider.from_environment(
             config.provider.model,
-            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+            allow_actions=config.policy.mode in ACTION_CAPABLE_MODES,
             max_request_bytes=config.provider.max_request_bytes,
             context_window_tokens=config.provider.context_window_tokens,
             output_token_reserve=config.provider.output_token_reserve,
@@ -506,7 +512,7 @@ async def _run_live_async(
 
         provider = AnthropicMessagesProvider.from_environment(
             config.provider.model,
-            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+            allow_actions=config.policy.mode in ACTION_CAPABLE_MODES,
             max_request_bytes=config.provider.max_request_bytes,
             context_window_tokens=config.provider.context_window_tokens,
             output_token_reserve=config.provider.output_token_reserve,
@@ -1123,7 +1129,7 @@ async def _run_registered_campaign_async(
 
             provider = OpenAIResponsesProvider.from_environment(
                 config.provider.model,
-                allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+                allow_actions=config.policy.mode in ACTION_CAPABLE_MODES,
                 max_request_bytes=config.provider.max_request_bytes,
                 context_window_tokens=config.provider.context_window_tokens,
                 output_token_reserve=config.provider.output_token_reserve,
@@ -1133,7 +1139,7 @@ async def _run_registered_campaign_async(
 
             provider = AnthropicMessagesProvider.from_environment(
                 config.provider.model,
-                allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+                allow_actions=config.policy.mode in ACTION_CAPABLE_MODES,
                 max_request_bytes=config.provider.max_request_bytes,
                 context_window_tokens=config.provider.context_window_tokens,
                 output_token_reserve=config.provider.output_token_reserve,

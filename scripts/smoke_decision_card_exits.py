@@ -48,7 +48,7 @@ _WM_CLOSE = 0x0010
 _WM_KEYDOWN = 0x0100
 _VK_ESCAPE = 0x1B
 
-_TITLE = "Needs input · approval locked"
+_TITLE = "Decision required · action blocked"
 _BUTTONS = (
     DecisionCardButton("option_approve_exact_effect", "Approve once"),
     DecisionCardButton("option_reobserve", "Re-observe"),

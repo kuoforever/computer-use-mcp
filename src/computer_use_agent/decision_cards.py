@@ -71,6 +71,7 @@ class UnknownFact(str, Enum):
 
 class DecisionOptionKind(str, Enum):
     REOBSERVE = "reobserve"
+    RESUME = "resume"
     APPROVE_EXACT_EFFECT = "approve_exact_effect"
     DEFER = "defer"
     DENY = "deny"
@@ -455,6 +456,7 @@ class DecisionSelectionResult:
         allowed = {
             SelectionStatus.SELECTED: {
                 DecisionOptionKind.REOBSERVE,
+                DecisionOptionKind.RESUME,
                 DecisionOptionKind.APPROVE_EXACT_EFFECT,
             },
             SelectionStatus.DENIED: {DecisionOptionKind.DENY},
@@ -481,6 +483,19 @@ _OPTION_PRESENTATION: dict[
         FallbackKind,
     ],
 ] = {
+    DecisionOptionKind.RESUME: (
+        "Resume with fresh observation",
+        "No external effect occurs until the Agent observes and asks again",
+        ("returns control to the bounded Agent", "invalidates stale evidence"),
+        ("uses additional observation and model capacity",),
+        ("the requested action may still need a new approval",),
+        True,
+        RangeEstimate(EstimateKind.CONFIGURED_RANGE, 5, 30),
+        RangeEstimate(EstimateKind.UNKNOWN),
+        ConfidenceEstimate(ConfidenceKind.UNCALIBRATED, ConfidenceLabel.MEDIUM),
+        RequiredAuthority.OPERATOR,
+        FallbackKind.HANDOFF_TO_OPERATOR,
+    ),
     DecisionOptionKind.REOBSERVE: (
         "Re-observe before continuing",
         "No external effect occurs during the fresh observation",

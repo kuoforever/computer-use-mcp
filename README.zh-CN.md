@@ -50,6 +50,11 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 `safe_local` 开始，将白名单限制在测试应用（例如 Notepad），并先阅读
 [英文配置与安全说明](docs/CONFIGURATION.md)。
 
+项目级自主行动应在 Host 配置中设置 `mode = "agentic_actions"` 和
+`require_approval_for_actions = false`，同时让 MCP 保持 `safe_local`。这样只会
+取消逐动作审批，不会取消白名单、人类输入让路、预算、急停、审计和未知结果
+禁止重放。
+
 `full_control_local` 会明确绕过前台白名单和人类输入让路机制；虽然仍保留
 审计和急停，但只应在操作员明确授权接管本机桌面时使用。
 

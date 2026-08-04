@@ -52,6 +52,7 @@ not a line-by-line mirror of every reference page.
 | I need the latest partial BOSS item/restart diagnostic | [BOSS item/restart diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
 | I need the one-campaign complete-product showcase and evidence plan | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
 | I need the retained bounded Chrome-to-Word GUI Demo result | [Cross-application Demo evidence](CROSS_APP_DEMO_EVIDENCE.md) |
+| I am running or reviewing the model-driven bounded Demo | [Model-driven Demo contract](MODEL_DRIVEN_DEMO.md) |
 | I need the retained public-web-to-Word Demo with approval heartbeat | [Public-web Word Demo evidence](PUBLIC_WEB_WORD_DEMO_EVIDENCE.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | I am adding OCR, document text, image, or delta observations | [Observation contract](OBSERVATION_CONTRACT.md) |
@@ -74,7 +75,7 @@ not a line-by-line mirror of every reference page.
 | I need the native bounded-plan presence-halo result | [Bounded plan presence lifecycle evidence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md) |
 | I need the native read-only recovery progress-window result | [Recovery progress lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md) |
 | I need the 100-item forced-restart reliability result | [Reliability benchmark evidence](benchmark/README.md) |
-| I need Host approval and action-grounding rules | [Approved actions](APPROVALS.md) |
+| I need Host permission modes, approval, and action-grounding rules | [Action authorization](APPROVALS.md) |
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need the retained sanitized isolated desktop outcomes | [E4 evidence](E4_EVIDENCE.md) |
 | I need the retained sanitized provider integration outcomes | [Provider E3 evidence](E3_EVIDENCE.md) |
@@ -118,7 +119,7 @@ not a line-by-line mirror of every reference page.
 | Operator experience | Implemented passive progress with opt-in ordinary-run, bounded-plan, read-only recovery, and fixed MCP-backed campaign execution lifecycle wiring; zero-port campaign control remains window-free. Ordinary-run, one provider-free bounded plan, one persisted read-only recovery observation, and the fixed synthetic campaign have native progress lifecycle evidence. Opt-in durable ordinary-run/bounded-plan/read-only-recovery/fixed-campaign presence and a focus-taking four-choice Win32 Decision Card with expandable digest evidence also exist; bounded-plan presence has native evidence, while recovery and BOSS campaign presence plus same-run re-observe/durable defer remain offline verified and host-owned mobile notification remains planned |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
-| Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
+| Action authorization | Project-wide read-only, per-action approval, or agentic reviewed-action modes; grounding, budgets, re-observation, and current validation boundary |
 | E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |
 | E4 evidence | Reviewed VM/model scope, activation regression, four provider cells, approvals, and sanitized trace hashes |
 | Provider E3 evidence | Per-provider bounded live-API outcomes and the remaining dual-provider promotion boundary |

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .decision_card_window import WorkflowBreadcrumb
 from .demo_cross_app import project_demo_workflow
@@ -155,6 +155,44 @@ class DemoWorkflowProgress:
         # A display notification never starts the UI. Only the durable
         # lifecycle does, through on_phase or an explicit wake.
         self._apply(provider_step=provider_step, start=False)
+
+    def on_proposal_rejected(self, attempt: int, max_attempts: int) -> None:
+        """Show one bounded Host rejection while the model replans."""
+
+        if (
+            isinstance(attempt, bool)
+            or not isinstance(attempt, int)
+            or isinstance(max_attempts, bool)
+            or not isinstance(max_attempts, int)
+            or not 1 <= attempt <= max_attempts <= 4
+        ):
+            self._reject()
+            return
+        with self._guard:
+            checklist = self._checklist
+            if (
+                self._suppressed
+                or self._failed
+                or checklist is None
+                or checklist.current_step_id is None
+                or checklist.status in _TERMINAL_STATUSES
+            ):
+                self._reject_locked()
+                return
+            steps = tuple(
+                replace(
+                    step,
+                    label="Replanning after Host blocked a proposal",
+                    application=f"Safety guard · correction {attempt}/{max_attempts}",
+                )
+                if step.step_id == checklist.current_step_id
+                else step
+                for step in checklist.steps
+            )
+            self._checklist = replace(checklist, steps=steps)
+            already_running = self._thread is not None
+        if already_running:
+            self.wake()
 
     def on_phase(self, phase: RunPhase) -> None:
         """Track the durable Runner phase; it owns overall workflow status."""

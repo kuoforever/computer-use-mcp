@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from computer_use_agent.config import (
+    AGENTIC_ACTIONS_MODE,
     APPROVED_ACTIONS_MODE,
     AgentConfig,
     MCPLaunchConfig,
@@ -39,7 +40,10 @@ def _config(
             cwd=tmp_path,
             environment={"CUMCP_ALLOWLIST": "notepad.exe"},
         ),
-        policy=PolicyConfig(mode=mode),
+        policy=PolicyConfig(
+            mode=mode,
+            require_approval_for_actions=mode != AGENTIC_ACTIONS_MODE,
+        ),
     )
 
 
@@ -75,6 +79,26 @@ def test_approved_actions_policy_still_requires_approval() -> None:
             ),
         )
         is PolicyDisposition.APPROVAL_REQUIRED
+    )
+
+
+def test_agentic_actions_policy_allows_only_safety_ready_actions() -> None:
+    policy = HostPolicy.from_config(
+        "phase2",
+        PolicyConfig(
+            mode=AGENTIC_ACTIONS_MODE,
+            require_approval_for_actions=False,
+        ),
+    )
+
+    assert policy.disposition(get_tool_spec("click")) is PolicyDisposition.ALLOW
+    assert policy.disposition(get_tool_spec("type")) is PolicyDisposition.DENY
+    assert (
+        policy.disposition(
+            get_tool_spec("type"),
+            satisfied_safety_baselines=frozenset({"typed_text_audit_redaction"}),
+        )
+        is PolicyDisposition.ALLOW
     )
 
 

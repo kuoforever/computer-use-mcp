@@ -162,6 +162,30 @@ def test_chapters_only_move_forward() -> None:
     assert coordinator.rejected_count == 1
 
 
+def test_known_host_rejection_is_visible_only_while_agent_replans() -> None:
+    coordinator, _ = _coordinator()
+    coordinator.on_provider_step(9)
+
+    coordinator.on_proposal_rejected(1, 2)
+
+    checklist = coordinator.checklist
+    assert checklist is not None
+    current = next(
+        step for step in checklist.steps if step.step_id == checklist.current_step_id
+    )
+    assert current.label == "Replanning after Host blocked a proposal"
+    assert current.application == "Safety guard · correction 1/2"
+
+    coordinator.on_phase(RunPhase.EXECUTING)
+    checklist = coordinator.checklist
+    assert checklist is not None
+    current = next(
+        step for step in checklist.steps if step.step_id == checklist.current_step_id
+    )
+    assert current.label == "Add the verified source note"
+    assert current.application == "Microsoft Word"
+
+
 def test_approval_wait_and_terminal_success_use_distinct_statuses() -> None:
     coordinator, _ = _coordinator()
     coordinator.on_provider_step(4)

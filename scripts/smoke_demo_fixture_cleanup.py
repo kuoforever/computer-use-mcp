@@ -141,6 +141,10 @@ def main() -> int:
     finally:
         cleanup = demo._cleanup_fixture_processes(ownership)
 
+    # The shared cleanup contract already requires three consecutive zero
+    # observations. This additional smoke-only grace catches applications that
+    # surface a replacement window after returning from their close handler.
+    time.sleep(0.5)
     after = _live_target_windows()
     owned_pids = {int(item.process.pid) for item in ownership}
     remaining_owned_windows = {
@@ -154,6 +158,8 @@ def main() -> int:
         problems.append("a pre-existing Chrome/Word top-level window disappeared")
     if any(item.disposition == "handoff_required" for item in cleanup):
         problems.append("exact-process cleanup required operator handoff")
+    if any(not item.window_cleanup_verified for item in cleanup):
+        problems.append("exact-process window cleanup was not verified")
 
     outcome = "smoke_passed" if not problems else "smoke_failed"
     demo._write_final_state(
@@ -173,6 +179,7 @@ def main() -> int:
                 "disposition": item.disposition,
                 "pid": item.pid,
                 "process_running": item.process_running,
+                "window_cleanup_verified": item.window_cleanup_verified,
             }
             for item in cleanup
         ],

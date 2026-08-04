@@ -45,9 +45,10 @@ the following commands:
 - `run --config PATH --task TEXT` uses the configured optional provider and
   local stdio MCP bridge. Read-only mode exposes three text observations and
   one bounded PNG screenshot observation.
-  `approved_actions` additionally exposes `activate_window`, `click`, and
-  `key`, then applies grounding, budgets, digest-bound console approval, MCP
-  checks, and mandatory post-action observation. The CLI returns final text,
+  Both `approved_actions` and `agentic_actions` additionally expose reviewed
+  action tools, then apply grounding, budgets, MCP checks, and mandatory
+  post-action observation. The former adds digest-bound local approval for
+  every side effect; the latter skips only that prompt. The CLI returns final text,
   run ID, and model/tool counts as JSON.
 - `run ... --memory-scope SCOPE` explicitly includes up to eight active,
   revalidated, user-confirmed memories from that exact scope in the provider's
@@ -397,9 +398,13 @@ canonical identity and returns a matching `function_call_output` with
 `previous_response_id`. Text results remain JSON strings; screenshot results
 use a status `input_text` block plus one base64 data-URL `input_image` block.
 Provider, protocol, and policy failures use fixed error codes rather than
-echoing task, UI, or API error text. In approved mode it advertises only reviewed action tools whose
-required safety baselines are satisfied. A model-generated unadvertised tool
-fails closed.
+echoing task, UI, or API error text. In approved mode it advertises only
+reviewed action tools whose required safety baselines are satisfied. The closed
+model-driven Demo profile may receive the baseline-dependent tools that Runner
+already retained after MCP discovery; its separate Host guard then restricts
+fixture identity, semantic refs, keys, typed payload, call count, and
+completion. A model-generated unadvertised tool fails closed. See
+[Model-driven Demo](MODEL_DRIVEN_DEMO.md).
 
 The Claude adapter uses Messages API client tools and preserves each assistant
 `tool_use` block in its in-memory message history. Signed `thinking` and opaque
@@ -434,7 +439,10 @@ The task and returned desktop text are disclosed to the configured OpenAI
 model. The API key is read by the provider SDK from the host environment and is
 not passed to the MCP child. Use a non-sensitive desktop and narrow MCP
 allowlist. Approved actions remain experimental and require an interactive
-console; see [Approved actions](APPROVALS.md). `type` remains disabled.
+console; see [Approved actions](APPROVALS.md). `type` remains disabled for the
+ordinary provider path. The separate bounded Demo profile permits only its
+model-authored, source/title/URL/length-validated disposable brief after fresh
+public-source and Word grounding under the selected project permission mode.
 
 Opt-in E3 tests exercise both adapters against the harmless stdio fixture
 rather than the real desktop. See [Evaluation](EVALUATION.md) for their three
@@ -606,11 +614,15 @@ MCP SDK separately adds its fixed OS bootstrap allowlist (such as `SYSTEMROOT`,
 `PATH`, and `TEMP`); arbitrary variables and provider or cloud credentials are
 not inherited.
 
-The initial host policy has two modes:
+The Host policy has three project-wide modes:
 
 - `read_only` is the default and denies all four state-changing tools.
 - `approved_actions` remains opt-in and still requires an explicit local host
   approval for every action in the MVP.
+- `agentic_actions` is an explicit two-field opt-in that permits reviewed,
+  grounded, in-budget actions without per-action approval. It does not weaken
+  MCP safe-local allowlisting, human-activity yielding, confirmation, E-stop,
+  audit, post-action observation, or unknown-outcome no-replay rules.
 
 No policy or configuration setting may downgrade the MCP server to evade its
 safety mechanisms. A timeout, crash, or provider error after dispatch is an
@@ -677,9 +689,9 @@ as general secret detection.
 | Section | Purpose | Fail-closed rule |
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
-| `[provider]` | provider name (`openai` or `anthropic`), model ID, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. |
+| `[provider]` | provider name (`openai` or `anthropic`), model ID, bounded `max_request_bytes`, reviewed model context window, output reserve, and 1-600 second request timeout | Token-window values are required and must be valid for the exact model; a timed-out turn stops as `PROVIDER_TIMEOUT`; API keys are rejected because they do not belong in config. |
 | `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, out-of-range stable-sample/poll/wait values, audit redirection, and custom redaction controls are rejected. |
-| `[policy]` | read-only/approved-actions choice and fixed budgets | `approved_actions` cannot disable per-action approval. |
+| `[policy]` | read-only/approved-actions/agentic-actions choice and fixed budgets | `approved_actions` requires per-action approval; `agentic_actions` requires `require_approval_for_actions = false`. |
 
 Configuration parsing has no side effects: it does not create state directories,
 start a provider, start an MCP child, or interact with a desktop.
@@ -699,6 +711,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Approval and ledger cannot replay or retain typed text | Run/turn-qualified call identity, request/digest binding, deep immutability, and redacted typed-text summaries are tested | implemented contract test |
 | Result and recovery content is bounded and typed | Screenshot-only PNG output has parsed dimensions; text tools reject images; type results use only reviewed codes; action and transport failures differ; unknown outcomes cannot be `ready` | implemented contract test |
 | Default host mode is read-only | Default `PolicyConfig` denies action mode selection by omission | implemented contract test |
+| Agentic Host mode preserves action guards | `agentic_actions` skips per-action approval but still enforces safety baselines, grounding, budgets, sole dispatch, and mandatory verification | implemented contract tests |
 | Optional runtime dependency | Contract and CLI imports need no provider SDK; OpenAI is imported only by a live run | implemented contract test |
 | CLI offline commands | Help/config validation need no key or state write; dry-run emits safe metadata only | implemented foundation test |
 | Runner preparation is inert | Preparing state calls no provider, MCP, or approval fake | implemented foundation test |

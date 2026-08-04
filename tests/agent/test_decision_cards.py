@@ -123,6 +123,28 @@ def test_valid_choices_remain_non_authoritative_and_require_separate_approval() 
     }
 
 
+def test_resume_is_advisory_and_grants_no_action_authority() -> None:
+    card = compile_decision_card(
+        _request(
+            option_kinds=(DecisionOptionKind.RESUME, DecisionOptionKind.DENY),
+            recommended=DecisionOptionKind.RESUME,
+        ),
+        now=NOW,
+    )
+
+    result = validate_decision_selection(
+        card,
+        DecisionSelection(card.decision_id, card.card_digest, "option_resume"),
+        current_binding=card.binding,
+        now=NOW,
+    )
+
+    assert result.status is SelectionStatus.SELECTED
+    assert result.option_kind is DecisionOptionKind.RESUME
+    assert result.requires_separate_approval is False
+    assert result.releases_desktop_authority is False
+
+
 @pytest.mark.parametrize(
     ("kind", "status", "release"),
     [

@@ -18,10 +18,11 @@
 > control remains window-free.
 > Multi-monitor support and abrupt-process teardown remain separate gates.
 > Decision Card compilation,
-> choice validation, and an opt-in four-choice focus-taking Win32 adapter are
-> implemented through the existing `ApprovalPort`. The approved-action flow
-> remains one exact action at a time; console confirmation is default and the
-> card requires explicit opt-in. The standalone native surface has retained
+> choice validation, and an opt-in focus-taking Win32 adapter are implemented
+> through the existing `ApprovalPort`. In project-wide `approved_actions`, the
+> flow remains one exact action at a time; `agentic_actions` skips per-action
+> cards while retaining the separate safe-local human-activity and E-stop
+> fallback. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
 > has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). One fixed
 > provider-free bounded plan has separate native
@@ -130,7 +131,7 @@ visible halo, so high-visibility behavior is not yet an evidence-backed claim.
 The implemented shared token contract is now the source of truth for these
 labels, glyphs, and RGB roles. Presence phase projection and workflow progress
 both consume it directly. Decision Card uses the same amber `Needs input`
-token while retaining the separate `approval locked` boundary. The older
+token while retaining the separate `action blocked` boundary. The older
 run/campaign diagnostic projection also uses `In progress`, `Needs input`,
 `Paused`, `Ready`, `Failed`, `Cancelled`, and `Needs inspection` rather than a
 second vocabulary. High contrast may replace color with white, but never
@@ -302,8 +303,9 @@ Each card contains:
   authority.
 
 The native card uses progressive disclosure. Its compact state shows only the
-approval lock, approval count, current fixed action, application, safe-close
-countdown, details affordance, and a two-by-two grid of short choices. Decision
+action-blocked or paused state, decision count, current fixed action,
+application, safe-close countdown, details affordance, and bounded short
+choices. Decision
 trade-offs and evidence are absent from that state. Expanding intentionally
 resizes the same pending card and reveals two read-only panes: human-readable
 option outcomes/trade-offs and human-readable safety checks. Internal enum
@@ -328,7 +330,7 @@ action being approved. The card never copies the complete checklist, derives a
 workflow location from provider prose, or treats the breadcrumb as authority.
 An isolated Computer Use review at the current DPI confirmed the approval
 count, exact action, application, workflow breadcrumb, countdown, details
-affordance, and 2x2 choices fit in compact mode without clipping.
+affordance, and bounded choices fit in compact mode without clipping.
 
 ## Disposable Demo lifecycle
 
@@ -342,19 +344,25 @@ profile. The launcher retains only those two exact process handles. One
 `finally` block executes for normal completion, Runner failure, safe denial or
 cancel, keyboard interruption, and partial startup. It delegates to the shared
 disposable-process cleanup component, which posts `WM_CLOSE` only to visible
-unowned top-level windows belonging to each retained PID, then waits for every
-visible top-level window for that PID, including owned dialogs, to disappear. A
-process may drain naturally after its operator-visible windows are gone. Force
-termination is reserved for a bounded close timeout or a partial launch that
-exposed no window. Unavailable window observation becomes
-`handoff_required`; it never causes a process-name scan.
+unowned top-level window belonging to each retained PID. Completion requires
+three consecutive observations in which every visible top-level window for the
+PID is absent; a reappearing window resets that stability count. An owned
+dialog, such as an unresolved save choice, becomes `handoff_required` and is
+never answered or force-terminated automatically. A process may drain naturally
+after its operator-visible windows are stably gone. Force termination is
+reserved for a bounded close timeout with no owned dialog, or a partial launch
+that exposed no window. Unavailable or unexpected observation failures are
+isolated per exact process and become `handoff_required`; cleanup continues for
+the remaining retained PIDs and never performs a process-name scan.
 
 The per-run `final-state.json` contains only its schema version, run identity,
 fixed outcome, sanitized failure class, document/profile identity, cleanup
 scope, close-request count, per-process disposition, exit-code snapshot, and
-process-running snapshot. `cleanup_complete` means every exact owned window was
-closed or the exact process was already gone; it does not require killing an
-otherwise windowless application process.
+process-running snapshot. Schema v2 deliberately separates
+`window_cleanup_complete`, `all_processes_exited`, and
+`operator_handoff_required`. `window_cleanup_complete` means stable window
+absence was verified for every exact process or the process was already gone;
+it does not claim that every otherwise windowless application process exited.
 
 An initial live diagnostic proved why that distinction matters:
 force-terminating Word after its windows closed caused prior disposable

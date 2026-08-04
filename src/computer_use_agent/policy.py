@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .config import APPROVED_ACTIONS_MODE, PolicyConfig
+from .config import AGENTIC_ACTIONS_MODE, APPROVED_ACTIONS_MODE, PolicyConfig
 from .tool_registry import ToolSpec
 from .types import RunBudget, ToolEffect
 
@@ -57,6 +57,8 @@ class HostPolicy:
             return PolicyDisposition.DENY
         if tool.effect is ToolEffect.OBSERVATION:
             return PolicyDisposition.ALLOW
-        if self.config.mode != APPROVED_ACTIONS_MODE:
-            return PolicyDisposition.DENY
-        return PolicyDisposition.APPROVAL_REQUIRED
+        if self.config.mode == APPROVED_ACTIONS_MODE:
+            return PolicyDisposition.APPROVAL_REQUIRED
+        if self.config.mode == AGENTIC_ACTIONS_MODE:
+            return PolicyDisposition.ALLOW
+        return PolicyDisposition.DENY

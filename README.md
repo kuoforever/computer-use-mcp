@@ -134,6 +134,11 @@ Desktop actions can move the pointer, change focus, type text, and invoke UI
 controls. Start with `safe_local`, keep the allowlist narrow, and use a
 non-sensitive test application such as Notepad.
 
+For project-wide autonomous reviewed actions, set Host policy
+`mode = "agentic_actions"` and `require_approval_for_actions = false` while
+leaving MCP in `safe_local`. This removes per-action prompts without removing
+the allowlist, local-input yielding, budgets, E-stop, audit, or no-replay rules.
+
 `full_control_local` deliberately bypasses the foreground allowlist and
 human-activity yielding checks. It still has audit logging and an emergency
 stop, but it should be used only when an operator explicitly intends to hand

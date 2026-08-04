@@ -117,6 +117,18 @@ it makes its one Planner request, because every observation and final-response
 dispatch must retain the existing crash boundary. It remains disabled when
 `enabled = false`.
 
+Each ordinary provider turn also has a project-wide wall-clock bound configured
+under `[provider]`:
+
+~~~toml
+[provider]
+request_timeout_seconds = 120
+~~~
+
+The accepted range is 1 through 600 seconds. Timeout records the fixed
+`PROVIDER_TIMEOUT` failure and stops before an unreturned provider request can
+become a desktop action. The bounded model-driven Demo uses 90 seconds.
+
 ## Passive operator presence
 
 The ordinary Agent `run` and `resume` paths, bounded observation-only
@@ -173,7 +185,38 @@ the fixed MCP-backed `run-claimed-synthetic`, `observe-boss-page`, and
 campaign state by the existing poller; the zero-port prepare/start/resume
 commands deliberately do not flash a window.
 
-The approved-actions path can replace its one-action console prompt with the
+## Host permission modes
+
+`[policy]` selects one project-wide Host permission mode. This is separate from
+the MCP process mode: keep `CUMCP_MODE = "safe_local"` for normal autonomous
+operation so local activity, foreground allowlisting, confirmation, E-stop,
+and audit remain enforced.
+
+| Host mode | Side-effect behavior | Human role |
+| --- | --- | --- |
+| `read_only` | Deny all side-effecting tools. | No action permission is available. |
+| `approved_actions` | Require a fresh local approval for every reviewed side effect. | Operator decides every action. |
+| `agentic_actions` | Allow reviewed, grounded, in-budget side effects without per-action approval. | Operator is fallback through physical-input yielding and E-stop. |
+
+Autonomous reviewed actions require an explicit two-field opt-in:
+
+~~~toml
+[policy]
+mode = "agentic_actions"
+require_approval_for_actions = false
+max_side_effects = 8
+~~~
+
+This does not authorize arbitrary tools or applications. The reviewed registry,
+required safety baselines, current-generation grounding, side-effect budgets,
+write-ahead state, serialized Runner/MCP dispatch, post-action observation,
+unknown-outcome stop, safe-local foreground allowlist, human-activity gate,
+dangerous-click confirmation, E-stop, and audit remain in force.
+`full_control_local` is a separate low-level MCP takeover mode that bypasses the
+foreground allowlist and human-activity yielding; it is not the recommended way
+to obtain agentic project behavior.
+
+The `approved_actions` path can replace its one-action console prompt with the
 focus-taking local Decision Card:
 
 ~~~toml
@@ -183,7 +226,8 @@ decision_timeout_seconds = 300
 decision_card_corner = "bottom_right"
 ~~~
 
-The feature is disabled by default; the timeout is a strict integer from 5 to
+The card feature is disabled by default and is not opened for every action in
+`agentic_actions`; the timeout is a strict integer from 5 to
 3600 seconds. The card defaults to the bottom-right work-area corner; the other
 accepted positions are `top_left`, `top_right`, and `bottom_left`. It opens as
 a normal movable, resizable, minimizable, non-topmost Windows window. Its

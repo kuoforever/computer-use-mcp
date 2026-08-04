@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from computer_use_agent.config import (
+    AGENTIC_ACTIONS_MODE,
     APPROVED_ACTIONS_MODE,
     ContinuationConfig,
     READ_ONLY_MODE,
@@ -121,6 +122,27 @@ def test_provider_token_window_defaults_and_is_bounded(
     )
     with pytest.raises(ConfigError, match="context_window_tokens"):
         load_agent_config(missing)
+
+
+def test_provider_timeout_defaults_loads_and_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path, provider_extra="request_timeout_seconds = 45"),
+        encoding="utf-8",
+    )
+
+    assert load_agent_config(path).provider.request_timeout_seconds == 45
+    assert ProviderConfig("openai", "test-model").request_timeout_seconds == 120
+    for value in (0, 601, True):
+        with pytest.raises(ConfigError, match="request_timeout_seconds"):
+            ProviderConfig(
+                "openai",
+                "test-model",
+                request_timeout_seconds=value,  # type: ignore[arg-type]
+            )
 
 
 def test_continuation_persistence_is_explicit_opt_in_and_bounded(
@@ -327,8 +349,21 @@ def test_config_rejects_state_outside_the_user_local_application_directory(
 
 
 def test_approved_actions_cannot_disable_host_approval() -> None:
-    with pytest.raises(ConfigError, match="still requires"):
+    with pytest.raises(ConfigError, match="requires per-action host approval"):
         PolicyConfig(mode=APPROVED_ACTIONS_MODE, require_approval_for_actions=False)
+
+
+def test_agentic_actions_explicitly_disables_per_action_host_approval() -> None:
+    config = PolicyConfig(
+        mode=AGENTIC_ACTIONS_MODE,
+        require_approval_for_actions=False,
+    )
+
+    assert config.mode == AGENTIC_ACTIONS_MODE
+    assert config.require_approval_for_actions is False
+
+    with pytest.raises(ConfigError, match="requires require_approval_for_actions=false"):
+        PolicyConfig(mode=AGENTIC_ACTIONS_MODE)
 
 
 def test_context_event_budget_must_be_positive() -> None:

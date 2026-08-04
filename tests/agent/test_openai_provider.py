@@ -20,6 +20,7 @@ from computer_use_agent.providers.openai import (
     _tool_definitions,
     _tool_outputs,
 )
+from computer_use_agent.provider_instructions import ActionInstructionProfile
 from computer_use_agent.continuation import (
     RuntimeContinuationRecorder,
     read_continuation,
@@ -106,6 +107,7 @@ def _continuation_state(
     instructions = _instructions(
         allow_actions=provider.allow_actions,
         memory_context_used=memory_context_used,
+        action_instruction_profile=provider.action_instruction_profile,
     )
     return {
         "response_id": response_id,
@@ -127,6 +129,35 @@ def _continuation_state(
             {"response_id": response_id, "items": output_items or []}
         ],
     }
+
+
+def test_openai_cross_app_demo_profile_is_closed_and_advertises_actions() -> None:
+    scripted = ScriptedResponses([_response("response_demo", text="done")])
+    provider = OpenAIResponsesProvider(
+        model="test-model",
+        responses=scripted,
+        allow_actions=True,
+        action_instruction_profile=ActionInstructionProfile.CROSS_APP_DEMO,
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_demo",
+            turn_id="turn_1",
+            task="bounded demo",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request = scripted.calls[0]
+    assert "disposable" in str(request["instructions"])
+    assert "collect both a Chrome ui_snapshot" in str(request["instructions"])
+    assert "document_text alone is not enough" in str(request["instructions"])
+    assert "does not ground keyboard input" in str(request["instructions"])
+    assert "Never use Ctrl+A" in str(request["instructions"])
+    assert "never substitutes a prewritten answer" in str(request["instructions"])
+    assert "type" in {tool["name"] for tool in request["tools"]}
 
 
 def test_openai_function_call_and_matching_output_continuation() -> None:

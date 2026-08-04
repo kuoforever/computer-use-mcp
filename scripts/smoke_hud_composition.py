@@ -78,7 +78,7 @@ _HTTRANSPARENT = -1
 _MA_NOACTIVATE = 3
 _MONITOR_DEFAULTTONEAREST = 2
 
-_CARD_TITLE = "Needs input · approval locked"
+_CARD_TITLE = "Decision required · action blocked"
 _BUTTONS = (
     DecisionCardButton("option_approve_exact_effect", "Approve once"),
     DecisionCardButton("option_reobserve", "Re-observe"),

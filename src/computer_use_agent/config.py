@@ -30,6 +30,11 @@ class ConfigError(ValueError):
 
 READ_ONLY_MODE = "read_only"
 APPROVED_ACTIONS_MODE = "approved_actions"
+AGENTIC_ACTIONS_MODE = "agentic_actions"
+ACTION_CAPABLE_MODES = frozenset({APPROVED_ACTIONS_MODE, AGENTIC_ACTIONS_MODE})
+DEFAULT_PROVIDER_TIMEOUT_SECONDS = 120
+MIN_PROVIDER_TIMEOUT_SECONDS = 1
+MAX_PROVIDER_TIMEOUT_SECONDS = 600
 SUPPORTED_PROVIDERS = frozenset({"openai", "anthropic"})
 SUPPORTED_PRIVACY_DETECTORS = frozenset(
     {"email", "phone", "ipv4", "cn_id", "bank_card", "secret"}
@@ -260,6 +265,7 @@ class ProviderConfig:
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
+    request_timeout_seconds: int = DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or self.name not in SUPPORTED_PROVIDERS:
@@ -298,6 +304,17 @@ class ProviderConfig:
             raise ConfigError(
                 "provider output_token_reserve must be positive and smaller than "
                 "context_window_tokens"
+            )
+        if (
+            isinstance(self.request_timeout_seconds, bool)
+            or not isinstance(self.request_timeout_seconds, int)
+            or not MIN_PROVIDER_TIMEOUT_SECONDS
+            <= self.request_timeout_seconds
+            <= MAX_PROVIDER_TIMEOUT_SECONDS
+        ):
+            raise ConfigError(
+                "provider request_timeout_seconds must be between "
+                f"{MIN_PROVIDER_TIMEOUT_SECONDS} and {MAX_PROVIDER_TIMEOUT_SECONDS}"
             )
 
 
@@ -356,14 +373,22 @@ class PolicyConfig:
     max_input_tokens: int = 1_000_000
 
     def __post_init__(self) -> None:
-        if not isinstance(self.mode, str) or self.mode not in {READ_ONLY_MODE, APPROVED_ACTIONS_MODE}:
+        if not isinstance(self.mode, str) or self.mode not in {
+            READ_ONLY_MODE,
+            APPROVED_ACTIONS_MODE,
+            AGENTIC_ACTIONS_MODE,
+        }:
             raise ConfigError(
-                f"policy mode must be {READ_ONLY_MODE!r} or {APPROVED_ACTIONS_MODE!r}"
+                "policy mode must be read_only, approved_actions, or agentic_actions"
             )
         if not isinstance(self.require_approval_for_actions, bool):
             raise ConfigError("require_approval_for_actions must be boolean")
         if self.mode == APPROVED_ACTIONS_MODE and not self.require_approval_for_actions:
-            raise ConfigError("approved_actions mode still requires host approval in the MVP")
+            raise ConfigError("approved_actions mode requires per-action host approval")
+        if self.mode == AGENTIC_ACTIONS_MODE and self.require_approval_for_actions:
+            raise ConfigError(
+                "agentic_actions mode requires require_approval_for_actions=false"
+            )
         for field_name, value in (
             ("max_model_turns", self.max_model_turns),
             ("max_tool_calls", self.max_tool_calls),
@@ -561,6 +586,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "max_request_bytes",
             "context_window_tokens",
             "output_token_reserve",
+            "request_timeout_seconds",
         },
         "provider",
     )
@@ -620,6 +646,9 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         ),
         output_token_reserve=_read_positive_int(
             provider, "output_token_reserve", "provider"
+        ),
+        request_timeout_seconds=provider.get(
+            "request_timeout_seconds", DEFAULT_PROVIDER_TIMEOUT_SECONDS
         ),
     )
 

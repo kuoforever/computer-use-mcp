@@ -512,7 +512,7 @@ class AgentRunner:
             )
             state = self._record_result(state, denied, effect=spec.effect)
             raise RunFailure("POLICY_DENIED", state)
-        if disposition is PolicyDisposition.APPROVAL_REQUIRED:
+        if spec.effect is ToolEffect.SIDE_EFFECT:
             if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
                 denied = ToolResult(
                     identity=call.identity,
@@ -552,6 +552,7 @@ class AgentRunner:
                 state = self._record_result(state, denied, effect=spec.effect)
                 raise RunFailure(str(exc), state) from exc
 
+        if disposition is PolicyDisposition.APPROVAL_REQUIRED:
             request = ApprovalRequest.from_tool_call(
                 request_id=uuid4().hex,
                 call=call,
@@ -638,6 +639,7 @@ class AgentRunner:
                 state = self._record_result(state, rejected, effect=spec.effect)
                 state = replace(state, recovery_status=RecoveryStatus.STOPPED)
                 raise RunDeferred(state)
+        if spec.effect is ToolEffect.SIDE_EFFECT:
             state = self._consume_side_effect(state)
 
         recorder.record(state, RunPhase.EXECUTING)
@@ -868,14 +870,20 @@ class AgentRunner:
                     continuation.dispatch_provider(
                         state, checkpoint_sequence=recorder.checkpoint_sequence
                     )
-                turn = await self.ports.provider.create_turn(
-                    run_id=state.run_id,
-                    turn_id=turn_id,
-                    task=state.task,
-                    ledger=provider_ledger,
-                    tools=provider_tools,
-                    memories=memories,
-                )
+                try:
+                    async with asyncio.timeout(
+                        self.config.provider.request_timeout_seconds
+                    ):
+                        turn = await self.ports.provider.create_turn(
+                            run_id=state.run_id,
+                            turn_id=turn_id,
+                            task=state.task,
+                            ledger=provider_ledger,
+                            tools=provider_tools,
+                            memories=memories,
+                        )
+                except TimeoutError as exc:
+                    raise RunFailure("PROVIDER_TIMEOUT", state) from exc
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
                 if privacy is not None:

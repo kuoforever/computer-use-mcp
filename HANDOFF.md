@@ -353,6 +353,84 @@ the first four, and the deterministic Demo provider cannot currently recover
 from re-observe or resume a defer. Those integration gaps are the bounded work,
 not a reason to weaken the existing side-effect contract.
 
+### 2026-08-03 model-driven Demo reopening
+
+The user explicitly reopened bounded `GDA-DEMO-006` because the deterministic
+Chrome-to-Word provider demonstrates Runtime execution but not Agent adaptation.
+The live CLI now defaults to `--mode model` and requires an explicit OpenAI or
+Claude model ID. `CrossAppDemoProvider` remains available through
+`--mode controlled` as the deterministic E1 regression baseline.
+
+The model-driven path is not an unconstrained script. A closed provider prompt
+asks the model to choose zero or one next tool from fresh evidence, while a
+Host-owned guard rejects any request outside the exact launched Chrome and Word
+fixtures, semantic refs, reviewed key set, bounded model-authored source brief,
+source UIA/text prerequisite, one-call-per-turn limit, and post-save durable
+content verification. The live path reads the real public Microsoft Support
+article and does not substitute a prewritten Host answer; the deterministic
+provider remains the only fixed-content regression path.
+Runner remains the sole policy, grounding, approval, budget, persistence, and
+MCP dispatch authority. Provider prose is discarded and cannot establish Demo
+completion. Do not claim provider or application evidence until an explicit
+opt-in reviewed-model run is retained; the current implementation is offline
+evidence only. The paused Full Cycle resume point and proposed `GDA-DEMO-005`
+cooperative takeover item remain unchanged.
+
+### 2026-08-03 fixture-cleanup review hardening
+
+The exact-process cleanup contract now requires three consecutive observations
+with no visible top-level window before recording `windows_closed`; a window
+that reappears resets the count. Visible owned dialogs are unresolved operator
+choices, so cleanup records `handoff_required` without terminating that process.
+Unexpected adapter/process exceptions are isolated to one retained PID and do
+not skip the remaining cleanup targets. `Win32ProcessWindows` uses its own
+private `user32` prototype table.
+
+New `final-state.json` records use schema v3. They deliberately separate
+`window_cleanup_complete`, `all_processes_exited`, and
+`operator_handoff_required`, and each fixture records
+`window_cleanup_verified`. They also retain bounded proposal-rejection facts and
+the exact owned-dialog resolution (`saved`, `discarded`, or `unresolved`). A
+known-not-dispatched model proposal may be returned to the same provider for at
+most two corrections; the HUD shows that replanning state, while unknown
+outcomes still stop. Do not summarize this as every process having exited.
+The hardening passed the repository's full offline validation gate but has not
+promoted new Chrome or Word evidence. The next task remains the fresh
+operator-ready `GDA-DEMO-006` model run, and the paused Full Cycle resume point
+is unchanged.
+
+### 2026-08-03 project permission mode
+
+The Host now has three project-wide modes: default `read_only`, per-side-effect
+`approved_actions`, and explicit `agentic_actions`. Agentic mode requires both
+`mode = "agentic_actions"` and `require_approval_for_actions = false`; provider
+adapters then expose reviewed action tools and Runner permits safety-ready
+side effects without calling the approval port. Runner still owns safety
+baseline checks, current-generation grounding, side-effect budgets, serialized
+MCP dispatch, WAL/result validation, and mandatory post-action observation.
+Unknown outcomes still stop and are never replayed.
+
+Keep MCP in `safe_local` for this mode. This retains the foreground allowlist,
+human-activity wait, dangerous-click confirmation, E-stop, and audit. Do not
+use MCP `full_control_local` as a synonym for agentic behavior: it bypasses the
+foreground allowlist and human-activity yielding. The bounded model-driven Demo
+defaults to `agentic_actions`, accepts `--permission-mode approved_actions` for
+per-action compatibility, and records the selected mode in `final-state.json`.
+
+Decision Card labels and resume compilation are shared project code. The
+Demo-specific defer compatibility loop offers `Resume agent`, `Keep paused`,
+and `Stop task`; resume becomes a zero-dispatch re-observe decision. There is
+not yet a general manual pause/resume hotkey for `agentic_actions`: physical
+input temporarily holds MCP dispatch and resumes after stable idle, while the
+configured E-stop remains the hard fallback. Do not claim the general manual
+control lifecycle complete until that explicit boundary is implemented.
+
+The complete offline gate after this change passed: pytest, Ruff, mypy, docs
+consistency, and `git diff --check` were all clean. The dated running totals are
+owned by `PROJECT_STATUS.md`. This is offline contract evidence only; the exact
+next action is a fresh model-driven Demo run in default agentic mode. Full Cycle
+remains paused at its recorded resume point.
+
 Before changing behavior, inspect the current worktree and run the unit suite:
 
 ~~~powershell

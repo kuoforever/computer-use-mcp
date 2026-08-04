@@ -87,9 +87,9 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     ]
     assert [button.label for button in call["buttons"]] == [
         "Approve once",
-        "Re-observe",
-        "Defer",
-        "Deny",
+        "Check again",
+        "Pause agent",
+        "Stop task",
     ]
     assert "A recommendation is advice, not permission" in call["content"]
     assert "Expected time:" in call["content"]
@@ -110,6 +110,44 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     assert "They grant no authority" in evidence
     assert "completion_outcome" not in evidence
     assert "7" * 64 not in evidence
+
+
+def test_pause_card_uses_lifecycle_specific_labels() -> None:
+    binding = DecisionBinding(
+        "run_1", *(f"{index:x}" * 64 for index in range(1, 7))
+    )
+    card = compile_decision_card(
+        DecisionCardRequest(
+            "pause_1",
+            binding,
+            NOW + timedelta(hours=1),
+            DecisionClass.RECOVERY,
+            ApplicationClass.DESKTOP,
+            IntendedEffect.PRESERVE_FOR_HANDOFF,
+            RecipientScope.NONE,
+            (EvidenceReference(EvidenceKind.OBSERVATION, "7" * 64),),
+            (UnknownFact.ACTIVE_TARGET,),
+            (
+                DecisionOptionKind.RESUME,
+                DecisionOptionKind.DEFER,
+                DecisionOptionKind.DENY,
+            ),
+            recommended=DecisionOptionKind.RESUME,
+        ),
+        now=NOW,
+    )
+    api = Api("option_resume")
+
+    asyncio.run(DecisionCardWindow(api).choose(card, timeout_seconds=3_600))
+
+    call = api.calls[0]
+    assert call["title"] == "Paused · agent held"
+    assert call["instruction"].split("\n")[0] == "PAUSED  ·  NO ACTION WILL RUN"
+    assert [button.label for button in call["buttons"]] == [
+        "Resume agent",
+        "Keep paused",
+        "Stop task",
+    ]
 
 
 def test_controller_renders_compact_locked_step_context() -> None:
@@ -134,11 +172,11 @@ def test_controller_renders_compact_locked_step_context() -> None:
     )
 
     call = api.calls[0]
-    assert call["title"] == "Needs input · approval locked"
+    assert call["title"] == "Decision required · action blocked"
     # The shared HUD tier order: accent micro-label, the one thing being
     # decided, then the counts and application that qualify it.
     assert call["instruction"].split("\n") == [
-        "NEEDS INPUT  ·  APPROVAL LOCKED",
+        "NEEDS INPUT  ·  ACTION BLOCKED",
         "Switch to the research notes",
         "APPROVAL 4/7  ·  Microsoft Word",
         "WORKFLOW 3/6  ·  Open the research brief",

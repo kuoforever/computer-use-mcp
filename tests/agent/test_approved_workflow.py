@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from computer_use_agent.config import (
+    AGENTIC_ACTIONS_MODE,
     APPROVED_ACTIONS_MODE,
     AgentConfig,
     MCPLaunchConfig,
@@ -52,7 +53,13 @@ class DynamicApprovalPort:
         )
 
 
-def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
+def _config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    mode: str = APPROVED_ACTIONS_MODE,
+    max_side_effects: int = 2,
+) -> AgentConfig:
     local = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local))
     return AgentConfig(
@@ -66,10 +73,11 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
             environment={"CUMCP_ALLOWLIST": "notepad.exe"},
         ),
         policy=PolicyConfig(
-            mode=APPROVED_ACTIONS_MODE,
+            mode=mode,
+            require_approval_for_actions=mode != AGENTIC_ACTIONS_MODE,
             max_model_turns=6,
             max_tool_calls=6,
-            max_side_effects=2,
+            max_side_effects=max_side_effects,
         ),
     )
 
@@ -142,6 +150,118 @@ def test_approved_action_requires_grounding_then_reobservation_before_success(
         LedgerEventKind.POLICY_DECISION
     ) == 1
     assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "SUCCESS"
+
+
+def test_agentic_action_dispatches_without_per_action_approval_but_keeps_guards(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_agentic"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    after = _call(run_id, 3, "call_3", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, action),
+                _turn(run_id, 3, after),
+                _turn(run_id, 4, text="verified"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(before, text='ref_1 | button "OK" | (1,1,10,10) | enabled'),
+                _result(action),
+                _result(after, text='ref_2 | text "Done" | (1,1,10,10) | enabled'),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    config = _config(tmp_path, monkeypatch, mode=AGENTIC_ACTIONS_MODE)
+
+    outcome = asyncio.run(
+        AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+            "Click OK and verify", run_id=run_id
+        )
+    )
+
+    assert outcome.text == "verified"
+    assert [call.name for call in desktop.tool_calls] == [
+        "ui_snapshot",
+        "click",
+        "ui_snapshot",
+    ]
+    assert approvals.requests == []
+    assert outcome.state.budgets.side_effects_used == 1
+    assert outcome.state.verified_observation_epoch == 2
+
+
+def test_agentic_action_cannot_bypass_side_effect_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_agentic_budget"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, before), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [_result(before, text='ref_1 | button "OK" | (1,1,10,10) | enabled')]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    config = _config(
+        tmp_path,
+        monkeypatch,
+        mode=AGENTIC_ACTIONS_MODE,
+        max_side_effects=0,
+    )
+
+    with pytest.raises(RunFailure, match="SIDE_EFFECT_BUDGET_EXHAUSTED"):
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Click OK", run_id=run_id
+            )
+        )
+
+    assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
+    assert approvals.requests == []
+
+
+def test_provider_timeout_stops_before_any_desktop_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class HangingProvider(FakeModelProvider):
+        async def create_turn(self, **_kwargs: object) -> ModelTurn:  # type: ignore[override]
+            await asyncio.sleep(10)
+            raise AssertionError("provider timeout did not cancel the request")
+
+    config = replace(
+        _config(tmp_path, monkeypatch, mode=AGENTIC_ACTIONS_MODE),
+        provider=ProviderConfig(
+            "openai",
+            "fake",
+            request_timeout_seconds=1,
+        ),
+    )
+    desktop = FakeDesktopMCP()
+
+    with pytest.raises(RunFailure, match="PROVIDER_TIMEOUT") as failed:
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(HangingProvider(), desktop, DynamicApprovalPort()),
+            ).run("Wait for a bounded provider", run_id="run_provider_timeout")
+        )
+
+    assert failed.value.state.budgets.model_turns_used == 0
+    assert desktop.tool_calls == []
+    assert read_run_record(config.state_dir, "run_provider_timeout")["state"][
+        "failure_code"
+    ] == "PROVIDER_TIMEOUT"
 
 
 def test_focus_taking_card_yields_before_choice_and_uses_sole_dispatch_boundary(

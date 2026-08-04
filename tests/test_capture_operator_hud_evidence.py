@@ -36,7 +36,7 @@ def test_capture_slots_use_fixed_titles_and_dated_repository_paths() -> None:
     assert {
         target.title for target in module.TARGETS.values()
     } == {
-        "Needs input · approval locked",
+        "Decision required · action blocked",
         "Progress HUD visual review",
     }
     assert module._output_path(
