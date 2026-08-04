@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -28,6 +29,7 @@ from computer_use_agent.types import (
     ApprovalRequest,
     CallIdentity,
     DispatchCertainty,
+    ImageContent,
     LedgerEventKind,
     MCPCallCancelled,
     ModelTurn,
@@ -36,8 +38,16 @@ from computer_use_agent.types import (
     PolicyDecisionKind,
     RecoveryStatus,
     ToolCall,
+    ToolCallStatus,
     ToolResult,
     ToolResultStatus,
+)
+
+
+_PNG_10X10 = (
+    b"\x89PNG\r\n\x1a\n"
+    b"\x00\x00\x00\rIHDR"
+    b"\x00\x00\x00\x0a\x00\x00\x00\x0a"
 )
 
 
@@ -45,10 +55,13 @@ from computer_use_agent.types import (
 class DynamicApprovalPort:
     kind: PolicyDecisionKind = PolicyDecisionKind.ALLOW
     mismatch: bool = False
+    on_request: Callable[[ApprovalRequest], None] | None = None
     requests: list[ApprovalRequest] = field(default_factory=list)
 
     async def request_approval(self, request: ApprovalRequest) -> PolicyDecision:
         self.requests.append(request)
+        if self.on_request is not None:
+            self.on_request(request)
         return PolicyDecision(
             request_id="wrong" if self.mismatch else request.request_id,
             identity=request.identity,
@@ -116,13 +129,19 @@ def _call(run_id: str, turn: int, call_id: str, name: str, arguments: dict) -> T
     return ToolCall(CallIdentity(run_id, f"turn_{turn}", call_id), name, arguments)
 
 
-def _result(call: ToolCall, *, text: str = "") -> ToolResult:
+def _result(
+    call: ToolCall,
+    *,
+    text: str = "",
+    images: tuple[ImageContent, ...] = (),
+) -> ToolResult:
     return ToolResult(
         call.identity,
         call.name,
         ToolResultStatus.SUCCESS,
         DispatchCertainty.DISPATCHED,
         sanitized_text=text,
+        images=images,
     )
 
 
@@ -173,6 +192,131 @@ def _capture_continuations(
 
     monkeypatch.setattr(continuation_module, "write_continuation", capture)
     return payloads
+
+
+def _assert_post_approval_authority_failure(
+    failure: RunFailure,
+    *,
+    expected_code: str,
+    config: AgentConfig,
+    task: str,
+    observe: ToolCall,
+    action: ToolCall,
+    provider: FakeModelProvider,
+    desktop: FakeDesktopMCP,
+    approvals: DynamicApprovalPort,
+    payloads: list[dict[str, object]] | None,
+) -> None:
+    state = failure.state
+    assert [event.kind for event in state.event_log] == [
+        LedgerEventKind.USER_TASK,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+        LedgerEventKind.OBSERVATION,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.POLICY_DECISION,
+        LedgerEventKind.TOOL_RESULT,
+    ]
+    decision = state.event_log[-2].policy_decision
+    assert decision is not None
+    assert decision.identity == action.identity
+    assert decision.kind is PolicyDecisionKind.ALLOW
+    rejected = state.event_log[-1].tool_result
+    assert rejected is not None
+    assert rejected.identity == action.identity
+    assert rejected.status is ToolResultStatus.REJECTED
+    assert rejected.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert rejected.code == "POLICY_DENIED"
+    assert state.budgets.model_turns_used == 2
+    assert state.budgets.input_tokens_used == 2
+    assert state.budgets.tool_calls_used == 2
+    assert state.budgets.side_effects_used == 0
+    assert state.observation_epoch == state.verified_observation_epoch == 1
+    assert state.recovery_status is RecoveryStatus.READY
+
+    assert len(provider.calls) == 2
+    assert len(desktop.tool_calls) == 1
+    assert desktop.tool_calls[0].identity == observe.identity
+    assert desktop.tool_calls[0].name == observe.name
+    assert desktop.tool_calls[0].arguments == observe.arguments
+    assert desktop.tool_calls[0].status is ToolCallStatus.AUTHORIZED
+    assert len(approvals.requests) == 1
+    assert approvals.requests[0].identity == action.identity
+    assert desktop.close_calls == 1
+
+    provider_completion: list[dict[str, object]] = []
+    if payloads is not None:
+        action_operation_id = (
+            f"{action.identity.run_id}:{action.identity.turn_id}:"
+            f"{action.identity.call_id}"
+        )
+        action_boundaries = [
+            boundary
+            for payload in payloads
+            if isinstance((boundary := payload.get("boundary")), dict)
+            and boundary.get("operation_kind") == "tool"
+            and boundary.get("operation_id") == action_operation_id
+        ]
+        assert action_boundaries == []
+        provider_completion = [
+            payload
+            for payload in payloads
+            if isinstance(payload.get("boundary"), dict)
+            and payload["boundary"]
+            == {
+                "operation_kind": "provider",
+                "stage": "completed",
+                "operation_id": (
+                    f"{action.identity.run_id}:{action.identity.turn_id}:provider"
+                ),
+                "effect": "side_effect",
+                "dispatch": "dispatched",
+                "next_step": "stop",
+            }
+        ]
+        assert len(provider_completion) == 1
+
+    record = read_run_record(config.state_dir, action.identity.run_id)
+    checkpoint = record["state"]
+    assert checkpoint["phase"] == "FAILED"
+    assert checkpoint["failure_code"] == expected_code
+    assert checkpoint["event_count"] == 9
+    assert checkpoint["observation_epoch"] == 1
+    assert checkpoint["verified_observation_epoch"] == 1
+    assert checkpoint["recovery_status"] == "ready"
+    assert checkpoint["resume_allowed"] is False
+    assert checkpoint["recovery_action"] == "inspect_trace_then_start_new_run"
+    assert checkpoint["budgets"] == {
+        "max_input_tokens": 1_000_000,
+        "max_model_turns": 6,
+        "max_side_effects": 2,
+        "max_tool_calls": 6,
+        "input_tokens_used": 2,
+        "model_turns_used": 2,
+        "side_effects_used": 0,
+        "tool_calls_used": 2,
+    }
+    if provider_completion:
+        assert checkpoint["checkpoint_sequence"] == provider_completion[0][
+            "checkpoint_sequence"
+        ]
+    assert record["events"][-2]["kind"] == "policy_decision"
+    assert record["events"][-2]["decision"] == "allow"
+    last_event = record["events"][-1]
+    assert last_event["kind"] == "tool_result"
+    assert last_event["tool"] == action.name
+    assert last_event["status"] == "rejected"
+    assert last_event["dispatch"] == "not_dispatched"
+    assert last_event["code"] == "POLICY_DENIED"
+    recovery = classify_run_recovery(
+        checkpoint,
+        task_length=len(task),
+        policy_version="approved-v1",
+    )
+    assert (recovery.action, recovery.reason) == ("start_new_run", "RUN_TERMINAL")
+    assert not continuation_path(config.state_dir, action.identity.run_id).exists()
 
 
 def test_unadvertised_action_has_no_approval_or_desktop_authority(
@@ -842,6 +986,225 @@ def test_host_binding_drift_during_card_blocks_dispatch(
     with pytest.raises(RunFailure, match="APPROVAL_MISMATCH"):
         asyncio.run(runner.run("Activate", run_id=run_id))
     assert [call.name for call in desktop.tool_calls] == ["list_windows"]
+
+
+@pytest.mark.parametrize(
+    (
+        "case",
+        "observation_name",
+        "observation_text",
+        "observation_images",
+        "action_name",
+        "action_arguments",
+    ),
+    [
+        pytest.param(
+            "ref",
+            "ui_snapshot",
+            'ref_1 | button "OK" | (1,1,10,10) | enabled',
+            (),
+            "click",
+            {"ref": "ref_1"},
+            id="ref",
+        ),
+        pytest.param(
+            "window",
+            "list_windows",
+            '* 42 | app.exe | "App"',
+            (),
+            "activate_window",
+            {"window_id": "42"},
+            id="window",
+        ),
+        pytest.param(
+            "screenshot",
+            "screenshot",
+            "",
+            (ImageContent("image/png", _PNG_10X10, 10, 10),),
+            "click",
+            {"x": 0, "y": 0},
+            id="screenshot",
+        ),
+    ],
+)
+def test_generation_drift_after_allow_has_no_side_effect_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    observation_name: str,
+    observation_text: str,
+    observation_images: tuple[ImageContent, ...],
+    action_name: str,
+    action_arguments: dict[str, object],
+) -> None:
+    run_id = f"run_post_approval_generation_{case}"
+    task = "Use only current desktop authority"
+    observe = _call(run_id, 1, "call_1", observation_name, {})
+    action = _call(run_id, 2, "call_2", action_name, action_arguments)
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, observe, input_tokens=1),
+                _turn(run_id, 2, action, input_tokens=1),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    observe,
+                    text=observation_text,
+                    images=observation_images,
+                )
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort(
+        on_request=lambda _request: setattr(desktop, "generation", 2)
+    )
+    payloads = _capture_continuations(monkeypatch)
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+
+    with pytest.raises(RunFailure, match="^MCP_GENERATION_CHANGED$") as raised:
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                task,
+                run_id=run_id,
+            )
+        )
+
+    _assert_post_approval_authority_failure(
+        raised.value,
+        expected_code="MCP_GENERATION_CHANGED",
+        config=config,
+        task=task,
+        observe=observe,
+        action=action,
+        provider=provider,
+        desktop=desktop,
+        approvals=approvals,
+        payloads=payloads,
+    )
+
+
+def test_safety_baseline_loss_after_allow_has_no_side_effect_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_post_approval_baseline_loss"
+    task = "Type only while redaction is evidenced"
+    observe = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "type", {"text": "sensitive-value"})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, observe, input_tokens=1),
+                _turn(run_id, 2, action, input_tokens=1),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        satisfied_safety_baselines=frozenset({"typed_text_audit_redaction"}),
+        results=deque(
+            [
+                _result(
+                    observe,
+                    text='ref_1 | textbox "Input" | (1,1,10,10) | enabled',
+                )
+            ]
+        ),
+    )
+    approvals = DynamicApprovalPort(
+        on_request=lambda _request: setattr(
+            desktop,
+            "satisfied_safety_baselines",
+            frozenset(),
+        )
+    )
+    config = _config(tmp_path, monkeypatch)
+
+    with pytest.raises(
+        RunFailure,
+        match="^SAFETY_BASELINE_UNSATISFIED$",
+    ) as raised:
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                task,
+                run_id=run_id,
+            )
+        )
+
+    assert "type" in {tool.name for tool in provider.calls[1]["tools"]}
+    _assert_post_approval_authority_failure(
+        raised.value,
+        expected_code="SAFETY_BASELINE_UNSATISFIED",
+        config=config,
+        task=task,
+        observe=observe,
+        action=action,
+        provider=provider,
+        desktop=desktop,
+        approvals=approvals,
+        payloads=None,
+    )
+
+
+def test_post_approval_live_authority_recheck_allows_unchanged_facts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_post_approval_authority_unchanged"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "type", {"text": "approved-value"})
+    after = _call(run_id, 3, "call_3", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before, input_tokens=1),
+                _turn(run_id, 2, action, input_tokens=1),
+                _turn(run_id, 3, after, input_tokens=1),
+                _turn(run_id, 4, text="verified", input_tokens=1),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        satisfied_safety_baselines=frozenset({"typed_text_audit_redaction"}),
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | textbox "Input" | (1,1,10,10) | enabled',
+                ),
+                _result(action),
+                _result(
+                    after,
+                    text='ref_2 | text "approved" | (1,1,10,10) | enabled',
+                ),
+            ]
+        ),
+    )
+    approvals = DynamicApprovalPort()
+    config = _config(tmp_path, monkeypatch)
+
+    outcome = asyncio.run(
+        AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+            "Type and verify",
+            run_id=run_id,
+        )
+    )
+
+    assert outcome.text == "verified"
+    assert [call.name for call in desktop.tool_calls] == [
+        "ui_snapshot",
+        "type",
+        "ui_snapshot",
+    ]
+    assert outcome.state.budgets.side_effects_used == 1
+    assert outcome.state.observation_epoch == outcome.state.verified_observation_epoch == 2
+    assert outcome.state.recovery_status is RecoveryStatus.READY
+    assert len(approvals.requests) == 1
+    assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "SUCCESS"
 
 
 def test_action_without_grounding_is_denied_before_approval_or_dispatch(

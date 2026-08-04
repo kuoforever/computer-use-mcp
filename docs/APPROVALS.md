@@ -32,14 +32,24 @@ For each requested action, the Host performs these checks in order:
 3. Grounding belongs to the current MCP child generation and satisfies the
    tool-specific requirement.
 4. The side-effect budget has remaining capacity.
-5. The default console displays a non-sensitive argument summary and SHA-256
+5. Model, input-token, context, and tool-call capacity can still hold the
+   mandatory post-action observation lane.
+6. The default console displays a non-sensitive argument summary and SHA-256
    call digest. With explicit Decision Card opt-in, the Runner first yields
    desktop authority and opens a four-choice native card. Only the explicit
    exact-effect choice approves that one request; re-observe, defer, and denial
    cause zero side-effect dispatch.
-6. The returned decision must match request ID, run/turn/call identity, and
+7. The returned decision must match request ID, run/turn/call identity, and
    digest. A stale or mismatched decision is rejected.
-7. The call is marked Host-authorized and dispatched through the serialized
+8. A valid decision is recorded for audit. For `ALLOW`, the Host then rechecks
+   grounding against the live MCP generation and the tool's required safety
+   baselines against the live child evidence. Generation drift fails with
+   `MCP_GENERATION_CHANGED`; missing baseline evidence fails with
+   `SAFETY_BASELINE_UNSATISFIED`. Both append a rejected, known-not-dispatched
+   policy result while preserving the audited decision and prior verified
+   observation; neither consumes side-effect budget nor creates action
+   continuation or MCP authority.
+9. Only then is the call marked Host-authorized and dispatched through the serialized
    MCP bridge, which independently applies its allowlist, human-activity,
    confirmation, E-stop, and audit checks.
 
@@ -64,7 +74,9 @@ approval, desktop, or dispatch port. The opt-in local adapter now implements
 the existing `ApprovalPort`: it converts only a fresh, correlated
 `approve_exact_effect` selection into the ordinary digest-bound
 `PolicyDecision`. The Runner recomputes state, policy, task, registry, object,
-and grounding-evidence digests after the interaction before dispatch.
+and grounding-evidence digests after the interaction, records a valid decision,
+then rechecks the live MCP generation, grounding, and required safety baselines
+before dispatch authority exists.
 
 The Win32 adapter uses a timed Common Controls v6 Task Dialog with four custom
 choices: request approval for the exact effect, re-observe, defer, or deny. It
@@ -124,9 +136,11 @@ terminal unknown state, and is never replayed.
 ## Current validation boundary
 
 Offline tests prove allow/deny/mismatch binding, grounding freshness, MCP
-generation drift, bounds, side-effect accounting, serialization, mandatory
-re-observation, typed-text denial, unknown outcomes, redacted approvals, and
-terminal trace state.
+generation and safety-baseline drift both before and after an approval wait,
+bounds, side-effect accounting, serialization, mandatory re-observation,
+typed-text denial, unknown outcomes, redacted approvals, and terminal trace
+state. Post-approval drift retains the correlated `ALLOW` as an audit fact but
+creates no dispatch authority.
 
 The re-observe/defer extension is offline verified only. The retained native
 desktop record still covers the earlier three-choice card; a four-choice

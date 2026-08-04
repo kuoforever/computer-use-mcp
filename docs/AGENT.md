@@ -280,6 +280,17 @@ The projection never mutates canonical state. This reserves one verification
 turn and observation call; it does not silently require a second turn for the
 later final response.
 
+The approval wait is itself an authority boundary. After a fresh correlated
+decision is recorded, DENY, REOBSERVE, and DEFER retain their existing terminal
+or observation-reset behavior. An `ALLOW` is an audit fact, not dispatch
+authority: before side-effect budget consumption or action continuation, the
+Runner validates the original grounding against the live desktop generation and
+rechecks every required safety baseline against the live MCP evidence.
+Generation drift has fixed `MCP_GENERATION_CHANGED`; baseline loss has fixed
+`SAFETY_BASELINE_UNSATISFIED`. Either path appends a rejected,
+`not_dispatched` `POLICY_DENIED` result, preserves the prior verified
+observation and `ready` recovery state, and performs no action MCP call.
+
 For each provider turn, the Host derives one final advertised tool set after the
 caller allowlist, privacy policy, and current MCP safety baselines are applied.
 When sensitive continuation is enabled, continuation v6 persists those exact
@@ -654,7 +665,7 @@ message that could echo the typed value.
 | User/operator -> host | local operator and host policy | task text and approval context | Task text cannot change policy. Actions start disabled in `read_only` mode. |
 | Provider -> host | host policy, reviewed registry, and the exact live or v6-recovered Host-advertised set | model text, tool calls, response IDs | Persist the live set without widening, narrow recovered scope to current-safe observations, and atomically reject any turn containing an unadvertised, schema-invalid, or noncanonical call before ledger/continuation completion or later MCP dispatch; serialize allowed calls, apply budgets, and never grant approval from model text. |
 | Desktop/UI -> host | host policy only | UI text, window titles, refs, screenshots, tool output | Treat as untrusted data; never execute instructions embedded in it or promote it to memory automatically. |
-| Host -> MCP child | current MCP server safety controls | child output and discovery metadata | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch. |
+| Host -> MCP child | current MCP server safety controls | child output, discovery metadata, and authority that may age during approval | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch; after an audited `ALLOW`, revalidate live generation/grounding and required baselines before side-effect budget, action continuation, or dispatch. |
 | MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak and initial foreground gate, then immediately before at most one driver invocation re-check e-stop and take one non-waiting foreground observation. Every guard rejection is known `not_dispatched` and is never replayed. |
 | Host state -> disk | explicit local persistence rules | all candidate memory and trace content | Keep state under a user-local directory; redact traces and store memory only after explicit confirmation. |
 
@@ -799,6 +810,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
 | Side effects reserve mandatory verification capacity | After the action request is recorded and ordinary authority checks pass, the Runner projects the approved action result and requires model, input-token, reducible-context, and tool-call capacity for one post-action observation before constructing approval or action continuation state. Fixed-priority insufficiency is rejected without dispatch and preserves the prior verified observation; the exact one-lane boundary is not over-reserved for final response | implemented approved-workflow budget, ledger, checkpoint, continuation, and recovery tests |
+| Approval cannot outlive MCP authority facts | After recording a valid `ALLOW`, the Runner revalidates ref/window/screenshot grounding against the live MCP generation and required safety baselines against live child evidence before side-effect budget, action continuation, or MCP. Drift retains the audited decision but appends a rejected/not-dispatched result with zero action authority | implemented approved-workflow generation/baseline drift, ledger, checkpoint, continuation, and unchanged-success tests |
 | Advertised tool scope is Host authority | Every live returned provider turn is checked atomically against the final caller/privacy/safety-baseline-filtered tool set before response consumption or continuation completion, and v6 preserves that set for narrowing across recovery. An unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow tests |
 | Returned tool schemas are whole-turn atomic | After advertised-name validation, every returned call's reviewed schema and canonical arguments are preflighted before response consumption or continuation completion. One malformed sibling has fixed `SCHEMA_MISMATCH`, zero approval/MCP calls, zero model/tool/side-effect budget consumption, and cannot execute a valid observation or action prefix; valid multi-call ordering remains sequential | implemented common-Runner and approved-action workflow tests |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
