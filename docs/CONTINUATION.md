@@ -164,6 +164,14 @@ The adapter must expose pure `export_continuation` and `restore_continuation`
 operations. Restoration performs validation and network I/O is forbidden until
 the host commits a new dispatch intent.
 
+For both `DISPATCH_OBSERVATION` and `MANDATORY_REOBSERVE`, a recovered call
+remains non-authoritative data. Immediately before any tool `dispatch_intent`
+can be committed, the executor resolves the current reviewed tool specification
+and requires all of its `required_safety_baselines` to be present in the
+currently connected MCP generation's `satisfied_safety_baselines`. Missing
+current evidence fails with fixed `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, with
+no checkpoint or continuation mutation and zero MCP tool dispatch.
+
 ## Write-ahead operation protocol
 
 Every external operation has a unique `operation_id` and three possible durable
@@ -205,7 +213,7 @@ The conservative reconstruction matrix is:
 | `prepared`, provider request | Do not send it; start a new run. |
 | `dispatch_intent`, provider request, no completion | `UNKNOWN_OUTCOME`; do not resend. |
 | `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A provider-requested side effect is validated as an input record, terminalized as a fixed failure, and never dispatched. |
-| `prepared`, tool call | Observation may be dispatched once only if no dispatch intent exists. Pending side-effect requires a new run. |
+| `prepared`, tool call | Observation may be dispatched once only if no dispatch intent exists and its current required MCP safety baselines are satisfied. Pending side-effect requires a new run. |
 | `dispatch_intent`, any tool call, no completion | `UNKNOWN_OUTCOME`; do not call the tool again. |
 | `completed`, observation result | Consume the result and issue only the next new provider continuation. |
 | `completed`, side-effect result | Consume the result, invalidate grounding, and issue only a new mandatory observation. Never repeat the side-effect. |
@@ -270,10 +278,12 @@ and retains JUnit evidence without enabling provider or desktop integration.
 3. **Implemented:** pure provider export/restore, strict attach planning, and a
    controlled executor covers the completed read-only boundaries.
    `agent recover ... --execute-read-only` holds the run lock, compares both
-   persisted sequences, durably commits intent before exactly one external call,
-   then commits its normalized completion. Torn cross-file updates and repeated
-   attaches fail closed on sequence mismatch. The full runtime E2 matrix
-   freezes exact external-call counts for enabled and rejected boundaries.
+   persisted sequences, revalidates the reviewed call's required safety
+   baselines against the current MCP generation, durably commits intent before
+   exactly one external call, then commits its normalized completion. Torn
+   cross-file updates and repeated attaches fail closed on sequence mismatch.
+   The full runtime E2 matrix freezes exact external-call counts for enabled and
+   rejected boundaries.
 4. **Implemented:** a completed side effect can dispatch exactly one synthetic
    `ui_snapshot` under the same locked intent/completion protocol. It never
    repeats the action, reuses approval, or continues the old provider exchange;

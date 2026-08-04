@@ -100,6 +100,12 @@ the following commands:
   `RECOVERED_ACTION_REQUESTED` code. Calls remain input records only; no policy,
   approval, MCP dispatch, or action authority is entered, and the CLI exits
   nonzero after deleting the continuation.
+  Recovered observation authority is current: before either an observation or
+  mandatory re-observation intent is persisted, the executor checks the
+  reviewed tool's required safety baselines against the connected MCP
+  generation. Missing evidence produces fixed
+  `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, with no recovery-state mutation and
+  zero MCP tool dispatch.
 - `campaign resume-synthetic --config PATH --campaign-id ID --run-id ID`
   exposes only the fixed durable restart/resume boundary. It accepts no task,
   item selector, provider, or desktop option; reconstructs the finished
@@ -745,6 +751,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | OpenAI stateless replay evaluation is frozen | A canonical nine-case fixture and SHA-256 manifest freeze exact text/screenshot input order, rejected transcript classes, provider-call counts, remote-chain preservation, and zero historical MCP dispatch through the recovery executor | implemented E2 replay matrix |
 | OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v5 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Crash reconstruction release evidence is explicit | Release preflight and each CI Python job run the classifier plus 15-case exact-call runtime matrix as a separate fail-closed gate; preflight v5 records case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
+| Recovered observation authority is current | Before persisting either an observation or mandatory re-observation intent, the executor rechecks the reviewed tool's required safety baselines against the connected MCP generation. Missing evidence has a fixed failure, byte-stable checkpoint/continuation state, and zero MCP dispatch | implemented locked recovery tests |
 | Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls; hidden call output, drift, and sequence mismatch fail closed | implemented terminal recovery boundary |
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
