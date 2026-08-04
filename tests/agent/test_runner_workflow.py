@@ -401,6 +401,101 @@ def test_runner_enforces_the_post_baseline_advertised_tool_set(
     assert desktop.tool_calls == []
 
 
+def test_continuation_excludes_type_and_rejects_the_whole_returned_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_continuation_type_incompatible"
+    observe = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    typed = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_2"),
+        "type",
+        {"text": "never-persist-this"},
+    )
+
+    class RejectingTurnProvider(FakeModelProvider):
+        def export_continuation(self, run_id: str) -> Never:
+            del run_id
+            raise AssertionError("rejected provider turn must not be exported")
+
+    provider = RejectingTurnProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (observe, typed),
+                    usage=ModelUsage(input_tokens=13, output_tokens=7),
+                )
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        satisfied_safety_baselines=frozenset({"typed_text_audit_redaction"})
+    )
+    approvals = FakeApprovalPort()
+    persisted_boundaries: list[tuple[str, str]] = []
+    persisted_scopes: list[tuple[str, ...]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        scope = payload["advertised_tool_names"]
+        assert isinstance(boundary, dict)
+        assert isinstance(scope, list)
+        persisted_boundaries.append(
+            (str(boundary["operation_kind"]), str(boundary["stage"]))
+        )
+        persisted_scopes.append(tuple(str(name) for name in scope))
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+
+    with pytest.raises(RunFailure, match="^PROVIDER_TOOL_NOT_ADVERTISED$"):
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(provider, desktop, approvals),
+            ).run(
+                "Observe without persisting typed text",
+                run_id=run_id,
+                allowed_tool_names=frozenset({"ui_snapshot", "type"}),
+            )
+        )
+
+    assert {tool.name for tool in provider.calls[0]["tools"]} == {"ui_snapshot"}
+    assert persisted_scopes == [("ui_snapshot",), ("ui_snapshot",)]
+    assert persisted_boundaries == [
+        ("provider", "prepared"),
+        ("provider", "dispatch_intent"),
+    ]
+    assert desktop.tool_calls == []
+    assert approvals.requests == []
+    assert not continuation_path(config.state_dir, run_id).exists()
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "PROVIDER_TOOL_NOT_ADVERTISED"
+    assert record["state"]["budgets"] == {
+        "max_input_tokens": 1_000_000,
+        "max_model_turns": 4,
+        "max_side_effects": 8,
+        "max_tool_calls": 4,
+        "input_tokens_used": 0,
+        "model_turns_used": 0,
+        "side_effects_used": 0,
+        "tool_calls_used": 0,
+    }
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
+    assert "never-persist-this" not in json.dumps(record)
+
+
 def test_runner_rejects_unreviewed_or_mutable_tool_subset_before_opening_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

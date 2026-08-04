@@ -935,6 +935,10 @@ class AgentRunner:
                 if set(tool.required_safety_baselines).issubset(
                     self.ports.desktop.satisfied_safety_baselines
                 )
+                # Continuation v6 intentionally rejects raw typed text. Do not
+                # advertise an action whose provider completion cannot satisfy
+                # that persistence contract.
+                if not self.config.continuation.enabled or tool.name != "type"
             )
             advertised_tool_names = frozenset(tool.name for tool in provider_tools)
             if self.config.continuation.enabled:

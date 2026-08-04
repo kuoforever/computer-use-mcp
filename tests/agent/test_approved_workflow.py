@@ -1200,6 +1200,10 @@ def test_post_approval_live_authority_recheck_allows_unchanged_facts(
         "type",
         "ui_snapshot",
     ]
+    assert all(
+        "type" in {tool.name for tool in provider_call["tools"]}
+        for provider_call in provider.calls
+    )
     assert outcome.state.budgets.side_effects_used == 1
     assert outcome.state.observation_epoch == outcome.state.verified_observation_epoch == 2
     assert outcome.state.recovery_status is RecoveryStatus.READY

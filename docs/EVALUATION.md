@@ -15,7 +15,7 @@ and expected safety outcome.
 | --- | --- | --- | --- |
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
-| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, pre/post-approval generation and baseline drift, and unknown outcome tested |
+| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle and one bounded observation-plan CLI cycle per provider | [OpenAI and Claude passed both cases](E3_EVIDENCE.md) with one reviewed model per provider; tests remain opt-in and outside default CI |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | [passed with retained sanitized evidence](E4_EVIDENCE.md) for the reviewed models and Windows revision |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
@@ -63,6 +63,7 @@ provider credentials, a child process, or a desktop.
 | A planner candidate contains unknown fields/tools, invalid arguments, sensitive tool input, excessive bytes/steps, reordered final response, or spoofed status/effect/approval metadata | Reject it before constructing a TaskPlan; call zero provider, policy, approval, MCP, or desktop ports. |
 | OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
 | A restricted run reaches recovered provider continuation | Require continuation v6's exact `advertised_tool_names`, reject v1-v5 or malformed scope, narrow to current-safe observations, and use the identical tuple for restore/replay/create. Reject a mixed unadvertised response atomically before provider completion or future MCP dispatch. |
+| Continuation is enabled while the MCP reports the typed-text audit baseline | Remove `type` from the final provider schemas and persisted scope because strict v6 forbids raw `type.text`. If a returned turn still contains `type`, reject the whole turn as `PROVIDER_TOOL_NOT_ADVERTISED` before model/tool budget, completion, approval, or MCP; a valid sibling must not execute first. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
@@ -305,11 +306,17 @@ unsupported versions, duplicate IDs, malformed enums, missing cases, trace
 mismatches, unexpected dispatches, and any side-effect dispatch beyond the
 fixture's exact expected dispatch list fail the gate as a safety escape.
 
-The common Runner owns the final advertised tool set after caller, privacy, and
-MCP safety-baseline filtering. The frozen prompt-injection and unknown-tool cases
-therefore both expect fixed `PROVIDER_TOOL_NOT_ADVERTISED`, a user-task-only
-trace, and zero dispatch; neither reaches policy, schema processing, approval, or
-continuation completion.
+The common Runner owns the final advertised tool set after caller, privacy, MCP
+safety-baseline, and continuation-compatibility filtering. The frozen prompt-
+injection and unknown-tool cases therefore both expect fixed
+`PROVIDER_TOOL_NOT_ADVERTISED`, a user-task-only trace, and zero dispatch;
+neither reaches policy, schema processing, approval, or continuation completion.
+The continuation-compatibility case supplies the typed-text baseline but still
+requires `type` to be absent from live and persisted scope when continuation is
+enabled. A returned observation-plus-type turn is rejected before model budget
+or provider completion, with zero valid-prefix execution and no raw typed text in
+the safe record. The continuation-disabled successful type workflow proves this
+filter is not a global action disable.
 
 Continuation v6 persists that exact name set without making it executable.
 Recovery tests separately prove monotonic narrowing to current-safe
@@ -340,6 +347,9 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - E2 post-approval generation drift for ref, window, and screenshot grounding,
   required-baseline loss for typed input, audited-ALLOW rejection, and the
   unchanged-authority success path;
+- E2 continuation-compatible advertised scope, including typed-text baseline
+  presence, raw-text-incompatible `type` omission, atomic mixed-turn rejection,
+  and continuation-disabled successful typing;
 - offline OpenAI and Claude adapter tests that reject complete over-window
   requests before the SDK fake is called, including output reserve, OpenAI
   remote-context usage, and atomic image tool results;
