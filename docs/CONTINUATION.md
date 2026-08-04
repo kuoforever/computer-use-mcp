@@ -175,6 +175,15 @@ records:
 3. `completed`: the normalized response/result is durable and the next step is
    named explicitly.
 
+A provider `dispatch_intent` does not make the returned turn trusted or
+completed. After the provider returns and turn identity is checked, the Runner
+atomically verifies every requested tool against the exact set the Host actually
+advertised after caller, privacy, and MCP safety-baseline filtering. If any call
+is absent, fixed `PROVIDER_TOOL_NOT_ADVERTISED` terminates the run before model
+ledger/budget consumption, provider-state export, `completed`, policy, approval,
+or MCP dispatch. A surviving provider intent remains conservative unknown
+evidence; it is never reconstructed as completed provider work.
+
 A result-carrying post-dispatch MCP cancellation is completed through this same
 protocol before cancellation is re-propagated. The Runner validates and privacy
 protects the bridge's `unknown_outcome` result, records the correlated tool

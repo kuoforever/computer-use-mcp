@@ -855,6 +855,7 @@ class AgentRunner:
                     self.ports.desktop.satisfied_safety_baselines
                 )
             )
+            advertised_tool_names = frozenset(tool.name for tool in provider_tools)
             if self.config.continuation.enabled:
                 continuation = RuntimeContinuationRecorder(
                     state_dir=self.config.state_dir,
@@ -906,6 +907,10 @@ class AgentRunner:
                 )
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
+                if any(
+                    call.name not in advertised_tool_names for call in turn.tool_calls
+                ):
+                    raise RunFailure("PROVIDER_TOOL_NOT_ADVERTISED", state)
                 if privacy is not None:
                     try:
                         privacy.validate_model_text(turn.text)

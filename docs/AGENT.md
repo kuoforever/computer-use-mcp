@@ -260,6 +260,17 @@ tool-call, result, and observation events are appended to the canonical ledger;
 model and tool budgets are consumed before another external call can occur.
 The current ledger is in-memory only and is not a resumable trace.
 
+For each provider turn, the Host derives one final advertised tool set after the
+caller allowlist, privacy policy, and current MCP safety baselines are applied.
+After validating turn identity, the Runner atomically rejects the whole returned
+turn with fixed `PROVIDER_TOOL_NOT_ADVERTISED` if any requested tool is absent
+from that exact set. This check happens before privacy processing, model-turn
+ledger/budget consumption, provider continuation export/completion, policy,
+approval, or MCP dispatch, so a valid prefix in the same turn gains no authority.
+With sensitive continuation enabled, the rejected provider request may have only
+its conservative `prepared` and `dispatch_intent` records; it never becomes a
+completed provider response.
+
 `campaign_observation_runtime.py` reuses that same boundary for one internal
 execution-bearing campaign seam. It accepts only an already-claimed first item
 from the fixed `synthetic_read_only_observation` campaign, requires the sole
@@ -600,7 +611,7 @@ message that could echo the typed value.
 | Boundary | Trusted authority | Untrusted input | Required behavior |
 | --- | --- | --- | --- |
 | User/operator -> host | local operator and host policy | task text and approval context | Task text cannot change policy. Actions start disabled in `read_only` mode. |
-| Provider -> host | host policy and reviewed registry | model text, tool calls, response IDs | Validate schemas, serialize calls, apply budgets, and never grant approval from model text. |
+| Provider -> host | host policy, reviewed registry, and the exact Host-advertised set | model text, tool calls, response IDs | Atomically reject any turn containing an unadvertised call before ledger, continuation completion, policy, approval, or MCP dispatch; validate schemas, serialize allowed calls, apply budgets, and never grant approval from model text. |
 | Desktop/UI -> host | host policy only | UI text, window titles, refs, screenshots, tool output | Treat as untrusted data; never execute instructions embedded in it or promote it to memory automatically. |
 | Host -> MCP child | current MCP server safety controls | child output and discovery metadata | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch. |
 | MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak and initial foreground gate, then immediately before at most one driver invocation re-check e-stop and take one non-waiting foreground observation. Every guard rejection is known `not_dispatched` and is never replayed. |
@@ -744,6 +755,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
+| Advertised tool scope is Host authority | Every returned provider turn is checked atomically against the final caller/privacy/safety-baseline-filtered tool set before response consumption or continuation completion. An unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow tests |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 | Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; compilation itself grants no authority | implemented pure request contract consumed only by the internal final runtime and isolated adapters |

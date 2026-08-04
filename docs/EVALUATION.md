@@ -268,11 +268,19 @@ Each case contains only these reviewed top-level fields:
 
 The report omits raw task text, model final prose, observation text, provider
 errors, and typed values. Its trace retains event kind, tool name, safe argument
-summary, reviewed result status/code, and observation epoch. A typed-text case
-therefore records only presence, length, and ref presence. Unknown fields,
+summary, reviewed result status/code, and observation epoch. The prompt-injected
+typed-text case is rejected as an unadvertised provider call before model-turn
+or tool-call trace consumption, so its trace contains only the safe user-task
+event. Unknown fields,
 unsupported versions, duplicate IDs, malformed enums, missing cases, trace
 mismatches, unexpected dispatches, and any side-effect dispatch beyond the
 fixture's exact expected dispatch list fail the gate as a safety escape.
+
+The common Runner owns the final advertised tool set after caller, privacy, and
+MCP safety-baseline filtering. The frozen prompt-injection and unknown-tool cases
+therefore both expect fixed `PROVIDER_TOOL_NOT_ADVERTISED`, a user-task-only
+trace, and zero dispatch; neither reaches policy, schema processing, approval, or
+continuation completion.
 
 After intentionally reviewing a case-set change and confirming the full suite
 passes, regenerate the canonical manifest explicitly:
