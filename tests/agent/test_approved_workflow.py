@@ -882,17 +882,16 @@ def test_decision_card_defer_persists_paused_without_side_effect_dispatch(
     assert (recovery.action, recovery.reason) == ("start_new_run", "OPERATOR_DEFERRED")
 
 
-def test_decision_card_reobserve_abandons_turn_and_requires_fresh_observation(
+def test_decision_card_reobserve_requires_fresh_observation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run_id = "run_card_reobserve"
     before = _call(run_id, 1, "call_1", "list_windows", {})
     proposed = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
-    abandoned = _call(run_id, 2, "call_3", "activate_window", {"window_id": "43"})
-    refreshed = _call(run_id, 3, "call_4", "list_windows", {})
+    refreshed = _call(run_id, 3, "call_3", "list_windows", {})
     provider = FakeModelProvider(turns=deque([
         _turn(run_id, 1, before),
-        _turn(run_id, 2, proposed, abandoned),
+        _turn(run_id, 2, proposed),
         _turn(run_id, 3, refreshed),
         _turn(run_id, 4, text="fresh evidence retained"),
     ]))
@@ -909,7 +908,7 @@ def test_decision_card_reobserve_abandons_turn_and_requires_fresh_observation(
     )
 
     assert outcome.text == "fresh evidence retained"
-    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1", "call_4"]
+    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1", "call_3"]
     assert outcome.state.budgets.side_effects_used == 0
     assert outcome.state.recovery_status is RecoveryStatus.READY
     results = [
@@ -1321,7 +1320,7 @@ def test_unadvertised_type_is_rejected_before_requesting_approval(
     assert record["state"]["failure_code"] == "PROVIDER_TOOL_NOT_ADVERTISED"
 
 
-def test_second_action_without_reobservation_is_not_approved_or_dispatched(
+def test_multi_action_turn_is_rejected_before_any_approval_or_dispatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run_id = "run_two_actions"
@@ -1329,27 +1328,56 @@ def test_second_action_without_reobservation_is_not_approved_or_dispatched(
     first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
     second = _call(run_id, 2, "call_3", "click", {"ref": "ref_1"})
     provider = FakeModelProvider(
-        turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, first, second)])
+        turns=deque(
+            [
+                _turn(run_id, 1, observe, input_tokens=1),
+                _turn(run_id, 2, first, second, input_tokens=1),
+            ]
+        )
     )
     desktop = FakeDesktopMCP(
         results=deque(
             [
                 _result(observe, text='ref_1 | button "OK" | (1,1,10,10) | enabled'),
                 _result(first),
+                _result(second),
             ]
         )
     )
     approvals = DynamicApprovalPort()
+    config = _config(tmp_path, monkeypatch)
 
-    with pytest.raises(RunFailure, match="REOBSERVATION_REQUIRED"):
+    with pytest.raises(
+        RunFailure, match="^PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL$"
+    ) as raised:
         asyncio.run(
-            AgentRunner(
-                _config(tmp_path, monkeypatch), RunnerPorts(provider, desktop, approvals)
-            ).run("Click twice", run_id=run_id)
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Click twice", run_id=run_id
+            )
         )
 
-    assert len(approvals.requests) == 1
-    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1", "call_2"]
+    state = raised.value.state
+    assert [event.kind for event in state.event_log] == [
+        LedgerEventKind.USER_TASK,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+        LedgerEventKind.OBSERVATION,
+    ]
+    assert state.budgets.model_turns_used == 1
+    assert state.budgets.input_tokens_used == 1
+    assert state.budgets.tool_calls_used == 1
+    assert state.budgets.side_effects_used == 0
+    assert state.observation_epoch == state.verified_observation_epoch == 1
+    assert state.recovery_status is RecoveryStatus.READY
+    assert approvals.requests == []
+    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1"]
+    assert [result.identity.call_id for result in desktop.results] == [
+        "call_2",
+        "call_3",
+    ]
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["failure_code"] == "PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL"
 
 
 def test_unknown_action_outcome_stops_without_replay_and_marks_terminal_state(

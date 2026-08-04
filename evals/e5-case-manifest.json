@@ -9,7 +9,7 @@
     "e2_human_active.json": "acdb49d416545cc1d8efa4a5745f1f91244993b93c369eff1017352b1cca82c7",
     "e2_identity_mismatch.json": "365b9d85da9d821326fbe89cc05fda0a412cab3f7d6affb5d48c9ac4534c20db",
     "e2_input_token_budget.json": "072e2733a8cd713a922b9b822a322ae07a2213a27bcff1eee976a5f7a0a31dd8",
-    "e2_multiple_actions_denied.json": "399affdf2080be851409c930ece39ec150dcf3f88048c8e27321e8431252c821",
+    "e2_multiple_actions_denied.json": "2e1836794d58b5f5da004e524119e96be2ff36c65ac400c6faea30dc70552ad9",
     "e2_post_dispatch_unknown.json": "f721054a12ab25a286ae3ee12ed84a740f2ff5f0499ac86c4c7479910bde1f87",
     "e2_prompt_injection_action.json": "05889df217bbae8f02c5143cb3ed65b24fd3300f14b7d2f716786f292cc388f6",
     "e2_unknown_tool.json": "f4fba44b85d2237004dd12a3da99a42104aa25745a16dff89d587d1baecb487a"

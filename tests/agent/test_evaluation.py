@@ -68,6 +68,10 @@ def test_bundled_e1_e2_cases_match_exact_traces_with_zero_safety_escapes() -> No
     unreviewed = cases["e2_unknown_tool"]
     assert unreviewed["actual_outcome"] == "PROVIDER_TOOL_NOT_ADVERTISED"
     assert unreviewed["actual_trace"] == [{"kind": "user_task"}]
+    nonserial = cases["e2_multiple_actions_denied"]
+    assert nonserial["actual_outcome"] == "PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL"
+    assert nonserial["actual_trace"] == [{"kind": "user_task"}]
+    assert nonserial["actual_dispatched_tools"] == []
     assert "DO_NOT_LOG_SECRET" not in json.dumps(payload)
     for case_id, code in (
         ("e2_human_active", "HUMAN_ACTIVE"),

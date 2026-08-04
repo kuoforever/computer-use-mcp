@@ -6,9 +6,9 @@
 > PR #233; `GDA-CORE-005` is merged through PR #234; `GDA-CORE-006` is merged
 > through PR #235; `GDA-CORE-007` is merged through PR #236;
 > `GDA-CORE-008` is merged through PR #237; `GDA-CORE-009` is merged through
-> PR #238; `GDA-CORE-010` is merged through PR #239; `GDA-CORE-011` is
-> complete locally; and `GDA-CORE-012` is the exact next item after that slice
-> merges from its isolated branch.
+> PR #238; `GDA-CORE-010` is merged through PR #239; `GDA-CORE-011` is merged
+> through PR #240; `GDA-CORE-012` is complete locally; and `GDA-CORE-013` is
+> the exact next item after that slice merges from its isolated branch.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -133,6 +133,22 @@ must make every side-effect-bearing provider turn exactly one call and reject
 the whole non-serial turn before model/tool budget, provider completion,
 approval, side-effect budget, continuation action records, or MCP dispatch.
 
+`GDA-CORE-012` closes that provider-turn atomicity gap. After advertised-name
+and reviewed-schema validation, the Host now rejects every multi-call turn that
+contains a reviewed side effect with fixed
+`PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL`. The returned turn consumes no model/tool
+budget or continuation completion and creates no policy, approval, action, or
+MCP authority. Pure observation multi-call turns remain sequential, and a
+single action still reaches its reserved fresh observation.
+
+The next bounded audit selected `GDA-CORE-013`. The MCP's initial stable
+human-idle evidence can age while the foreground gate retries or a dangerous
+confirmation is open, while the final authority guard currently rechecks only
+e-stop and foreground. The next slice must perform one final non-waiting human
+activity check before driver dispatch. An affirmative dangerous confirmation
+may carry only its exact current input tick as a one-call, non-persisted
+exception; any newer or unavailable tick fails closed without dispatch.
+
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
 disabled by default and deferred to the external Full Cycle `FC-BRIDGE-003`
@@ -151,7 +167,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1643 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-011` closure revalidation |
+| Offline baseline | `1647 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-012` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -214,14 +230,16 @@ delivery work.
 | `GDA-CORE-008` | Complete; merged | Prevent non-native or failed MCP actions from claiming a human input tick | Commit `0756861`, merged through PR #237 as `ab4bb3a`; structured results and explicit route provenance gate agent-tick attribution on known-successful native input. Semantic ref actions, activation, invalid/no-op calls, and all failures leave the tick unclaimed; five native-success routes, self-input suppression, concurrent-human blocking, audit compatibility, and typed-text redaction are regression tested; complete gate: `1631 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent safety review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-009` | Complete; merged | Reserve a mandatory post-action verification lane before side-effect authority | Commit `b771e5f`, merged through PR #238 as `5f9c9de`; before approval, the Runner preflights model, input-token, projected-context, and tool-call capacity in fixed priority. Four insufficiency paths retain an exact eight-event known-not-dispatched ledger and prior verified observation with zero approval/action continuation/side-effect/MCP authority; exact `4/4/9/3` completion and `3/3/9/3` verification-only capacity prevent over-reservation; complete gate: `1637 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, two independent authority reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-010` | Complete; merged | Revalidate live MCP generation and required safety baselines after approval wait | Commit `8b49c36`, merged through PR #239 as `0b58044`; after a valid audited `ALLOW`, ref/window/screenshot generation drift and typed-text baseline loss now fail before side-effect budget, action continuation, or MCP. Each path retains an exact nine-event audited-ALLOW ledger, prior verified observation, and `ready` recovery state with a rejected/not-dispatched policy result and zero action calls; unchanged authority completes normally; complete gate: `1642 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent authority review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
-| `GDA-CORE-011` | Complete locally | Keep continuation-incompatible sensitive actions out of the advertised tool set | When continuation is enabled, `type` is excluded from the final provider tuple and persisted scope; attempted typed text fails whole-turn with fixed `PROVIDER_TOOL_NOT_ADVERTISED` before budget or authority, while continuation-disabled baseline-satisfied typing is unchanged. Complete gate: `1643 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent boundary review passed on 2026-08-04 |
-| `GDA-CORE-012` | Exact next; implementation not started | Make every side-effect-bearing provider turn exactly one call | Atomically reject action/action, observation/action, and action/observation returns before budget, provider completion, approval, action continuation, or MCP; preserve single-action and pure-observation multi-call behavior so an untrusted sibling cannot strand an already-dispatched action without its mandatory verification turn |
+| `GDA-CORE-011` | Complete; merged | Keep continuation-incompatible sensitive actions out of the advertised tool set | Commit `7be485f`, merged through PR #240 as `2c6b9bb`; when continuation is enabled, `type` is excluded from the final provider tuple and persisted scope. Attempted typed text fails whole-turn before budget or authority, while continuation-disabled baseline-satisfied typing is unchanged; complete gate: `1643 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
+| `GDA-CORE-012` | Complete locally | Make every side-effect-bearing provider turn exactly one call | Action/action, observation/action, and action/observation returns now fail with fixed `PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` before budget, provider completion, approval, continuation, or MCP; pure observations remain sequential and the single-action verification path is unchanged. The reviewed 13-case E2 fixture and canonical manifest pin the user-task-only, zero-dispatch result; complete gate: `1647 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent boundary review passed on 2026-08-04 |
+| `GDA-CORE-013` | Exact next; implementation not started | Revalidate human-input authority at the final MCP-to-driver boundary | After final e-stop and foreground checks, reject fresh human activity before every safe-local driver action. An affirmative dangerous confirmation may pass only its exact current input tick into that call's final check; the exception is never stored or treated as agent input, and any newer/unavailable tick remains `HUMAN_ACTIVE` with zero dispatch |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
-`GDA-CORE-011` is complete locally on
-`codex/core-runtime-continuation-tool-compatibility`; merge it before beginning
-`GDA-CORE-012` from a fresh branch based on the merged default branch.
+`GDA-CORE-011` is merged through PR #240 as `2c6b9bb`.
+`GDA-CORE-012` is complete locally on
+`codex/core-runtime-side-effect-turn-atomicity`; merge it before beginning
+`GDA-CORE-013` from a fresh branch based on the merged default branch.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -527,27 +545,42 @@ continuation artifact. Regression coverage freezes the provider-visible and
 persisted scope, provider-neutral atomic rejection, and unchanged successful
 typing when continuation is disabled and the required baseline is live.
 
-## Exact next task: `GDA-CORE-012`
+## Completed slice: `GDA-CORE-012`
 
-The ordinary Runner currently accepts several returned calls in one provider
-turn and processes them sequentially. If that turn contains a side effect, the
-first action can be approved and dispatched before a later sibling hits the
-mandatory re-observation boundary. The second action remains blocked, but the
-run terminates without spending the post-action lane on the observation that
-`GDA-CORE-009` reserved, leaving the first known-dispatched action unverified.
+The ordinary Runner now derives the reviewed ToolSpecs for the complete returned
+turn after advertised-name and canonical-schema checks. If more than one call is
+present and any reviewed effect is a side effect, fixed
+`PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` rejects the turn before privacy,
+model/tool budget, provider completion, policy, approval, action continuation,
+or MCP. Continuation evidence stops at provider `prepared` and
+`dispatch_intent`; no returned-turn ledger event is accepted. Regression tests
+freeze action/action, observation/action, and action/observation ordering, prior
+verified-observation preservation, sequential pure observations, and the exact
+single-action verification path. The reviewed E2 case and regenerated canonical
+manifest pin a user-task-only trace, zero dispatch, and zero safety escapes.
 
-After whole-turn advertised-name and reviewed-schema validation, but before any
-model/tool budget consumption or provider continuation completion, require a
-side-effect-bearing provider turn to contain exactly one call. Reject every
-action/action, observation/action, and action/observation ordering atomically
-with one fixed Host failure code and zero approval, action continuation,
-side-effect budget, or MCP dispatch. Preserve the existing behavior for a
-single action and for multi-call turns containing only observations. Freeze the
-provider-neutral ordering, the continuation prepared/dispatch-intent-only
-evidence, and the successful single action followed by a fresh observation.
-Update `docs/AGENT.md`, `docs/APPROVALS.md`, `docs/EVALUATION.md`, and
-`docs/CONTINUATION.md` if its ordering evidence changes. Do not resume Demo,
-training, BF16, Operator HUD, Universal GUI, or Multi-Agent work.
+## Exact next task: `GDA-CORE-013`
+
+In safe-local mode, `_guard()` obtains the initial bounded stable human-idle
+evidence before the foreground gate and dangerous confirmation. Either blocking
+step can outlive that evidence. `_final_authority_guard()` currently rechecks
+e-stop and, where required, foreground, but not human input; a new physical tick
+during either window can therefore still reach a driver action.
+
+After `GDA-CORE-012` merges, create a fresh
+`codex/core-runtime-final-human-authority` branch. Add one non-waiting final
+human-activity decision after the final e-stop/foreground checks and before each
+safe-local driver action, including activation's existing foreground exception.
+Retain fixed `HUMAN_ACTIVE`, redacted `human_active` audit, zero dispatch, and no
+replay. A successful dangerous confirmation may capture the exact current input
+tick and pass it only as an argument to that click's final decision; equality
+may excuse the confirmation input itself, but a newer or unobservable tick must
+fail closed. Never store that exception, call `note_agent_action()`, or reuse it
+for another call. Preserve full-control-local's human-yield bypass and e-stop.
+Update `docs/DESIGN.md`, `docs/CONFIGURATION.md`, `docs/AGENT.md`, and
+`docs/EVALUATION.md`; test `human_activity.py` and every server action boundary.
+Do not resume Demo, training, BF16, Operator HUD, Universal GUI, or Multi-Agent
+work.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -566,7 +599,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-012`.
+  must not displace `GDA-CORE-013`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -681,3 +714,6 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-04 | `GDA-CORE-010` merged through PR #239 as `0b58044`; all four GitHub checks passed, and `GDA-CORE-011` is now the sole active core Runtime item on `codex/core-runtime-continuation-tool-compatibility`. |
 | 2026-08-04 | `GDA-CORE-011` is complete locally: sensitive continuation now removes `type` from the provider-visible and persisted Host scope, attempted typed-text returns fail before budget or authority, and the strict raw-text prohibition remains unchanged. |
 | 2026-08-04 | A bounded audit selected `GDA-CORE-012` next: every side-effect-bearing provider turn must contain exactly one call so an untrusted sibling cannot strand a known-dispatched action without the mandatory post-action observation reserved by `GDA-CORE-009`. |
+| 2026-08-04 | `GDA-CORE-011` merged through PR #240 as `2c6b9bb`; all four GitHub checks passed, and `GDA-CORE-012` is now the sole active core Runtime item on `codex/core-runtime-side-effect-turn-atomicity`. |
+| 2026-08-04 | `GDA-CORE-012` is complete locally: reviewed side-effect turns are single-call before any returned-turn consumption or authority; pure observations and exact single-action verification remain intact, and the reviewed E2 fixture/manifest pins zero dispatch. |
+| 2026-08-04 | A bounded audit selected `GDA-CORE-013` next: safe-local MCP actions must recheck fresh human input at the final driver boundary, with only a call-scoped exact confirmation tick permitted for the dangerous click that captured it. |

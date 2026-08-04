@@ -15,7 +15,7 @@ and expected safety outcome.
 | --- | --- | --- | --- |
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
-| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
+| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated/non-serial side-effect turns, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle and one bounded observation-plan CLI cycle per provider | [OpenAI and Claude passed both cases](E3_EVIDENCE.md) with one reviewed model per provider; tests remain opt-in and outside default CI |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | [passed with retained sanitized evidence](E4_EVIDENCE.md) for the reviewed models and Windows revision |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
@@ -59,6 +59,7 @@ provider credentials, a child process, or a desktop.
 | OpenAI returns a function call | Normalize its name/arguments/ID, reject malformed or unadvertised calls, and continue with a matching `function_call_output`. |
 | Claude returns reasoning plus a tool-use block | Normalize the tool name/input/ID, preserve only strict signed `thinking` and opaque `redacted_thinking` blocks in private history, exclude them from canonical text/trace, reject malformed or unadvertised calls and invalid stop reasons, then append the complete assistant block and adjacent matching user `tool_result`. |
 | A returned turn contains valid calls plus an advertised schema-invalid or noncanonical sibling | Reject the whole turn with fixed `SCHEMA_MISMATCH` before model/tool budget consumption, continuation completion, approval, or MCP dispatch; the safe trace remains user-task-only and no valid prefix executes. |
+| A schema-valid returned turn contains more than one call and any reviewed ToolSpec is a side effect | Reject the whole turn with fixed `PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` before privacy, model/tool budget, provider completion, policy, approval, action continuation, or MCP. Preserve the prior verified observation; pure observation multi-call turns remain sequential. |
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
 | A planner candidate contains unknown fields/tools, invalid arguments, sensitive tool input, excessive bytes/steps, reordered final response, or spoofed status/effect/approval metadata | Reject it before constructing a TaskPlan; call zero provider, policy, approval, MCP, or desktop ports. |
 | OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
@@ -318,6 +319,15 @@ or provider completion, with zero valid-prefix execution and no raw typed text i
 the safe record. The continuation-disabled successful type workflow proves this
 filter is not a global action disable.
 
+The next whole-turn preflight uses those already-reviewed ToolSpecs to require
+every side-effect-bearing provider turn to contain exactly one call. Valid
+action/action, observation/action, and action/observation returns all fail with
+fixed `PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` before privacy, model/tool budget,
+provider completion, approval, or MCP. Continuation-enabled evidence stops at
+provider `prepared` and `dispatch_intent`; a prior verified observation remains
+ready. A pure observation multi-call control completes sequentially, and the
+existing single action -> fresh observation workflow remains successful.
+
 Continuation v6 persists that exact name set without making it executable.
 Recovery tests separately prove monotonic narrowing to current-safe
 observations, identical restore/replay/create inputs for OpenAI and Claude, and
@@ -350,6 +360,9 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - E2 continuation-compatible advertised scope, including typed-text baseline
   presence, raw-text-incompatible `type` omission, atomic mixed-turn rejection,
   and continuation-disabled successful typing;
+- E2 provider-turn side-effect seriality for action/action,
+  observation/action, and action/observation orderings, plus pure-observation
+  multi-call and single-action verification controls;
 - offline OpenAI and Claude adapter tests that reject complete over-window
   requests before the SDK fake is called, including output reserve, OpenAI
   remote-context usage, and atomic image tool results;
