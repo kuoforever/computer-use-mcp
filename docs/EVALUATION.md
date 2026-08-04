@@ -15,7 +15,7 @@ and expected safety outcome.
 | --- | --- | --- | --- |
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
-| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, generation drift, and unknown outcome tested |
+| E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated action, missing verification, typed-action denial, pre/post-approval generation and baseline drift, and unknown outcome tested |
 | E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle and one bounded observation-plan CLI cycle per provider | [OpenAI and Claude passed both cases](E3_EVIDENCE.md) with one reviewed model per provider; tests remain opt-in and outside default CI |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | [passed with retained sanitized evidence](E4_EVIDENCE.md) for the reviewed models and Windows revision |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
@@ -67,6 +67,7 @@ provider credentials, a child process, or a desktop.
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
 | An approved action has no complete post-action verification lane | After recording the action request but before approval, project the `ALLOW` plus dispatched-result context and reject in model, input, context, then tool priority. Record one `BUDGET_EXHAUSTED`/`not_dispatched` result, retain the prior verified observation, and create zero approval, side-effect use, action continuation, or action MCP dispatch. |
+| MCP generation changes or a required safety baseline disappears while approval is open | Preserve a fresh correlated `ALLOW` as an audit event, then reject with `MCP_GENERATION_CHANGED` or `SAFETY_BASELINE_UNSATISFIED` before side-effect accounting, action continuation, or MCP. Append `POLICY_DENIED`/`not_dispatched`, retain the verified observation and `ready` state, and never replay or reinterpret the approval. |
 
 ## CI boundary
 
@@ -172,6 +173,14 @@ and the exact context boundary: eight events cannot hold the projected safety
 closure, while nine can. A separate three-turn/three-token case proves the Host
 reserves only the mandatory observation lane rather than requiring capacity for
 an additional final response.
+Post-approval authority tests mutate the fake MCP during `request_approval()`.
+Ref, observed-window, and screenshot-coordinate cases change generation; a
+baseline-gated `type` case removes its advertised typed-text redaction evidence.
+Each failure retains the correlated `ALLOW` in an exact nine-event ledger,
+preserves epoch 1 as verified and recovery `ready`, consumes zero side-effect
+budget, and performs no action MCP call. Generation-drift cases additionally
+freeze the absence of an action continuation boundary. An unchanged generation
+and baseline control completes the ordinary action/re-observation path.
 The bounded Executor session is likewise E0-only. Tests freeze the live-lock
 requirement, four-step cap, host identity generation, one outstanding request,
 lossless ledger-prefix rule, correlated call/result evidence, exact success and
@@ -328,6 +337,9 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - E2 cumulative provider-reported input-token exhaustion before another turn;
 - E2 approved-action verification-capacity exhaustion before approval, with
   model, input, context, and tool failure priority plus exact one-lane success;
+- E2 post-approval generation drift for ref, window, and screenshot grounding,
+  required-baseline loss for typed input, audited-ALLOW rejection, and the
+  unchanged-authority success path;
 - offline OpenAI and Claude adapter tests that reject complete over-window
   requests before the SDK fake is called, including output reserve, OpenAI
   remote-context usage, and atomic image tool results;

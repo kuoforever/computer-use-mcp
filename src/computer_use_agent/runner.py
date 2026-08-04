@@ -689,6 +689,37 @@ class AgentRunner:
                 state = self._record_result(state, rejected, effect=spec.effect)
                 state = replace(state, recovery_status=RecoveryStatus.STOPPED)
                 raise RunDeferred(state)
+            # A correlated ALLOW remains useful audit evidence, but the card wait
+            # grants no lease over MCP facts. Re-read them before any side-effect
+            # charge, action continuation intent, or desktop dispatch can exist.
+            try:
+                grounding.validate(
+                    call,
+                    spec,
+                    generation=self.ports.desktop.generation,
+                )
+            except GroundingError as exc:
+                rejected = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, rejected, effect=spec.effect)
+                raise RunFailure(str(exc), state) from exc
+            if not set(spec.required_safety_baselines).issubset(
+                self.ports.desktop.satisfied_safety_baselines
+            ):
+                rejected = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, rejected, effect=spec.effect)
+                raise RunFailure("SAFETY_BASELINE_UNSATISFIED", state)
             state = self._consume_side_effect(state)
 
         recorder.record(state, RunPhase.EXECUTING)
