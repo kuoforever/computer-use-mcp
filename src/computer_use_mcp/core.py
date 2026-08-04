@@ -14,6 +14,7 @@ import time
 
 from .contract import (
     DRIVER_ERROR,
+    NOT_INVOKABLE,
     STALE_ELEMENT,
     Driver,
     DriverError,
@@ -105,8 +106,10 @@ class Session:
             return self.driver.invoke(native_id)
         if "selectionitem" in node.patterns:
             return self.driver.select(native_id)
-        # no actionable pattern -> fall back to a coordinate click at the center
-        return self.driver.click(node.bbox.cx, node.bbox.cy, button=button)
+        return Result.fail(
+            NOT_INVOKABLE,
+            "ref exposes no supported accessibility action",
+        )
 
     # --- ref table + lifecycle ----------------------------------------------
 

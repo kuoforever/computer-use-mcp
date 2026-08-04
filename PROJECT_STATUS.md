@@ -1,17 +1,13 @@
 # Project status
 
-> **Mode: the Full Cycle Runtime baseline remains frozen at
-> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. The user explicitly reopened
-> bounded `GDA-DEMO-006`: replace the live Demo's fixed provider choreography
-> with a real model-driven, Host-constrained public-web-to-Word scenario while
-> retaining the fixed provider as an offline regression baseline. The live path
-> must demonstrate observation, model-authored grounded content, bounded
-> correction, durable verification, and human fallback rather than replaying a
-> prewritten answer. The user also selected the
-> project-wide `agentic_actions` permission mode for this path: no per-action
-> approval, with MCP `safe_local` human-input yielding and E-stop retained.
-> Full Cycle remains paused until the user explicitly resumes it.**
-> Updated: 2026-08-03.
+> **Mode: core Runtime development is explicitly reopened by the user.
+> `GDA-CORE-001` and `GDA-CORE-002` are merged through PR #230;
+> `GDA-CORE-003` is the only active item. `GDA-DEMO-006` is paused at checkpoint
+> `d74201f` with its exact live-acceptance resume point retained below. The Full
+> Cycle Runtime baseline remains frozen at
+> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
+> remains paused.**
+> Updated: 2026-08-04.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
@@ -29,6 +25,32 @@ integration surface needed for:
 The model factory, multimodal dataset pipeline, post-training, serving,
 Agentic RL, and Multi-Agent work live outside this repository.
 
+## Reopened core Runtime scope
+
+On 2026-08-03 the user explicitly reopened development of the project itself,
+not the Demo and not the external Full Cycle consumer. The first audit is
+restricted to real gaps in the existing Runner/MCP/authority/recovery boundary.
+Demo, Operator HUD, Universal GUI, hierarchical control, Multi-Agent, training,
+and BF16 work remain excluded.
+
+`GDA-CORE-001` addressed the smallest highest-value gap found by that audit.
+The accepted ADR and current design forbid a ref click from silently becoming a
+coordinate click. `Session._press()` had still clicked the cached bounding-box
+center when a control exposed neither `Invoke` nor `SelectionItem`; it now
+returns fixed `NOT_INVOKABLE` with zero coordinate driver calls. Explicit
+`click(x=..., y=...)` remains unchanged.
+
+The audit also found that initial e-stop/foreground authority evidence could age
+while the server waited for stable human-idle evidence or native dangerous-click
+confirmation. `GDA-CORE-002` closed that gap with a final non-waiting authority
+recheck before native dispatch. Both audit slices are merged through PR #230.
+
+This scope change does not alter Full Cycle state. Lane A manifest/export v1,
+the consumer fixture, and the Runtime freeze remain complete. Lane B remains
+disabled by default and deferred to the external Full Cycle `FC-BRIDGE-003`
+consent, security, and privacy review. If Full Cycle is explicitly resumed, the
+exact resume point is that external review; no rich capture work starts here.
+
 ## Current baseline
 
 | Fact | Current state |
@@ -41,7 +63,7 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1625 passed, 8 skipped` in the 2026-08-03 real-scenario `GDA-DEMO-006` revalidation |
+| Offline baseline | `1640 passed, 8 skipped` in the 2026-08-04 consolidated Demo/Core branch revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -59,8 +81,9 @@ complete locally after separate issue-by-issue sessions. It did not displace
 the Full Cycle resume point, and `GDA-FC-004` subsequently closed the Runtime
 freeze. On 2026-08-03 the user explicitly reopened only `GDA-DEMO-004` for
 operator-selectable action pacing and more visible mouse/keyboard activity.
-The user then explicitly reopened only `GDA-DEMO-006` on 2026-08-03 because a
-fixed provider does not demonstrate the Agent's observation and adaptation.
+The user then reopened `GDA-DEMO-006` for a model-driven bounded Demo. Its
+offline implementation is preserved at checkpoint `d74201f`, but repository
+consolidation pauses its live acceptance while core Runtime work is active.
 
 Continue to exclude:
 
@@ -70,8 +93,8 @@ Continue to exclude:
 - additional desktop tools or platform drivers;
 - Multi-Agent coordination;
 - automatic continual learning;
-- operator-UI work beyond the closed `GDA-DEMO-003` and `GDA-DEMO-004`
-  surfaces;
+- operator-UI work beyond the closed Demo surfaces and the paused
+  `GDA-DEMO-006` live-acceptance checkpoint;
 - broad refactors unrelated to the bridge.
 
 Existing planned documents remain valid design records, but they are not active
@@ -91,10 +114,15 @@ delivery work.
 | `GDA-DEMO-003` | Complete locally | Operator HUD visual hierarchy, step status, safe lock interaction, and live reliability | [Demo evidence](docs/OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md); [100%/125% DPI evidence](docs/OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md); [physical Alt+Tab evidence](docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md) |
 | `GDA-DEMO-004` | Complete locally | Operator-selectable Demo action pacing plus visible mouse and content-free keyboard feedback | [Native probe and retained Demo evidence](docs/DEMO_ACTION_PRESENTATION_EVIDENCE_2026-08-03.md) |
 | `GDA-DEMO-005` | Proposed; not active | Cooperative desktop authority handoff, explicit pause/re-observe/resume, and complete Decision Card consequences | Await a separate control-lifecycle contract; must never use `BlockInput` or make physical input unavailable |
-| `GDA-DEMO-006` | Implemented offline; live agentic acceptance pending | Real public Microsoft Support-to-disposable-Word Demo with model-authored grounded brief, bounded known-not-dispatched correction, project permission mode, durable verification, startup Presence Halo, and explicit operator-handoff resolution | [Model-driven Demo contract and diagnostic evidence](docs/MODEL_DRIVEN_DEMO.md); default `agentic_actions` skips per-action cards but retains reviewed tools, safety baselines, grounding, budgets, MCP `safe_local`, human-input yielding, E-stop, audit, re-observation, and no replay; Host validates source/title/URL/length/grounding without substituting prose; cleanup records `saved`, `discarded`, or `unresolved`; await one fresh end-to-end run after the current complete offline gate |
+| `GDA-DEMO-006` | Paused; implemented offline; live agentic acceptance pending | Real public Microsoft Support-to-disposable-Word Demo with model-authored grounded brief, bounded known-not-dispatched correction, project permission mode, durable verification, startup Presence Halo, and explicit operator-handoff resolution | Checkpoint `d74201f`; [model-driven Demo contract and diagnostic evidence](docs/MODEL_DRIVEN_DEMO.md); exact resume is one fresh `gpt-5.6-terra` live run described below |
+| `GDA-CORE-001` | Complete; merged | Make a ref without a supported accessibility action fail with `NOT_INVOKABLE`, never a coordinate click | Commit `1727a26`, merged through PR #230; `tests/test_core.py` proves zero coordinate calls; complete gate: `1578 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
+| `GDA-CORE-002` | Complete; merged | Revalidate e-stop and foreground authority at the final MCP-to-driver action boundary | Commit `aa7d5a7`, merged through PR #230 as `d52ffb2`; six-action e-stop and five-action foreground-drift zero-dispatch tests plus confirmation/activation boundary tests; complete gate: `1592 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
+| `GDA-CORE-003` | Active | Preserve post-dispatch MCP cancellation certainty through the Runner | Catch the MCP bridge's result-carrying cancellation before generic cancellation, durably record `UNKNOWN_OUTCOME`, never replay, and retain task cancellation after safe persistence |
 
-Only `GDA-DEMO-006` is active. Runtime feature work outside this bounded Demo
-exception remains frozen.
+Only `GDA-CORE-003` is active. `GDA-DEMO-006` is paused at its exact resume
+point, and no `GDA-HUD-*` item is active. The historical Full Cycle freeze
+remains the handoff baseline; it no longer freezes the separately reopened core
+Runtime scope above.
 
 ## Defect found by composing the HUD surfaces (2026-08-01)
 
@@ -257,7 +285,7 @@ Word editing or save verification. No Demo process remains running.
 | `GDA-HUD-007` | Cross-surface visual system | Presence, Progress, and Decision Card initially lacked one shared hierarchy and approval-state vocabulary. | One fixed token contract now owns operator labels, glyphs, RGB roles, chrome, shared type tiers, and phase/approval vocabulary. Both Win32 backends consume it, and a test asserts that the two interactive surfaces resolve one palette. The bounded Demo surfaces do not animate, so no reduced-motion override is needed. High-contrast mode was not promoted and remains outside this bounded evidence claim. | The standard-theme bounded Demo uses shared typography, spacing, phase colors, and status vocabulary; approval transition is visually obvious. No high-contrast capability claim is made. |
 | `GDA-HUD-008` | Approval-to-dispatch heartbeat | The post-approval heartbeat raced the MCP human-activity gate in the exploratory run: the card approved `PageDown`, but dispatch returned known `DENIED_BY_GATE`. | The bounded Demo now restores the captured foreground before making exactly one MCP action call. That call owns one bounded readiness sequence: three consecutive healthy idle samples, foreground allowlist verification, then at most one driver dispatch. The duplicate Host-side heartbeat was removed. Idle timeout, unavailable observation, foreground denial, E-stop, and user denial are returned as `rejected` with known `not_dispatched`; none is replayed. Deterministic offline tests cover streak reset, timeout, fail-closed observation, one-call/one-dispatch behavior, and result conversion. Repeated real Chrome/Word evidence remains. | One Host-configured, MCP-enforced readiness protocol covers card close, foreground restoration, idle stabilization, the foreground gate, and at most one dispatch. A denied gate causes no replay, and repeated real runs cross the boundary reliably without guessing a fixed delay. |
 | `GDA-HUD-009` | Foreground and window composition | The current application must remain foreground while passive HUD surfaces stay visible and non-interactive; the card must restore that application after any exit. | Progress anchors to the foreground monitor's top-right work-area rail; Decision Card uses the same monitor's bottom-right rail and restores the captured foreground on every exit. Pure geometry covers 100%, 125%, and 150% DPI. `scripts/smoke_hud_composition.py` opened all three real surfaces twice on 2026-08-01: passive surfaces did not activate, the card alone took focus, painted Presence pixels covered neither companion surface, the card and Progress did not overlap, and safe close restored foreground. The complete retained Chrome-to-Word run supplies bounded application composition, while the isolated live matrix supplies multi-DPI card composition. This does not claim a complete Chrome-to-Word run at every display scale. | Bounded live and deterministic evidence prove passive foreground safety, Decision Card focus and restoration, surface separation, application composition, and multi-DPI geometry without promoting a universal composition claim. |
-| `GDA-HUD-010` | Restart and cleanup | Fresh browser/document state is offline verified, but a failed or cancelled HUD run can leave launched Chrome/Word fixtures open. The next session needs an explicit cleanup/restart contract. | Cleanup is now a reusable exact-process component rather than a Demo-only process kill. It posts `WM_CLOSE` only to visible unowned top-level windows for each retained launch PID and requires three consecutive zero-window observations; reappearance resets the count. An owned dialog is an unresolved operator choice and becomes `handoff_required` without termination. Force termination remains bounded to a persistent unowned window or a partial launch with no window. Observation failures are isolated per PID, Win32 prototype tables are private, and final-state schema v2 separates verified window cleanup, process exit, and operator handoff. It never scans or terminates by executable name. Earlier retained live smokes (`...091139-912478`, `...091235-478306`) remain the application evidence; the 2026-08-03 hardening is offline-verified only. | Start and end state are both declared. A failed/escaped run closes or clearly hands off its disposable windows, and the next run starts from the same pristine state without touching unrelated user windows. |
+| `GDA-HUD-010` | Restart and cleanup | Fresh browser/document state is offline verified, but a failed or cancelled HUD run can leave launched Chrome/Word fixtures open. The next session needs an explicit cleanup/restart contract. | Cleanup is now a reusable exact-process component rather than a Demo-only process kill. It posts `WM_CLOSE` only to visible unowned top-level windows for each retained launch PID, observes all visible windows for that PID including owned dialogs, and treats verified window disappearance as completion even while an application process drains naturally. It force-terminates only when exact owned windows remain after the bounded close wait or a partial launch exposes no window; unavailable observation becomes explicit `handoff_required`. It never scans or terminates by executable name. The Demo uses the component from one `finally` and records fixture identity, close count, disposition, exit snapshot, and process-running snapshot. A live diagnostic caught force-termination-induced Word AutoRecover; after the generalized fix, two consecutive real fixture-cleanup smokes (`...091139-912478`, `...091235-478306`) each observed exactly two disposable windows, closed both as `windows_closed`, preserved the pre-existing Chrome window, and produced no recovery window on restart. | Start and end state are both declared. A failed/escaped run closes or clearly hands off its disposable windows, and the next run starts from the same pristine state without touching unrelated user windows. |
 | `GDA-HUD-011` | Evidence and promotion | Retain the proportional evidence needed to close the bounded Demo without promoting it into a universal claim. | [The 150% DPI image matrix](docs/OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md), [100%/125% DPI acceptance](docs/OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md), [physical Alt+Tab acceptance](docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md), and [post-fix complete run](docs/OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md) are retained. The run reached durable `SUCCESS` with 17 tool calls, seven approved effects, zero tool failures, 247 painted Presence samples, and exact-process cleanup. All handoff-listed operator-only evidence is complete. | Each issue has proportional offline tests, a dedicated live smoke where visual behavior matters, one complete retained Chrome-to-Word run, documented DPI/keyboard evidence, full validation gate, and explicit statement that the result remains bounded rather than universal GUI evidence. |
 
 ### Recommended separate-session order
@@ -330,44 +358,49 @@ passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
 source files, documentation consistency reported 13 reviewed tools, and
 `git diff --check` passed.
 
-## Exact next task: GDA-DEMO-006 model-driven bounded Demo
+## Exact next task: `GDA-CORE-003`
 
-Keep `CrossAppDemoProvider` as the deterministic E1 regression baseline. The
-default live path uses the real public Microsoft Support co-authoring page and a
-disposable Word document. The configured OpenAI or Claude adapter chooses each
-next observation/action and authors a two-to-four-bullet source brief from fresh
-results. The Host restricts exact fixtures, semantic refs, reviewed keys,
-source/title/URL, note layout and length, lexical grounding, one call per turn,
-post-action observation, budgets, and durable post-save verification; it does
-not replace the model's content with a fixed answer. Model prose and tool choice
-remain data, never authority.
+The stdio MCP bridge raises `MCPCallCancelled` with a validated
+`UNKNOWN_OUTCOME` result when cancellation arrives after dispatch begins, but
+the Runner currently catches it as generic `asyncio.CancelledError`, discards
+that result, and writes terminal `CANCELLED`. Add a result-aware Runner boundary
+that records the unknown tool result and continuation completion before
+re-propagating cancellation. The durable phase must remain `UNKNOWN_OUTCOME`,
+the generation must remain invalidated, and recovery must never replay the
+call. Add an end-to-end fake bridge/Runner regression and update the owning
+continuation contract before running the complete gate.
 
-Nine 2026-08-03 live diagnostics did not pass and are not evidence. They exposed
-prompt/guard drift, one-strike proposal rejection, fixed Host-authored output,
-time-based fixture readiness, missing provider timeout, and an owned-dialog
-handoff that could not record the operator's later choice. The offline
-implementation now returns only known-not-dispatched proposal rejection to the
-same provider for at most two corrections, shows replanning in the HUD, accepts
-bounded model-authored grounded briefs without substitution, and records
-post-handoff `saved`, `discarded`, or `unresolved` in final-state schema v3.
-Unknown outcomes remain terminal and are never replayed.
+## Paused resume point: `GDA-DEMO-006`
 
-After the current complete offline gate passes, the exact next action is one
-fresh `gpt-5.6-terra` run in default `agentic_actions` mode. It must use fresh
-public-page and Word observations, author a non-prewritten brief, avoid a card
-before every reviewed side effect, durably verify the complete saved brief, and
-resolve exact fixture cleanup. Do not reuse any prior observation, approval, or
-generated content.
+Checkpoint `d74201f` preserves the offline implementation. Keep
+`CrossAppDemoProvider` as the deterministic E1 regression baseline. The live
+path uses the real public Microsoft Support co-authoring page and a disposable
+Word document; the configured provider chooses observations and actions and
+authors a two-to-four-bullet source brief. Host constraints restrict fixtures,
+semantic refs, reviewed inputs, grounding, budgets, post-action observation,
+and durable verification; they do not substitute fixed Host prose. Model prose
+and tool choice remain untrusted data, never authority.
 
-The user explicitly resumed part of `GDA-DEMO-005`. Project-wide Decision Card
-models now include resume, and the bounded Demo's per-action compatibility mode
-maps defer to a held card whose resume forces re-observation. This does not yet
-provide a project-wide manual pause/resume hotkey in `agentic_actions`. Today,
-physical input causes the MCP action guard to wait and automatically continue
-only after stable idle; E-stop is the hard stop. A future explicit manual pause
-must remain cooperative rather than use `BlockInput`, pause at a known safe
-boundary, require explicit resume plus mandatory re-observation, and preserve
-unknown outcome for an interrupt during a possibly dispatched effect.
+Nine 2026-08-03 live diagnostics failed and are not evidence. The exact resume
+action is one fresh `gpt-5.6-terra` run in default `agentic_actions` mode using
+fresh public-page and Word observations. It must author a non-prewritten brief,
+durably verify the complete saved brief, and resolve exact fixture cleanup. Do
+not reuse any prior observation, approval, or generated content.
+
+`agentic_actions` skips per-action cards while retaining MCP `safe_local`,
+human-input yielding, E-stop, audit, grounding, budgets, mandatory
+post-observation, and unknown-outcome no-replay. This Demo item is paused and
+must not displace `GDA-CORE-003`.
+
+The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
+rejection. If explicitly resumed, implement a cooperative lease rather than a
+physical input lock: an operator interrupt requests pause at the next safe
+boundary, releases authority, and requires explicit resume plus mandatory
+re-observation. An interrupt during a possibly dispatched side effect remains
+unknown outcome and cannot auto-continue. Wire the already-defined human
+takeover option and ensure approve, re-observe, defer, deny, and takeover each
+produce their documented distinct state transition. Keep this out of the
+single-purpose `GDA-DEMO-004` presentation change.
 
 Full Cycle remains paused after merged PRs #10 and #11. Three uncommitted BF16
 merge-probe files in `C:\Users\Alienware\reliable-agent-model-lifecycle` are
@@ -375,9 +408,10 @@ preserved as work in progress; do not continue, delete, or publish them until
 the user explicitly resumes Full Cycle. Lane B remains `FC-BRIDGE-003` pending
 its separate consent, security, and privacy review.
 
-The latest Demo-closure gate passed on 2026-08-03: `1625 passed, 8 skipped`,
-Ruff passed, mypy reported no issues in 121 source files, documentation
-consistency reported 13 reviewed tools, and `git diff --check` passed.
+The Demo checkpoint gate passed on 2026-08-03: `1625 passed, 8 skipped`, Ruff
+passed, mypy reported no issues in 121 source files, documentation consistency
+reported 13 reviewed tools, and `git diff --check` passed. This is offline
+evidence only and does not complete the paused live acceptance.
 
 ## Definition of closed
 
@@ -441,3 +475,7 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-02 | Lane B is explicitly deferred from the Runtime freeze to the Full Cycle project's separate `FC-BRIDGE-003` consent, security, and privacy review; it remains disabled by default. |
 | 2026-08-02 | `GDA-FC-004` completed locally at branch-reachable Runtime commit `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; clean release preflight and the matching consumer freeze record passed without changing Lane A contracts or fixture provenance. |
 | 2026-08-03 | The model-driven Demo defaults to project-wide Host `agentic_actions` with MCP `safe_local`: reviewed actions no longer require per-action approval, while safety baselines, grounding, budgets, human-input yielding, E-stop, audit, post-action observation, and unknown-outcome no-replay remain mandatory. |
+| 2026-08-03 | The user explicitly reopened core Runtime development without reopening Demo or Full Cycle consumer work. Core changes must preserve the frozen Full Cycle baseline, completed Lane A state, disabled/deferred Lane B boundary, and external `FC-BRIDGE-003` resume point. |
+| 2026-08-04 | `GDA-CORE-001` removed the implementation's forbidden ref-to-coordinate fallback and restored alignment with accepted ADR-002; explicit coordinate clicks remain a separate caller-authorized path. |
+| 2026-08-04 | `GDA-CORE-002` added a final non-waiting e-stop and foreground authority revalidation before every MCP native action dispatch while preserving the intentional `activate_window` foreground exception. |
+| 2026-08-04 | Repository consolidation pauses `GDA-DEMO-006` at checkpoint `d74201f` and keeps `GDA-CORE-003` as the only active item; the Demo's exact fresh live-run resume point and both Full Cycle lane boundaries remain preserved here. |

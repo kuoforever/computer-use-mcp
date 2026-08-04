@@ -190,10 +190,30 @@ def build_server(
     def _audit_args(args: dict) -> dict:
         return {**args, "control_mode": mode}
 
-    def _guard(tool: str, args: dict, *, require_foreground: bool = True) -> tuple[bool, str]:
+    def _estop_guard(tool: str, args: dict) -> tuple[bool, str]:
         if estop.engaged:
             audit.record(tool, _audit_args(args), "estop", "aborted")
             return False, "ABORTED: e-stop engaged (restart the server to clear)"
+        return True, ""
+
+    def _foreground_guard(
+        tool: str,
+        args: dict,
+        *,
+        final: bool,
+    ) -> tuple[bool, str]:
+        allowed, reason = (
+            gate.foreground_allowed_once() if final else gate.foreground_allowed()
+        )
+        if not allowed:
+            audit.record(tool, _audit_args(args), "gate_denied", reason)
+            return False, f"DENIED by gate: {reason}"
+        return True, ""
+
+    def _guard(tool: str, args: dict, *, require_foreground: bool = True) -> tuple[bool, str]:
+        allowed, reason = _estop_guard(tool, args)
+        if not allowed:
+            return allowed, reason
         if mode == FULL_CONTROL_LOCAL:
             return True, ""
         activity_reason = activity.wait_until_stable()
@@ -207,11 +227,22 @@ def build_server(
             return False, f"HUMAN_ACTIVE: {activity_reason}"
         if not require_foreground:
             return True, ""
-        allowed, reason = gate.foreground_allowed()
+        return _foreground_guard(tool, args, final=False)
+
+    def _final_authority_guard(
+        tool: str,
+        args: dict,
+        *,
+        require_foreground: bool = True,
+    ) -> tuple[bool, str]:
+        """Revalidate non-waiting authority immediately before driver dispatch."""
+
+        allowed, reason = _estop_guard(tool, args)
         if not allowed:
-            audit.record(tool, _audit_args(args), "gate_denied", reason)
-            return False, f"DENIED by gate: {reason}"
-        return True, ""
+            return allowed, reason
+        if mode == FULL_CONTROL_LOCAL or not require_foreground:
+            return True, ""
+        return _foreground_guard(tool, args, final=True)
 
     def _record_action(tool: str, args: dict, out: str) -> str:
         activity.note_agent_action()
@@ -332,6 +363,13 @@ def build_server(
         ok, msg = _guard("activate_window", args, require_foreground=False)
         if not ok:
             return msg
+        ok, msg = _final_authority_guard(
+            "activate_window",
+            args,
+            require_foreground=False,
+        )
+        if not ok:
+            return msg
         return _record_action("activate_window", args, _fmt(session.activate(window_id)))
 
     @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "
@@ -347,6 +385,9 @@ def build_server(
             if not confirm(f"{MCP_SERVER_NAME} 请求点击：\n\n{desc}\n\n允许执行吗？"):
                 audit.record("click", _audit_args(args), "user_denied", desc)
                 return f"DENIED by user (dangerous: {desc})"
+        ok, msg = _final_authority_guard("click", args)
+        if not ok:
+            return msg
         return _record_action("click", args, _fmt(session.click(ref=ref, x=x, y=y)))
 
     @mcp.tool(
@@ -366,6 +407,9 @@ def build_server(
             return _record_action(
                 "scroll", args, "ERROR DRIVER_ERROR: invalid scroll delta"
             )
+        ok, msg = _final_authority_guard("scroll", args)
+        if not ok:
+            return msg
         return _record_action(
             "scroll", args, _fmt(session.scroll(x, y, delta_x, delta_y))
         )
@@ -395,6 +439,9 @@ def build_server(
             return _record_action(
                 "drag", args, "ERROR DRIVER_ERROR: invalid drag bounds"
             )
+        ok, msg = _final_authority_guard("drag", args)
+        if not ok:
+            return msg
         return _record_action(
             "drag",
             args,
@@ -409,6 +456,9 @@ def build_server(
         ok, msg = _guard("type", args)
         if not ok:
             return msg
+        ok, msg = _final_authority_guard("type", args)
+        if not ok:
+            return msg
         return _record_action("type", args, _fmt(session.type(text, ref=ref)))
 
     @mcp.tool(description="Send a key chord like 'Ctrl+S' to the foreground window. "
@@ -416,6 +466,9 @@ def build_server(
     def key(combo: str) -> str:
         args = {"combo": combo}
         ok, msg = _guard("key", args)
+        if not ok:
+            return msg
+        ok, msg = _final_authority_guard("key", args)
         if not ok:
             return msg
         return _record_action("key", args, _fmt(session.key(combo)))

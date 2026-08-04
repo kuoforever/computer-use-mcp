@@ -600,7 +600,7 @@ message that could echo the typed value.
 | Provider -> host | host policy and reviewed registry | model text, tool calls, response IDs | Validate schemas, serialize calls, apply budgets, and never grant approval from model text. |
 | Desktop/UI -> host | host policy only | UI text, window titles, refs, screenshots, tool output | Treat as untrusted data; never execute instructions embedded in it or promote it to memory automatically. |
 | Host -> MCP child | current MCP server safety controls | child output and discovery metadata | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch. |
-| MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak, then the foreground gate, then at most one driver invocation. Every guard rejection is known `not_dispatched` and is never replayed. |
+| MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak and initial foreground gate, then immediately before at most one driver invocation re-check e-stop and take one non-waiting foreground observation. Every guard rejection is known `not_dispatched` and is never replayed. |
 | Host state -> disk | explicit local persistence rules | all candidate memory and trace content | Keep state under a user-local directory; redact traces and store memory only after explicit confirmation. |
 
 Provider credentials are read by their future adapter from the host process

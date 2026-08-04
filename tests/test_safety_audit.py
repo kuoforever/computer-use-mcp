@@ -9,7 +9,7 @@ import pytest
 from PIL import Image
 
 from computer_use_mcp.audit import AuditLog
-from computer_use_mcp.contract import ProcRef, Result
+from computer_use_mcp.contract import Node, ProcRef, Rect, Result, TreeResult
 from computer_use_mcp.safety import EStop, is_dangerous, parse_combo, redact
 from computer_use_mcp.server import build_server
 
@@ -55,6 +55,76 @@ class AuditDriver:
         self, x: int, y: int, to_x: int, to_y: int, duration_ms: int
     ) -> Result:
         self.drag_calls.append((x, y, to_x, to_y, duration_ms))
+        return Result.success()
+
+
+class AuthorityDriver:
+    def __init__(self, foreground_names: list[str] | None = None) -> None:
+        self.foreground_names = foreground_names or ["notepad.exe"]
+        self.action_calls: list[str] = []
+
+    def last_input_idle_seconds(self) -> float:
+        return 10.0
+
+    def last_input_tick(self) -> int:
+        return 1
+
+    def foreground_owner_chain(self) -> list[ProcRef]:
+        if len(self.foreground_names) > 1:
+            name = self.foreground_names.pop(0)
+        else:
+            name = self.foreground_names[0]
+        return [ProcRef(pid=1, name=name)]
+
+    def activate_window(self, _window_id: str) -> Result:
+        self.action_calls.append("activate_window")
+        return Result.success()
+
+    def click(self, _x: int, _y: int, button: str = "left") -> Result:
+        self.action_calls.append(f"click:{button}")
+        return Result.success()
+
+    def scroll(self, _x: int, _y: int, _delta_x: int, _delta_y: int) -> Result:
+        self.action_calls.append("scroll")
+        return Result.success()
+
+    def drag(
+        self,
+        _x: int,
+        _y: int,
+        _to_x: int,
+        _to_y: int,
+        _duration_ms: int,
+    ) -> Result:
+        self.action_calls.append("drag")
+        return Result.success()
+
+    def type(self, _text: str) -> Result:
+        self.action_calls.append("type")
+        return Result.success()
+
+    def key(self, _combo: str) -> Result:
+        self.action_calls.append("key")
+        return Result.success()
+
+    def get_tree(self, _opts) -> TreeResult:
+        return TreeResult(
+            [
+                Node(
+                    native_id="delete-control",
+                    role="Button",
+                    name="Delete",
+                    value=None,
+                    bbox=Rect(10, 10, 20, 20),
+                    states=["enabled"],
+                    patterns=["invoke"],
+                )
+            ],
+            truncated=0,
+        )
+
+    def invoke(self, _native_id: str) -> Result:
+        self.action_calls.append("invoke")
         return Result.success()
 
 
@@ -258,3 +328,108 @@ def test_server_rejects_unbounded_or_noop_motion_before_driver(
     assert "ERROR DRIVER_ERROR" in result
     assert driver.scroll_calls == []
     assert driver.drag_calls == []
+
+
+ACTION_CASES = (
+    ("activate_window", {"window_id": "window-1"}),
+    ("click", {"ref": None, "x": 10, "y": 20}),
+    ("scroll", {"x": 10, "y": 20, "delta_x": 0, "delta_y": -120}),
+    (
+        "drag",
+        {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": 0},
+    ),
+    ("type", {"text": "safe text", "ref": None}),
+    ("key", {"combo": "Ctrl+S"}),
+)
+
+
+@pytest.mark.parametrize(("tool", "arguments"), ACTION_CASES)
+def test_estop_engaged_during_human_idle_wait_denies_final_dispatch(
+    tmp_path: Path,
+    tool: str,
+    arguments: dict[str, object],
+) -> None:
+    driver = AuthorityDriver()
+    estop = EStop()
+
+    class EngagingActivity:
+        def wait_until_stable(self) -> None:
+            estop.engage()
+            return None
+
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        estop=estop,
+        start_estop=False,
+        human_activity=EngagingActivity(),
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
+
+    assert result.startswith("ABORTED:")
+    assert driver.action_calls == []
+
+
+@pytest.mark.parametrize(("tool", "arguments"), ACTION_CASES[1:])
+def test_foreground_change_after_initial_gate_denies_final_dispatch(
+    tmp_path: Path,
+    tool: str,
+    arguments: dict[str, object],
+) -> None:
+    driver = AuthorityDriver(["notepad.exe", "calc.exe"])
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
+
+    assert result.startswith("DENIED by gate:")
+    assert driver.action_calls == []
+
+
+def test_activate_window_keeps_its_foreground_gate_exception(tmp_path: Path) -> None:
+    driver = AuthorityDriver(["calc.exe"])
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "window-1"}))
+    )
+
+    assert result == "ok"
+    assert driver.action_calls == ["activate_window"]
+
+
+def test_dangerous_confirmation_cannot_outlive_foreground_authority(
+    tmp_path: Path,
+) -> None:
+    driver = AuthorityDriver(["notepad.exe"])
+
+    def confirm_and_change_foreground(_prompt: str) -> bool:
+        driver.foreground_names[:] = ["calc.exe"]
+        return True
+
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        confirmer=confirm_and_change_foreground,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    result = tool_text(
+        asyncio.run(server.call_tool("click", {"ref": "ref_1", "x": None, "y": None}))
+    )
+
+    assert result.startswith("DENIED by gate:")
+    assert driver.action_calls == []
