@@ -76,23 +76,32 @@ model. Do not extrapolate this invariant beyond the primary display.
 
 ## Action safety flow
 
-In `safe_local`, `click`, `type`, and `key` follow this effective flow:
+In `safe_local`, all six action tools follow this effective flow (activation
+keeps the foreground exceptions described below):
 
 ~~~text
 request
   -> e-stop check
-  -> recent-human-input check
+  -> bounded stable human-idle check and call-scoped input capture
   -> foreground process-ancestry allowlist check
-  -> dangerous ref-click confirmation, when applicable
+  -> dangerous ref-click confirmation and exact input capture, when applicable
   -> final e-stop check
   -> final single-observation foreground allowlist check
+  -> final non-waiting human-idle and input-capture comparison
   -> native driver action
   -> audit record
   -> result
 ~~~
 
 The final checks do not wait for human-idle evidence or retry foreground
-flicker; they reject when authority changed during either earlier wait.
+flicker. The human check samples the platform input tick before and after its
+idle-age observation and rejects unavailable evidence, an internally changing
+tick, or any tick newer than the call's readiness capture. An affirmative
+dangerous confirmation may supply its exact post-dialog tick only to that
+click's final check; this one-call exception is not stored, is not agent-input
+attribution, and cannot authorize the next action. Windows input events sharing
+one `GetLastInputInfo` millisecond tick remain indistinguishable at the platform
+boundary.
 `activate_window` is e-stop/human-activity guarded and audited, but
 intentionally skips both foreground allowlist checks because it is the
 operation that makes a listed window foreground. `full_control_local` bypasses

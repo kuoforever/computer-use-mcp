@@ -49,6 +49,7 @@ from .human_activity import (
     DEFAULT_POLL_INTERVAL_SECONDS,
     DEFAULT_STABLE_SAMPLES,
     HumanActivity,
+    HumanInputCapture,
 )
 from .ocr import (
     OCR_TIMEOUT_SECONDS,
@@ -210,39 +211,69 @@ def build_server(
             return False, f"DENIED by gate: {reason}"
         return True, ""
 
-    def _guard(tool: str, args: dict, *, require_foreground: bool = True) -> tuple[bool, str]:
+    def _human_activity_denied(tool: str, args: dict, reason: str) -> tuple[bool, str]:
+        audit.record(
+            tool,
+            _audit_args(args),
+            "human_active",
+            reason,
+        )
+        return False, f"HUMAN_ACTIVE: {reason}"
+
+    def _guard(
+        tool: str,
+        args: dict,
+        *,
+        require_foreground: bool = True,
+    ) -> tuple[bool, str, HumanInputCapture | None]:
         allowed, reason = _estop_guard(tool, args)
         if not allowed:
-            return allowed, reason
+            return allowed, reason, None
         if mode == FULL_CONTROL_LOCAL:
-            return True, ""
+            return True, "", None
         activity_reason = activity.wait_until_stable()
         if activity_reason:
-            audit.record(
+            allowed, reason = _human_activity_denied(tool, args, activity_reason)
+            return allowed, reason, None
+        readiness = activity.capture()
+        if readiness is None:
+            allowed, reason = _human_activity_denied(
                 tool,
-                _audit_args(args),
-                "human_active",
-                activity_reason,
+                args,
+                "human input idle state unavailable",
             )
-            return False, f"HUMAN_ACTIVE: {activity_reason}"
+            return allowed, reason, None
         if not require_foreground:
-            return True, ""
-        return _foreground_guard(tool, args, final=False)
+            return True, "", readiness
+        allowed, reason = _foreground_guard(tool, args, final=False)
+        return allowed, reason, readiness
 
     def _final_authority_guard(
         tool: str,
         args: dict,
         *,
         require_foreground: bool = True,
+        readiness: HumanInputCapture | None,
+        allowed_confirmation: HumanInputCapture | None = None,
     ) -> tuple[bool, str]:
         """Revalidate non-waiting authority immediately before driver dispatch."""
 
         allowed, reason = _estop_guard(tool, args)
         if not allowed:
             return allowed, reason
-        if mode == FULL_CONTROL_LOCAL or not require_foreground:
+        if mode == FULL_CONTROL_LOCAL:
             return True, ""
-        return _foreground_guard(tool, args, final=True)
+        if require_foreground:
+            allowed, reason = _foreground_guard(tool, args, final=True)
+            if not allowed:
+                return allowed, reason
+        activity_reason = activity.final_blocking_reason(
+            readiness,
+            allowed_confirmation=allowed_confirmation,
+        )
+        if activity_reason:
+            return _human_activity_denied(tool, args, activity_reason)
+        return True, ""
 
     def _record_action(
         tool: str,
@@ -368,13 +399,16 @@ def build_server(
     @mcp.tool(description="Bring a window (id from list_windows) to the foreground.")
     def activate_window(window_id: str) -> str:
         args = {"window_id": window_id}
-        ok, msg = _guard("activate_window", args, require_foreground=False)
+        ok, msg, readiness = _guard(
+            "activate_window", args, require_foreground=False
+        )
         if not ok:
             return msg
         ok, msg = _final_authority_guard(
             "activate_window",
             args,
             require_foreground=False,
+            readiness=readiness,
         )
         if not ok:
             return msg
@@ -385,15 +419,23 @@ def build_server(
                           "targets (send/delete/pay…) ask the human first.")
     def click(ref: str | None = None, x: int | None = None, y: int | None = None) -> str:
         args = {"ref": ref, "x": x, "y": y}
-        ok, msg = _guard("click", args)
+        ok, msg, readiness = _guard("click", args)
         if not ok:
             return msg
         desc = session.describe_ref(ref) if ref else None
+        allowed_confirmation = None
         if require_dangerous_confirmation and desc and is_dangerous(desc, dangerous_words):
             if not confirm(f"{MCP_SERVER_NAME} 请求点击：\n\n{desc}\n\n允许执行吗？"):
                 audit.record("click", _audit_args(args), "user_denied", desc)
                 return f"DENIED by user (dangerous: {desc})"
-        ok, msg = _final_authority_guard("click", args)
+            if mode == SAFE_LOCAL:
+                allowed_confirmation = activity.capture()
+        ok, msg = _final_authority_guard(
+            "click",
+            args,
+            readiness=readiness,
+            allowed_confirmation=allowed_confirmation,
+        )
         if not ok:
             return msg
         result = session.click(ref=ref, x=x, y=y)
@@ -410,7 +452,7 @@ def build_server(
     )
     def scroll(x: int, y: int, delta_x: int = 0, delta_y: int = 0) -> str:
         args = {"x": x, "y": y, "delta_x": delta_x, "delta_y": delta_y}
-        ok, msg = _guard("scroll", args)
+        ok, msg, readiness = _guard("scroll", args)
         if not ok:
             return msg
         if (
@@ -423,7 +465,7 @@ def build_server(
                 args,
                 Result.fail(DRIVER_ERROR, "invalid scroll delta"),
             )
-        ok, msg = _final_authority_guard("scroll", args)
+        ok, msg = _final_authority_guard("scroll", args, readiness=readiness)
         if not ok:
             return msg
         return _record_action(
@@ -451,7 +493,7 @@ def build_server(
             "to_y": to_y,
             "duration_ms": duration_ms,
         }
-        ok, msg = _guard("drag", args)
+        ok, msg, readiness = _guard("drag", args)
         if not ok:
             return msg
         if (x, y) == (to_x, to_y) or not 0 <= duration_ms <= 5000:
@@ -460,7 +502,7 @@ def build_server(
                 args,
                 Result.fail(DRIVER_ERROR, "invalid drag bounds"),
             )
-        ok, msg = _final_authority_guard("drag", args)
+        ok, msg = _final_authority_guard("drag", args, readiness=readiness)
         if not ok:
             return msg
         return _record_action(
@@ -475,10 +517,10 @@ def build_server(
                           "control. Allowlisted app must be in the foreground.")
     def type_text(text: str, ref: str | None = None) -> str:
         args = {"text": text, "ref": ref}
-        ok, msg = _guard("type", args)
+        ok, msg, readiness = _guard("type", args)
         if not ok:
             return msg
-        ok, msg = _final_authority_guard("type", args)
+        ok, msg = _final_authority_guard("type", args, readiness=readiness)
         if not ok:
             return msg
         return _record_action(
@@ -492,10 +534,10 @@ def build_server(
                           "Allowlisted app must be in the foreground.")
     def key(combo: str) -> str:
         args = {"combo": combo}
-        ok, msg = _guard("key", args)
+        ok, msg, readiness = _guard("key", args)
         if not ok:
             return msg
-        ok, msg = _final_authority_guard("key", args)
+        ok, msg = _final_authority_guard("key", args, readiness=readiness)
         if not ok:
             return msg
         return _record_action(

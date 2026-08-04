@@ -8,7 +8,7 @@ from collections import deque
 from pathlib import Path
 
 from computer_use_mcp.contract import ProcRef, Result
-from computer_use_mcp.human_activity import HumanActivity
+from computer_use_mcp.human_activity import HumanActivity, HumanInputCapture
 from computer_use_mcp.safety import EStop
 from computer_use_mcp.server import build_server
 
@@ -66,6 +66,76 @@ class HumanActivityTests(unittest.TestCase):
         driver.input_tick += 1
         self.assertIsNotNone(activity.blocking_reason())
 
+    def test_final_authority_accepts_only_the_unchanged_ready_input_tick(self) -> None:
+        driver = FakeDriver(10.0)
+        activity = HumanActivity(driver, idle_seconds=1.0)
+        readiness = activity.capture()
+
+        self.assertIsNone(activity.final_blocking_reason(readiness))
+
+        driver.input_tick += 1
+        self.assertEqual(
+            activity.final_blocking_reason(readiness),
+            "human input changed after action readiness",
+        )
+
+    def test_final_authority_detects_input_during_its_own_observation(self) -> None:
+        class ChangingDuringAgeDriver(FakeDriver):
+            def last_input_idle_seconds(self) -> float:
+                self.input_tick += 1
+                return 10.0
+
+        driver = ChangingDuringAgeDriver(10.0)
+        activity = HumanActivity(driver, idle_seconds=1.0)
+        readiness = activity.capture()
+
+        self.assertEqual(
+            activity.final_blocking_reason(readiness),
+            "human input changed during final authority check",
+        )
+
+    def test_confirmation_capture_is_exact_and_never_retained(self) -> None:
+        driver = FakeDriver(10.0)
+        activity = HumanActivity(driver, idle_seconds=1.0)
+        readiness = activity.capture()
+        driver.idle_seconds = 0.1
+        driver.input_tick = 2
+        confirmation = activity.capture()
+
+        self.assertEqual(confirmation, HumanInputCapture(2))
+        self.assertIsNone(
+            activity.final_blocking_reason(
+                readiness,
+                allowed_confirmation=confirmation,
+            )
+        )
+        self.assertEqual(
+            activity.final_blocking_reason(readiness),
+            "human input changed after action readiness",
+        )
+
+        driver.input_tick = 3
+        self.assertEqual(
+            activity.final_blocking_reason(
+                readiness,
+                allowed_confirmation=confirmation,
+            ),
+            "human input changed after action readiness",
+        )
+
+    def test_final_authority_fails_closed_without_input_tick_evidence(self) -> None:
+        class UnavailableTickDriver(FakeDriver):
+            def last_input_tick(self) -> int:
+                raise OSError("unavailable")
+
+        activity = HumanActivity(UnavailableTickDriver(10.0), idle_seconds=1.0)
+
+        self.assertIsNone(activity.capture())
+        self.assertEqual(
+            activity.final_blocking_reason(None),
+            "human input idle state unavailable",
+        )
+
     def test_call_scoped_readiness_requires_one_consecutive_idle_streak(self) -> None:
         driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3))
         sleeps: list[float] = []
@@ -99,7 +169,7 @@ class HumanActivityTests(unittest.TestCase):
         )
 
     def test_server_stabilizes_inside_one_call_then_dispatches_once(self) -> None:
-        driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3))
+        driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3, 1.4))
         activity = HumanActivity(
             driver,
             idle_seconds=1.0,
@@ -137,6 +207,27 @@ class HumanActivityTests(unittest.TestCase):
                 allowlist=["notepad.exe"],
                 driver=driver,
                 human_activity=activity,
+                estop=EStop(),
+                start_estop=False,
+                audit_path=str(Path(directory) / "audit.jsonl"),
+            )
+            key = tool_text(
+                asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"}))
+            )
+
+        self.assertTrue(key.startswith("HUMAN_ACTIVE:"))
+        self.assertEqual(driver.key_calls, 0)
+
+    def test_server_fails_closed_when_final_input_tick_is_unavailable(self) -> None:
+        class UnavailableTickDriver(FakeDriver):
+            def last_input_tick(self) -> int:
+                raise OSError("unavailable")
+
+        driver = UnavailableTickDriver(idle_seconds=10.0)
+        with tempfile.TemporaryDirectory() as directory:
+            server = build_server(
+                allowlist=["notepad.exe"],
+                driver=driver,
                 estop=EStop(),
                 start_estop=False,
                 audit_path=str(Path(directory) / "audit.jsonl"),

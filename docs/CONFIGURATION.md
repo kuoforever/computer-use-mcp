@@ -14,14 +14,26 @@ Before an action is executed, the server:
 
 1. Rejects it if the emergency stop is latched.
 2. Yields when recent human input is detected.
-3. For `click`, `type`, and `key`, checks that the foreground window's
-   process ownership chain contains an allowlisted executable.
+3. For `click`, `scroll`, `drag`, `type`, and `key`, checks that the foreground
+   window's process ownership chain contains an allowlisted executable.
 4. For a dangerous `click(ref=...)`, asks for a native confirmation dialog.
-5. Writes the action result to the JSONL audit log.
+5. Immediately before dispatch, rechecks e-stop, the foreground where required,
+   and human input without waiting or retrying.
+6. Writes the action result to the JSONL audit log.
 
 `activate_window(window_id)` intentionally skips the foreground allowlist
 check, because it is used to bring a listed target forward. In safe mode it is
 still human-activity guarded, e-stop guarded, and audited.
+
+The initial stable-idle gate captures the current platform input tick for this
+MCP call. The final human check samples the tick around one fresh idle-age
+observation and returns `HUMAN_ACTIVE` with zero driver calls when evidence is
+unavailable or changed. A successful dangerous confirmation may pass its exact
+post-dialog tick only into that click's final check so the approving input does
+not reject itself. That capture is never stored, never treated as agent input,
+and cannot be reused by the next MCP call; any newer tick rejects. Windows
+events reported under the same `GetLastInputInfo` millisecond tick cannot be
+distinguished by this boundary.
 
 After a known-successful native mouse or keyboard action, the server records
 the platform input tick so its next action does not yield to its own injected
