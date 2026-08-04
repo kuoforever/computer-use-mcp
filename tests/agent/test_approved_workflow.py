@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from computer_use_agent import continuation as continuation_module
 from computer_use_agent.config import (
     APPROVED_ACTIONS_MODE,
     AgentConfig,
+    ContinuationConfig,
     MCPLaunchConfig,
     PolicyConfig,
     ProviderConfig,
 )
+from computer_use_agent.continuation import continuation_path
 from computer_use_agent.approvals import DecisionCardApprovalPort
 from computer_use_agent.decision_cards import DecisionSelection
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
@@ -25,6 +29,7 @@ from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
     LedgerEventKind,
+    MCPCallCancelled,
     ModelTurn,
     PolicyDecision,
     PolicyDecisionKind,
@@ -52,7 +57,12 @@ class DynamicApprovalPort:
         )
 
 
-def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
+def _config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    continuation_enabled: bool = False,
+) -> AgentConfig:
     local = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local))
     return AgentConfig(
@@ -71,6 +81,7 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentConfig:
             max_tool_calls=6,
             max_side_effects=2,
         ),
+        continuation=ContinuationConfig(enabled=continuation_enabled),
     )
 
 
@@ -545,3 +556,139 @@ def test_unknown_action_outcome_stops_without_replay_and_marks_terminal_state(
     record = read_run_record(config.state_dir, run_id)
     assert record["state"]["phase"] == "UNKNOWN_OUTCOME"
     assert record["state"]["recovery_action"] == "human_reobserve_then_start_new_run"
+
+
+@pytest.mark.parametrize("completion_write_fails", [False, True])
+def test_post_dispatch_cancellation_persists_unknown_result_before_propagating(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    completion_write_fails: bool,
+) -> None:
+    run_id = "run_cancelled_action"
+    observe = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    unknown = ToolResult(
+        action.identity,
+        action.name,
+        ToolResultStatus.UNKNOWN_OUTCOME,
+        DispatchCertainty.UNKNOWN,
+        code="MCP_TRANSPORT_ERROR",
+    )
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, action)])
+    )
+    completed_tool_boundaries: list[dict[str, object]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_completed_tool(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload.get("boundary")
+        action_completed = (
+            isinstance(boundary, dict)
+            and boundary.get("operation_kind") == "tool"
+            and boundary.get("stage") == "completed"
+            and boundary.get("operation_id") == f"{run_id}:turn_2:call_2"
+        )
+        if action_completed:
+            completed_tool_boundaries.append(deepcopy(payload))
+            if completion_write_fails:
+                raise OSError("injected continuation completion failure")
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(
+        continuation_module,
+        "write_continuation",
+        capture_completed_tool,
+    )
+
+    class CancellingDesktop(FakeDesktopMCP):
+        def __init__(self) -> None:
+            super().__init__(
+                results=deque(
+                    [
+                        _result(
+                            observe,
+                            text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                        )
+                    ]
+                )
+            )
+            self.action_entered = asyncio.Event()
+
+        async def call_tool(self, call: ToolCall) -> ToolResult:
+            if call.identity != action.identity:
+                return await super().call_tool(call)
+            self.tool_calls.append(call)
+            self.action_entered.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                raise MCPCallCancelled(unknown) from None
+            raise AssertionError("cancelled action unexpectedly resumed")
+
+    desktop = CancellingDesktop()
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    runner = AgentRunner(
+        config,
+        RunnerPorts(provider, desktop, DynamicApprovalPort()),
+    )
+
+    async def scenario() -> tuple[MCPCallCancelled, bool]:
+        task = asyncio.create_task(runner.run("Click", run_id=run_id))
+        await desktop.action_entered.wait()
+        task.cancel()
+        with pytest.raises(MCPCallCancelled) as raised:
+            await task
+        return raised.value, task.cancelled()
+
+    cancelled, task_cancelled = asyncio.run(scenario())
+
+    assert task_cancelled
+    assert cancelled.result == unknown
+    if completion_write_fails:
+        assert isinstance(cancelled.__cause__, OSError)
+        assert str(cancelled.__cause__) == "injected continuation completion failure"
+    else:
+        assert cancelled.__cause__ is None
+    assert [call.identity.call_id for call in desktop.tool_calls] == [
+        "call_1",
+        "call_2",
+    ]
+    assert len(provider.calls) == 2
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "UNKNOWN_OUTCOME"
+    assert record["state"]["failure_code"] == "UNKNOWN_OUTCOME"
+    assert record["state"]["recovery_status"] == "unknown_outcome"
+    assert record["state"]["recovery_action"] == "human_reobserve_then_start_new_run"
+    unknown_events = [
+        event
+        for event in record["events"]
+        if isinstance(event, dict)
+        and event.get("kind") == "tool_result"
+        and event.get("status") == "unknown_outcome"
+    ]
+    assert len(unknown_events) == 1
+    assert unknown_events[0]["tool"] == "click"
+    assert unknown_events[0]["dispatch"] == "unknown"
+    assert unknown_events[0]["code"] == "MCP_TRANSPORT_ERROR"
+    action_completion = completed_tool_boundaries[-1]
+    assert action_completion["checkpoint_sequence"] == record["state"][
+        "checkpoint_sequence"
+    ]
+    assert action_completion["boundary"] == {
+        "operation_kind": "tool",
+        "stage": "completed",
+        "operation_id": f"{run_id}:turn_2:call_2",
+        "effect": "side_effect",
+        "dispatch": "unknown",
+        "next_step": "stop",
+    }
+    ledger = action_completion["ledger"]
+    assert isinstance(ledger, list)
+    last_event = ledger[-1]
+    assert isinstance(last_event, dict)
+    assert last_event["kind"] == "tool_result"
+    data = last_event["data"]
+    assert isinstance(data, dict)
+    assert data["status"] == "unknown_outcome"
+    assert not continuation_path(config.state_dir, run_id).exists()

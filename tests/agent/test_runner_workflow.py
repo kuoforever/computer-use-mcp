@@ -109,6 +109,43 @@ def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> N
     assert "RunPhase.VERIFYING" in boundary_source
 
 
+def test_cancellation_before_a_result_remains_cancelled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_cancelled_before_result"
+
+    class BlockingProvider(FakeModelProvider):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entered = asyncio.Event()
+
+        async def create_turn(self, **kwargs: object) -> ModelTurn:
+            self.calls.append(dict(kwargs))
+            self.entered.set()
+            await asyncio.Event().wait()
+            raise AssertionError("cancelled provider unexpectedly resumed")
+
+    provider = BlockingProvider()
+    desktop = FakeDesktopMCP()
+    config = _config(tmp_path, monkeypatch)
+    runner = _runner(config, provider, desktop)
+
+    async def scenario() -> bool:
+        task = asyncio.create_task(runner.run("Inspect", run_id=run_id))
+        await provider.entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return task.cancelled()
+
+    assert asyncio.run(scenario())
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "CANCELLED"
+    assert record["state"]["failure_code"] == "CANCELLED"
+    assert desktop.tool_calls == []
+    assert desktop.close_calls == 1
+
+
 def test_runner_advertises_only_the_caller_bounded_reviewed_tool_subset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

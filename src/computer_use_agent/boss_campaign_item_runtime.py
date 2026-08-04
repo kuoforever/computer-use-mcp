@@ -33,7 +33,7 @@ from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, PreparedRun, RunFailure
 from .tool_registry import verify_discovered_tools
 from .trace import RunPhase, RunRecorder
-from .types import CallIdentity, RunState, ToolCall, ToolResult
+from .types import CallIdentity, MCPCallCancelled, RunState, ToolCall, ToolResult
 
 
 BOSS_ITEM_TASK = "Verify one exact claimed BOSS identity on the interested-jobs page"
@@ -360,8 +360,12 @@ async def _execute_prepared_claimed_boss_identity(
             stop_code=stop_code,
             handoff=handoff,
         )
-    except asyncio.CancelledError:
-        if recorder_started:
+    except asyncio.CancelledError as cancelled:
+        if (
+            recorder_started
+            and not isinstance(cancelled, MCPCallCancelled)
+            and recorder.phase is not RunPhase.UNKNOWN_OUTCOME
+        ):
             recorder.record(
                 state,
                 RunPhase.CANCELLED,

@@ -34,7 +34,7 @@ from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, RunFailure
 from .tool_registry import verify_discovered_tools
 from .trace import RunPhase, RunRecorder
-from .types import CallIdentity, RunState, ToolCall, ToolResult
+from .types import CallIdentity, MCPCallCancelled, RunState, ToolCall, ToolResult
 
 
 APPLICATION_DISCOVERY_TASK = "Observe one foreground application discovery source"
@@ -205,8 +205,12 @@ async def execute_application_discovery_pass(
             run_duration_ms=max(0, (perf_counter_ns() - started_ns) // 1_000_000),
         )
         return ApplicationDiscoveryObservationOutcome(state, boundary.result, discovery)
-    except asyncio.CancelledError:
-        if recorder_started:
+    except asyncio.CancelledError as cancelled:
+        if (
+            recorder_started
+            and not isinstance(cancelled, MCPCallCancelled)
+            and recorder.phase is not RunPhase.UNKNOWN_OUTCOME
+        ):
             recorder.record(
                 state,
                 RunPhase.CANCELLED,

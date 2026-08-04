@@ -29,6 +29,7 @@ from computer_use_agent.trace import RunPhase, read_run_record
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
+    MCPCallCancelled,
     ToolCall,
     ToolCallStatus,
     ToolResult,
@@ -218,6 +219,54 @@ def test_one_pass_dispatches_once_and_persists_only_public_keys(
     assert read_run_record(config.state_dir, "run_1")["state"]["phase"] == "SUCCESS"
     assert presence.events[-1] == "release"
     assert RunPhase.SUCCESS in presence.events
+
+
+def test_post_dispatch_cancellation_keeps_shared_runtime_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    prepare_application_discovery_campaign(
+        AgentRunner(config),
+        campaign_kind=KIND,
+        campaign_id="campaign_1",
+        run_id="prepare_1",
+        now=NOW,
+    )
+
+    class CancellingDesktop(FakeDesktopMCP):
+        async def call_tool(self, call: ToolCall) -> ToolResult:
+            self.tool_calls.append(call)
+            raise MCPCallCancelled(
+                ToolResult(
+                    call.identity,
+                    call.name,
+                    ToolResultStatus.UNKNOWN_OUTCOME,
+                    DispatchCertainty.UNKNOWN,
+                    code="MCP_TRANSPORT_ERROR",
+                )
+            ) from None
+
+    desktop = CancellingDesktop()
+    runner = AgentRunner(
+        config,
+        RunnerPorts(FakeModelProvider(), desktop, FakeApprovalPort()),
+    )
+
+    with pytest.raises(MCPCallCancelled):
+        asyncio.run(
+            execute_application_discovery_pass(
+                runner,
+                campaign_id="campaign_1",
+                run_id="run_1",
+                now=NOW,
+            )
+        )
+
+    record = read_run_record(config.state_dir, "run_1")
+    assert record["state"]["phase"] == "UNKNOWN_OUTCOME"
+    assert record["state"]["failure_code"] == "UNKNOWN_OUTCOME"
+    assert len(desktop.tool_calls) == 1
+    assert desktop.close_calls == 1
 
 
 def test_a_second_pass_reuses_the_campaign_with_a_fresh_run(
