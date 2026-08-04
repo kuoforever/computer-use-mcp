@@ -35,6 +35,18 @@ def test_gate_retries_a_transient_foreground_before_allowing() -> None:
     sleep.assert_called_once_with(0.1)
 
 
+def test_final_gate_observation_never_retries_or_waits() -> None:
+    driver = FakeDriver([["explorer.exe"], ["weixin.exe"]])
+    gate = Gate(["weixin.exe"], driver, retries=3, retry_wait=0.1)
+
+    with patch("computer_use_mcp.gate.time.sleep") as sleep:
+        allowed, reason = gate.foreground_allowed_once()
+
+    assert allowed is False
+    assert "explorer.exe" in reason
+    sleep.assert_not_called()
+
+
 def test_gate_rejection_includes_the_observed_foreground_process() -> None:
     gate = Gate(["notepad.exe"], FakeDriver([["calc.exe"]]), retries=0)
 
