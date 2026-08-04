@@ -177,7 +177,11 @@ until the Host commits a new dispatch intent.
 
 `advertised_tool_names` is Host-owned authority evidence, not provider state.
 The live Runner records the exact immutable set remaining after caller,
-privacy, and connected-MCP safety-baseline filtering. At a
+privacy, connected-MCP safety-baseline, and continuation-compatibility
+filtering. Because v6 rejects raw `type.text`, enabling continuation removes
+`type` from both the provider schema tuple and persisted names even when the MCP
+reports `typed_text_audit_redaction`. Disabling continuation does not itself
+disable a baseline-satisfied `type` call. At a
 `CONTINUE_PROVIDER` boundary, recovery narrows that set again to current
 reviewed observation tools. A baseline-required observation remains eligible
 only when an attached, already-discovered desktop currently reports every
@@ -223,7 +227,8 @@ records:
 A provider `dispatch_intent` does not make the returned turn trusted or
 completed. After the provider returns and turn identity is checked, the Runner
 atomically verifies every requested tool against the exact set the Host actually
-advertised after caller, privacy, and MCP safety-baseline filtering. If any call
+advertised after caller, privacy, MCP safety-baseline, and continuation-
+compatibility filtering. If any call
 is absent, fixed `PROVIDER_TOOL_NOT_ADVERTISED` terminates the run before model
 ledger/budget consumption, provider-state export, `completed`, policy, approval,
 or MCP dispatch. The Runner next preflights every call's reviewed schema and
@@ -312,6 +317,14 @@ malformed scope rejection, and mixed returned turns with zero valid-prefix or
 MCP execution. These checks strengthen the Host boundary without changing the
 frozen crash/replay fixture semantics or authorizing automatic fallback.
 
+Live Runner compatibility tests additionally give the fake MCP the typed-text
+audit baseline while continuation is enabled. They require `type` to be absent
+from both provider schemas and both pre-request persisted scope records. A mixed
+returned turn containing a valid observation plus `type` fails atomically as
+`PROVIDER_TOOL_NOT_ADVERTISED` with only the user-task trace, zero budget,
+approval, or MCP authority, and no raw typed text in the safe record. A separate
+continuation-disabled approved workflow retains baseline-satisfied typing.
+
 The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
 digest-bound replay artifacts. Its manifest freezes successful text and
 screenshot compilation, unknown/missing/mismatched/reordered items,
@@ -357,6 +370,10 @@ and retains JUnit evidence without enabling provider or desktop integration.
    Provider continuation narrows them to current-safe observations, uses that
    exact tuple for restore/replay/request construction, and rejects a returned
    out-of-scope sibling atomically before completion or later tool dispatch.
-8. Keep uncertain dispatches, pending side-effects, drift, corruption, and
+8. **Implemented:** the live Host excludes `type` whenever continuation is
+   enabled, so no advertised provider call can require persisting raw typed text.
+   The v6 validator remains strict and continuation-disabled behavior is
+   unchanged.
+9. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.

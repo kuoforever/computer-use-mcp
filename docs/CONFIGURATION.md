@@ -125,6 +125,11 @@ operator may execute one strictly classified read-only continuation boundary by
 default, or 1-4 with `--max-steps`, using
 `agent recover ... --execute-read-only`. The command holds one run lock and fails
 closed on task, policy, provider, registry, budget, digest, or sequence drift.
+Strict v6 persistence rejects raw `type.text`, so an enabled continuation also
+removes `type` from the live provider's final tool schemas and persisted
+`advertised_tool_names`, even when the MCP reports its typed-text audit baseline.
+With continuation disabled, the ordinary baseline, policy, approval, grounding,
+and verification gates continue to govern `type`.
 The bounded `agent plan run` path also requires continuation persistence before
 it makes its one Planner request, because every observation and final-response
 dispatch must retain the existing crash boundary. It remains disabled when
