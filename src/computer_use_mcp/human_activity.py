@@ -8,12 +8,20 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 
 DEFAULT_IDLE_SECONDS = 2.5
 DEFAULT_STABLE_SAMPLES = 1
 DEFAULT_POLL_INTERVAL_SECONDS = 0.25
 DEFAULT_MAX_WAIT_SECONDS = 60.0
+
+
+@dataclass(frozen=True, slots=True)
+class HumanInputCapture:
+    """One call-scoped platform last-input observation."""
+
+    tick: int
 
 
 class HumanActivity:
@@ -61,6 +69,17 @@ class HumanActivity:
             return None
         return max(0.0, age)
 
+    def capture(self) -> HumanInputCapture | None:
+        """Capture the current platform input tick without retaining it."""
+
+        input_tick = getattr(self.driver, "last_input_tick", None)
+        if not callable(input_tick):
+            return None
+        try:
+            return HumanInputCapture(int(input_tick()))
+        except (TypeError, ValueError, OSError):
+            return None
+
     def note_agent_action(self) -> None:
         """Record the input timestamp after known-successful native input.
 
@@ -70,13 +89,8 @@ class HumanActivity:
         no-op, or failed actions. A later physical input changes the tick and
         is still detected.
         """
-        input_tick = getattr(self.driver, "last_input_tick", None)
-        if not callable(input_tick):
-            return
-        try:
-            self._agent_input_tick = int(input_tick())
-        except (TypeError, ValueError, OSError):
-            self._agent_input_tick = None
+        captured = self.capture()
+        self._agent_input_tick = None if captured is None else captured.tick
 
     def _blocking_reason(self, *, require_observation: bool) -> str | None:
         age = self.recent_input_age()
@@ -88,19 +102,38 @@ class HumanActivity:
             )
         if age >= self.idle_seconds:
             return None
-        input_tick = getattr(self.driver, "last_input_tick", None)
-        if callable(input_tick):
-            try:
-                if int(input_tick()) == self._agent_input_tick:
-                    return None
-            except (TypeError, ValueError, OSError):
-                pass
+        captured = self.capture()
+        if captured is not None and captured.tick == self._agent_input_tick:
+            return None
         return f"user input {age:.1f}s ago; wait {self.idle_seconds - age:.1f}s before retrying"
 
     def blocking_reason(self) -> str | None:
         """Return the legacy one-sample human-yield decision."""
 
         return self._blocking_reason(require_observation=False)
+
+    def final_blocking_reason(
+        self,
+        readiness: HumanInputCapture | None,
+        *,
+        allowed_confirmation: HumanInputCapture | None = None,
+    ) -> str | None:
+        """Revalidate human-input authority once without waiting or retaining state."""
+
+        before = self.capture()
+        reason = self._blocking_reason(require_observation=True)
+        after = self.capture()
+        if readiness is None or before is None or after is None:
+            return "human input idle state unavailable"
+        if before != after:
+            return "human input changed during final authority check"
+        if reason == "human input idle state unavailable":
+            return reason
+        if allowed_confirmation is not None and after == allowed_confirmation:
+            return None
+        if after != readiness:
+            return "human input changed after action readiness"
+        return reason
 
     def wait_until_stable(
         self,

@@ -10,6 +10,7 @@ from PIL import Image
 
 from computer_use_mcp.audit import AuditLog
 from computer_use_mcp.contract import Node, ProcRef, Rect, Result, TreeResult
+from computer_use_mcp.human_activity import HumanInputCapture
 from computer_use_mcp.safety import EStop, is_dangerous, parse_combo, redact
 from computer_use_mcp.server import build_server
 
@@ -196,8 +197,23 @@ class AttributionDriver(AuthorityDriver):
 class NoteTrackingActivity:
     def __init__(self) -> None:
         self.note_calls = 0
+        self.final_calls: list[
+            tuple[HumanInputCapture | None, HumanInputCapture | None]
+        ] = []
 
     def wait_until_stable(self) -> None:
+        return None
+
+    def capture(self) -> HumanInputCapture:
+        return HumanInputCapture(1)
+
+    def final_blocking_reason(
+        self,
+        readiness: HumanInputCapture | None,
+        *,
+        allowed_confirmation: HumanInputCapture | None = None,
+    ) -> None:
+        self.final_calls.append((readiness, allowed_confirmation))
         return None
 
     def note_agent_action(self) -> None:
@@ -610,6 +626,9 @@ def test_estop_engaged_during_human_idle_wait_denies_final_dispatch(
             estop.engage()
             return None
 
+        def capture(self) -> HumanInputCapture:
+            return HumanInputCapture(1)
+
     server = build_server(
         allowlist=["notepad.exe"],
         driver=driver,
@@ -642,6 +661,84 @@ def test_foreground_change_after_initial_gate_denies_final_dispatch(
     result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
 
     assert result.startswith("DENIED by gate:")
+    assert driver.action_calls == []
+
+
+@pytest.mark.parametrize(("tool", "arguments"), ACTION_CASES[1:])
+def test_human_input_during_foreground_retry_denies_final_dispatch(
+    tmp_path: Path,
+    tool: str,
+    arguments: dict[str, object],
+) -> None:
+    class HumanDuringForegroundRetryDriver(AuthorityDriver):
+        def __init__(self) -> None:
+            super().__init__(["calc.exe", "notepad.exe", "notepad.exe"])
+            self.idle_seconds = 10.0
+            self.input_tick = 1
+            self.foreground_checks = 0
+
+        def last_input_idle_seconds(self) -> float:
+            return self.idle_seconds
+
+        def last_input_tick(self) -> int:
+            return self.input_tick
+
+        def foreground_owner_chain(self) -> list[ProcRef]:
+            chain = super().foreground_owner_chain()
+            self.foreground_checks += 1
+            if self.foreground_checks == 1:
+                self.idle_seconds = 0.1
+                self.input_tick = 2
+            return chain
+
+    audit_path = tmp_path / "actions.jsonl"
+    driver = HumanDuringForegroundRetryDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        dangerous_confirmation=False,
+        audit_path=str(audit_path),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
+    _, record = _read_single_record(audit_path)
+
+    assert result.startswith("HUMAN_ACTIVE:")
+    assert driver.foreground_checks == 3
+    assert driver.action_calls == []
+    assert record["decision"] == "human_active"
+
+
+def test_activate_window_rechecks_human_input_without_a_foreground_gate(
+    tmp_path: Path,
+) -> None:
+    class HumanAfterReadinessDriver(AuthorityDriver):
+        def __init__(self) -> None:
+            super().__init__()
+            self.input_tick_calls = 0
+
+        def last_input_idle_seconds(self) -> float:
+            return 10.0 if self.input_tick_calls == 0 else 0.1
+
+        def last_input_tick(self) -> int:
+            self.input_tick_calls += 1
+            return 1 if self.input_tick_calls == 1 else 2
+
+    driver = HumanAfterReadinessDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "window-1"}))
+    )
+
+    assert result.startswith("HUMAN_ACTIVE:")
+    assert driver.foreground_names == ["notepad.exe"]
     assert driver.action_calls == []
 
 
@@ -685,4 +782,95 @@ def test_dangerous_confirmation_cannot_outlive_foreground_authority(
     )
 
     assert result.startswith("DENIED by gate:")
+    assert driver.action_calls == []
+
+
+def test_dangerous_confirmation_tick_is_allowed_once_for_its_click(
+    tmp_path: Path,
+) -> None:
+    class ConfirmingDriver(AuthorityDriver):
+        def __init__(self) -> None:
+            super().__init__()
+            self.idle_seconds = 10.0
+            self.input_tick = 1
+
+        def last_input_idle_seconds(self) -> float:
+            return self.idle_seconds
+
+        def last_input_tick(self) -> int:
+            return self.input_tick
+
+    driver = ConfirmingDriver()
+
+    def confirm(_prompt: str) -> bool:
+        driver.idle_seconds = 0.1
+        driver.input_tick = 2
+        return True
+
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        confirmer=confirm,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    confirmed = tool_text(
+        asyncio.run(server.call_tool("click", {"ref": "ref_1", "x": None, "y": None}))
+    )
+    next_action = tool_text(
+        asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"}))
+    )
+
+    assert confirmed == "ok"
+    assert next_action.startswith("HUMAN_ACTIVE:")
+    assert driver.action_calls == ["invoke"]
+
+
+def test_input_after_dangerous_confirmation_invalidates_its_exact_tick(
+    tmp_path: Path,
+) -> None:
+    class PostConfirmationInputDriver(AuthorityDriver):
+        def __init__(self) -> None:
+            super().__init__()
+            self.idle_seconds = 10.0
+            self.input_tick = 1
+            self.foreground_checks = 0
+
+        def last_input_idle_seconds(self) -> float:
+            return self.idle_seconds
+
+        def last_input_tick(self) -> int:
+            return self.input_tick
+
+        def foreground_owner_chain(self) -> list[ProcRef]:
+            self.foreground_checks += 1
+            if self.foreground_checks == 2:
+                self.input_tick = 3
+                self.idle_seconds = 0.1
+            return super().foreground_owner_chain()
+
+    driver = PostConfirmationInputDriver()
+
+    def confirm(_prompt: str) -> bool:
+        driver.input_tick = 2
+        driver.idle_seconds = 0.1
+        return True
+
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        confirmer=confirm,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    result = tool_text(
+        asyncio.run(server.call_tool("click", {"ref": "ref_1", "x": None, "y": None}))
+    )
+
+    assert result.startswith("HUMAN_ACTIVE:")
+    assert driver.foreground_checks == 2
     assert driver.action_calls == []

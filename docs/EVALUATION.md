@@ -70,6 +70,7 @@ provider credentials, a child process, or a desktop.
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
 | An approved action has no complete post-action verification lane | After recording the action request but before approval, project the `ALLOW` plus dispatched-result context and reject in model, input, context, then tool priority. Record one `BUDGET_EXHAUSTED`/`not_dispatched` result, retain the prior verified observation, and create zero approval, side-effect use, action continuation, or action MCP dispatch. |
 | MCP generation changes or a required safety baseline disappears while approval is open | Preserve a fresh correlated `ALLOW` as an audit event, then reject with `MCP_GENERATION_CHANGED` or `SAFETY_BASELINE_UNSATISFIED` before side-effect accounting, action continuation, or MCP. Append `POLICY_DENIED`/`not_dispatched`, retain the verified observation and `ready` state, and never replay or reinterpret the approval. |
+| Human input changes after stable readiness, during foreground retry, dangerous confirmation, or the final observation itself | Compare call-scoped platform input captures after final e-stop/foreground checks and reject as `HUMAN_ACTIVE` with zero driver calls. Permit only the exact affirmative-confirmation tick for that click; never store, attribute, or reuse the exception. |
 
 ## CI boundary
 
@@ -384,8 +385,10 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - provider-neutral v6 scope persistence plus restricted OpenAI and Claude
   recovery, including old/malformed evidence, missing current baseline
   evidence, and mixed unadvertised response rejection before completion;
-- approved, grounded calls rejected by human activity, foreground gate, E-stop,
-  or driver outcome, each followed by mandatory re-observation; and
+- approved, grounded calls rejected by initial or final human activity,
+  foreground gate, E-stop, or driver outcome, including foreground-retry and
+  dangerous-confirmation tick drift, each followed by mandatory re-observation;
+  and
 - post-dispatch unknown outcome stopping immediately without replay.
 
 The [isolated E4 runbook](E4_SMOKE.md) defines the environment preconditions,
