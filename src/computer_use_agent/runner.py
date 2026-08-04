@@ -25,6 +25,7 @@ from .run_lock import RunLock
 from .telemetry import MAX_ATTRIBUTE_STRING_LENGTH, NoOpTelemetry, TelemetryPort
 from .tool_registry import (
     REVIEWED_TOOLS,
+    ToolSpec,
     ToolValidationError,
     get_tool_spec,
     validate_tool_arguments,
@@ -302,13 +303,18 @@ class AgentRunner:
             budgets=budget,
         )
 
-    def _record_call(self, state: RunState, call: ToolCall) -> RunState:
-        if state.budgets.tool_calls_used >= state.budgets.max_tool_calls:
-            raise RunnerBudgetError("TOOL_CALL_BUDGET_EXHAUSTED")
+    @staticmethod
+    def _validated_tool_spec(call: ToolCall) -> ToolSpec:
         spec = get_tool_spec(call.name)
         normalized = validate_tool_arguments(call.name, call.arguments)
         if dict(call.arguments) != normalized:
             raise ToolValidationError("tool arguments are not in canonical form")
+        return spec
+
+    def _record_call(self, state: RunState, call: ToolCall) -> RunState:
+        if state.budgets.tool_calls_used >= state.budgets.max_tool_calls:
+            raise RunnerBudgetError("TOOL_CALL_BUDGET_EXHAUSTED")
+        spec = self._validated_tool_spec(call)
         budget = replace(state.budgets, tool_calls_used=state.budgets.tool_calls_used + 1)
         return self._append(
             state,
@@ -911,6 +917,11 @@ class AgentRunner:
                     call.name not in advertised_tool_names for call in turn.tool_calls
                 ):
                     raise RunFailure("PROVIDER_TOOL_NOT_ADVERTISED", state)
+                try:
+                    for call in turn.tool_calls:
+                        self._validated_tool_spec(call)
+                except ToolValidationError as exc:
+                    raise RunFailure("SCHEMA_MISMATCH", state) from exc
                 if privacy is not None:
                     try:
                         privacy.validate_model_text(turn.text)

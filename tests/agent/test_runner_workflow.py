@@ -275,6 +275,84 @@ def test_runner_rejects_an_entire_turn_before_persisting_an_unadvertised_call(
     assert [event["kind"] for event in record["events"]] == ["user_task"]
 
 
+def test_runner_rejects_an_entire_turn_before_persisting_a_malformed_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_malformed_turn"
+    allowed = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    malformed = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_2"),
+        "list_windows",
+        {"unexpected": True},
+    )
+
+    class RejectingTurnProvider(FakeModelProvider):
+        def export_continuation(self, run_id: str) -> Never:
+            del run_id
+            raise AssertionError("rejected provider turn must not be exported")
+
+    provider = RejectingTurnProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (allowed, malformed),
+                    usage=ModelUsage(input_tokens=13, output_tokens=7),
+                )
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP()
+    approvals = FakeApprovalPort()
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    persisted_boundaries: list[tuple[str, str]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        persisted_boundaries.append(
+            (str(boundary["operation_kind"]), str(boundary["stage"]))
+        )
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
+
+    with pytest.raises(RunFailure, match="^SCHEMA_MISMATCH$"):
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(provider, desktop, approvals),
+            ).run("Inspect", run_id=run_id)
+        )
+
+    advertised = {tool.name for tool in provider.calls[0]["tools"]}
+    assert {"ui_snapshot", "list_windows"}.issubset(advertised)
+    assert desktop.tool_calls == []
+    assert approvals.requests == []
+    assert persisted_boundaries == [
+        ("provider", "prepared"),
+        ("provider", "dispatch_intent"),
+    ]
+    assert not continuation_path(config.state_dir, run_id).exists()
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "SCHEMA_MISMATCH"
+    assert record["state"]["budgets"]["model_turns_used"] == 0
+    assert record["state"]["budgets"]["tool_calls_used"] == 0
+    assert record["state"]["budgets"]["side_effects_used"] == 0
+    assert record["state"]["budgets"]["input_tokens_used"] == 0
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
+
+
 def test_runner_enforces_the_post_baseline_advertised_tool_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

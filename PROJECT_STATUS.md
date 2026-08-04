@@ -3,8 +3,8 @@
 > **Mode: core Runtime development is explicitly reopened by the user.
 > `GDA-CORE-001` and `GDA-CORE-002` are merged through PR #230;
 > `GDA-CORE-003` is merged through PR #232; `GDA-CORE-004` is merged through
-> PR #233; `GDA-CORE-005` is complete locally; and `GDA-CORE-006` is the exact
-> next item.
+> PR #233; `GDA-CORE-005` is merged through PR #234; `GDA-CORE-006` is complete
+> locally; and `GDA-CORE-007` is the exact next item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below. The Full Cycle Runtime baseline remains frozen at
@@ -72,6 +72,14 @@ the connected MCP generation. Missing evidence has one fixed failure before
 operation identity construction, persistence, authorization, or dispatch; the
 checkpoint and continuation remain byte-identical.
 
+`GDA-CORE-006` closed the remaining same-turn prefix-authority gap in the
+ordinary Runner. After identity and advertised-name validation, the Host now
+preflights every returned call's reviewed schema and exact canonical arguments
+before privacy processing, model-turn or tool budgets, continuation completion,
+policy, approval, or MCP. One malformed sibling rejects the whole turn with
+fixed `SCHEMA_MISMATCH`; neither an observation nor an approved action prefix
+can execute first.
+
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
 disabled by default and deferred to the external Full Cycle `FC-BRIDGE-003`
@@ -90,7 +98,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1601 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-005` closure revalidation |
+| Offline baseline | `1603 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-006` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -147,12 +155,12 @@ delivery work.
 | `GDA-CORE-002` | Complete; merged | Revalidate e-stop and foreground authority at the final MCP-to-driver action boundary | Commit `aa7d5a7`, merged through PR #230 as `d52ffb2`; six-action e-stop and five-action foreground-drift zero-dispatch tests plus confirmation/activation boundary tests; complete gate: `1592 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-003` | Complete; merged | Preserve post-dispatch MCP cancellation certainty through the Runner | Commit `647a9ef`, merged through PR #232 as `5d19157`; result-aware cancellation persists the validated/privacy-protected unknown result and completed WAL boundary before re-propagation; task cancellation, generation invalidation, zero replay, persistence-failure chaining, and shared-caller terminal-state guards are regression tested; complete gate: `1597 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-004` | Complete; merged | Enforce the actual per-turn advertised tool set at the Runner authority boundary | Commit `ba907bf`, merged through PR #233 as `5c9c379`; whole-turn Host validation uses the final caller/privacy/safety-baseline-filtered set; mixed observation/action turns, downstream baseline filtering, continuation ordering, valid restricted execution, prompt injection, and unknown tools are regression tested with zero leaked authority; complete gate: `1600 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
-| `GDA-CORE-005` | Complete locally | Revalidate required MCP safety baselines before read-only recovery dispatch | The executor checks the current reviewed requirement against the connected MCP generation before intent; missing OCR evidence has fixed `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, byte-identical checkpoint/continuation files, zero phase transition, and zero MCP dispatch, while the baseline-satisfied path retains atomic intent/completion; complete gate: `1601 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
-| `GDA-CORE-006` | Next | Make returned-turn argument validation whole-turn atomic | Validate every returned call's reviewed schema and canonical arguments before model-turn consumption, continuation completion, approval, or MCP dispatch; a malformed sibling must not let a valid observation or approved action prefix execute |
-| `GDA-CORE-007` | Queued; audit-backed | Preserve the original Host-advertised tool scope across recovery | Add a versioned continuation binding for the original caller/Host tool scope and enforce it on recovered provider turns; an Anthropic or custom-provider recovery must not widen a restricted run to additional observations |
+| `GDA-CORE-005` | Complete; merged | Revalidate required MCP safety baselines before read-only recovery dispatch | Commit `969a56f`, merged through PR #234 as `ea2e063`; the executor checks the current reviewed requirement against the connected MCP generation before intent; missing OCR evidence has fixed `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, byte-identical checkpoint/continuation files, zero phase transition, and zero MCP dispatch, while the baseline-satisfied path retains atomic intent/completion; complete gate: `1601 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
+| `GDA-CORE-006` | Complete locally | Make returned-turn argument validation whole-turn atomic | Shared preflight runs after identity/advertised-name checks and before every downstream authority boundary; malformed observation and approved-action sibling tests prove fixed `SCHEMA_MISMATCH`, provider intent only, user-task-only trace, zero model/tool/side-effect budget, zero approval, and zero MCP dispatch; complete gate: `1603 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
+| `GDA-CORE-007` | Next | Preserve the original Host-advertised tool scope across recovery | Add a versioned continuation binding for the original caller/Host tool scope and enforce it on recovered provider turns; an Anthropic or custom-provider recovery must not widen a restricted run to additional observations |
 
-No new implementation is active on this closure branch. `GDA-CORE-006` is the
-exact next core item after `GDA-CORE-005` merges. `GDA-DEMO-006` is paused at
+No new implementation is active on this closure branch. `GDA-CORE-007` is the
+exact next core item after `GDA-CORE-006` merges. `GDA-DEMO-006` is paused at
 its exact resume point, and no `GDA-HUD-*` item is active. The historical Full
 Cycle freeze remains the handoff baseline; it no longer freezes the separately
 reopened core Runtime scope above.
@@ -391,19 +399,23 @@ passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
 source files, documentation consistency reported 13 reviewed tools, and
 `git diff --check` passed.
 
-## Exact next task: `GDA-CORE-006`
+## Exact next task: `GDA-CORE-007`
 
-The Runner atomically validates returned call names against the final advertised
-set, but reviewed schema and canonical-argument validation still occurs one call
-at a time inside `_record_call()`. A mixed turn containing a valid first call
-and a malformed later call can therefore consume and dispatch the valid prefix
-before failing with `SCHEMA_MISMATCH`; in approved mode that prefix can be a
-side effect. Validate every call in the returned turn immediately after turn
-identity and advertised-name validation, before privacy processing, model-turn
-ledger/budget consumption, continuation completion, policy, approval, or MCP
-dispatch. Prove a malformed sibling grants zero prefix authority while valid
-multi-call serialization remains unchanged, update the owning Agent and
-continuation contracts, then run the complete gate.
+Continuation v5 does not persist the original final Host-advertised tool scope.
+`CONTINUE_PROVIDER` consequently rebuilds a recovery request from the full
+reviewed registry. A real Anthropic reproduction started with only
+`ui_snapshot` advertised, recovered with six observations advertised, accepted
+`list_windows`, and dispatched it on the next recovery step. OpenAI commonly
+fails this drift through its adapter-specific request-contract digest, but that
+is not a provider-neutral Host authority boundary. Introduce a strict versioned
+continuation binding for the immutable final caller/privacy/baseline-filtered
+tool-name set; fail closed on old or malformed scope evidence. Recovery must
+derive only the persisted read-only, currently safe subset, pass only that set
+to the provider, and atomically reject any returned call outside it before
+provider completion or future MCP dispatch. Freeze the restricted Anthropic and
+OpenAI paths, corrupt/old-version rejection, valid restricted recovery, and
+mixed-turn zero-authority behavior in the continuation/recovery contracts and
+tests, then run the complete gate.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -422,7 +434,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
 post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-must not displace `GDA-CORE-006`.
+must not displace `GDA-CORE-007`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -515,5 +527,8 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-04 | `GDA-CORE-004` merged through PR #233 as `5c9c379`; `GDA-CORE-005` is now the sole active core Runtime item. |
 | 2026-08-04 | A bounded audit selected `GDA-CORE-005` next: read-only recovery must revalidate the current MCP generation's required safety baselines before persisting intent or dispatching an observation. |
 | 2026-08-04 | `GDA-CORE-005` revalidates required tool safety baselines against the current MCP generation before any recovered observation intent, authorization, or dispatch; missing evidence leaves both durable files byte-identical. |
+| 2026-08-04 | `GDA-CORE-005` merged through PR #234 as `ea2e063`; `GDA-CORE-006` is now the sole active core Runtime item. |
 | 2026-08-04 | A bounded audit selected `GDA-CORE-006` next: reviewed schema and canonical-argument validation must be whole-turn atomic so no valid prefix executes before a malformed sibling fails. |
 | 2026-08-04 | The separate `GDA-CORE-007` recovery-scope gap remains queued: continuation must version and preserve the original Host-advertised tool scope rather than widening a restricted run after a crash. |
+| 2026-08-04 | `GDA-CORE-006` makes reviewed schema and canonical-argument validation whole-turn atomic after advertised-name validation; malformed siblings cannot grant an observation or approved-action prefix any authority. |
+| 2026-08-04 | A real Anthropic recovery reproduced `GDA-CORE-007`: a run restricted to `ui_snapshot` widened to six advertised observations and later dispatched `list_windows`; exact Host tool scope must become versioned continuation evidence. |
