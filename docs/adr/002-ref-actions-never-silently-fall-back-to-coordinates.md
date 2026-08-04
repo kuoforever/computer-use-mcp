@@ -107,6 +107,9 @@ Implemented:
 - `_act_on_ref` and `_relocate` in `src/computer_use_mcp/core.py`: one retry
   after a `STALE_ELEMENT` result, matching on `role` and `name`, nearest-center
   tie-break, explicit failure when no candidate exists.
+- `_press` returns `NOT_INVOKABLE` when a resolved ref exposes neither
+  `Invoke` nor `SelectionItem`; it never calls the coordinate driver for that
+  ref.
 - `click(ref=...)` and `click(x=..., y=...)` are separate argument forms in
   `src/computer_use_mcp/server.py`; the ref path additionally runs the dangerous
   target confirmation.
@@ -115,6 +118,7 @@ Implemented:
 Tested offline:
 
 - `tests/test_core.py::test_stale_ref_is_relocated_once_by_role_and_name`
+- `tests/test_core.py::test_ref_without_semantic_action_never_falls_back_to_coordinates`
 
 Not verified: relocation quality across applications that expose duplicate
 role+name pairs. The behavior in that case is defined (nearest center wins) but

@@ -1,11 +1,12 @@
 # Project status
 
-> **Mode: the Full Cycle Runtime baseline remains frozen at
-> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`. The user-requested bounded
-> `GDA-DEMO-004` presentation-speed and action-visibility enhancement is
-> complete locally. No Runtime item is active; Full Cycle remains paused until
-> the user explicitly resumes it.**
-> Updated: 2026-08-03.
+> **Mode: core Runtime development is explicitly reopened by the user.
+> `GDA-CORE-001` is complete locally; `GDA-CORE-002` is the exact next item.
+> The Full Cycle
+> Runtime baseline remains frozen at
+> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; Full Cycle consumer work remains
+> paused and no Demo item is active.**
+> Updated: 2026-08-04.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
@@ -23,6 +24,32 @@ integration surface needed for:
 The model factory, multimodal dataset pipeline, post-training, serving,
 Agentic RL, and Multi-Agent work live outside this repository.
 
+## Reopened core Runtime scope
+
+On 2026-08-03 the user explicitly reopened development of the project itself,
+not the Demo and not the external Full Cycle consumer. The first audit is
+restricted to real gaps in the existing Runner/MCP/authority/recovery boundary.
+Demo, Operator HUD, Universal GUI, hierarchical control, Multi-Agent, training,
+and BF16 work remain excluded.
+
+`GDA-CORE-001` addressed the smallest highest-value gap found by that audit.
+The accepted ADR and current design forbid a ref click from silently becoming a
+coordinate click. `Session._press()` had still clicked the cached bounding-box
+center when a control exposed neither `Invoke` nor `SelectionItem`; it now
+returns fixed `NOT_INVOKABLE` with zero coordinate driver calls. Explicit
+`click(x=..., y=...)` remains unchanged.
+
+The audit also found that initial e-stop/foreground authority evidence can age
+while the server waits for stable human-idle evidence or native dangerous-click
+confirmation. That separate final-dispatch revalidation hardening is recorded
+as proposed `GDA-CORE-002`; it is not mixed into this single-purpose change.
+
+This scope change does not alter Full Cycle state. Lane A manifest/export v1,
+the consumer fixture, and the Runtime freeze remain complete. Lane B remains
+disabled by default and deferred to the external Full Cycle `FC-BRIDGE-003`
+consent, security, and privacy review. If Full Cycle is explicitly resumed, the
+exact resume point is that external review; no rich capture work starts here.
+
 ## Current baseline
 
 | Fact | Current state |
@@ -35,7 +62,7 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1577 passed, 8 skipped` in the 2026-08-03 `GDA-DEMO-004` closure revalidation |
+| Offline baseline | `1578 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-001` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -83,8 +110,12 @@ delivery work.
 | `GDA-DEMO-003` | Complete locally | Operator HUD visual hierarchy, step status, safe lock interaction, and live reliability | [Demo evidence](docs/OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md); [100%/125% DPI evidence](docs/OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md); [physical Alt+Tab evidence](docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md) |
 | `GDA-DEMO-004` | Complete locally | Operator-selectable Demo action pacing plus visible mouse and content-free keyboard feedback | [Native probe and retained Demo evidence](docs/DEMO_ACTION_PRESENTATION_EVIDENCE_2026-08-03.md) |
 | `GDA-DEMO-005` | Proposed; not active | Cooperative desktop authority handoff, explicit pause/re-observe/resume, and complete Decision Card consequences | Await a separate control-lifecycle contract; must never use `BlockInput` or make physical input unavailable |
+| `GDA-CORE-001` | Complete locally | Make a ref without a supported accessibility action fail with `NOT_INVOKABLE`, never a coordinate click | `tests/test_core.py` proves zero coordinate calls; complete gate: `1578 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
+| `GDA-CORE-002` | Next | Revalidate e-stop and foreground authority at the final MCP-to-driver action boundary | Add bounded zero-dispatch authority tests and update the owning safety contract |
 
-No `GDA-HUD-*` or Demo issue is active. Runtime feature work remains frozen.
+No `GDA-HUD-*` or Demo issue is active. The historical Full Cycle freeze remains
+the handoff baseline; it no longer freezes the separately reopened core Runtime
+scope above.
 
 ## Defect found by composing the HUD surfaces (2026-08-01)
 
@@ -320,10 +351,18 @@ passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
 source files, documentation consistency reported 13 reviewed tools, and
 `git diff --check` passed.
 
-## Exact next task: none until explicit user direction
+## Exact next task: `GDA-CORE-002`
+
+Add one final, non-waiting authority check immediately before each MCP native
+action dispatch. It must re-check e-stop for every action, re-check the
+foreground process-tree allowlist for foreground-bound actions in `safe_local`,
+preserve the intentional `activate_window` foreground exception, emit a bounded
+known pre-dispatch audit denial, and call the driver zero times when authority
+changed after the initial gate. Update the owning safety contract and run the
+complete validation gate.
 
 `GDA-DEMO-004` is complete locally. Do not infer that closing the Demo resumes
-Full Cycle automatically. Await the user's next priority.
+Full Cycle automatically. The next work remains the core Runtime item above.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -406,3 +445,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-01 | Durable evidence must name a commit reachable from a branch. Pre-merge candidate `45bee82` was replaced by its squash merge `8ace897`; the earlier preflight result is retained, its unreachable identity is not. |
 | 2026-08-02 | Lane B is explicitly deferred from the Runtime freeze to the Full Cycle project's separate `FC-BRIDGE-003` consent, security, and privacy review; it remains disabled by default. |
 | 2026-08-02 | `GDA-FC-004` completed locally at branch-reachable Runtime commit `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; clean release preflight and the matching consumer freeze record passed without changing Lane A contracts or fixture provenance. |
+| 2026-08-03 | The user explicitly reopened core Runtime development without reopening Demo or Full Cycle consumer work. Core changes must preserve the frozen Full Cycle baseline, completed Lane A state, disabled/deferred Lane B boundary, and external `FC-BRIDGE-003` resume point. |
+| 2026-08-04 | `GDA-CORE-001` removed the implementation's forbidden ref-to-coordinate fallback and restored alignment with accepted ADR-002; explicit coordinate clicks remain a separate caller-authorized path. |
