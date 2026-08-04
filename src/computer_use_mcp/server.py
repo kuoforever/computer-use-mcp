@@ -38,7 +38,7 @@ from . import MCP_SERVER_NAME, SAFETY_BASELINE_ATTESTATION_V1
 from .audit import AuditLog
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
-from .contract import DriverError, PruneOpts
+from .contract import DRIVER_ERROR, DriverError, PruneOpts, Result
 from .document_text import DocumentTextError, serialize_document_text
 from .core import Session
 from .dpi import enable_dpi_awareness
@@ -106,7 +106,7 @@ def _control_mode(value: str) -> str:
     return mode
 
 
-def _fmt(res) -> str:
+def _fmt(res: Result) -> str:
     return "ok" if res.ok else f"ERROR {res.code}: {res.message}".rstrip()
 
 
@@ -244,8 +244,16 @@ def build_server(
             return True, ""
         return _foreground_guard(tool, args, final=True)
 
-    def _record_action(tool: str, args: dict, out: str) -> str:
-        activity.note_agent_action()
+    def _record_action(
+        tool: str,
+        args: dict,
+        result: Result,
+        *,
+        native_input_on_success: bool = False,
+    ) -> str:
+        out = _fmt(result)
+        if native_input_on_success and result.ok:
+            activity.note_agent_action()
         audit.record(tool, _audit_args(args), "ok", out)
         return out
 
@@ -370,7 +378,7 @@ def build_server(
         )
         if not ok:
             return msg
-        return _record_action("activate_window", args, _fmt(session.activate(window_id)))
+        return _record_action("activate_window", args, session.activate(window_id))
 
     @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "
                           "or at coordinates x,y. Allowlisted app must be in front; dangerous "
@@ -388,7 +396,13 @@ def build_server(
         ok, msg = _final_authority_guard("click", args)
         if not ok:
             return msg
-        return _record_action("click", args, _fmt(session.click(ref=ref, x=x, y=y)))
+        result = session.click(ref=ref, x=x, y=y)
+        return _record_action(
+            "click",
+            args,
+            result,
+            native_input_on_success=(ref is None and x is not None and y is not None),
+        )
 
     @mcp.tool(
         description="Scroll at a screenshot-grounded coordinate. Positive delta_y scrolls up; "
@@ -405,13 +419,18 @@ def build_server(
             or abs(delta_y) > 2400
         ):
             return _record_action(
-                "scroll", args, "ERROR DRIVER_ERROR: invalid scroll delta"
+                "scroll",
+                args,
+                Result.fail(DRIVER_ERROR, "invalid scroll delta"),
             )
         ok, msg = _final_authority_guard("scroll", args)
         if not ok:
             return msg
         return _record_action(
-            "scroll", args, _fmt(session.scroll(x, y, delta_x, delta_y))
+            "scroll",
+            args,
+            session.scroll(x, y, delta_x, delta_y),
+            native_input_on_success=True,
         )
 
     @mcp.tool(
@@ -437,7 +456,9 @@ def build_server(
             return msg
         if (x, y) == (to_x, to_y) or not 0 <= duration_ms <= 5000:
             return _record_action(
-                "drag", args, "ERROR DRIVER_ERROR: invalid drag bounds"
+                "drag",
+                args,
+                Result.fail(DRIVER_ERROR, "invalid drag bounds"),
             )
         ok, msg = _final_authority_guard("drag", args)
         if not ok:
@@ -445,7 +466,8 @@ def build_server(
         return _record_action(
             "drag",
             args,
-            _fmt(session.drag(x, y, to_x, to_y, duration_ms)),
+            session.drag(x, y, to_x, to_y, duration_ms),
+            native_input_on_success=True,
         )
 
     @mcp.tool(name="type",
@@ -459,7 +481,12 @@ def build_server(
         ok, msg = _final_authority_guard("type", args)
         if not ok:
             return msg
-        return _record_action("type", args, _fmt(session.type(text, ref=ref)))
+        return _record_action(
+            "type",
+            args,
+            session.type(text, ref=ref),
+            native_input_on_success=(ref is None and bool(text)),
+        )
 
     @mcp.tool(description="Send a key chord like 'Ctrl+S' to the foreground window. "
                           "Allowlisted app must be in the foreground.")
@@ -471,7 +498,12 @@ def build_server(
         ok, msg = _final_authority_guard("key", args)
         if not ok:
             return msg
-        return _record_action("key", args, _fmt(session.key(combo)))
+        return _record_action(
+            "key",
+            args,
+            session.key(combo),
+            native_input_on_success=bool(combo.strip()),
+        )
 
     return mcp
 

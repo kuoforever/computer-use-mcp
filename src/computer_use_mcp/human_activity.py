@@ -62,11 +62,13 @@ class HumanActivity:
         return max(0.0, age)
 
     def note_agent_action(self) -> None:
-        """Record the input timestamp after an action we just attempted.
+        """Record the input timestamp after known-successful native input.
 
         Windows counts injected SendKeys/keybd_event/mouse_event input in
         GetLastInputInfo. Remembering its tick avoids yielding to ourselves;
-        a later physical input changes the tick and is still detected.
+        callers must not invoke this for semantic UIA, activation, rejected,
+        no-op, or failed actions. A later physical input changes the tick and
+        is still detected.
         """
         input_tick = getattr(self.driver, "last_input_tick", None)
         if not callable(input_tick):
