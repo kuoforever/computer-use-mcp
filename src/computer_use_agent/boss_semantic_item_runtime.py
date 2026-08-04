@@ -56,7 +56,7 @@ from .privacy import PrivacyError, PrivacySession
 from .runner import AgentRunner, PreparedRun, RunFailure, RunnerBudgetError
 from .tool_registry import ToolSpec, get_tool_spec, verify_discovered_tools
 from .trace import RunPhase, RunRecorder
-from .types import CallIdentity, RunState, ToolCall, ToolResult
+from .types import CallIdentity, MCPCallCancelled, RunState, ToolCall, ToolResult
 
 
 BOSS_SEMANTIC_ITEM_TASK = (
@@ -830,8 +830,12 @@ async def _execute_prepared_semantic_item(
                 stop_code=stop_code,
                 handoff=handoff,
             )
-    except asyncio.CancelledError:
-        if recorder_started:
+    except asyncio.CancelledError as cancelled:
+        if (
+            recorder_started
+            and not isinstance(cancelled, MCPCallCancelled)
+            and recorder.phase is not RunPhase.UNKNOWN_OUTCOME
+        ):
             recorder.record(
                 state,
                 RunPhase.CANCELLED,

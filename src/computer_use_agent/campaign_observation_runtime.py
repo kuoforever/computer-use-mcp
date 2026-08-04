@@ -39,7 +39,7 @@ from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, PreparedRun, RunFailure
 from .tool_registry import reviewed_registry_digest, verify_discovered_tools
 from .trace import RunPhase, RunRecorder
-from .types import CallIdentity, RunState, ToolCall, ToolResult
+from .types import CallIdentity, MCPCallCancelled, RunState, ToolCall, ToolResult
 
 
 SYNTHETIC_CAMPAIGN_KIND = "synthetic_read_only_observation"
@@ -693,8 +693,12 @@ async def _execute_claimed_synthetic_observation(
             result=boundary.result,
             observed=observed,
         )
-    except asyncio.CancelledError:
-        if recorder_started:
+    except asyncio.CancelledError as cancelled:
+        if (
+            recorder_started
+            and not isinstance(cancelled, MCPCallCancelled)
+            and recorder.phase is not RunPhase.UNKNOWN_OUTCOME
+        ):
             recorder.record(
                 state,
                 RunPhase.CANCELLED,

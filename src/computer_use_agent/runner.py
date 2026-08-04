@@ -42,6 +42,7 @@ from .types import (
     FocusTakingApprovalPort,
     LedgerEvent,
     LedgerEventKind,
+    MCPCallCancelled,
     MemoryContextItem,
     ModelProviderPort,
     ModelTurn,
@@ -655,13 +656,22 @@ class AgentRunner:
             continuation.dispatch_tool(
                 state, checkpoint_sequence=recorder.checkpoint_sequence
             )
+        post_dispatch_cancellation: MCPCallCancelled | None = None
         try:
             dispatch_call = (
                 authorized_call
                 if privacy is None
                 else privacy.resolve_local_call(authorized_call)
             )
-            result = await self.ports.desktop.call_tool(dispatch_call)
+            try:
+                result = await self.ports.desktop.call_tool(dispatch_call)
+            except MCPCallCancelled as cancelled:
+                post_dispatch_cancellation = cancelled
+                result = cancelled.result
+                if result.status is not ToolResultStatus.UNKNOWN_OUTCOME:
+                    raise ToolValidationError(
+                        "post-dispatch cancellation requires an unknown result"
+                    )
             validate_tool_result(dispatch_call, result)
             if privacy is not None:
                 result = privacy.protect_result(result)
@@ -687,11 +697,29 @@ class AgentRunner:
             safe_progress.estop()
         elif result.code == "HUMAN_ACTIVE":
             safe_presence.release()
+        continuation_failure: Exception | None = None
         if continuation is not None:
-            recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
-            continuation.complete_tool(
-                state, result, checkpoint_sequence=recorder.checkpoint_sequence
-            )
+            try:
+                recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
+                continuation.complete_tool(
+                    state, result, checkpoint_sequence=recorder.checkpoint_sequence
+                )
+            except Exception as exc:
+                if post_dispatch_cancellation is None:
+                    raise
+                continuation_failure = exc
+        if post_dispatch_cancellation is not None:
+            try:
+                recorder.record(
+                    state,
+                    RunPhase.UNKNOWN_OUTCOME,
+                    failure_code="UNKNOWN_OUTCOME",
+                )
+            except Exception as exc:
+                raise MCPCallCancelled(result) from exc
+            if continuation_failure is not None:
+                raise MCPCallCancelled(result) from continuation_failure
+            raise MCPCallCancelled(result) from None
         if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
             raise RunFailure("UNKNOWN_OUTCOME", state)
         if spec.effect is ToolEffect.OBSERVATION and result.ok:
@@ -967,8 +995,12 @@ class AgentRunner:
                     grounding = outcome.grounding
                     if outcome.abandon_remaining_calls:
                         break
-        except asyncio.CancelledError:
-            if recorder_started:
+        except asyncio.CancelledError as cancelled:
+            if (
+                recorder_started
+                and not isinstance(cancelled, MCPCallCancelled)
+                and recorder.phase is not RunPhase.UNKNOWN_OUTCOME
+            ):
                 recorder.record(
                     state,
                     RunPhase.CANCELLED,

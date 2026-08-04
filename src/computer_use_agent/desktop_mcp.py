@@ -44,6 +44,7 @@ from .types import (
     REVIEWED_RESULT_CODES,
     DispatchCertainty,
     ImageContent,
+    MCPCallCancelled,
     MCPToolDescriptor,
     ToolCall,
     ToolCallStatus,
@@ -95,16 +96,6 @@ class MCPBridgeError(RuntimeError):
 
 class MCPResultConversionError(ValueError):
     """Raised when a post-dispatch MCP payload violates the reviewed contract."""
-
-
-class MCPCallCancelled(asyncio.CancelledError):
-    """Cancellation that carries the dispatched result for ledger recovery."""
-
-    def __init__(self, result: ToolResult) -> None:
-        if result.dispatch is DispatchCertainty.NOT_DISPATCHED:
-            raise ValueError("cancelled MCP calls require a dispatched or uncertain result")
-        self.result = result
-        super().__init__("MCP call cancelled after dispatch began")
 
 
 class _ClientSessionPort(Protocol):

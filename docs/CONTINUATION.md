@@ -175,6 +175,20 @@ records:
 3. `completed`: the normalized response/result is durable and the next step is
    named explicitly.
 
+A result-carrying post-dispatch MCP cancellation is completed through this same
+protocol before cancellation is re-propagated. The Runner validates and privacy
+protects the bridge's `unknown_outcome` result, records the correlated tool
+result, writes the `completed` continuation boundary, and terminalizes the safe
+checkpoint as `UNKNOWN_OUTCOME`. Shared callers must not overwrite that terminal
+state with generic `CANCELLED`. Ordinary Runner cancellation cleanup then deletes
+the opt-in sensitive continuation as documented above; the redacted trace and
+checkpoint remain durable and recovery cannot replay the call. A persistence
+failure while writing `completed` is not hidden by the cancellation handler:
+the Runner still terminalizes the redacted checkpoint as `UNKNOWN_OUTCOME` and
+re-propagates the result-carrying cancellation with that persistence failure as
+its chained cause. Recovery treats any surviving `dispatch_intent` or incomplete
+record conservatively.
+
 The conservative reconstruction matrix is:
 
 | Durable boundary at crash | Reconstruction decision |

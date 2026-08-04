@@ -217,11 +217,12 @@ class RuntimeExecutorSession:
             await self._shutdown(delete_continuation=True)
             raise ExecutorRuntimeError(failure.code) from failure
         except BaseException:
-            self.recorder.record(
-                self.state,
-                RunPhase.UNKNOWN_OUTCOME,
-                failure_code="EXECUTOR_RUNTIME_UNCERTAIN",
-            )
+            if self.recorder.phase is not RunPhase.UNKNOWN_OUTCOME:
+                self.recorder.record(
+                    self.state,
+                    RunPhase.UNKNOWN_OUTCOME,
+                    failure_code="EXECUTOR_RUNTIME_UNCERTAIN",
+                )
             await self._shutdown(delete_continuation=False)
             raise
 

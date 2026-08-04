@@ -471,6 +471,17 @@ entering the SDK's `call_tool`, the result is `unknown_outcome`; that generation
 is closed and the call is never replayed. Restart is explicit through a new
 successful discovery and increments the bridge generation.
 
+For result-carrying post-dispatch cancellation, the sole Runner boundary catches
+the bridge's specialized cancellation before generic cancellation handling. It
+validates and protects the result, records the correlated unknown tool result,
+completes any enabled continuation boundary, terminalizes the safe run record as
+`UNKNOWN_OUTCOME`, and only then re-propagates cancellation. A caller cannot
+replace that terminal certainty with `CANCELLED`; cancellation before a
+post-dispatch result still follows the ordinary cancellation path. If the
+sensitive continuation completion write fails, the safe checkpoint remains
+`UNKNOWN_OUTCOME`, task cancellation still propagates, and the persistence
+failure is retained as the cancellation's chained cause.
+
 Text tools accept exactly one bounded text block. The SDK's generated
 `structuredContent={"result": text}` mirror is accepted only when it exactly
 matches that block; it cannot add authority or content. Action success and

@@ -38,7 +38,9 @@ cannot transition. Illegal jumps fail closed.
 
 `SUCCESS` is written only after the desktop bridge closes cleanly. Fixed
 failure codes are checkpointed for reviewed Runner failures. Cancellation is
-recorded as `CANCELLED`; an uncertain MCP result is `UNKNOWN_OUTCOME`.
+recorded as `CANCELLED`; a result-carrying post-dispatch MCP cancellation is an
+uncertain MCP result and remains `UNKNOWN_OUTCOME` even while task cancellation
+is re-propagated.
 
 ## Redaction contract
 

@@ -5,6 +5,7 @@ stdlib-only so contract tests run without a provider key, desktop, or MCP child.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
 from hashlib import sha256
@@ -400,6 +401,16 @@ class ToolResult:
     @property
     def ok(self) -> bool:
         return self.status is ToolResultStatus.SUCCESS
+
+
+class MCPCallCancelled(asyncio.CancelledError):
+    """Cancellation carrying a result after desktop dispatch may have begun."""
+
+    def __init__(self, result: ToolResult) -> None:
+        if result.dispatch is DispatchCertainty.NOT_DISPATCHED:
+            raise ValueError("cancelled MCP calls require a dispatched or uncertain result")
+        self.result = result
+        super().__init__("MCP call cancelled after dispatch began")
 
 
 @dataclass(frozen=True)

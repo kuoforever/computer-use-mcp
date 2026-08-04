@@ -20,11 +20,16 @@ from computer_use_agent.tool_registry import reviewed_mcp_descriptors
 from computer_use_agent.types import (
     CallIdentity,
     DesktopMCPPort,
+    MCPCallCancelled as HostMCPCallCancelled,
     ToolCall,
     ToolCallStatus,
     ToolResultStatus,
     to_json_value,
 )
+
+
+def test_bridge_reexports_the_host_cancellation_boundary_type() -> None:
+    assert MCPCallCancelled is HostMCPCallCancelled
 
 
 def _reviewed_tools() -> list[SimpleNamespace]:
@@ -401,7 +406,7 @@ def test_post_dispatch_cancellation_propagates_with_unknown_outcome_and_closes_c
         await bridge.discover_tools()
         return await bridge.call_tool(_call())
 
-    async def scenario() -> tuple[object, bool]:
+    async def scenario() -> tuple[object, bool, object, int]:
         owner_task = asyncio.create_task(owner())
         await session.call_entered.wait()
         owner_task.cancel()
@@ -412,14 +417,19 @@ def test_post_dispatch_cancellation_propagates_with_unknown_outcome_and_closes_c
         else:
             raise AssertionError("post-dispatch cancellation must propagate")
         was_cancelled = owner_task.cancelled()
+        before_restart = await bridge.call_tool(_call(call_id="before-restart"))
+        generation = bridge.generation
         await bridge.close()
-        return result, was_cancelled
+        return result, was_cancelled, before_restart, generation
 
-    result, was_cancelled = asyncio.run(scenario())
+    result, was_cancelled, before_restart, generation = asyncio.run(scenario())
 
     assert result.status is ToolResultStatus.UNKNOWN_OUTCOME
     assert result.code == "MCP_TRANSPORT_ERROR"
     assert was_cancelled
+    assert before_restart.status is ToolResultStatus.TRANSPORT_ERROR
+    assert before_restart.code == "MCP_CHILD_EXITED_BEFORE_DISPATCH"
+    assert generation == 1
     assert len(session.calls) == 1
     assert factory.exit_calls == 1
     assert bridge.closed
