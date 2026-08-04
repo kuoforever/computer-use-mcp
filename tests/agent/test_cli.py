@@ -1435,7 +1435,7 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
     from computer_use_agent.config import load_agent_config
     from computer_use_agent.continuation import RuntimeContinuationRecorder
     from computer_use_agent.fakes import FakeDesktopMCP
-    from computer_use_agent.tool_registry import reviewed_registry_digest
+    from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
     from computer_use_agent.trace import RunPhase, RunRecorder
     from computer_use_agent.types import (
         CallIdentity,
@@ -1475,6 +1475,7 @@ def test_recover_cli_executes_one_persisted_observation_boundary(
         provider_name=config.provider.name,
         provider_model=config.provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
         ttl_seconds=900,
         mcp_generation=1,
     )
@@ -1550,7 +1551,7 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
     from computer_use_agent.config import load_agent_config
     from computer_use_agent.continuation import RuntimeContinuationRecorder
     from computer_use_agent.fakes import FakeDesktopMCP
-    from computer_use_agent.tool_registry import reviewed_registry_digest
+    from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
     from computer_use_agent.trace import RunPhase, RunRecorder
     from computer_use_agent.types import (
         CallIdentity,
@@ -1596,6 +1597,7 @@ def test_recover_cli_reobserves_completed_side_effect_once_then_stops(
         provider_name=config.provider.name,
         provider_model=config.provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
         ttl_seconds=900,
         mcp_generation=1,
     )
@@ -1729,10 +1731,11 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
     from computer_use_agent.continuation import (
         RuntimeContinuationRecorder,
         continuation_path,
+        read_continuation,
     )
     from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
     from computer_use_agent.providers.openai import OpenAIResponsesProvider
-    from computer_use_agent.tool_registry import reviewed_registry_digest
+    from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
     from computer_use_agent.trace import RunPhase, RunRecorder, read_run_checkpoint
     from computer_use_agent.types import (
         CallIdentity,
@@ -1741,6 +1744,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
         RunBudget,
         RunState,
         ToolCall,
+        ToolEffect,
         ToolResult,
         ToolResultStatus,
     )
@@ -1772,6 +1776,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
         provider_name=config.provider.name,
         provider_model=config.provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
         ttl_seconds=900,
         mcp_generation=1,
     )
@@ -1838,7 +1843,7 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
         staticmethod(lambda _model, **_kwargs: provider),
     )
 
-    assert main(
+    exit_code = main(
         [
             "recover",
             state.run_id,
@@ -1850,9 +1855,37 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
             "--max-steps",
             "4",
         ]
-    ) == int(provider_requests_action)
+    )
 
-    raw = capsys.readouterr().out
+    captured = capsys.readouterr()
+    if provider_requests_action:
+        assert exit_code == 2
+        assert captured.out == ""
+        assert captured.err.strip() == "error: RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED"
+        assert [call.name for call in desktop.tool_calls] == ["list_windows"]
+        assert len(provider.calls) == 1
+        assert all(
+            tool.effect is ToolEffect.OBSERVATION
+            for tool in provider.calls[0]["tools"]
+        )
+        assert desktop.close_calls == 1
+        checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+        assert checkpoint["phase"] == RunPhase.PLANNING.value
+        assert checkpoint["checkpoint_sequence"] == 6
+        envelope = read_continuation(config.state_dir, state.run_id)
+        assert envelope.payload["checkpoint_sequence"] == 6
+        assert envelope.payload["boundary"] == {
+            "operation_kind": "provider",
+            "stage": "dispatch_intent",
+            "operation_id": f"{state.run_id}:turn_2:provider",
+            "effect": None,
+            "dispatch": "unknown",
+            "next_step": "stop",
+        }
+        return
+
+    assert exit_code == 0
+    raw = captured.out
     output = json.loads(raw)
     assert task not in raw
     assert output["steps_executed"] == 2
@@ -1862,17 +1895,12 @@ def test_recover_cli_runs_bounded_read_only_chain_without_dispatching_new_action
     ]
     assert output["checkpoint_sequence"] == 8
     assert output["next_step"] == "stop"
-    assert output["tool_call_count"] == int(provider_requests_action)
-    if provider_requests_action:
-        assert output["reason"] == "RECOVERED_ACTION_REQUESTED"
-        assert output["failure_code"] == "RECOVERED_ACTION_REQUESTED"
+    assert output["tool_call_count"] == 0
     assert [call.name for call in desktop.tool_calls] == ["list_windows"]
     assert len(provider.calls) == 1
     assert desktop.close_calls == 1
     checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
-    assert checkpoint["phase"] == (
-        RunPhase.FAILED.value if provider_requests_action else RunPhase.SUCCESS.value
-    )
+    assert checkpoint["phase"] == RunPhase.SUCCESS.value
     assert continuation_path(config.state_dir, state.run_id).exists() is False
 
 

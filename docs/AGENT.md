@@ -268,6 +268,9 @@ The current ledger is in-memory only and is not a resumable trace.
 
 For each provider turn, the Host derives one final advertised tool set after the
 caller allowlist, privacy policy, and current MCP safety baselines are applied.
+When sensitive continuation is enabled, continuation v6 persists those exact
+registry-ordered names as immutable `advertised_tool_names`; v1-v5 artifacts
+cannot recover by assuming the current full registry.
 After validating turn identity, the Runner atomically rejects the whole returned
 turn with fixed `PROVIDER_TOOL_NOT_ADVERTISED` if any requested tool is absent
 from that exact set. It then preflights every call's reviewed schema and exact
@@ -389,7 +392,7 @@ carry forward the preceding provider-reported input/output usage. The gate
 fails with a fixed provider code and never splits mandatory atomic groups.
 Persisted OpenAI recovery restores that usage together with the required
 `previous_response_id`, a canonical request-contract digest, and the safe
-memory-disclosure marker. Continuation v5 also retains the exact initial SDK
+memory-disclosure marker. Continuation v6 also retains the exact initial SDK
 input in the private sensitive artifact and binds its SHA-256 into that
 contract. It retains every bounded canonical JSON `response.output` item in
 ordered response-ID batches; missing, non-correlated, oversized, or drifted
@@ -408,6 +411,22 @@ initial input, every ordered provider output batch, and one matching persisted
 tool result for every historical function call. Historical calls remain input
 records and never enter policy, approval, recovery planning, or MCP dispatch;
 see [Stateless replay](STATELESS_REPLAY.md).
+
+At `CONTINUE_PROVIDER`, the Host reads the v6 `advertised_tool_names` binding
+and narrows it to current reviewed observations. Baseline-required observations
+remain only when an attached discovered desktop currently supplies their
+evidence; without a desktop they are omitted, and actions are always removed.
+The same registry-ordered tuple is used for provider restoration, OpenAI replay
+preflight when explicitly requested, and `create_turn`. After identity checking,
+a recovered response containing any other name fails atomically with
+`RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED` before schema processing, provider
+completion, or future MCP dispatch. This adds no replay, approval, or alternate
+desktop authority.
+OpenAI continues only when that tuple preserves its adapter-visible request
+contract; action-enabled or other contract drift fails before network I/O.
+Likewise, mandatory recovery may synthesize `ui_snapshot` only when it was in
+the persisted v6 scope, otherwise the Host requires a new run with zero MCP
+dispatch.
 
 The OpenAI adapter uses Responses API function tools with
 `parallel_tool_calls=false` and `include=["reasoning.encrypted_content"]`. It
@@ -619,7 +638,7 @@ message that could echo the typed value.
 | Boundary | Trusted authority | Untrusted input | Required behavior |
 | --- | --- | --- | --- |
 | User/operator -> host | local operator and host policy | task text and approval context | Task text cannot change policy. Actions start disabled in `read_only` mode. |
-| Provider -> host | host policy, reviewed registry, and the exact Host-advertised set | model text, tool calls, response IDs | Atomically reject any turn containing an unadvertised, schema-invalid, or noncanonical call before ledger, continuation completion, policy, approval, or MCP dispatch; serialize allowed calls, apply budgets, and never grant approval from model text. |
+| Provider -> host | host policy, reviewed registry, and the exact live or v6-recovered Host-advertised set | model text, tool calls, response IDs | Persist the live set without widening, narrow recovered scope to current-safe observations, and atomically reject any turn containing an unadvertised, schema-invalid, or noncanonical call before ledger/continuation completion or later MCP dispatch; serialize allowed calls, apply budgets, and never grant approval from model text. |
 | Desktop/UI -> host | host policy only | UI text, window titles, refs, screenshots, tool output | Treat as untrusted data; never execute instructions embedded in it or promote it to memory automatically. |
 | Host -> MCP child | current MCP server safety controls | child output and discovery metadata | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch. |
 | MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak and initial foreground gate, then immediately before at most one driver invocation re-check e-stop and take one non-waiting foreground observation. Every guard rejection is known `not_dispatched` and is never replayed. |
@@ -754,6 +773,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v5 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Crash reconstruction release evidence is explicit | Release preflight and each CI Python job run the classifier plus 15-case exact-call runtime matrix as a separate fail-closed gate; preflight v5 records case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Recovered observation authority is current | Before persisting either an observation or mandatory re-observation intent, the executor rechecks the reviewed tool's required safety baselines against the connected MCP generation. Missing evidence has a fixed failure, byte-stable checkpoint/continuation state, and zero MCP dispatch | implemented locked recovery tests |
+| Recovered provider scope cannot widen | Continuation v6 binds the original final Host names; v1-v5 or malformed scope fails closed. Recovery retains only observations with current baseline evidence, uses one identical tuple for restore/replay/create, and rejects a mixed unadvertised response before completion or any valid-prefix/MCP execution | implemented provider-neutral recovery and real-adapter tests |
 | Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls; hidden call output, drift, and sequence mismatch fail closed | implemented terminal recovery boundary |
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
@@ -764,7 +784,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
-| Advertised tool scope is Host authority | Every returned provider turn is checked atomically against the final caller/privacy/safety-baseline-filtered tool set before response consumption or continuation completion. An unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow tests |
+| Advertised tool scope is Host authority | Every live returned provider turn is checked atomically against the final caller/privacy/safety-baseline-filtered tool set before response consumption or continuation completion, and v6 preserves that set for narrowing across recovery. An unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow tests |
 | Returned tool schemas are whole-turn atomic | After advertised-name validation, every returned call's reviewed schema and canonical arguments are preflighted before response consumption or continuation completion. One malformed sibling has fixed `SCHEMA_MISMATCH`, zero approval/MCP calls, zero model/tool/side-effect budget consumption, and cannot execute a valid observation or action prefix; valid multi-call ordering remains sequential | implemented common-Runner and approved-action workflow tests |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |

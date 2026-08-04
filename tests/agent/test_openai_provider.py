@@ -4,8 +4,9 @@ import asyncio
 import base64
 import copy
 import json
-from hashlib import sha256
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,7 +26,11 @@ from computer_use_agent.continuation import (
     read_continuation,
     write_continuation,
 )
-from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
+from computer_use_agent.tool_registry import (
+    REVIEWED_TOOLS,
+    ToolSpec,
+    reviewed_registry_digest,
+)
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -101,8 +106,9 @@ def _continuation_state(
     memory_context_used: bool = False,
     initial_input: str = "Inspect",
     output_items: list[dict[str, object]] | None = None,
+    tools: Sequence[ToolSpec] = REVIEWED_TOOLS,
 ) -> dict[str, object]:
-    tools = _tool_definitions(REVIEWED_TOOLS, allow_actions=provider.allow_actions)
+    definitions = _tool_definitions(tools, allow_actions=provider.allow_actions)
     instructions = _instructions(
         allow_actions=provider.allow_actions,
         memory_context_used=memory_context_used,
@@ -113,7 +119,7 @@ def _continuation_state(
         "request_contract_digest": _request_contract_digest(
             model=provider.model,
             instructions=instructions,
-            tools=tools,
+            tools=definitions,
             allow_actions=provider.allow_actions,
             memory_context_used=memory_context_used,
             initial_input_digest=sha256(initial_input.encode("utf-8")).hexdigest(),
@@ -283,6 +289,7 @@ def _completed_replay_envelope(
     tool_name: str = "list_windows",
     result_text: str = "Notepad",
     result_images: tuple[ImageContent, ...] = (),
+    tools: Sequence[ToolSpec] = REVIEWED_TOOLS,
 ):
     run_id = "run_replay"
     call = ToolCall(CallIdentity(run_id, "turn_1", "call_1"), tool_name, {})
@@ -299,6 +306,7 @@ def _completed_replay_envelope(
         provider_name="openai",
         provider_model=provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in tools),
         ttl_seconds=900,
         mcp_generation=1,
     )
@@ -318,7 +326,11 @@ def _completed_replay_envelope(
         },
     ]
     provider_state = _continuation_state(
-        provider, response_id="response_1", initial_input="Inspect", output_items=items
+        provider,
+        response_id="response_1",
+        initial_input="Inspect",
+        output_items=items,
+        tools=tools,
     )
     recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
     recorder.dispatch_provider(state, checkpoint_sequence=2)
@@ -389,6 +401,44 @@ def test_explicit_stateless_replay_compiles_exact_order_and_reanchors_remote_cha
     ]
     assert provider.continuation_strategy is ProviderContinuationStrategy.REMOTE_RESPONSE_ID
     assert provider.export_continuation("run_replay")["response_id"] == "response_2"
+
+
+def test_stateless_replay_preflight_and_request_share_restricted_tool_scope(
+    tmp_path: Path,
+) -> None:
+    restricted_tools = tuple(
+        tool for tool in REVIEWED_TOOLS if tool.name == "ui_snapshot"
+    )
+    scripted = ScriptedResponses([_response("response_2", text="done")])
+    provider = OpenAIResponsesProvider(model="test-model", responses=scripted)
+    envelope, provider_state = _completed_replay_envelope(
+        tmp_path,
+        provider,
+        tool_name="ui_snapshot",
+        result_text="window snapshot",
+        tools=restricted_tools,
+    )
+    provider.restore_continuation(
+        "run_replay", provider_state, tools=restricted_tools
+    )
+
+    provider.prepare_stateless_replay(
+        "run_replay", envelope, tools=restricted_tools
+    )
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_replay",
+            turn_id="turn_2",
+            task="must not replace exact initial input",
+            ledger=(),
+            tools=restricted_tools,
+        )
+    )
+
+    assert [tool["name"] for tool in scripted.calls[0]["tools"]] == [
+        "ui_snapshot"
+    ]
+    assert "previous_response_id" not in scripted.calls[0]
 
 
 def test_stateless_replay_preserves_exact_screenshot_function_output(
@@ -957,6 +1007,116 @@ def test_openai_active_chain_rejects_tool_contract_drift_before_network() -> Non
         )
 
     assert len(scripted.calls) == 1
+
+
+def test_openai_scoped_restore_continues_without_widening_contract() -> None:
+    restricted_tools = tuple(
+        tool for tool in REVIEWED_TOOLS if tool.name == "ui_snapshot"
+    )
+    initial_responses = ScriptedResponses(
+        [
+            _response(
+                "response_1",
+                output=[
+                    SimpleNamespace(
+                        type="function_call",
+                        name="ui_snapshot",
+                        call_id="call_snapshot",
+                        arguments="{}",
+                    )
+                ],
+            )
+        ]
+    )
+    source = OpenAIResponsesProvider(
+        model="test-model", responses=initial_responses
+    )
+    first = asyncio.run(
+        source.create_turn(
+            run_id="run_scoped_restore",
+            turn_id="turn_1",
+            task="Inspect",
+            ledger=(),
+            tools=restricted_tools,
+        )
+    )
+    state = source.export_continuation("run_scoped_restore")
+    assert [tool["name"] for tool in initial_responses.calls[0]["tools"]] == [
+        "ui_snapshot"
+    ]
+
+    continued_responses = ScriptedResponses([_response("response_2", text="done")])
+    target = OpenAIResponsesProvider(
+        model="test-model", responses=continued_responses
+    )
+    target.restore_continuation(
+        "run_scoped_restore", state, tools=restricted_tools
+    )
+    result = ToolResult(
+        first.tool_calls[0].identity,
+        "ui_snapshot",
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="window snapshot",
+    )
+    asyncio.run(
+        target.create_turn(
+            run_id="run_scoped_restore",
+            turn_id="turn_2",
+            task="ORIGINAL_TASK_MUST_NOT_BE_SENT",
+            ledger=(
+                LedgerEvent("event_1", LedgerEventKind.MODEL_TURN),
+                LedgerEvent(
+                    "event_2",
+                    LedgerEventKind.TOOL_RESULT,
+                    identity=result.identity,
+                    tool_result=result,
+                ),
+            ),
+            tools=restricted_tools,
+        )
+    )
+
+    continued_request = continued_responses.calls[0]
+    assert [tool["name"] for tool in continued_request["tools"]] == [
+        "ui_snapshot"
+    ]
+    assert continued_request["previous_response_id"] == "response_1"
+    assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(continued_request)
+
+    widened_responses = ScriptedResponses([])
+    widened = OpenAIResponsesProvider(
+        model="test-model", responses=widened_responses
+    )
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_CONTRACT_MISMATCH"):
+        widened.restore_continuation(
+            "run_scoped_restore", state, tools=REVIEWED_TOOLS
+        )
+    assert widened.export_continuation("run_scoped_restore")["response_id"] is None
+    assert widened_responses.calls == []
+
+
+def test_openai_action_contract_cannot_be_narrowed_into_read_only_recovery() -> None:
+    action_scope = tuple(
+        tool for tool in REVIEWED_TOOLS if tool.name in {"ui_snapshot", "click"}
+    )
+    recovery_scope = tuple(
+        tool for tool in REVIEWED_TOOLS if tool.name == "ui_snapshot"
+    )
+    source = OpenAIResponsesProvider(
+        model="test-model", responses=ScriptedResponses([]), allow_actions=True
+    )
+    state = _continuation_state(source, tools=action_scope)
+    scripted = ScriptedResponses([])
+    target = OpenAIResponsesProvider(model="test-model", responses=scripted)
+
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_CONTRACT_MISMATCH"):
+        target.restore_continuation(
+            "run_action_contract", state, tools=recovery_scope
+        )
+
+    assert target.export_continuation("run_action_contract")["response_id"] is None
+    assert scripted.calls == []
 
 
 @pytest.mark.parametrize(

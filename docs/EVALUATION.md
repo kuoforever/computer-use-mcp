@@ -62,6 +62,7 @@ provider credentials, a child process, or a desktop.
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
 | A planner candidate contains unknown fields/tools, invalid arguments, sensitive tool input, excessive bytes/steps, reordered final response, or spoofed status/effect/approval metadata | Reject it before constructing a TaskPlan; call zero provider, policy, approval, MCP, or desktop ports. |
 | OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
+| A restricted run reaches recovered provider continuation | Require continuation v6's exact `advertised_tool_names`, reject v1-v5 or malformed scope, narrow to current-safe observations, and use the identical tuple for restore/replay/create. Reject a mixed unadvertised response atomically before provider completion or future MCP dispatch. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
@@ -115,12 +116,22 @@ restored request stop before the fake provider records any network call. The
 exact initial input is retained only in the sensitive continuation artifact;
 ordered response-output batches retain reasoning and function-call items while
 invalid, mismatched, or oversized candidates leave provider state unchanged.
+Restricted-scope fixtures prove that v6 supplies the same registry-ordered
+observation tuple to OpenAI restore, explicit replay preflight, and the next
+request, and to Claude restore and request construction. A baseline-required
+tool is omitted when no current desktop evidence exists; actions are omitted
+unconditionally. OpenAI proceeds only when the narrowed tuple leaves its
+adapter-visible contract digest unchanged; action-enabled or other drift fails
+before network I/O. Old v5, malformed scope, a missing in-scope mandatory
+`ui_snapshot`, and returned mixed/out-of-scope turns fail closed without
+completion or MCP dispatch.
 Offline wire fixtures also require
 `include=["reasoning.encrypted_content"]` on both initial and continued OpenAI
 requests and freeze the encrypted reasoning payload in the persisted output
 batch. Request-contract version 3 binds that include list; no fallback request
 may silently omit it.
-This does not add an E1/E2 case or change action authority.
+That encrypted-reasoning requirement does not add an E1/E2 case or change
+action authority.
 Task-plan persistence is likewise an E0-only storage contract. Offline tests
 freeze strict schema/size/path checks, task-text omission, registry/plan/envelope
 digest verification, RunLock ownership, monotonic sequence plus plan-digest
@@ -283,6 +294,13 @@ therefore both expect fixed `PROVIDER_TOOL_NOT_ADVERTISED`, a user-task-only
 trace, and zero dispatch; neither reaches policy, schema processing, approval, or
 continuation completion.
 
+Continuation v6 persists that exact name set without making it executable.
+Recovery tests separately prove monotonic narrowing to current-safe
+observations, identical restore/replay/create inputs for OpenAI and Claude, and
+fixed `RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED` ordering before schema or
+completion. The existing frozen crash-reconstruction and stateless-replay case
+semantics remain unchanged; historical calls still cannot reach MCP.
+
 After intentionally reviewing a case-set change and confirming the full suite
 passes, regenerate the canonical manifest explicitly:
 
@@ -318,6 +336,9 @@ frozen nine-case OpenAI stateless-replay matrix cover:
   order, plus unknown, missing, mismatched, reordered, side-effecting,
   over-budget, and provider-failure cases. Every preflight rejection freezes
   zero provider/MCP calls and the original remote response ID;
+- provider-neutral v6 scope persistence plus restricted OpenAI and Claude
+  recovery, including old/malformed evidence, missing current baseline
+  evidence, and mixed unadvertised response rejection before completion;
 - approved, grounded calls rejected by human activity, foreground gate, E-stop,
   or driver outcome, each followed by mandatory re-observation; and
 - post-dispatch unknown outcome stopping immediately without replay.

@@ -157,6 +157,7 @@ def _artifact(
         provider_name="openai",
         provider_model=provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
         ttl_seconds=900,
         mcp_generation=1,
     )

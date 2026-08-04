@@ -454,6 +454,7 @@ async def open_runtime_executor_session(
             provider_name=runner.config.provider.name,
             provider_model=runner.config.provider.model,
             registry_digest=reviewed_registry_digest(),
+            advertised_tool_names=frozenset(),
             ttl_seconds=runner.config.continuation.ttl_seconds,
             mcp_generation=runner.ports.desktop.generation,
         )

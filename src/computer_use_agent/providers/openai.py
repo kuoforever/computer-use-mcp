@@ -729,7 +729,11 @@ class OpenAIResponsesProvider:
         )
 
     def prepare_stateless_replay(
-        self, run_id: str, envelope: ContinuationEnvelope
+        self,
+        run_id: str,
+        envelope: ContinuationEnvelope,
+        *,
+        tools: Sequence[ToolSpec] | None = None,
     ) -> None:
         """Atomically stage one explicit stateless request after full preflight."""
 
@@ -740,15 +744,14 @@ class OpenAIResponsesProvider:
             envelope, run_id=run_id, expected_provider_state=expected_state
         )
         memory_context_used = self._memory_context_used[run_id]
+        resolved_tools = REVIEWED_TOOLS if tools is None else tools
         preflight_request: dict[str, object] = {
             "model": self.model,
             "instructions": _instructions(
                 allow_actions=self.allow_actions,
                 memory_context_used=memory_context_used,
             ),
-            "tools": _tool_definitions(
-                REVIEWED_TOOLS, allow_actions=self.allow_actions
-            ),
+            "tools": _tool_definitions(resolved_tools, allow_actions=self.allow_actions),
             "parallel_tool_calls": False,
             "include": list(OPENAI_REASONING_INCLUDE),
             "max_output_tokens": self.output_token_reserve,
@@ -767,7 +770,11 @@ class OpenAIResponsesProvider:
         self.continuation_strategy = ProviderContinuationStrategy.STATELESS_REPLAY
 
     def restore_continuation(
-        self, run_id: str, state: Mapping[str, JSONValue]
+        self,
+        run_id: str,
+        state: Mapping[str, JSONValue],
+        *,
+        tools: Sequence[ToolSpec] | None = None,
     ) -> None:
         if not isinstance(run_id, str) or not run_id:
             raise ValueError("run_id must be non-empty")
@@ -805,13 +812,14 @@ class OpenAIResponsesProvider:
             raise OpenAIProviderError("OPENAI_CONTINUATION_INVALID")
         if run_id in self._previous_response_ids:
             raise OpenAIProviderError("OPENAI_CONTINUATION_ALREADY_ATTACHED")
+        resolved_tools = REVIEWED_TOOLS if tools is None else tools
         current_digest = _request_contract_digest(
             model=self.model,
             instructions=_instructions(
                 allow_actions=self.allow_actions,
                 memory_context_used=memory_context_used,
             ),
-            tools=_tool_definitions(REVIEWED_TOOLS, allow_actions=self.allow_actions),
+            tools=_tool_definitions(resolved_tools, allow_actions=self.allow_actions),
             allow_actions=self.allow_actions,
             memory_context_used=memory_context_used,
             initial_input_digest=sha256(initial_input.encode("utf-8")).hexdigest(),

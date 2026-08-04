@@ -34,10 +34,13 @@ those strategies explicitly. OpenAI read-only recovery also exposes an explicit
 [stateless replay](STATELESS_REPLAY.md) transition. It compiles only the exact
 initial input, ordered provider-output-item batches (including explicitly
 requested portable encrypted reasoning), and matching persisted tool results
-from the digest-bound continuation v5 envelope. Drift or budget failure stops
-before provider dispatch; normal runtime never falls back to replay. Safe
-semantic summarization remains future work; model-turn limits continue to
-bound the current run.
+from the digest-bound continuation v6 envelope. The Host also recovers the
+original `advertised_tool_names`, narrows them to current-safe observations,
+and supplies the same tuple to restore, explicit replay preflight, and the next
+provider request. Drift, old or malformed scope, or budget failure stops before
+provider dispatch; normal runtime never falls back to replay. Safe semantic
+summarization remains future work; model-turn limits continue to bound the
+current run.
 
 Independently, `[provider].max_request_bytes` defaults to 8 MiB and must remain
 between 1 KiB and 48 MiB. Each adapter serializes its final SDK keyword request

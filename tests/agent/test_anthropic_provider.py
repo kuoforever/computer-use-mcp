@@ -935,6 +935,50 @@ def test_claude_restore_appends_only_new_tool_result_to_exact_history() -> None:
     assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(scripted.calls[0])
 
 
+def test_claude_scoped_restore_advertises_only_recovery_tools() -> None:
+    restricted_tools = tuple(
+        tool for tool in REVIEWED_TOOLS if tool.name == "ui_snapshot"
+    )
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_2",
+                content=[
+                    SimpleNamespace(
+                        type="tool_use",
+                        id="toolu_snapshot",
+                        name="ui_snapshot",
+                        input={},
+                    )
+                ],
+                stop_reason="tool_use",
+            )
+        ]
+    )
+    provider = AnthropicMessagesProvider(model="test-model", messages=scripted)
+    provider.restore_continuation(
+        "run_scoped_restore",
+        {"messages": [{"role": "user", "content": "Persisted task"}]},
+        tools=restricted_tools,
+    )
+
+    turn = asyncio.run(
+        provider.create_turn(
+            run_id="run_scoped_restore",
+            turn_id="turn_2",
+            task="ORIGINAL_TASK_MUST_NOT_BE_SENT",
+            ledger=(),
+            tools=restricted_tools,
+        )
+    )
+
+    assert [tool["name"] for tool in scripted.calls[0]["tools"]] == [
+        "ui_snapshot"
+    ]
+    assert turn.tool_calls[0].name == "ui_snapshot"
+    assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(scripted.calls[0])
+
+
 def test_claude_restore_rejects_invalid_or_repeated_attach() -> None:
     provider = AnthropicMessagesProvider(model="test-model", messages=ScriptedMessages([]))
     with pytest.raises(AnthropicProviderError, match="ANTHROPIC_CONTINUATION_INVALID"):

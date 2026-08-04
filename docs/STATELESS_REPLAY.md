@@ -36,7 +36,7 @@ delivered independently of replay. Every OpenAI Responses request explicitly
 includes `reasoning.encrypted_content`, so persisted reasoning items can carry
 the provider's portable encrypted payload instead of depending only on remote
 response storage. This setting is mandatory: the adapter does not retry without
-it. Continuation v5 stores the exact initial SDK `input`
+it. Continuation v6 stores the exact initial SDK `input`
 string inside the already-sensitive private artifact. This includes the task
 and any explicitly selected memory data, is never copied into trace/report/error
 surfaces, and is not itself executable. The contract digest binds its SHA-256
@@ -53,6 +53,18 @@ IDs, excessive item counts, and oversized accumulated batches fail before
 state commit. The compiler additionally revalidates the complete envelope
 digest, response-batch/model-turn order, exact call ID/name/arguments, reviewed
 observation-only tool identity, and one ordered matching tool result per call.
+
+Continuation v6 additionally binds the live Runner's exact
+`advertised_tool_names`. At recovery the Host intersects that set with current
+reviewed observations and current attached-desktop baseline evidence; without
+a desktop, baseline-required tools are excluded, and actions are always
+excluded. The resulting registry-ordered tuple is used unchanged for OpenAI
+restore, this replay preflight, and the next `create_turn`, so the contract
+digest and actual restricted request cannot silently use different tool
+definitions. An old v5 or malformed scope artifact fails closed rather than
+falling back to the full registry. Replay proceeds only if that restricted
+tuple preserves the persisted adapter-visible request contract; an
+action-enabled or otherwise drifted chain fails before network I/O.
 
 The CLI invokes replay only with both `--execute-read-only` and
 `--stateless-replay`, at a completed `provider_continue` boundary. Compilation
@@ -76,7 +88,9 @@ The implementation enforces all of the following:
 5. The new response ID is committed only after a valid provider response. A
    failed replay preflight or request leaves the existing remote chain intact.
 6. Replay cannot change the configured provider/model, tool registry, recovery
-   limit, side-effect budget, grounding, approval, or action authority.
+   limit, side-effect budget, grounding, approval, action authority, or the
+   original Host tool scope; recovery may only narrow it to current-safe
+   observations.
 7. Offline fixtures freeze exact wire order for text, function calls/results,
    screenshots, missing output items, contract drift, and over-budget requests;
    every rejected case records zero provider and desktop calls.
@@ -96,4 +110,6 @@ The switch is one-shot and atomic. Preflight failure leaves the provider in
 the exported old response ID unchanged and never retries with either strategy.
 Only a valid new response commits its ID and returns the adapter to normal
 remote continuation. Claude's atomic local-history packing remains a different
-provider strategy and does not use this compiler.
+provider strategy and does not use this compiler. Regardless of strategy, a
+returned call outside the narrowed tuple is rejected before provider completion
+or any future MCP dispatch; historical replay items remain data only.

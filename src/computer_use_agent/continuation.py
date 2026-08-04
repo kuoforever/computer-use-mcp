@@ -27,7 +27,7 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 5
+CONTINUATION_VERSION = 6
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
 MAX_JSON_DEPTH = 32
@@ -40,6 +40,7 @@ _TOP_LEVEL_FIELDS = frozenset(
         "policy_version",
         "provider",
         "registry_digest",
+        "advertised_tool_names",
         "task",
         "budget",
         "observation",
@@ -109,6 +110,23 @@ def _digest(value: object, code: str) -> str:
     return text.lower()
 
 
+def _reviewed_tool_names() -> tuple[str, ...]:
+    from .tool_registry import REVIEWED_TOOLS
+
+    return tuple(tool.name for tool in REVIEWED_TOOLS)
+
+
+def _persisted_advertised_tool_names(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list) or not all(isinstance(name, str) for name in value):
+        raise ContinuationError("CONTINUATION_INVALID")
+    supplied = tuple(value)
+    supplied_set = frozenset(supplied)
+    canonical = tuple(name for name in _reviewed_tool_names() if name in supplied_set)
+    if len(supplied) != len(supplied_set) or supplied != canonical:
+        raise ContinuationError("CONTINUATION_INVALID")
+    return supplied
+
+
 def _timestamp(value: object, code: str) -> datetime:
     text = _nonempty(value, maximum=64, code=code)
     try:
@@ -168,7 +186,7 @@ def _is_unsafe_path(path: Path) -> bool:
 
 @dataclass(frozen=True)
 class ContinuationEnvelope:
-    """Validated v2 recovery data, still non-authoritative and non-executable."""
+    """Validated v6 recovery data, still non-authoritative and non-executable."""
 
     payload: Mapping[str, JSONValue]
 
@@ -210,9 +228,14 @@ class ContinuationEnvelope:
         now: datetime | None = None,
         verify_digest: bool = True,
     ) -> "ContinuationEnvelope":
-        root = _object(payload, _TOP_LEVEL_FIELDS, "CONTINUATION_INVALID")
-        if root.get("continuation_version") != CONTINUATION_VERSION:
+        if not isinstance(payload, Mapping):
+            raise ContinuationError("CONTINUATION_INVALID")
+        version = payload.get("continuation_version")
+        if isinstance(version, bool) or not isinstance(version, int):
+            raise ContinuationError("CONTINUATION_INVALID")
+        if version != CONTINUATION_VERSION:
             raise ContinuationError("CONTINUATION_VERSION_UNSUPPORTED")
+        root = _object(payload, _TOP_LEVEL_FIELDS, "CONTINUATION_INVALID")
         run_id = _nonempty(root.get("run_id"), maximum=128, code="CONTINUATION_INVALID")
         if _RUN_ID.fullmatch(run_id) is None or (
             expected_run_id is not None and run_id != expected_run_id
@@ -221,6 +244,7 @@ class ContinuationEnvelope:
         _uint(root.get("checkpoint_sequence"), "CONTINUATION_INVALID")
         _nonempty(root.get("policy_version"), maximum=128, code="CONTINUATION_INVALID")
         _digest(root.get("registry_digest"), "CONTINUATION_INVALID")
+        _persisted_advertised_tool_names(root.get("advertised_tool_names"))
         task = _nonempty(
             root.get("task"), maximum=1_000_000, code="CONTINUATION_INVALID"
         )
@@ -562,6 +586,7 @@ class RuntimeContinuationRecorder:
         provider_name: str,
         provider_model: str,
         registry_digest: str,
+        advertised_tool_names: frozenset[str],
         ttl_seconds: int,
         mcp_generation: int,
     ) -> None:
@@ -580,6 +605,16 @@ class RuntimeContinuationRecorder:
         self.provider_name = provider_name
         self.provider_model = provider_model
         self.registry_digest = _digest(registry_digest, "CONTINUATION_INVALID")
+        if not isinstance(advertised_tool_names, frozenset) or not all(
+            isinstance(name, str) for name in advertised_tool_names
+        ):
+            raise ValueError("advertised_tool_names must be an immutable reviewed-name set")
+        canonical_names = tuple(
+            name for name in _reviewed_tool_names() if name in advertised_tool_names
+        )
+        if len(canonical_names) != len(advertised_tool_names):
+            raise ValueError("advertised_tool_names must be an immutable reviewed-name set")
+        self.advertised_tool_names = canonical_names
         self.mcp_generation = _uint(mcp_generation, "CONTINUATION_INVALID")
         self.ttl_seconds = ttl_seconds
         self.created_at = datetime.now(UTC)
@@ -665,6 +700,7 @@ class RuntimeContinuationRecorder:
             "policy_version": state.policy_version,
             "provider": {"name": self.provider_name, "model": self.provider_model},
             "registry_digest": self.registry_digest,
+            "advertised_tool_names": list(self.advertised_tool_names),
             "task": state.task,
             "budget": {
                 "max_model_turns": budget.max_model_turns,

@@ -42,7 +42,10 @@ from computer_use_agent.progress_window import PassiveProgressWindow  # noqa: E4
 from computer_use_agent.progress_window_win32 import (  # noqa: E402
     Win32ProgressWindowApi,
 )
-from computer_use_agent.tool_registry import reviewed_registry_digest  # noqa: E402
+from computer_use_agent.tool_registry import (  # noqa: E402
+    REVIEWED_TOOLS,
+    reviewed_registry_digest,
+)
 from computer_use_agent.trace import RunPhase, RunRecorder  # noqa: E402
 from computer_use_agent.types import (  # noqa: E402
     CallIdentity,
@@ -138,6 +141,7 @@ def _prepare_recovery(config: AgentConfig) -> None:
         provider_name=config.provider.name,
         provider_model=config.provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
         ttl_seconds=config.continuation.ttl_seconds,
         mcp_generation=1,
     )

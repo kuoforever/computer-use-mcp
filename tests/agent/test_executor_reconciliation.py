@@ -263,6 +263,7 @@ def test_dispatch_intent_is_never_treated_as_completed(
         provider_name=config.provider.name,
         provider_model=config.provider.model,
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(),
         ttl_seconds=config.continuation.ttl_seconds,
         mcp_generation=desktop.generation,
     )
