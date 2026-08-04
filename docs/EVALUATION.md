@@ -66,6 +66,7 @@ provider credentials, a child process, or a desktop.
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
+| An approved action has no complete post-action verification lane | After recording the action request but before approval, project the `ALLOW` plus dispatched-result context and reject in model, input, context, then tool priority. Record one `BUDGET_EXHAUSTED`/`not_dispatched` result, retain the prior verified observation, and create zero approval, side-effect use, action continuation, or action MCP dispatch. |
 
 ## CI boundary
 
@@ -164,6 +165,13 @@ approval, write-ahead, result validation, and verification. Existing E1/E2
 workflow traces continue to exercise that same method for observation, approved
 action, denial, failure, and unknown-outcome cases; no fixture or expected trace
 changes because execution semantics and authority are unchanged.
+Approved-action verification-capacity tests additionally freeze the four-way
+model/input/context/tool failure priority, the eight-event rejected ledger and
+terminal checkpoint/recovery shape, absence of action continuation and dispatch,
+and the exact context boundary: eight events cannot hold the projected safety
+closure, while nine can. A separate three-turn/three-token case proves the Host
+reserves only the mandatory observation lane rather than requiring capacity for
+an additional final response.
 The bounded Executor session is likewise E0-only. Tests freeze the live-lock
 requirement, four-step cap, host identity generation, one outstanding request,
 lossless ledger-prefix rule, correlated call/result evidence, exact success and
@@ -318,6 +326,8 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 
 - E1 observation-to-answer and hard model-turn exhaustion;
 - E2 cumulative provider-reported input-token exhaustion before another turn;
+- E2 approved-action verification-capacity exhaustion before approval, with
+  model, input, context, and tool failure priority plus exact one-lane success;
 - offline OpenAI and Claude adapter tests that reject complete over-window
   requests before the SDK fake is called, including output reserve, OpenAI
   remote-context usage, and atomic image tool results;

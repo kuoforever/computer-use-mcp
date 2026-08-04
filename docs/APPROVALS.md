@@ -101,6 +101,14 @@ reachable through the live provider loop yet.
 
 ## Mandatory post-action verification
 
+Before the Host creates an approval request, it proves that an allowed action
+would leave capacity for one next provider turn and one observation call. The
+preflight requires model-turn and input-token headroom, reduces a pure projected
+`ALLOW` plus dispatched-result ledger, then requires a remaining tool-call slot.
+Failure records the requested action as rejected and known not dispatched with
+`BUDGET_EXHAUSTED`; it creates no approval, side-effect charge, action
+continuation, or MCP dispatch and does not invalidate the verified observation.
+
 Any side-effect call that may have been dispatched clears all grounding, sets
 `recovery_status=requires_reobservation`, and clears the verified observation
 epoch. This applies to successful and action-error results. The model cannot:

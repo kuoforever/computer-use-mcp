@@ -27,6 +27,15 @@ keeps a result without its call. If mandatory events plus the truncation marker
 cannot fit, the run fails closed with `CONTEXT_REQUIRED_EVENTS_EXCEED_BUDGET`
 before the next provider request.
 
+An approval-required action also runs this reducer before the approval exists.
+The Runner appends a same-identity `ALLOW` decision and dispatched action result
+only to an immutable local projection, proving that the next mandatory
+verification request can receive a valid ledger view. The projection is never
+assigned to `RunState`, persisted, exported, or treated as approval or dispatch
+authority. If it cannot reduce, the real ledger instead records only the action
+request and a rejected, known-not-dispatched budget result; the prior verified
+observation remains valid.
+
 This is a bound on the host-supplied canonical ledger view. OpenAI's active
 `previous_response_id` chain and Claude's active message history still preserve
 the current run's provider-native continuation state. The adapters now declare

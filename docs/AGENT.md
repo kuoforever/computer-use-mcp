@@ -266,6 +266,20 @@ tool-call, result, and observation events are appended to the canonical ledger;
 model and tool budgets are consumed before another external call can occur.
 The current ledger is in-memory only and is not a resumable trace.
 
+For an approval-required side effect, the Runner records the requested tool
+call and applies policy, current safety baselines, re-observation, grounding,
+and side-effect-quota checks before it considers approval. It then preflights
+one complete mandatory verification lane: one remaining model turn, positive
+input-token headroom, one remaining tool-call slot, and a reducible context
+projection containing the same-identity `ALLOW` decision and dispatched action
+result. Failure priority is model, input, context, then tool. Known
+insufficiency appends a rejected, `not_dispatched` result with fixed
+`BUDGET_EXHAUSTED`, while preserving the prior verified observation and using
+zero approval, side-effect quota, action continuation, or action MCP dispatch.
+The projection never mutates canonical state. This reserves one verification
+turn and observation call; it does not silently require a second turn for the
+later final response.
+
 For each provider turn, the Host derives one final advertised tool set after the
 caller allowlist, privacy policy, and current MCP safety baselines are applied.
 When sensitive continuation is enabled, continuation v6 persists those exact
@@ -784,6 +798,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
+| Side effects reserve mandatory verification capacity | After the action request is recorded and ordinary authority checks pass, the Runner projects the approved action result and requires model, input-token, reducible-context, and tool-call capacity for one post-action observation before constructing approval or action continuation state. Fixed-priority insufficiency is rejected without dispatch and preserves the prior verified observation; the exact one-lane boundary is not over-reserved for final response | implemented approved-workflow budget, ledger, checkpoint, continuation, and recovery tests |
 | Advertised tool scope is Host authority | Every live returned provider turn is checked atomically against the final caller/privacy/safety-baseline-filtered tool set before response consumption or continuation completion, and v6 preserves that set for narrowing across recovery. An unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow tests |
 | Returned tool schemas are whole-turn atomic | After advertised-name validation, every returned call's reviewed schema and canonical arguments are preflighted before response consumption or continuation completion. One malformed sibling has fixed `SCHEMA_MISMATCH`, zero approval/MCP calls, zero model/tool/side-effect budget consumption, and cannot execute a valid observation or action prefix; valid multi-call ordering remains sequential | implemented common-Runner and approved-action workflow tests |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
