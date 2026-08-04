@@ -869,6 +869,7 @@ class AgentRunner:
                     provider_name=self.config.provider.name,
                     provider_model=self.config.provider.model,
                     registry_digest=reviewed_registry_digest(),
+                    advertised_tool_names=advertised_tool_names,
                     ttl_seconds=self.config.continuation.ttl_seconds,
                     mcp_generation=self.ports.desktop.generation,
                 )

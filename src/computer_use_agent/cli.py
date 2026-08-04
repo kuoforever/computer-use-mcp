@@ -127,7 +127,9 @@ class _ForbiddenCampaignProvider:
     def export_continuation(self, _run_id: str) -> None:
         raise RunnerError("CAMPAIGN_PROVIDER_FORBIDDEN")
 
-    def restore_continuation(self, _run_id: str, _state: object) -> None:
+    def restore_continuation(
+        self, _run_id: str, _state: object, *, tools: object = None
+    ) -> None:
         raise RunnerError("CAMPAIGN_PROVIDER_FORBIDDEN")
 
 
@@ -143,7 +145,9 @@ class _ForbiddenPlannedProvider:
     def export_continuation(self, _run_id: str) -> None:
         raise RunnerError("PLANNED_PROVIDER_FORBIDDEN")
 
-    def restore_continuation(self, _run_id: str, _state: object) -> None:
+    def restore_continuation(
+        self, _run_id: str, _state: object, *, tools: object = None
+    ) -> None:
         raise RunnerError("PLANNED_PROVIDER_FORBIDDEN")
 
 

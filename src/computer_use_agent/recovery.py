@@ -24,6 +24,7 @@ from .reconstruction import (
 )
 from .tool_registry import (
     REVIEWED_TOOLS,
+    ToolSpec,
     ToolValidationError,
     get_tool_spec,
     reviewed_registry_digest,
@@ -178,6 +179,47 @@ def _ledger(envelope: ContinuationEnvelope) -> list[Mapping[str, object]]:
     return [_mapping(event, "CONTINUATION_LEDGER_INVALID") for event in raw]
 
 
+def _advertised_tool_names(envelope: ContinuationEnvelope) -> frozenset[str]:
+    raw = envelope.payload.get("advertised_tool_names")
+    if not isinstance(raw, list) or not all(isinstance(name, str) for name in raw):
+        raise RecoveryPlanError("CONTINUATION_INVALID")
+    return frozenset(raw)
+
+
+def _validate_model_turn_tool_scope(envelope: ContinuationEnvelope) -> None:
+    advertised = _advertised_tool_names(envelope)
+    for event in _ledger(envelope):
+        if event.get("kind") != "model_turn":
+            continue
+        data = _mapping(event.get("data"), "CONTINUATION_LEDGER_INVALID")
+        calls = data.get("tool_calls")
+        if not isinstance(calls, list):
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        for item in calls:
+            call = _mapping(item, "CONTINUATION_LEDGER_INVALID")
+            name = call.get("tool_name")
+            if not isinstance(name, str) or name not in advertised:
+                raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+
+
+def _recovery_tools(
+    envelope: ContinuationEnvelope, desktop: DesktopMCPPort | None
+) -> tuple[ToolSpec, ...]:
+    advertised = _advertised_tool_names(envelope)
+    satisfied = (
+        frozenset()
+        if desktop is None
+        else desktop.satisfied_safety_baselines
+    )
+    return tuple(
+        tool
+        for tool in REVIEWED_TOOLS
+        if tool.name in advertised
+        and tool.effect is ToolEffect.OBSERVATION
+        and set(tool.required_safety_baselines).issubset(satisfied)
+    )
+
+
 def _last_event(
     events: list[Mapping[str, object]], kind: str
 ) -> Mapping[str, object]:
@@ -234,6 +276,8 @@ def _validate_provider_correlation(
     envelope: ContinuationEnvelope, calls: tuple[ToolCall, ...]
 ) -> None:
     if not calls:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    if _pending_calls(envelope) != calls:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     payload = envelope.payload
     provider = _mapping(payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID")
@@ -484,6 +528,7 @@ def plan_read_only_recovery(
     if not isinstance(checkpoint, Mapping) or not isinstance(config, AgentConfig):
         raise ValueError("checkpoint and config have invalid types")
     payload = envelope.payload
+    _validate_model_turn_tool_scope(envelope)
     provider = _mapping(payload["provider"], "CHECKPOINT_MISMATCH")
     budget = _mapping(payload["budget"], "CONTINUATION_INVALID")
     expected_limits = {
@@ -571,6 +616,14 @@ def plan_read_only_recovery(
         if envelope.operation_state.operation_id != expected_id:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
         _validate_provider_correlation(envelope, (call,))
+        if "ui_snapshot" not in _advertised_tool_names(envelope):
+            return ReadOnlyRecoveryPlan(
+                ReconstructionDecision(
+                    ReconstructionAction.START_NEW_RUN,
+                    "RECOVERY_MANDATORY_OBSERVATION_NOT_ADVERTISED",
+                    ReconstructionPhase.FAILED,
+                )
+            )
         sequence = payload["checkpoint_sequence"]
         if isinstance(sequence, bool) or not isinstance(sequence, int):
             raise RecoveryPlanError("CONTINUATION_INVALID")
@@ -1038,12 +1091,14 @@ async def execute_read_only_recovery_step(
         provider_state = envelope.payload["provider_state"]
         if not isinstance(provider_state, Mapping):
             raise RecoveryExecutionError("RECOVERY_PROVIDER_STATE_INVALID")
-        provider.restore_continuation(run_id, provider_state)
+        recovery_tools = _recovery_tools(envelope, desktop)
+        advertised_tool_names = frozenset(tool.name for tool in recovery_tools)
+        provider.restore_continuation(run_id, provider_state, tools=recovery_tools)
         if use_stateless_replay:
             prepare_replay = getattr(provider, "prepare_stateless_replay", None)
             if not callable(prepare_replay):
                 raise RecoveryExecutionError("STATELESS_REPLAY_UNAVAILABLE")
-            prepare_replay(run_id, envelope)
+            prepare_replay(run_id, envelope, tools=recovery_tools)
         operation_id = f"{run_id}:{turn_id}:provider"
         commit_intent(sequence, operation_id, plan.decision.action)
         ledger = (
@@ -1059,10 +1114,12 @@ async def execute_read_only_recovery_step(
             turn_id=turn_id,
             task=task,
             ledger=ledger,
-            tools=REVIEWED_TOOLS,
+            tools=recovery_tools,
         )
         if turn.run_id != run_id or turn.turn_id != turn_id:
             raise RecoveryExecutionError("RECOVERY_PROVIDER_TURN_IDENTITY_MISMATCH")
+        if any(call.name not in advertised_tool_names for call in turn.tool_calls):
+            raise RecoveryExecutionError("RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED")
         try:
             for call in turn.tool_calls:
                 if call.identity.run_id != run_id or call.identity.turn_id != turn_id:

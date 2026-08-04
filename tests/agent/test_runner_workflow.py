@@ -234,12 +234,16 @@ def test_runner_rejects_an_entire_turn_before_persisting_an_unadvertised_call(
     approvals = FakeApprovalPort()
     config = _config(tmp_path, monkeypatch, continuation_enabled=True)
     persisted_boundaries: list[tuple[str, str]] = []
+    persisted_scopes: list[tuple[str, ...]] = []
     original_write = continuation_module.write_continuation
 
     def capture_write(state_dir: Path, payload: object) -> object:
         assert isinstance(payload, dict)
         boundary = payload["boundary"]
         assert isinstance(boundary, dict)
+        scope = payload["advertised_tool_names"]
+        assert isinstance(scope, list)
+        persisted_scopes.append(tuple(str(name) for name in scope))
         persisted_boundaries.append(
             (str(boundary["operation_kind"]), str(boundary["stage"]))
         )
@@ -266,6 +270,7 @@ def test_runner_rejects_an_entire_turn_before_persisting_an_unadvertised_call(
         ("provider", "prepared"),
         ("provider", "dispatch_intent"),
     ]
+    assert persisted_scopes == [("ui_snapshot",), ("ui_snapshot",)]
     assert not continuation_path(config.state_dir, run_id).exists()
     record = read_run_record(config.state_dir, run_id)
     assert record["state"]["phase"] == "FAILED"
@@ -366,10 +371,25 @@ def test_runner_enforces_the_post_baseline_advertised_tool_set(
         turns=deque([ModelTurn(run_id, "turn_1", "response_1", "", (call,))])
     )
     desktop = FakeDesktopMCP(satisfied_safety_baselines=frozenset())
+    persisted_scopes: list[tuple[str, ...]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        scope = payload["advertised_tool_names"]
+        assert isinstance(scope, list)
+        persisted_scopes.append(tuple(str(name) for name in scope))
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
 
     with pytest.raises(RunFailure, match="^PROVIDER_TOOL_NOT_ADVERTISED$"):
         asyncio.run(
-            _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
+            _runner(
+                _config(tmp_path, monkeypatch, continuation_enabled=True),
+                provider,
+                desktop,
+            ).run(
                 "Read a region",
                 run_id=run_id,
                 allowed_tool_names=frozenset({"ui_snapshot", "ocr"}),
@@ -377,6 +397,7 @@ def test_runner_enforces_the_post_baseline_advertised_tool_set(
         )
 
     assert {tool.name for tool in provider.calls[0]["tools"]} == {"ui_snapshot"}
+    assert persisted_scopes == [("ui_snapshot",), ("ui_snapshot",)]
     assert desktop.tool_calls == []
 
 

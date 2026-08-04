@@ -71,6 +71,7 @@ class FakeModelProvider:
     turns: deque[ModelTurn] = field(default_factory=deque)
     calls: list[dict[str, object]] = field(default_factory=list)
     continuation_state: dict[str, Mapping[str, JSONValue]] = field(default_factory=dict)
+    restored_tools: dict[str, tuple[ToolSpec, ...]] = field(default_factory=dict)
 
     async def create_turn(
         self,
@@ -133,9 +134,15 @@ class FakeModelProvider:
         )  # type: ignore[return-value]
 
     def restore_continuation(
-        self, run_id: str, state: Mapping[str, JSONValue]
+        self,
+        run_id: str,
+        state: Mapping[str, JSONValue],
+        *,
+        tools: Sequence[ToolSpec] | None = None,
     ) -> None:
         self.continuation_state[run_id] = to_json_value(state)  # type: ignore[assignment]
+        if tools is not None:
+            self.restored_tools[run_id] = tuple(tools)
 
 
 @dataclass

@@ -26,12 +26,13 @@ NOW = datetime(2030, 1, 1, tzinfo=UTC)
 
 def _payload(run_id: str = "run_1") -> dict[str, object]:
     return {
-        "continuation_version": 5,
+        "continuation_version": 6,
         "run_id": run_id,
         "checkpoint_sequence": 7,
         "policy_version": "phase0",
         "provider": {"name": "openai", "model": "gpt-test"},
         "registry_digest": "a" * 64,
+        "advertised_tool_names": ["ui_snapshot", "list_windows"],
         "task": "Inspect the window",
         "budget": {
             "max_model_turns": 3,
@@ -92,7 +93,7 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
 
 
 @pytest.mark.parametrize("unsupported_version", [1, 2, 3, 4])
-def test_old_continuation_is_rejected_after_openai_contract_upgrade(
+def test_v1_to_v4_continuations_are_rejected_after_schema_upgrades(
     tmp_path: Path,
     unsupported_version: int,
 ) -> None:
@@ -103,6 +104,54 @@ def test_old_continuation_is_rejected_after_openai_contract_upgrade(
         write_continuation(tmp_path.resolve(), payload)
 
     assert not continuation_path(tmp_path.resolve(), "run_1").exists()
+
+
+def test_genuine_v5_continuation_without_tool_scope_is_rejected(
+    tmp_path: Path,
+) -> None:
+    payload = _payload()
+    payload["continuation_version"] = 5
+    payload.pop("advertised_tool_names")
+
+    with pytest.raises(ContinuationError, match="CONTINUATION_VERSION_UNSUPPORTED"):
+        write_continuation(tmp_path.resolve(), payload)
+
+    assert not continuation_path(tmp_path.resolve(), "run_1").exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda value: value.pop("advertised_tool_names"),
+        lambda value: value.update(
+            advertised_tool_names=["ui_snapshot", "ui_snapshot"]
+        ),
+        lambda value: value.update(advertised_tool_names=["browser_eval"]),
+        lambda value: value.update(
+            advertised_tool_names=["list_windows", "ui_snapshot"]
+        ),
+    ],
+)
+def test_v6_tool_scope_is_exact_reviewed_unique_and_canonical(
+    tmp_path: Path,
+    mutation: object,
+) -> None:
+    payload = _payload()
+    mutation(payload)  # type: ignore[operator]
+
+    with pytest.raises(ContinuationError, match="CONTINUATION_INVALID"):
+        write_continuation(tmp_path.resolve(), payload)
+
+    assert not continuation_path(tmp_path.resolve(), "run_1").exists()
+
+
+def test_v6_empty_advertised_tool_scope_is_valid(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["advertised_tool_names"] = []
+
+    written = write_continuation(tmp_path.resolve(), payload)
+
+    assert written.payload["advertised_tool_names"] == []
 
 
 @pytest.mark.parametrize(

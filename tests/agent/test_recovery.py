@@ -6,6 +6,7 @@ from collections import deque
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Mapping
 
 import pytest
 
@@ -17,6 +18,7 @@ from computer_use_agent.config import (
     ProviderConfig,
 )
 from computer_use_agent.continuation import (
+    ContinuationEnvelope,
     ContinuationError,
     RuntimeContinuationRecorder,
     continuation_path,
@@ -32,11 +34,12 @@ from computer_use_agent.recovery import (
 )
 from computer_use_agent.reconstruction import ReconstructionAction
 from computer_use_agent.run_lock import RunLock
-from computer_use_agent.tool_registry import reviewed_registry_digest
+from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
 from computer_use_agent.trace import RunPhase, RunRecorder, read_run_checkpoint
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
+    JSONValue,
     ModelTurn,
     RecoveryStatus,
     RunBudget,
@@ -80,6 +83,9 @@ def _recorder(
     state: RunState,
     *,
     provider_name: str = "openai",
+    advertised_tool_names: frozenset[str] = frozenset(
+        tool.name for tool in REVIEWED_TOOLS
+    ),
 ) -> RuntimeContinuationRecorder:
     return RuntimeContinuationRecorder(
         state_dir=config.state_dir,
@@ -87,6 +93,7 @@ def _recorder(
         provider_name=provider_name,
         provider_model="model-v1",
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=advertised_tool_names,
         ttl_seconds=900,
         mcp_generation=1,
     )
@@ -111,6 +118,54 @@ def _safe_checkpoint(config: AgentConfig, state: RunState, sequence: int) -> dic
     while recorder.checkpoint_sequence < sequence:
         recorder.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
     return read_run_checkpoint(config.state_dir, state.run_id)
+
+
+def _completed_observation(
+    config: AgentConfig,
+    state: RunState,
+    *,
+    call: ToolCall,
+    advertised_tool_names: frozenset[str],
+) -> tuple[RunState, ContinuationEnvelope, ToolResult]:
+    recorder = _recorder(
+        config,
+        state,
+        advertised_tool_names=advertised_tool_names,
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (call,)),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+    tool_state = replace(
+        state,
+        observation_epoch=1,
+        verified_observation_epoch=1,
+        budgets=RunBudget(4, 4, 8, model_turns_used=1, tool_calls_used=1),
+    )
+    result = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="observation",
+    )
+    recorder.prepare_tool(
+        tool_state, call, effect=ToolEffect.OBSERVATION, checkpoint_sequence=4
+    )
+    recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
+    envelope = recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
+    return tool_state, envelope, result
 
 
 def test_completed_provider_reconstructs_exactly_one_pending_observation(
@@ -638,6 +693,295 @@ def test_executor_restores_then_commits_one_new_provider_continuation(
     assert isinstance(ledger, tuple) and ledger[0].tool_result == result
     assert step.model_turn is not None
     assert step.model_turn.provider_response_id == "response_2"
+
+
+@pytest.mark.parametrize("current_baseline", [False, True])
+def test_provider_recovery_uses_only_persisted_currently_safe_observations(
+    current_baseline: bool,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    call = ToolCall(CallIdentity("run_1", "turn_1", "call_1"), "ui_snapshot", {})
+    tool_state, envelope, _ = _completed_observation(
+        config,
+        state,
+        call=call,
+        advertised_tool_names=frozenset({"ui_snapshot", "ocr", "click"}),
+    )
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn("run_1", "turn_2", "response_2", "done")])
+    )
+    desktop = (
+        FakeDesktopMCP(
+            satisfied_safety_baselines=frozenset(
+                {"title_matched_image_redaction"}
+            )
+        )
+        if current_baseline
+        else None
+    )
+
+    step = asyncio.run(
+        execute_read_only_recovery_step(
+            _checkpoint(tool_state, 6),
+            envelope,
+            config,
+            task=state.task,
+            provider=provider,
+            desktop=desktop,
+            commit_intent=lambda *_args: None,
+        )
+    )
+
+    expected = ("ui_snapshot", "ocr") if current_baseline else ("ui_snapshot",)
+    assert tuple(tool.name for tool in provider.restored_tools["run_1"]) == expected
+    assert tuple(tool.name for tool in provider.calls[0]["tools"]) == expected
+    assert all(
+        tool.effect is ToolEffect.OBSERVATION for tool in provider.calls[0]["tools"]
+    )
+    assert step.model_turn is not None
+    assert step.model_turn.text == "done"
+
+
+def test_recovered_provider_turn_rejects_unadvertised_sibling_atomically(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    original = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"), "ui_snapshot", {}
+    )
+    tool_state, envelope, _ = _completed_observation(
+        config,
+        state,
+        call=original,
+        advertised_tool_names=frozenset({"ui_snapshot"}),
+    )
+    valid = ToolCall(
+        CallIdentity("run_1", "turn_2", "call_1"), "ui_snapshot", {}
+    )
+    widened = ToolCall(
+        CallIdentity("run_1", "turn_2", "call_2"), "list_windows", {}
+    )
+
+    class RejectingExportProvider(FakeModelProvider):
+        def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
+            del run_id
+            raise AssertionError("invalid recovered turn must not be exported")
+
+    provider = RejectingExportProvider(
+        turns=deque(
+            [ModelTurn("run_1", "turn_2", "response_2", "", (valid, widened))]
+        )
+    )
+    intents: list[tuple[int, str, ReconstructionAction]] = []
+    completions: list[object] = []
+
+    with pytest.raises(
+        RecoveryExecutionError, match="^RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED$"
+    ):
+        asyncio.run(
+            execute_read_only_recovery_step(
+                _checkpoint(tool_state, 6),
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=None,
+                commit_intent=lambda *args: intents.append(args),
+                commit_completion=lambda *args: completions.append(args),
+            )
+        )
+
+    assert intents == [
+        (6, "run_1:turn_2:provider", ReconstructionAction.CONTINUE_PROVIDER)
+    ]
+    assert completions == []
+    assert tuple(tool.name for tool in provider.restored_tools["run_1"]) == (
+        "ui_snapshot",
+    )
+    assert tuple(tool.name for tool in provider.calls[0]["tools"]) == ("ui_snapshot",)
+
+
+def test_recovery_rejects_persisted_model_call_outside_bound_scope(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    widened = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"), "list_windows", {}
+    )
+    recorder = _recorder(
+        config,
+        state,
+        advertised_tool_names=frozenset({"ui_snapshot"}),
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    envelope = recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (widened,)),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(
+            _checkpoint(state, 3),
+            envelope,
+            config,
+            task=state.task,
+        )
+
+
+def test_recovery_rejects_completed_tool_that_does_not_match_provider_turn(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    provider_call = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"), "ui_snapshot", {}
+    )
+    recorder = _recorder(
+        config,
+        state,
+        advertised_tool_names=frozenset({"ui_snapshot"}),
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (provider_call,)),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+    widened = ToolCall(provider_call.identity, "list_windows", {})
+    tool_state = replace(
+        state,
+        observation_epoch=1,
+        verified_observation_epoch=1,
+        budgets=RunBudget(4, 4, 8, model_turns_used=1, tool_calls_used=1),
+    )
+    result = ToolResult(
+        widened.identity,
+        widened.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="window list",
+    )
+    recorder.prepare_tool(
+        tool_state, widened, effect=ToolEffect.OBSERVATION, checkpoint_sequence=4
+    )
+    recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
+    envelope = recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(
+            _checkpoint(tool_state, 6),
+            envelope,
+            config,
+            task=state.task,
+        )
+
+
+def test_mandatory_reobservation_cannot_widen_original_tool_scope(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    action = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"),
+        "activate_window",
+        {"window_id": "window_1"},
+    )
+    recorder = _recorder(
+        config,
+        state,
+        advertised_tool_names=frozenset({"activate_window"}),
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (action,)),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+    tool_state = replace(
+        state,
+        budgets=RunBudget(
+            4,
+            4,
+            8,
+            model_turns_used=1,
+            tool_calls_used=1,
+            side_effects_used=1,
+        ),
+    )
+    result = ToolResult(
+        action.identity,
+        action.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="activated",
+    )
+    recorder.prepare_tool(
+        tool_state, action, effect=ToolEffect.SIDE_EFFECT, checkpoint_sequence=4
+    )
+    recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
+    envelope = recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
+
+    plan = plan_read_only_recovery(
+        _checkpoint(tool_state, 6),
+        envelope,
+        config,
+        task=state.task,
+    )
+
+    assert plan.decision.action is ReconstructionAction.START_NEW_RUN
+    assert plan.decision.reason == "RECOVERY_MANDATORY_OBSERVATION_NOT_ADVERTISED"
+    assert plan.call is None
+    provider = FakeModelProvider()
+    desktop = FakeDesktopMCP()
+    commits: list[object] = []
+    with pytest.raises(RecoveryExecutionError, match="^RECOVERY_PLAN_NOT_EXECUTABLE$"):
+        asyncio.run(
+            execute_read_only_recovery_step(
+                _checkpoint(tool_state, 6),
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=desktop,
+                commit_intent=lambda *args: commits.append(args),
+            )
+        )
+    assert commits == []
+    assert provider.calls == []
+    assert desktop.tool_calls == []
 
 
 def test_executor_stale_attach_has_zero_commits_and_external_calls(

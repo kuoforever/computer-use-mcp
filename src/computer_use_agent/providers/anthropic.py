@@ -520,7 +520,11 @@ class AnthropicMessagesProvider:
         return {"messages": to_json_value(self._history.get(run_id, []))}
 
     def restore_continuation(
-        self, run_id: str, state: Mapping[str, JSONValue]
+        self,
+        run_id: str,
+        state: Mapping[str, JSONValue],
+        *,
+        tools: Sequence[ToolSpec] | None = None,
     ) -> None:
         if not isinstance(run_id, str) or not run_id:
             raise ValueError("run_id must be non-empty")

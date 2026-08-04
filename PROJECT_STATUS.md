@@ -3,11 +3,13 @@
 > **Mode: core Runtime development is explicitly reopened by the user.
 > `GDA-CORE-001` and `GDA-CORE-002` are merged through PR #230;
 > `GDA-CORE-003` is merged through PR #232; `GDA-CORE-004` is merged through
-> PR #233; `GDA-CORE-005` is merged through PR #234; `GDA-CORE-006` is complete
-> locally; and `GDA-CORE-007` is the exact next item.
+> PR #233; `GDA-CORE-005` is merged through PR #234; `GDA-CORE-006` is merged
+> through PR #235; `GDA-CORE-007` is complete locally; and `GDA-CORE-008` is
+> the exact next item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
-> below. The Full Cycle Runtime baseline remains frozen at
+> below; the user reaffirmed that core Runtime development stays ahead of all
+> Demo work. The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
 > remains paused.**
 > Updated: 2026-08-04.
@@ -80,6 +82,21 @@ policy, approval, or MCP. One malformed sibling rejects the whole turn with
 fixed `SCHEMA_MISMATCH`; neither an observation nor an approved action prefix
 can execute first.
 
+`GDA-CORE-007` closes the recovery tool-scope gap locally. Strict continuation
+v6 now persists the immutable final Host-advertised names, rejects older or
+malformed evidence, and permits recovery to derive only the currently evidenced
+read-only subset. The Host passes one ordered tuple through provider restore,
+stateless replay, and turn creation, then atomically rejects any returned call
+outside that tuple before provider completion or future MCP dispatch.
+
+The next bounded audit selected `GDA-CORE-008`. The MCP server currently calls
+`HumanActivity.note_agent_action()` after every action-shaped result, including
+semantic UIA actions, activation, validation failures, and driver failures that
+did not inject native input. If real human input arrives during such a call, the
+unconditional note can claim the human's tick as agent-generated and let a
+following native action bypass the safe-local human-yield gate. The next slice
+must record agent input only for known-successful native-input routes.
+
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
 disabled by default and deferred to the external Full Cycle `FC-BRIDGE-003`
@@ -98,7 +115,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1603 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-006` closure revalidation |
+| Offline baseline | `1619 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-007` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -156,14 +173,16 @@ delivery work.
 | `GDA-CORE-003` | Complete; merged | Preserve post-dispatch MCP cancellation certainty through the Runner | Commit `647a9ef`, merged through PR #232 as `5d19157`; result-aware cancellation persists the validated/privacy-protected unknown result and completed WAL boundary before re-propagation; task cancellation, generation invalidation, zero replay, persistence-failure chaining, and shared-caller terminal-state guards are regression tested; complete gate: `1597 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-004` | Complete; merged | Enforce the actual per-turn advertised tool set at the Runner authority boundary | Commit `ba907bf`, merged through PR #233 as `5c9c379`; whole-turn Host validation uses the final caller/privacy/safety-baseline-filtered set; mixed observation/action turns, downstream baseline filtering, continuation ordering, valid restricted execution, prompt injection, and unknown tools are regression tested with zero leaked authority; complete gate: `1600 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-005` | Complete; merged | Revalidate required MCP safety baselines before read-only recovery dispatch | Commit `969a56f`, merged through PR #234 as `ea2e063`; the executor checks the current reviewed requirement against the connected MCP generation before intent; missing OCR evidence has fixed `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, byte-identical checkpoint/continuation files, zero phase transition, and zero MCP dispatch, while the baseline-satisfied path retains atomic intent/completion; complete gate: `1601 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
-| `GDA-CORE-006` | Complete locally | Make returned-turn argument validation whole-turn atomic | Shared preflight runs after identity/advertised-name checks and before every downstream authority boundary; malformed observation and approved-action sibling tests prove fixed `SCHEMA_MISMATCH`, provider intent only, user-task-only trace, zero model/tool/side-effect budget, zero approval, and zero MCP dispatch; complete gate: `1603 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
-| `GDA-CORE-007` | Next | Preserve the original Host-advertised tool scope across recovery | Add a versioned continuation binding for the original caller/Host tool scope and enforce it on recovered provider turns; an Anthropic or custom-provider recovery must not widen a restricted run to additional observations |
+| `GDA-CORE-006` | Complete; merged | Make returned-turn argument validation whole-turn atomic | Commit `12d1211`, merged through PR #235 as `33b0d73`; shared preflight runs after identity/advertised-name checks and before every downstream authority boundary; malformed observation and approved-action sibling tests prove fixed `SCHEMA_MISMATCH`, provider intent only, user-task-only trace, zero model/tool/side-effect budget, zero approval, and zero MCP dispatch; complete gate: `1603 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
+| `GDA-CORE-007` | Complete locally | Preserve the original Host-advertised tool scope across recovery | Strict continuation v6 binds the exact final Host-advertised names; recovery narrows them to currently evidenced observations and uses the same ordered tuple for provider restore, stateless replay, request creation, and returned-turn validation. Old/corrupt evidence, unauthorized mandatory observation synthesis, mismatched completed ledgers, and out-of-scope returned calls fail closed; complete gate: `1619 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent authority review passed on 2026-08-04 |
+| `GDA-CORE-008` | Next | Prevent non-native or failed MCP actions from claiming a human input tick | Record agent input only after a known-successful native-input route; semantic UIA actions, activation, invalid/no-op calls, and failed driver calls must leave concurrent human activity authoritative so the next safe-local action yields with zero dispatch |
 
-No new implementation is active on this closure branch. `GDA-CORE-007` is the
-exact next core item after `GDA-CORE-006` merges. `GDA-DEMO-006` is paused at
-its exact resume point, and no `GDA-HUD-*` item is active. The historical Full
-Cycle freeze remains the handoff baseline; it no longer freezes the separately
-reopened core Runtime scope above.
+`GDA-CORE-007` is complete locally on
+`codex/core-runtime-recovery-tool-scope`; no new implementation starts until it
+is merged and a fresh branch is created for `GDA-CORE-008`. `GDA-DEMO-006` is
+paused at its exact resume point, and no `GDA-HUD-*` item is active. The
+historical Full Cycle freeze remains the handoff baseline; it no longer freezes
+the separately reopened core Runtime scope above.
 
 ## Defect found by composing the HUD surfaces (2026-08-01)
 
@@ -399,23 +418,42 @@ passed: `1566 passed, 8 skipped`, Ruff passed, mypy reported no issues in 118
 source files, documentation consistency reported 13 reviewed tools, and
 `git diff --check` passed.
 
-## Exact next task: `GDA-CORE-007`
+## Completed slice: `GDA-CORE-007`
 
-Continuation v5 does not persist the original final Host-advertised tool scope.
-`CONTINUE_PROVIDER` consequently rebuilds a recovery request from the full
-reviewed registry. A real Anthropic reproduction started with only
-`ui_snapshot` advertised, recovered with six observations advertised, accepted
-`list_windows`, and dispatched it on the next recovery step. OpenAI commonly
-fails this drift through its adapter-specific request-contract digest, but that
-is not a provider-neutral Host authority boundary. Introduce a strict versioned
-continuation binding for the immutable final caller/privacy/baseline-filtered
-tool-name set; fail closed on old or malformed scope evidence. Recovery must
-derive only the persisted read-only, currently safe subset, pass only that set
-to the provider, and atomically reject any returned call outside it before
-provider completion or future MCP dispatch. Freeze the restricted Anthropic and
-OpenAI paths, corrupt/old-version rejection, valid restricted recovery, and
-mixed-turn zero-authority behavior in the continuation/recovery contracts and
-tests, then run the complete gate.
+Continuation v6 persists a canonical, unique list of the exact final
+caller/privacy/current-MCP-baseline-filtered Host-advertised names. Recovery
+fails closed on v1-v5 or malformed scope evidence, derives only the persisted
+read-only tools whose current safety baselines are evidenced, and gives the
+same ordered tuple to provider restore, stateless replay, and turn creation.
+The Host rejects out-of-scope returned calls before provider export/completion
+or MCP eligibility and forbids mandatory `ui_snapshot` synthesis from widening
+the original scope. Exact completed model/tool/result correlation is also
+required. OpenAI request-contract drift fails before network access; Anthropic
+remains governed by the same provider-neutral Host boundary.
+
+## Exact next task: `GDA-CORE-008`
+
+`build_server()` currently calls `HumanActivity.note_agent_action()` for every
+action-shaped return, even when no native mouse or keyboard input was injected.
+A deterministic safe-local reproduction performs a semantic ref click while a
+real human-input tick advances; the unconditional note adopts that tick as the
+agent's own, so a following coordinate click passes the human-yield check and
+dispatches. Activation, validation/no-op errors, failed driver calls, semantic
+`Invoke`/`SelectionItem`/`ValuePattern` routes, and any other non-native path
+must not claim a tick.
+
+Create `codex/core-runtime-human-yield-attribution` from the merged
+`GDA-CORE-007` `origin/main`. Carry a structured success result plus an explicit
+native-input fact to the server's action recorder and call
+`note_agent_action()` only after a successful route known to inject bounded
+native input. Freeze three boundaries: concurrent human input during a semantic
+or activation action blocks the next safe-local native action with zero second
+dispatch; successful native input still does not self-block; failed or no-op
+input never claims a human tick. Preserve audit behavior, final authority
+rechecks, ref semantics, and the sole MCP/Runner dispatch path. Update the
+owning MCP safety/configuration contract and run the complete gate. Do not
+resume Demo, Full Cycle consumer, training, BF16, Operator HUD, Universal GUI,
+or Multi-Agent work.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -434,7 +472,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
 post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-must not displace `GDA-CORE-007`.
+must not displace `GDA-CORE-008`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -532,3 +570,8 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-04 | The separate `GDA-CORE-007` recovery-scope gap remains queued: continuation must version and preserve the original Host-advertised tool scope rather than widening a restricted run after a crash. |
 | 2026-08-04 | `GDA-CORE-006` makes reviewed schema and canonical-argument validation whole-turn atomic after advertised-name validation; malformed siblings cannot grant an observation or approved-action prefix any authority. |
 | 2026-08-04 | A real Anthropic recovery reproduced `GDA-CORE-007`: a run restricted to `ui_snapshot` widened to six advertised observations and later dispatched `list_windows`; exact Host tool scope must become versioned continuation evidence. |
+| 2026-08-04 | `GDA-CORE-006` merged through PR #235 as `33b0d73`; all four GitHub checks passed, and `GDA-CORE-007` is now the sole active core Runtime item on `codex/core-runtime-recovery-tool-scope`. |
+| 2026-08-04 | `GDA-CORE-007` will bind continuation v6 to the exact final Host-advertised names and allow recovery only to narrow that authority to currently evidenced observations; one ordered scope must govern provider restore, stateless replay, request creation, returned-turn validation, and later MCP eligibility. |
+| 2026-08-04 | The user reaffirmed that project-body core Runtime development takes priority now that Pro is available; `GDA-DEMO-006` remains paused at `d74201f` / draft PR #231 and resumes only after the core Runtime phase is deliberately closed or reprioritized. |
+| 2026-08-04 | `GDA-CORE-007` is complete locally and independently reviewed: strict continuation v6 preserves and narrows original Host tool authority across recovery, with old/corrupt evidence and every tested widening path failing closed. |
+| 2026-08-04 | A bounded audit selected `GDA-CORE-008` ahead of verification-capacity work: only a known-successful native-input route may claim the current input tick as agent-generated; semantic, activation, invalid, no-op, and failed actions must preserve concurrent human authority. |

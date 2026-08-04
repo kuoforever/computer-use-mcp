@@ -824,7 +824,11 @@ class ModelProviderPort(Protocol):
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]: ...
 
     def restore_continuation(
-        self, run_id: str, state: Mapping[str, JSONValue]
+        self,
+        run_id: str,
+        state: Mapping[str, JSONValue],
+        *,
+        tools: Sequence["ToolSpec"],
     ) -> None: ...
 
 

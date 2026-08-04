@@ -444,7 +444,11 @@ class CrossAppDemoProvider:
         return to_json_value(self._continuation.get(run_id, {}))  # type: ignore[return-value]
 
     def restore_continuation(
-        self, run_id: str, state: Mapping[str, JSONValue]
+        self,
+        run_id: str,
+        state: Mapping[str, JSONValue],
+        *,
+        tools: Sequence[ToolSpec] | None = None,
     ) -> None:
         self._continuation[run_id] = to_json_value(state)  # type: ignore[assignment]
 

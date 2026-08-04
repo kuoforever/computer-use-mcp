@@ -171,6 +171,7 @@ def _fixture(tmp_path: Path, *, failed_checkpoint: bool = False) -> Reconciliati
         provider_name="openai",
         provider_model="test-model",
         registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(),
         ttl_seconds=3600,
         mcp_generation=1,
     )
