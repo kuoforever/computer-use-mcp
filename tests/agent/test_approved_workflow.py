@@ -148,6 +148,55 @@ def test_unadvertised_action_has_no_approval_or_desktop_authority(
     assert [event["kind"] for event in record["events"]] == ["user_task"]
 
 
+def test_malformed_sibling_has_no_approval_or_desktop_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_malformed_action_turn"
+    observe = _call(run_id, 1, "call_1", "list_windows", {})
+    action = _call(run_id, 1, "call_2", "activate_window", {"window_id": "42"})
+    malformed = _call(
+        run_id,
+        1,
+        "call_3",
+        "list_windows",
+        {"unexpected": True},
+    )
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, observe, action, malformed)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(observe, text='* 42 | app.exe | "App"'),
+                _result(action),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    config = _config(tmp_path, monkeypatch)
+
+    with pytest.raises(RunFailure, match="^SCHEMA_MISMATCH$"):
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Activate the observed window",
+                run_id=run_id,
+            )
+        )
+
+    advertised = {tool.name for tool in provider.calls[0]["tools"]}
+    assert {"list_windows", "activate_window"}.issubset(advertised)
+    assert approvals.requests == []
+    assert desktop.tool_calls == []
+    assert len(desktop.results) == 2
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "SCHEMA_MISMATCH"
+    assert record["state"]["budgets"]["model_turns_used"] == 0
+    assert record["state"]["budgets"]["tool_calls_used"] == 0
+    assert record["state"]["budgets"]["side_effects_used"] == 0
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
+
+
 def test_approved_action_requires_grounding_then_reobservation_before_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

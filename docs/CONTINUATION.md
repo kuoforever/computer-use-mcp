@@ -189,8 +189,12 @@ atomically verifies every requested tool against the exact set the Host actually
 advertised after caller, privacy, and MCP safety-baseline filtering. If any call
 is absent, fixed `PROVIDER_TOOL_NOT_ADVERTISED` terminates the run before model
 ledger/budget consumption, provider-state export, `completed`, policy, approval,
-or MCP dispatch. A surviving provider intent remains conservative unknown
-evidence; it is never reconstructed as completed provider work.
+or MCP dispatch. The Runner next preflights every call's reviewed schema and
+canonical arguments at the same whole-turn boundary; one invalid sibling fails
+with fixed `SCHEMA_MISMATCH` before any valid prefix executes. Either rejection
+may leave only the conservative provider `prepared` and `dispatch_intent`
+records; no provider `completed` or tool boundary is written, and surviving
+intent remains unknown evidence rather than completed provider work.
 
 A result-carrying post-dispatch MCP cancellation is completed through this same
 protocol before cancellation is re-propagated. The Runner validates and privacy
