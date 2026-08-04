@@ -19,6 +19,7 @@ from computer_use_agent.config import (
 from computer_use_agent.continuation import (
     ContinuationError,
     RuntimeContinuationRecorder,
+    continuation_path,
     read_continuation,
 )
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
@@ -676,12 +677,94 @@ def test_executor_stale_attach_has_zero_commits_and_external_calls(
     assert desktop.tool_calls == []
 
 
-def test_locked_recovery_persists_observation_intent_and_completion_atomically(
+def test_recovery_rejects_missing_current_safety_baseline_without_mutation(
     tmp_path: Path, monkeypatch: object
 ) -> None:
     config = _config(tmp_path, monkeypatch)
     state = _state()
-    call = ToolCall(CallIdentity("run_1", "turn_1", "call_1"), "list_windows", {})
+    call = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"),
+        "ocr",
+        {"x": 0, "y": 0, "w": 10, "h": 10},
+    )
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "response_1", "", (call,)),
+        provider_state={"response_id": "response_1", "prior_context_tokens": 0, "request_contract_digest": "0" * 64, "memory_context_used": False, "initial_input": "Inspect windows", "output_batches": [{"response_id": "response_1", "items": []}]},
+        checkpoint_sequence=3,
+    )
+    safe = RunRecorder(config.state_dir, state.run_id)
+    safe.start(state)
+    safe.record(state, RunPhase.OBSERVING, advance_checkpoint_sequence=True)
+    safe.record(state, RunPhase.PLANNING, advance_checkpoint_sequence=True)
+    checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    envelope = read_continuation(config.state_dir, state.run_id)
+    expected = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="recognized text",
+    )
+    desktop = FakeDesktopMCP(results=deque([expected]))
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = safe.checkpoint_path.read_bytes()
+    observed_phases: list[RunPhase] = []
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+            phase_observer=observed_phases.append,
+        )
+        with pytest.raises(
+            RecoveryExecutionError,
+            match="^RECOVERY_SAFETY_BASELINE_UNSATISFIED$",
+        ):
+            asyncio.run(
+                execute_read_only_recovery_step(
+                    checkpoint,
+                    envelope,
+                    config,
+                    task=state.task,
+                    provider=None,
+                    desktop=desktop,
+                    commit_intent=persistence.commit_intent,
+                    commit_completion=persistence.commit_completion,
+                )
+            )
+    finally:
+        lock.release()
+
+    assert continuation_file.read_bytes() == before_continuation
+    assert safe.checkpoint_path.read_bytes() == before_checkpoint
+    assert read_continuation(config.state_dir, state.run_id).payload == envelope.payload
+    assert read_run_checkpoint(config.state_dir, state.run_id) == checkpoint
+    assert desktop.tool_calls == []
+    assert list(desktop.results) == [expected]
+    assert observed_phases == []
+
+
+def test_locked_recovery_with_current_baseline_persists_observation_atomically(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    call = ToolCall(
+        CallIdentity("run_1", "turn_1", "call_1"),
+        "ocr",
+        {"x": 0, "y": 0, "w": 10, "h": 10},
+    )
     recorder = _recorder(config, state)
     recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
     recorder.dispatch_provider(state, checkpoint_sequence=2)
@@ -702,9 +785,12 @@ def test_locked_recovery_persists_observation_intent_and_completion_atomically(
         call.name,
         ToolResultStatus.SUCCESS,
         DispatchCertainty.DISPATCHED,
-        sanitized_text="Notepad",
+        sanitized_text="recognized text",
     )
-    desktop = FakeDesktopMCP(results=deque([result]))
+    desktop = FakeDesktopMCP(
+        satisfied_safety_baselines=frozenset({"title_matched_image_redaction"}),
+        results=deque([result]),
+    )
     observed_phases: list[RunPhase] = []
 
     def observe_phase(phase: RunPhase) -> None:

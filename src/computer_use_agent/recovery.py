@@ -1004,6 +1004,11 @@ async def execute_read_only_recovery_step(
         assert plan.call is not None
         if desktop is None:
             raise RecoveryExecutionError("RECOVERY_DESKTOP_REQUIRED")
+        spec = get_tool_spec(plan.call.name)
+        if not set(spec.required_safety_baselines).issubset(
+            desktop.satisfied_safety_baselines
+        ):
+            raise RecoveryExecutionError("RECOVERY_SAFETY_BASELINE_UNSATISFIED")
         operation_id = (
             f"{plan.call.identity.run_id}:{plan.call.identity.turn_id}:"
             f"{plan.call.identity.call_id}"
