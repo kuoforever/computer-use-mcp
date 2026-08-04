@@ -84,15 +84,19 @@ request
   -> recent-human-input check
   -> foreground process-ancestry allowlist check
   -> dangerous ref-click confirmation, when applicable
+  -> final e-stop check
+  -> final single-observation foreground allowlist check
   -> native driver action
   -> audit record
   -> result
 ~~~
 
+The final checks do not wait for human-idle evidence or retry foreground
+flicker; they reject when authority changed during either earlier wait.
 `activate_window` is e-stop/human-activity guarded and audited, but
-intentionally skips the foreground allowlist because it is the operation that
-makes a listed window foreground. `full_control_local` bypasses the human and
-allowlist checks while retaining e-stop and audit. See
+intentionally skips both foreground allowlist checks because it is the
+operation that makes a listed window foreground. `full_control_local` bypasses
+the human and allowlist checks while retaining both e-stop checks and audit. See
 [Configuration and safety](CONFIGURATION.md) for exact runtime behavior.
 
 ## Human coexistence and background work
