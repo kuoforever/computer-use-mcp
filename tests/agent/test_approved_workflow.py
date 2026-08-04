@@ -109,6 +109,45 @@ def _result(call: ToolCall, *, text: str = "") -> ToolResult:
     )
 
 
+def test_unadvertised_action_has_no_approval_or_desktop_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_unadvertised_action"
+    observe = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 1, "call_2", "click", {"ref": "ref_1"})
+    provider = FakeModelProvider(turns=deque([_turn(run_id, 1, observe, action)]))
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    observe,
+                    text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                ),
+                _result(action),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    config = _config(tmp_path, monkeypatch)
+
+    with pytest.raises(RunFailure, match="^PROVIDER_TOOL_NOT_ADVERTISED$"):
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Inspect only",
+                run_id=run_id,
+                allowed_tool_names=frozenset({"ui_snapshot"}),
+            )
+        )
+
+    assert {tool.name for tool in provider.calls[0]["tools"]} == {"ui_snapshot"}
+    assert approvals.requests == []
+    assert desktop.tool_calls == []
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "PROVIDER_TOOL_NOT_ADVERTISED"
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
+
+
 def test_approved_action_requires_grounding_then_reobservation_before_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -467,7 +506,7 @@ def test_final_answer_immediately_after_action_requires_verification(
         )
 
 
-def test_type_remains_denied_without_requesting_approval(
+def test_unadvertised_type_is_rejected_before_requesting_approval(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run_id = "run_type_denied"
@@ -475,16 +514,20 @@ def test_type_remains_denied_without_requesting_approval(
     provider = FakeModelProvider(turns=deque([_turn(run_id, 1, call)]))
     approvals = DynamicApprovalPort()
     desktop = FakeDesktopMCP()
+    config = _config(tmp_path, monkeypatch)
 
-    with pytest.raises(RunFailure, match="POLICY_DENIED"):
+    with pytest.raises(RunFailure, match="^PROVIDER_TOOL_NOT_ADVERTISED$"):
         asyncio.run(
             AgentRunner(
-                _config(tmp_path, monkeypatch), RunnerPorts(provider, desktop, approvals)
+                config, RunnerPorts(provider, desktop, approvals)
             ).run("Type", run_id=run_id)
         )
 
+    assert "type" not in {tool.name for tool in provider.calls[0]["tools"]}
     assert approvals.requests == []
     assert desktop.tool_calls == []
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["failure_code"] == "PROVIDER_TOOL_NOT_ADVERTISED"
 
 
 def test_second_action_without_reobservation_is_not_approved_or_dispatched(

@@ -13,16 +13,9 @@
   ],
   "results": [],
   "expected": {
-    "outcome": "POLICY_DENIED",
+    "outcome": "PROVIDER_TOOL_NOT_ADVERTISED",
     "trace": [
-      {"kind": "user_task"},
-      {"kind": "model_turn", "tool_call_count": 1},
-      {
-        "kind": "tool_call",
-        "tool": "type",
-        "arguments": {"text_present": true, "text_length": 17, "ref_supplied": false}
-      },
-      {"kind": "tool_result", "tool": "type", "status": "rejected", "code": "POLICY_DENIED"}
+      {"kind": "user_task"}
     ],
     "dispatched_tools": []
   }

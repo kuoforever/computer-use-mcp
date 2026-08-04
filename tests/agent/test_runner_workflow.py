@@ -6,6 +6,7 @@ import inspect
 import json
 from collections import deque
 from pathlib import Path
+from typing import Never
 
 import pytest
 from PIL import Image as PILImage
@@ -149,10 +150,34 @@ def test_cancellation_before_a_result_remains_cancelled(
 def test_runner_advertises_only_the_caller_bounded_reviewed_tool_subset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    identity = CallIdentity("run_subset", "turn_1", "call_1")
     provider = FakeModelProvider(
-        turns=deque([ModelTurn("run_subset", "turn_1", "response_1", "done")])
+        turns=deque(
+            [
+                ModelTurn(
+                    "run_subset",
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (ToolCall(identity, "ui_snapshot", {}),),
+                ),
+                ModelTurn("run_subset", "turn_2", "response_2", "done"),
+            ]
+        )
     )
-    desktop = FakeDesktopMCP()
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    identity,
+                    "ui_snapshot",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="none",
+                )
+            ]
+        )
+    )
 
     outcome = asyncio.run(
         _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
@@ -163,9 +188,117 @@ def test_runner_advertises_only_the_caller_bounded_reviewed_tool_subset(
     )
 
     assert outcome.text == "done"
-    assert {
-        tool.name for tool in provider.calls[0]["tools"]
-    } == {"ui_snapshot", "document_text"}
+    assert [
+        {tool.name for tool in call["tools"]} for call in provider.calls
+    ] == [
+        {"ui_snapshot", "document_text"},
+        {"ui_snapshot", "document_text"},
+    ]
+    assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
+
+
+def test_runner_rejects_an_entire_turn_before_persisting_an_unadvertised_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_unadvertised_turn"
+    allowed = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    unadvertised = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_2"),
+        "list_windows",
+        {},
+    )
+
+    class RejectingTurnProvider(FakeModelProvider):
+        def export_continuation(self, run_id: str) -> Never:
+            del run_id
+            raise AssertionError("rejected provider turn must not be exported")
+
+    provider = RejectingTurnProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (allowed, unadvertised),
+                )
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP()
+    approvals = FakeApprovalPort()
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    persisted_boundaries: list[tuple[str, str]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        persisted_boundaries.append(
+            (str(boundary["operation_kind"]), str(boundary["stage"]))
+        )
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
+
+    with pytest.raises(RunFailure, match="^PROVIDER_TOOL_NOT_ADVERTISED$"):
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(provider, desktop, approvals),
+            ).run(
+                "Inspect",
+                run_id=run_id,
+                allowed_tool_names=frozenset({"ui_snapshot"}),
+            )
+        )
+
+    assert {tool.name for tool in provider.calls[0]["tools"]} == {"ui_snapshot"}
+    assert desktop.tool_calls == []
+    assert approvals.requests == []
+    assert persisted_boundaries == [
+        ("provider", "prepared"),
+        ("provider", "dispatch_intent"),
+    ]
+    assert not continuation_path(config.state_dir, run_id).exists()
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "PROVIDER_TOOL_NOT_ADVERTISED"
+    assert record["state"]["budgets"]["model_turns_used"] == 0
+    assert record["state"]["budgets"]["tool_calls_used"] == 0
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
+
+
+def test_runner_enforces_the_post_baseline_advertised_tool_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_filtered_tool"
+    call = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_1"),
+        "ocr",
+        {"x": 0, "y": 0, "w": 10, "h": 10},
+    )
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn(run_id, "turn_1", "response_1", "", (call,))])
+    )
+    desktop = FakeDesktopMCP(satisfied_safety_baselines=frozenset())
+
+    with pytest.raises(RunFailure, match="^PROVIDER_TOOL_NOT_ADVERTISED$"):
+        asyncio.run(
+            _runner(_config(tmp_path, monkeypatch), provider, desktop).run(
+                "Read a region",
+                run_id=run_id,
+                allowed_tool_names=frozenset({"ui_snapshot", "ocr"}),
+            )
+        )
+
+    assert {tool.name for tool in provider.calls[0]["tools"]} == {"ui_snapshot"}
     assert desktop.tool_calls == []
 
 

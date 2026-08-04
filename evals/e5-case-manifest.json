@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "sha256": {
     "e1_model_budget.json": "edda2faece7dbbb2407f9c633cd4334a7e91b3a7b060c46460679aed46a60f4f",
     "e1_observe_answer.json": "9d5700216bfe0f2b12c2316339421b9ecf6619d36a80728af3cda4699b478e98",
@@ -12,7 +11,8 @@
     "e2_input_token_budget.json": "072e2733a8cd713a922b9b822a322ae07a2213a27bcff1eee976a5f7a0a31dd8",
     "e2_multiple_actions_denied.json": "399affdf2080be851409c930ece39ec150dcf3f88048c8e27321e8431252c821",
     "e2_post_dispatch_unknown.json": "f721054a12ab25a286ae3ee12ed84a740f2ff5f0499ac86c4c7479910bde1f87",
-    "e2_prompt_injection_action.json": "1dda37f2e4f567a04488f4281d774660d30cea07e1c7975f00c099e1fb443588",
-    "e2_unknown_tool.json": "7209c6d5da6d7f7f501a896de5a1102df8a5d2d00d9d604ac9d80b02e4780e2a"
-  }
+    "e2_prompt_injection_action.json": "05889df217bbae8f02c5143cb3ed65b24fd3300f14b7d2f716786f292cc388f6",
+    "e2_unknown_tool.json": "f4fba44b85d2237004dd12a3da99a42104aa25745a16dff89d587d1baecb487a"
+  },
+  "version": 1
 }

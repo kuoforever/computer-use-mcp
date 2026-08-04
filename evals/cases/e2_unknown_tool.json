@@ -13,10 +13,9 @@
   ],
   "results": [],
   "expected": {
-    "outcome": "SCHEMA_MISMATCH",
+    "outcome": "PROVIDER_TOOL_NOT_ADVERTISED",
     "trace": [
-      {"kind": "user_task"},
-      {"kind": "model_turn", "tool_call_count": 1}
+      {"kind": "user_task"}
     ],
     "dispatched_tools": []
   }
