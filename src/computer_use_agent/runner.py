@@ -399,6 +399,49 @@ class AgentRunner:
             budgets=replace(budget, side_effects_used=budget.side_effects_used + 1),
         )
 
+    def _preflight_post_action_verification_capacity(
+        self,
+        state: RunState,
+        call: ToolCall,
+    ) -> None:
+        """Preflight one provider turn and observation call after a side effect."""
+
+        budget = state.budgets
+        if budget.model_turns_used >= budget.max_model_turns:
+            raise RunnerBudgetError("MODEL_TURN_BUDGET_EXHAUSTED")
+        if budget.input_tokens_used >= budget.max_input_tokens:
+            raise RunnerBudgetError("INPUT_TOKEN_BUDGET_EXHAUSTED")
+
+        # Build the exact immutable ledger topology that an allowed, dispatched
+        # action would expose to the next provider call. This projection grants
+        # no authority and is never assigned back to the real run state.
+        projected_decision = PolicyDecision(
+            request_id="verification-capacity-projection",
+            identity=call.identity,
+            call_digest=call.digest,
+            kind=PolicyDecisionKind.ALLOW,
+            reason="verification_capacity_projection",
+        )
+        projected_state = self._record_policy_decision(state, projected_decision)
+        projected_state = self._record_result(
+            projected_state,
+            ToolResult(
+                identity=call.identity,
+                tool_name=call.name,
+                status=ToolResultStatus.SUCCESS,
+                dispatch=DispatchCertainty.DISPATCHED,
+            ),
+            effect=ToolEffect.SIDE_EFFECT,
+        )
+        reduce_ledger(
+            projected_state.event_log,
+            max_events=self.config.policy.max_context_events,
+            run_id=state.run_id,
+        )
+
+        if budget.tool_calls_used >= budget.max_tool_calls:
+            raise RunnerBudgetError("TOOL_CALL_BUDGET_EXHAUSTED")
+
     def _approval_binding(
         self, state: RunState, call: ToolCall, grounding: GroundingState
     ) -> ApprovalBinding:
@@ -538,6 +581,7 @@ class AgentRunner:
                 )
                 if state.budgets.side_effects_used >= state.budgets.max_side_effects:
                     raise RunnerBudgetError("SIDE_EFFECT_BUDGET_EXHAUSTED")
+                self._preflight_post_action_verification_capacity(state, call)
             except GroundingError as exc:
                 denied = ToolResult(
                     identity=call.identity,
@@ -548,7 +592,7 @@ class AgentRunner:
                 )
                 state = self._record_result(state, denied, effect=spec.effect)
                 raise RunFailure(str(exc), state) from exc
-            except RunnerBudgetError as exc:
+            except (ContextBudgetError, RunnerBudgetError) as exc:
                 denied = ToolResult(
                     identity=call.identity,
                     tool_name=call.name,

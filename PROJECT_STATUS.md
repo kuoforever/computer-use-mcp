@@ -5,7 +5,8 @@
 > `GDA-CORE-003` is merged through PR #232; `GDA-CORE-004` is merged through
 > PR #233; `GDA-CORE-005` is merged through PR #234; `GDA-CORE-006` is merged
 > through PR #235; `GDA-CORE-007` is merged through PR #236;
-> `GDA-CORE-008` is complete locally; and `GDA-CORE-009` is the exact next item.
+> `GDA-CORE-008` is merged through PR #237; `GDA-CORE-009` is complete locally;
+> and `GDA-CORE-010` is the exact next item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -90,18 +91,29 @@ stateless replay, and turn creation, then atomically rejects any returned call
 outside that tuple before provider completion or future MCP dispatch. It is
 merged through PR #236.
 
-`GDA-CORE-008` closes the human-yield attribution gap locally. The MCP server
+`GDA-CORE-008` closed the human-yield attribution gap. The MCP server
 now retains each structured `Result` plus an explicit route fact and records an
 agent tick only after a known-successful native-input route. Semantic UIA
 actions, activation, validation/no-op failures, and every failed driver result
 leave concurrent human input authoritative, while successful coordinate click,
 scroll, drag, focused typing, and key routes still avoid yielding to themselves.
+It is merged through PR #237.
 
-The next bounded audit selected `GDA-CORE-009`. An approved side effect can
-currently consume the last model turn, tool call, input-token allowance, or
-reducible context capacity and dispatch successfully before the mandatory
-post-action observation discovers that no verification lane remains. The next
-slice must reserve that full lane before approval or side-effect authority.
+`GDA-CORE-009` closes the post-action verification-capacity gap locally. Before
+approval exists, the Runner now requires one next model turn, input-token
+headroom, a reducible projected `ALLOW` plus dispatched-result context, and one
+remaining observation call. Fixed model/input/context/tool insufficiency records
+a known-not-dispatched budget result while preserving the verified observation
+and granting zero approval, action continuation, side-effect budget, or MCP
+authority.
+
+The next bounded audit selected `GDA-CORE-010`. The Runner validates generation,
+grounding, and required safety baselines before it opens the approval wait, but
+does not read their live values again after the operator returns. Deterministic
+reproductions change MCP generation or remove the typed-text safety baseline in
+the approval callback and still dispatch the stale ref/type action. The next
+slice must perform one final live authority recheck after the audited `ALLOW`
+decision and before side-effect consumption or action continuation.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -121,7 +133,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1631 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-008` closure revalidation |
+| Offline baseline | `1637 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-009` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -181,12 +193,13 @@ delivery work.
 | `GDA-CORE-005` | Complete; merged | Revalidate required MCP safety baselines before read-only recovery dispatch | Commit `969a56f`, merged through PR #234 as `ea2e063`; the executor checks the current reviewed requirement against the connected MCP generation before intent; missing OCR evidence has fixed `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, byte-identical checkpoint/continuation files, zero phase transition, and zero MCP dispatch, while the baseline-satisfied path retains atomic intent/completion; complete gate: `1601 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-006` | Complete; merged | Make returned-turn argument validation whole-turn atomic | Commit `12d1211`, merged through PR #235 as `33b0d73`; shared preflight runs after identity/advertised-name checks and before every downstream authority boundary; malformed observation and approved-action sibling tests prove fixed `SCHEMA_MISMATCH`, provider intent only, user-task-only trace, zero model/tool/side-effect budget, zero approval, and zero MCP dispatch; complete gate: `1603 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-007` | Complete; merged | Preserve the original Host-advertised tool scope across recovery | Commit `a53d6c1`, merged through PR #236 as `e726052`; strict continuation v6 binds the exact final Host-advertised names, recovery narrows them to currently evidenced observations, and the same ordered tuple governs every provider and returned-turn boundary. Old/corrupt evidence, unauthorized mandatory observation synthesis, mismatched completed ledgers, and out-of-scope calls fail closed; complete gate: `1619 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent authority review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
-| `GDA-CORE-008` | Complete locally | Prevent non-native or failed MCP actions from claiming a human input tick | Structured results and explicit route provenance gate agent-tick attribution on known-successful native input. Semantic ref actions, activation, invalid/no-op calls, and all failures leave the tick unclaimed; five native-success routes, self-input suppression, concurrent-human blocking, audit compatibility, and typed-text redaction are regression tested; complete gate: `1631 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent safety review passed on 2026-08-04 |
-| `GDA-CORE-009` | Next | Reserve a mandatory post-action verification lane before side-effect authority | Before approval, require one remaining model turn, input-token headroom, one remaining tool call, and reducible projected context for the approved action result; known insufficiency must reject with zero approval, continuation intent, side-effect budget, or action MCP dispatch |
+| `GDA-CORE-008` | Complete; merged | Prevent non-native or failed MCP actions from claiming a human input tick | Commit `0756861`, merged through PR #237 as `ab4bb3a`; structured results and explicit route provenance gate agent-tick attribution on known-successful native input. Semantic ref actions, activation, invalid/no-op calls, and all failures leave the tick unclaimed; five native-success routes, self-input suppression, concurrent-human blocking, audit compatibility, and typed-text redaction are regression tested; complete gate: `1631 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent safety review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
+| `GDA-CORE-009` | Complete locally | Reserve a mandatory post-action verification lane before side-effect authority | Before approval, the Runner preflights model, input-token, projected-context, and tool-call capacity in fixed priority. Four insufficiency paths retain an exact eight-event known-not-dispatched ledger and prior verified observation with zero approval/action continuation/side-effect/MCP authority; exact `4/4/9/3` completion and `3/3/9/3` verification-only capacity prevent over-reservation; complete gate: `1637 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and two independent authority reviews passed on 2026-08-04 |
+| `GDA-CORE-010` | Next | Revalidate live MCP generation and required safety baselines after approval wait | After a valid audited `ALLOW` but before side-effect consumption, action continuation, or MCP, revalidate grounding against the live generation and the tool's required baselines against current MCP evidence; drift must append a rejected/not-dispatched policy result while preserving the verified observation and dispatching zero actions |
 
-`GDA-CORE-008` is complete locally on
-`codex/core-runtime-human-yield-attribution`; no new implementation starts until
-it is merged and a fresh branch is created for `GDA-CORE-009`.
+`GDA-CORE-009` is complete locally on
+`codex/core-runtime-verification-capacity`; no new implementation starts until
+it is merged and a fresh branch is created for `GDA-CORE-010`.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -452,33 +465,45 @@ The platform's latest-input tick still cannot identify input interleaved during
 one successful native call; that larger provenance limit is explicit and is not
 silently claimed as solved.
 
-## Exact next task: `GDA-CORE-009`
+## Completed slice: `GDA-CORE-009`
 
-The ordinary Runner can approve and dispatch a grounded side effect after its
-request has already consumed all capacity needed for mandatory verification.
-Deterministic reproductions dispatch the click and then fail with
-`MODEL_TURN_BUDGET_EXHAUSTED` at two model turns,
-`TOOL_CALL_BUDGET_EXHAUSTED` at two tool calls, or
-`CONTEXT_REQUIRED_EVENTS_EXCEED_BUDGET` when the minimal post-result ledger has
-only five through eight context-event slots. The same boundary applies when the
-current provider turn has exhausted the input-token budget.
+The ordinary Runner now preflights one mandatory verification lane after an
+action request passes ordinary authority checks but before creating approval.
+It checks remaining model and input-token capacity, runs the canonical reducer
+against an immutable same-identity `ALLOW` plus dispatched-result projection,
+then checks the remaining observation-call slot. Fixed-priority insufficiency
+appends only a rejected/not-dispatched `BUDGET_EXHAUSTED` result to the real
+ledger; the projection grants no authority and never mutates or persists.
+Regression coverage freezes the exact eight-event failure state, absence of
+action approval/continuation/MCP authority, the `4/4/9/3` complete boundary,
+and the `3/3/9/3` observation-only lane so final-response capacity is not
+silently over-reserved.
 
-Create `codex/core-runtime-verification-capacity` from the merged
-`GDA-CORE-008` `origin/main`. After the action call is recorded and ordinary
-policy, baseline, re-observation, grounding, and side-effect-quota checks pass,
-but before constructing an approval request or any action continuation state,
-preflight one complete post-action verification lane. Require a remaining model
-turn, input-token headroom, one remaining tool-call slot, and successful context
-reduction for the projected `ALLOW` policy event plus dispatched action result.
-Use the existing failure priority and codes: model, input, context, then tool.
-Known insufficiency must record a rejected/not-dispatched `BUDGET_EXHAUSTED`
-tool result but create zero approval request, side-effect budget use,
-continuation preparation/intent, or action MCP dispatch; the prior verified
-observation remains valid. Capacity at the exact safe boundary must preserve the
-existing approval, action, mandatory observation, and final path. Update the
-owning Runner/context contracts and run the complete gate. Do not resume Demo,
-Full Cycle consumer, training, BF16, Operator HUD, Universal GUI, or Multi-Agent
-work.
+## Exact next task: `GDA-CORE-010`
+
+The approval wait is an authority TOCTOU boundary. A deterministic run observes
+and grounds a ref on MCP generation 1, then mutates the fake desktop to
+generation 2 inside `request_approval()`; the stale ref action still dispatches,
+re-observes, and reaches `SUCCESS`. A second run advertises `type` with
+`typed_text_audit_redaction`, removes that baseline inside the same wait, and
+still dispatches the typed side effect. The current binding recomputation reads
+the unchanged in-memory `GroundingState`, not the live desktop authority.
+
+Create `codex/core-runtime-post-approval-authority` from the merged
+`GDA-CORE-009` `origin/main`. Preserve the valid correlated `ALLOW` as an
+audited human decision, but after the DENY/REOBSERVE/DEFER branches and before
+side-effect consumption, action continuation, or MCP, run one final live
+recheck. Validate grounding against `desktop.generation` first, retaining fixed
+`MCP_GENERATION_CHANGED`; then require the tool's safety baselines from the live
+`desktop.satisfied_safety_baselines`, using fixed
+`SAFETY_BASELINE_UNSATISFIED`. Either drift appends a rejected/not-dispatched
+`POLICY_DENIED` result, preserves the prior verified observation, and consumes
+zero side-effect budget with zero action continuation or action MCP dispatch.
+Freeze ref/window/screenshot generation drift, typed-text baseline removal,
+the audited-ALLOW ledger shape, and the unchanged-authority success path.
+Update the owning approval/Runner/evaluation contracts and run the complete
+gate. Do not resume Demo, Full Cycle consumer, training, BF16, Operator HUD,
+Universal GUI, or Multi-Agent work.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -497,7 +522,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
 post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-must not displace `GDA-CORE-009`.
+must not displace `GDA-CORE-010`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -603,3 +628,6 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-04 | `GDA-CORE-007` merged through PR #236 as `e726052`; all four GitHub checks passed, and `GDA-CORE-008` is now the sole active core Runtime item on `codex/core-runtime-human-yield-attribution`. |
 | 2026-08-04 | `GDA-CORE-008` makes agent-input attribution depend on both structured success and known native route provenance; semantic, activation, rejected, no-op, and failed actions cannot claim a concurrent human tick. |
 | 2026-08-04 | A bounded audit selected `GDA-CORE-009` next: the Runner must reserve model, input-token, context, and tool-call capacity for mandatory post-action verification before approval or side-effect dispatch. |
+| 2026-08-04 | `GDA-CORE-008` merged through PR #237 as `ab4bb3a`; all four GitHub checks passed, and `GDA-CORE-009` is now the sole active core Runtime item on `codex/core-runtime-verification-capacity`. |
+| 2026-08-04 | `GDA-CORE-009` reserves exactly one mandatory verification lane before approval using a non-authorizing context projection; fixed insufficiency retains the prior verified observation and grants zero side-effect authority. |
+| 2026-08-04 | A bounded audit selected `GDA-CORE-010` next: after recording a valid `ALLOW`, the Runner must revalidate live MCP generation and required safety baselines before side-effect budget, action continuation, or MCP dispatch. |
