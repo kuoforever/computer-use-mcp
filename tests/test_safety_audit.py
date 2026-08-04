@@ -128,6 +128,82 @@ class AuthorityDriver:
         return Result.success()
 
 
+class AttributionDriver(AuthorityDriver):
+    def __init__(self, *, fail_key: bool = False) -> None:
+        super().__init__()
+        self.idle_seconds = 10.0
+        self.input_tick = 1
+        self.fail_key = fail_key
+        self.set_value_calls: list[str] = []
+
+    def last_input_idle_seconds(self) -> float:
+        return self.idle_seconds
+
+    def last_input_tick(self) -> int:
+        return self.input_tick
+
+    def get_tree(self, _opts) -> TreeResult:
+        return TreeResult(
+            [
+                Node(
+                    native_id="preview-control",
+                    role="Button",
+                    name="Preview",
+                    value=None,
+                    bbox=Rect(10, 10, 20, 20),
+                    states=["enabled"],
+                    patterns=["invoke"],
+                ),
+                Node(
+                    native_id="notes-control",
+                    role="Edit",
+                    name="Notes",
+                    value="existing text",
+                    bbox=Rect(40, 10, 80, 20),
+                    states=["enabled"],
+                    patterns=["value"],
+                ),
+            ],
+            truncated=0,
+        )
+
+    def invoke(self, _native_id: str) -> Result:
+        self.action_calls.append("invoke")
+        self.input_tick += 1
+        self.idle_seconds = 0.1
+        return Result.success()
+
+    def click(self, _x: int, _y: int, button: str = "left") -> Result:
+        self.action_calls.append(f"click:{button}")
+        self.input_tick += 1
+        self.idle_seconds = 0.1
+        return Result.success()
+
+    def key(self, _combo: str) -> Result:
+        self.action_calls.append("key")
+        self.input_tick += 1
+        self.idle_seconds = 0.1
+        if self.fail_key:
+            return Result.fail("DRIVER_ERROR", "injected failure")
+        return Result.success()
+
+    def set_value(self, _native_id: str, text: str) -> Result:
+        self.action_calls.append("set_value")
+        self.set_value_calls.append(text)
+        return Result.success()
+
+
+class NoteTrackingActivity:
+    def __init__(self) -> None:
+        self.note_calls = 0
+
+    def wait_until_stable(self) -> None:
+        return None
+
+    def note_agent_action(self) -> None:
+        self.note_calls += 1
+
+
 def tool_text(result) -> str:
     content = result[0] if isinstance(result, tuple) else result
     return "\n".join(getattr(item, "text", "") for item in content)
@@ -328,6 +404,183 @@ def test_server_rejects_unbounded_or_noop_motion_before_driver(
     assert "ERROR DRIVER_ERROR" in result
     assert driver.scroll_calls == []
     assert driver.drag_calls == []
+
+
+def test_semantic_ref_click_preserves_concurrent_human_input_authority(
+    tmp_path: Path,
+) -> None:
+    driver = AttributionDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        dangerous_confirmation=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    semantic = tool_text(
+        asyncio.run(
+            server.call_tool("click", {"ref": "ref_1", "x": None, "y": None})
+        )
+    )
+    native = tool_text(
+        asyncio.run(
+            server.call_tool("click", {"ref": None, "x": 50, "y": 60})
+        )
+    )
+
+    assert semantic == "ok"
+    assert native.startswith("HUMAN_ACTIVE:")
+    assert driver.action_calls == ["invoke"]
+
+
+def test_successful_native_input_is_attributed_without_self_blocking(
+    tmp_path: Path,
+) -> None:
+    driver = AttributionDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    first = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+    second = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+
+    assert first == "ok"
+    assert second == "ok"
+    assert driver.action_calls == ["key", "key"]
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("click", {"ref": None, "x": 10, "y": 20}),
+        ("scroll", {"x": 10, "y": 20, "delta_x": 0, "delta_y": -120}),
+        (
+            "drag",
+            {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": 0},
+        ),
+        ("type", {"text": "safe text", "ref": None}),
+        ("key", {"combo": "Ctrl+S"}),
+    ],
+)
+def test_each_successful_native_input_route_claims_one_agent_tick(
+    tmp_path: Path,
+    tool: str,
+    arguments: dict[str, object],
+) -> None:
+    activity = NoteTrackingActivity()
+    driver = AttributionDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
+
+    assert result == "ok"
+    assert activity.note_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments", "expected_calls"),
+    [
+        (
+            "scroll",
+            {"x": 1, "y": 2, "delta_x": 0, "delta_y": 2401},
+            [],
+        ),
+        (
+            "drag",
+            {"x": 1, "y": 2, "to_x": 1, "to_y": 2, "duration_ms": 250},
+            [],
+        ),
+        ("key", {"combo": "Ctrl+S"}, ["key"]),
+    ],
+)
+def test_invalid_noop_or_failed_input_does_not_claim_an_agent_tick(
+    tmp_path: Path,
+    tool: str,
+    arguments: dict[str, object],
+    expected_calls: list[str],
+) -> None:
+    activity = NoteTrackingActivity()
+    driver = AttributionDriver(fail_key=tool == "key")
+    audit_path = tmp_path / "actions.jsonl"
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(audit_path),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
+    _, record = _read_single_record(audit_path)
+
+    assert result.startswith("ERROR DRIVER_ERROR:")
+    assert activity.note_calls == 0
+    assert driver.action_calls == expected_calls
+    assert record["decision"] == "ok"
+
+
+def test_activation_does_not_claim_an_agent_input_tick(tmp_path: Path) -> None:
+    activity = NoteTrackingActivity()
+    driver = AttributionDriver()
+    server = build_server(
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "window-1"}))
+    )
+
+    assert result == "ok"
+    assert activity.note_calls == 0
+    assert driver.action_calls == ["activate_window"]
+
+
+def test_semantic_ref_type_is_not_attributed_and_stays_redacted(
+    tmp_path: Path,
+) -> None:
+    activity = NoteTrackingActivity()
+    driver = AttributionDriver()
+    audit_path = tmp_path / "actions.jsonl"
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(audit_path),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    result = tool_text(
+        asyncio.run(server.call_tool("type", {"text": SECRET, "ref": "ref_2"}))
+    )
+    raw, record = _read_single_record(audit_path)
+
+    assert result == "ok"
+    assert driver.action_calls == ["set_value"]
+    assert driver.set_value_calls == [SECRET]
+    assert activity.note_calls == 0
+    assert record["args"] == {
+        "text_present": True,
+        "text_length": len(SECRET),
+        "ref_supplied": True,
+        "control_mode": "safe_local",
+    }
+    assert record["result"] == {"present": True, "length": 2}
+    _assert_secret_absent(raw, SECRET)
 
 
 ACTION_CASES = (

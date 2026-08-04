@@ -23,6 +23,16 @@ Before an action is executed, the server:
 check, because it is used to bring a listed target forward. In safe mode it is
 still human-activity guarded, e-stop guarded, and audited.
 
+After a known-successful native mouse or keyboard action, the server records
+the platform input tick so its next action does not yield to its own injected
+input. This attribution is limited to successful coordinate clicks, valid
+scrolls and drags, focused-control typing without a ref, and key chords.
+Semantic UIA ref clicks and ref typing, window activation, validation failures,
+no-op motions, and failed driver results never claim an input tick. Concurrent
+human input therefore remains authoritative and makes the next `safe_local`
+action yield without dispatch. A failed native call is left unattributed even
+if it might have injected partial input, so the next call fails conservatively.
+
 ### `full_control_local`
 
 This mode explicitly bypasses the foreground allowlist and human-activity
@@ -86,6 +96,9 @@ $env:CUMCP_DANGEROUS_CONFIRM = "1"
   security boundary.
 - A single desktop still has shared focus, pointer, keyboard, and screenshot
   resources.
+- Input-tick attribution suppresses only known successful agent input; the
+  platform's latest-input tick cannot prove the source of input interleaved
+  during one successful native action.
 
 The presentation profile is not a model/reasoning-speed control. Provider
 latency depends on the selected provider/model and service; the profile only
