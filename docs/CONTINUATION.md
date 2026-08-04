@@ -233,10 +233,14 @@ is absent, fixed `PROVIDER_TOOL_NOT_ADVERTISED` terminates the run before model
 ledger/budget consumption, provider-state export, `completed`, policy, approval,
 or MCP dispatch. The Runner next preflights every call's reviewed schema and
 canonical arguments at the same whole-turn boundary; one invalid sibling fails
-with fixed `SCHEMA_MISMATCH` before any valid prefix executes. Either rejection
-may leave only the conservative provider `prepared` and `dispatch_intent`
-records; no provider `completed` or tool boundary is written, and surviving
-intent remains unknown evidence rather than completed provider work.
+with fixed `SCHEMA_MISMATCH` before any valid prefix executes. Once those specs
+are reviewed, a multi-call turn containing any side effect fails with fixed
+`PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL`; action/action, observation/action, and
+action/observation orderings all stop before provider completion, while a pure
+observation multi-call turn remains eligible. Any rejection may leave only the
+conservative provider `prepared` and `dispatch_intent` records; no provider
+`completed` or tool boundary is written, and surviving intent remains unknown
+evidence rather than completed provider work.
 
 Recovered provider turns use the same ordering against the narrowed v6 scope.
 After turn identity validation, any unadvertised sibling rejects the whole turn
@@ -324,6 +328,13 @@ returned turn containing a valid observation plus `type` fails atomically as
 `PROVIDER_TOOL_NOT_ADVERTISED` with only the user-task trace, zero budget,
 approval, or MCP authority, and no raw typed text in the safe record. A separate
 continuation-disabled approved workflow retains baseline-satisfied typing.
+
+Side-effect turn-seriality tests cover action/action, observation/action, and
+action/observation returns with valid advertised names and canonical schemas.
+Each fails before model/tool budget, provider completion, approval, or MCP and
+leaves only provider `prepared` and `dispatch_intent` evidence. A separate pure
+observation multi-call turn completes both tool boundaries, and the existing
+single-action workflow still reaches mandatory re-observation and success.
 
 The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
 digest-bound replay artifacts. Its manifest freezes successful text and

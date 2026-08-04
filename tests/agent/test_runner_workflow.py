@@ -41,6 +41,7 @@ from computer_use_agent.types import (
     ImageContent,
     ModelUsage,
     ModelTurn,
+    RecoveryStatus,
     ToolCall,
     ToolCallStatus,
     ToolResult,
@@ -356,6 +357,222 @@ def test_runner_rejects_an_entire_turn_before_persisting_a_malformed_call(
     assert record["state"]["budgets"]["side_effects_used"] == 0
     assert record["state"]["budgets"]["input_tokens_used"] == 0
     assert [event["kind"] for event in record["events"]] == ["user_task"]
+
+
+@pytest.mark.parametrize(
+    "returned_names",
+    [
+        pytest.param(("click", "click"), id="action-action"),
+        pytest.param(("ui_snapshot", "click"), id="observation-action"),
+        pytest.param(("click", "ui_snapshot"), id="action-observation"),
+    ],
+)
+def test_runner_rejects_a_side_effect_turn_before_consuming_or_completing_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returned_names: tuple[str, str],
+) -> None:
+    run_id = f"run_nonserial_{returned_names[0]}_{returned_names[1]}"
+    calls = tuple(
+        ToolCall(
+            CallIdentity(run_id, "turn_1", f"call_{index}"),
+            name,
+            {"x": index, "y": index} if name == "click" else {},
+        )
+        for index, name in enumerate(returned_names, start=1)
+    )
+
+    class RejectingTurnProvider(FakeModelProvider):
+        def export_continuation(self, run_id: str) -> Never:
+            del run_id
+            raise AssertionError("non-serial provider turn must not be exported")
+
+    provider = RejectingTurnProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    calls,
+                    usage=ModelUsage(input_tokens=13, output_tokens=7),
+                )
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP()
+    approvals = FakeApprovalPort()
+    persisted_boundaries: list[tuple[str, str, str]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        persisted_boundaries.append(
+            (
+                str(boundary["operation_kind"]),
+                str(boundary["stage"]),
+                str(boundary["operation_id"]),
+            )
+        )
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+
+    with pytest.raises(
+        RunFailure, match="^PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL$"
+    ):
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Reject a non-serial side-effect turn",
+                run_id=run_id,
+            )
+        )
+
+    advertised = {tool.name for tool in provider.calls[0]["tools"]}
+    assert set(returned_names).issubset(advertised)
+    assert persisted_boundaries == [
+        ("provider", "prepared", f"{run_id}:turn_1:provider"),
+        ("provider", "dispatch_intent", f"{run_id}:turn_1:provider"),
+    ]
+    assert desktop.tool_calls == []
+    assert desktop.close_calls == 1
+    assert approvals.requests == []
+    assert not continuation_path(config.state_dir, run_id).exists()
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert (
+        record["state"]["failure_code"]
+        == "PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL"
+    )
+    assert record["state"]["budgets"] == {
+        "max_input_tokens": 1_000_000,
+        "max_model_turns": 4,
+        "max_side_effects": 8,
+        "max_tool_calls": 4,
+        "input_tokens_used": 0,
+        "model_turns_used": 0,
+        "side_effects_used": 0,
+        "tool_calls_used": 0,
+    }
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
+
+
+def test_runner_preserves_a_multi_observation_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_multi_observation_turn"
+    snapshot = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    windows = ToolCall(
+        CallIdentity(run_id, "turn_1", "call_2"),
+        "list_windows",
+        {},
+    )
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (snapshot, windows),
+                    usage=ModelUsage(input_tokens=1, output_tokens=1),
+                ),
+                ModelTurn(
+                    run_id,
+                    "turn_2",
+                    "response_2",
+                    "done",
+                    usage=ModelUsage(input_tokens=1, output_tokens=1),
+                ),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                ToolResult(
+                    snapshot.identity,
+                    snapshot.name,
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="snapshot",
+                ),
+                ToolResult(
+                    windows.identity,
+                    windows.name,
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text="windows",
+                ),
+            ]
+        )
+    )
+    persisted_boundaries: list[dict[str, object]] = []
+    original_write = continuation_module.write_continuation
+
+    def capture_write(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        persisted_boundaries.append(dict(boundary))
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(continuation_module, "write_continuation", capture_write)
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+
+    outcome = asyncio.run(_runner(config, provider, desktop).run("Inspect", run_id=run_id))
+
+    assert outcome.text == "done"
+    assert [call.name for call in desktop.tool_calls] == ["ui_snapshot", "list_windows"]
+    assert outcome.state.budgets.model_turns_used == 2
+    assert outcome.state.budgets.input_tokens_used == 2
+    assert outcome.state.budgets.tool_calls_used == 2
+    assert outcome.state.budgets.side_effects_used == 0
+    assert outcome.state.observation_epoch == outcome.state.verified_observation_epoch == 2
+    assert outcome.state.recovery_status is RecoveryStatus.READY
+    assert [event.kind for event in outcome.state.event_log] == [
+        LedgerEventKind.USER_TASK,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+        LedgerEventKind.OBSERVATION,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+        LedgerEventKind.OBSERVATION,
+        LedgerEventKind.MODEL_TURN,
+    ]
+    assert {
+        str(boundary["operation_id"])
+        for boundary in persisted_boundaries
+        if boundary["operation_kind"] == "tool" and boundary["stage"] == "completed"
+    } == {
+        f"{run_id}:turn_1:call_1",
+        f"{run_id}:turn_1:call_2",
+    }
+    assert any(
+        boundary == {
+            "operation_kind": "provider",
+            "stage": "completed",
+            "operation_id": f"{run_id}:turn_1:provider",
+            "effect": "observation",
+            "dispatch": "dispatched",
+            "next_step": "dispatch_observation",
+        }
+        for boundary in persisted_boundaries
+    )
+    assert desktop.close_calls == 1
+    assert not continuation_path(config.state_dir, run_id).exists()
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == RunPhase.SUCCESS.value
 
 
 def test_runner_enforces_the_post_baseline_advertised_tool_set(

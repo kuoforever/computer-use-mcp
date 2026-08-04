@@ -998,10 +998,15 @@ class AgentRunner:
                 ):
                     raise RunFailure("PROVIDER_TOOL_NOT_ADVERTISED", state)
                 try:
-                    for call in turn.tool_calls:
-                        self._validated_tool_spec(call)
+                    returned_specs = tuple(
+                        self._validated_tool_spec(call) for call in turn.tool_calls
+                    )
                 except ToolValidationError as exc:
                     raise RunFailure("SCHEMA_MISMATCH", state) from exc
+                if len(turn.tool_calls) > 1 and any(
+                    spec.effect is ToolEffect.SIDE_EFFECT for spec in returned_specs
+                ):
+                    raise RunFailure("PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL", state)
                 if privacy is not None:
                     try:
                         privacy.validate_model_text(turn.text)

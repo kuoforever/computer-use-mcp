@@ -14,12 +14,9 @@
   ],
   "results": [],
   "expected": {
-    "outcome": "POLICY_DENIED",
+    "outcome": "PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL",
     "trace": [
-      {"kind": "user_task"},
-      {"kind": "model_turn", "tool_call_count": 2},
-      {"kind": "tool_call", "tool": "click", "arguments": {"ref": "ref_1"}},
-      {"kind": "tool_result", "tool": "click", "status": "rejected", "code": "POLICY_DENIED"}
+      {"kind": "user_task"}
     ],
     "dispatched_tools": []
   }

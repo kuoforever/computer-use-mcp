@@ -83,8 +83,8 @@ choices: request approval for the exact effect, re-observe, defer, or deny. It
 shows fixed trade-offs and an expandable evidence section containing
 only evidence kinds, unknown-fact enums, expiry, and SHA-256 Host/card digests.
 Re-observe records a fixed rejected/not-dispatched result, invalidates grounding,
-abandons remaining calls from that provider turn, and requires a successful
-reviewed observation before another action or final answer. Defer records a
+ends that single-call action turn, and requires a successful reviewed observation
+before another action or final answer. Defer records a
 fixed rejected/not-dispatched result and a durable `PAUSED` checkpoint with
 `recovery_status=stopped`; it is intentionally not same-run resumable, so recovery
 requires trace inspection and a fresh run. Denial stops the run. All three paths
@@ -121,6 +121,15 @@ Failure records the requested action as rejected and known not dispatched with
 `BUDGET_EXHAUSTED`; it creates no approval, side-effect charge, action
 continuation, or MCP dispatch and does not invalidate the verified observation.
 
+Before any returned call reaches that per-action boundary, the Host requires a
+side-effect-bearing provider turn to contain exactly one call. After advertised
+name and reviewed schema validation, action/action, observation/action, and
+action/observation returns fail atomically with fixed
+`PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` before model/tool budget, provider
+completion, approval, action continuation, or MCP. Pure observation multi-call
+turns remain sequential. Therefore an untrusted sibling cannot execute first or
+consume the post-action flow reserved for mandatory verification.
+
 Any side-effect call that may have been dispatched clears all grounding, sets
 `recovery_status=requires_reobservation`, and clears the verified observation
 epoch. This applies to successful and action-error results. The model cannot:
@@ -137,10 +146,10 @@ terminal unknown state, and is never replayed.
 
 Offline tests prove allow/deny/mismatch binding, grounding freshness, MCP
 generation and safety-baseline drift both before and after an approval wait,
-bounds, side-effect accounting, serialization, mandatory re-observation,
-typed-text denial, unknown outcomes, redacted approvals, and terminal trace
-state. Post-approval drift retains the correlated `ALLOW` as an audit fact but
-creates no dispatch authority.
+bounds, side-effect accounting, single-call side-effect turns, mandatory
+re-observation, typed-text denial, unknown outcomes, redacted approvals, and
+terminal trace state. Post-approval drift retains the correlated `ALLOW` as an
+audit fact but creates no dispatch authority.
 
 The re-observe/defer extension is offline verified only. The retained native
 desktop record still covers the earlier three-choice card; a four-choice
