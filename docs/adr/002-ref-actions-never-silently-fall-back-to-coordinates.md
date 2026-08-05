@@ -63,15 +63,23 @@ coordinate clicks — the exact outcome this ADR exists to prevent.
 
 ## Decision
 
-A stale ref gets **one bounded relocation attempt by identity**, then fails.
+A stale ref from an explicit window-id scope gets **one bounded relocation
+attempt by identity**, then fails. A stale ref from the dynamic `foreground` or
+`all` selector fails immediately and requires a fresh observation.
 
 Relocation searches the fresh tree for a node with the **same role and the same
-name**, inside the exact observation scope token that first minted the ref, and
-among those matches picks the one nearest the original center. Later snapshot or
-find calls cannot change that per-ref relocation domain. Role and name are the
-identity; geometry is only a tie-breaker between candidates that already match.
-If no candidate matches, the call fails with `STALE_ELEMENT` and the caller is
-told to re-snapshot.
+name**, inside the explicit window-id scope token that first minted the ref, and
+among those matches picks the one nearest the original center. Later snapshot
+or find calls cannot change that per-ref relocation domain. Role and name are
+the identity; geometry is only a tie-breaker between candidates that already
+match. If no candidate matches, the call fails with `STALE_ELEMENT` and the
+caller is told to re-snapshot.
+
+`foreground` and `all` are selectors, not stable window identities. Once the
+original native handle reports stale, either token returns `STALE_ELEMENT`
+without another tree query, candidate semantic action, coordinate action, or
+ref-map mutation. This avoids retargeting a ref after foreground or window-set
+drift without expanding the Driver contract.
 
 An accepted relocation uses the complete fresh Node for the single semantic
 retry and updates the cached node, forward native binding, and reverse binding
@@ -84,6 +92,7 @@ Explicitly forbidden:
 - Clicking a cached bounding box center after a failed relocation.
 - Relocating by geometry alone, or by position index.
 - Relocating in the scope of a later, unrelated observation.
+- Relocating a stale ref minted from the dynamic `foreground` or `all` token.
 - Stealing a native handle already bound to another ref.
 - Reporting success when the target could not be confirmed.
 
@@ -101,16 +110,12 @@ loudly. Wrong-target actions from stale state are structurally excluded. The
 again.
 
 **Negative.** Models see more failures, and a caller that does not handle
-`STALE_ELEMENT` will stall on dynamic UIs. Relocation costs a full extra tree
-traversal on the failure path. Applications with duplicate role+name pairs (two
-buttons both named "Open") can still relocate to the wrong one of the two —
-identity is only as good as what UIA exposes, which is a real remaining limit,
-not a solved problem.
-
-The stored scope is also a selector token rather than an atomic resolved-window
-identity. In particular, `foreground` can resolve to a different window by the
-time relocation runs. Solving that requires new Driver/TreeResult identity
-evidence; this clarification does not claim it is solved.
+`STALE_ELEMENT` will stall on dynamic UIs. Dynamic-scope refs now require a new
+observation rather than receiving a transparent recovery attempt. Eligible
+explicit-window relocation costs a full extra tree traversal on the failure
+path. Applications with duplicate role+name pairs inside that same explicit
+window can still relocate to the wrong one of the two — identity is only as good
+as what UIA exposes, which is a real remaining limit, not a solved problem.
 
 **Future migration point.** If a driver ever exposes a stable per-element
 identity (an automation id honored across rebuilds), relocation should prefer it
@@ -121,9 +126,10 @@ over role+name, which would narrow the duplicate-name gap above.
 Implemented:
 
 - `_act_on_ref` and `_relocate` in `src/computer_use_mcp/core.py`: one retry
-  after a `STALE_ELEMENT` result, matching on `role` and `name` in the ref's
-  original scope token, nearest-center tie-break, complete-Node retry, and
-  explicit failure when no candidate exists.
+  after a `STALE_ELEMENT` result only for an explicit window-id scope, matching
+  on `role` and `name` in the ref's original scope token, nearest-center
+  tie-break, complete-Node retry, and explicit failure when no candidate exists.
+  Dynamic `foreground` and `all` tokens fail before `_relocate`.
 - `_rebind` in `src/computer_use_mcp/core.py`: reverse-owner conflicts fail
   closed; accepted relocation updates cached Node plus both map directions and
   releases the old reverse entry.
@@ -137,6 +143,8 @@ Implemented:
 
 Tested offline:
 
+- `tests/test_core.py::test_stale_foreground_ref_does_not_relocate_into_new_foreground_window`
+- `tests/test_core.py::test_stale_all_scope_ref_does_not_query_or_act_on_relocation_candidate`
 - `tests/test_core.py::test_later_observation_cannot_move_ref_relocation_scope`
 - `tests/test_core.py::test_foreign_scope_candidate_is_never_used_when_original_scope_has_none`
 - `tests/test_core.py::test_successful_relocation_rebinds_node_and_native_maps_bijectively`

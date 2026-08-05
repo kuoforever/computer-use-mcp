@@ -17,16 +17,20 @@ The contract keeps platform-native code out of the core. It defines:
 
 The shared core owns `ref_N` handles. Drivers only receive and return their
 own `native_id` values. For each ref, the core retains the first `PruneOpts.scope`
-token and uses only that token for one stale-handle relocation query. The core
+token. It uses that token for one stale-handle relocation query only when the
+token is an explicit window id. A stale ref minted through the dynamic
+`foreground` or `all` selector fails before another `get_tree` call. The core
 also owns a bijective native/ref binding: a relocated candidate already owned
 by another ref fails closed, while an accepted candidate updates the cached
 Node plus both binding directions before one semantic retry. Drivers neither
 mint refs nor turn a ref into coordinates.
 
 This ref lifecycle does not change Driver contract `1.0.0` or add a method.
-`scope="foreground"` is still a dynamic selector resolved by `get_tree`; the
-current `TreeResult` carries no atomic resolved-window identity. A future
-physical-window binding would require a separately reviewed contract revision.
+`scope="foreground"` and `scope="all"` remain dynamic selectors resolved by
+`get_tree`; the current `TreeResult` carries no atomic resolved-window identity.
+The core therefore requires a fresh observation instead of attempting stale
+relocation for either token. A future physical-window binding would require a
+separately reviewed contract revision.
 
 ## Shared data model
 

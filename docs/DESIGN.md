@@ -30,7 +30,7 @@ server boundary when no driver is explicitly supplied.
 | Component | Responsibility |
 | --- | --- |
 | `server.py` | Exposes thirteen MCP tools and applies runtime guard behavior. |
-| `core.py` | Maintains session-scoped `ref_N` handles, serializes snapshots, and retries one stale ref relocation. |
+| `core.py` | Maintains session-scoped `ref_N` handles, serializes snapshots, and retries one eligible explicit-window stale ref relocation. |
 | `contract.py` | Defines the typed Driver boundary and shared data structures. |
 | `drivers/windows.py` | Uses UIA/Win32, screen capture, and process inspection to implement the contract. |
 | `gate.py` | Matches the foreground window's process ancestry against the safe-mode allowlist. |
@@ -65,17 +65,19 @@ display.
 
 Ref actions must not be silently converted to center-of-bounding-box clicks.
 If a native control is stale, the session makes at most one role-and-name
-relocation attempt inside the scope token that first minted that ref, then
-returns an explainable error. Later snapshot/find calls do not replace this
-per-ref relocation scope. A successful relocation updates the cached Node and
-both directions of the native/ref binding together; a candidate already owned
-by another ref fails closed without a second semantic action. The ref path never
-falls back to coordinates.
+relocation attempt inside the explicit window-id scope token that first minted
+that ref, then returns an explainable error. Later snapshot/find calls do not
+replace this per-ref relocation scope. A successful relocation updates the
+cached Node and both directions of the native/ref binding together; a candidate
+already owned by another ref fails closed without a second semantic action. The
+ref path never falls back to coordinates.
 
-This binds the original scope token, not a resolved physical-window identity.
-In particular, `foreground` remains a dynamic selector. Freezing its resolved
-window across observation and action would require new atomic identity evidence
-from the Driver/TreeResult contract and is outside the current `1.0.0` surface.
+`foreground` and `all` are dynamic selectors, not resolved physical-window
+identities. A ref minted through either token fails `STALE_ELEMENT` immediately
+after its original native handle reports stale, without a relocation tree query,
+candidate action, or binding mutation. The caller must observe again. Only an
+explicit window-id token can use the bounded relocation path, so this rule needs
+no new Driver/TreeResult identity evidence and keeps contract `1.0.0` unchanged.
 
 ### One coordinate model, with a current boundary
 

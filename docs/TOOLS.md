@@ -62,18 +62,19 @@ for the complete guard behavior.
 Refs are kept across later snapshots when the driver still recognizes the same
 native UIA element. Each ref also retains the exact scope token from the
 snapshot or find call that first minted it; later observations in another scope
-do not change its relocation domain. If the native element becomes stale, the
-server makes one best-effort role-and-name relocation attempt only in that
-original scope. A candidate already owned by another ref is a conflict and
-fails closed without acting on the candidate. Successful relocation updates the
-ref's node and both native/ref bindings together. If relocation fails, the
-server returns `STALE_ELEMENT`; take a new snapshot before acting again.
+do not change its relocation domain. If that token is an explicit window id and
+the native element becomes stale, the server makes one best-effort role-and-name
+relocation attempt only in that window scope. A candidate already owned by
+another ref is a conflict and fails closed without acting on the candidate.
+Successful relocation updates the ref's node and both native/ref bindings
+together.
 
-The token `foreground` remains a dynamic driver selector, not a frozen physical
-window identity. A ref first observed with that token relocates in whatever the
-driver resolves as `foreground` at retry time. Atomic binding to a resolved
-window would require additional driver identity evidence and is not claimed by
-the current contract.
+The tokens `foreground` and `all` remain dynamic driver selectors, not frozen
+physical-window identities. A stale ref first observed through either selector
+returns `STALE_ELEMENT` without another tree query or candidate action; take a
+fresh snapshot before acting again. Only an explicit window-id scope is eligible
+for relocation. This fail-closed distinction requires no new resolved-window
+identity evidence and does not change Driver contract `1.0.0`.
 
 Prefer refs whenever possible:
 
@@ -106,7 +107,7 @@ specific reason where available, for example:
 | `DENIED by gate` | The safe-mode foreground allowlist did not match. |
 | `HUMAN_ACTIVE` | Recent local input caused safe mode to yield. |
 | `ABORTED` | The e-stop is engaged; restart the server to clear it. |
-| `STALE_ELEMENT` | The requested ref no longer resolves after one relocation attempt. |
+| `STALE_ELEMENT` | The requested ref no longer resolves; dynamic-scope refs require a fresh snapshot, while explicit-window refs permit one bounded relocation attempt. |
 | `OUT_OF_BOUNDS` | A coordinate lies outside the current supported capture space. |
 | `DRIVER_ERROR` | The platform driver could not perform the operation. |
 
