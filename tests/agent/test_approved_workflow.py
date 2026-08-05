@@ -37,6 +37,7 @@ from computer_use_agent.types import (
     PolicyDecision,
     PolicyDecisionKind,
     RecoveryStatus,
+    RunState,
     ToolCall,
     ToolCallStatus,
     ToolResult,
@@ -451,6 +452,380 @@ def test_approved_action_requires_grounding_then_reobservation_before_success(
         LedgerEventKind.POLICY_DECISION
     ) == 1
     assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "SUCCESS"
+
+
+def test_human_active_invalidates_before_continuation_and_blocks_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_human_active_retry"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    repeated = _call(run_id, 3, "call_3", "click", {"ref": "ref_1"})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before, input_tokens=1),
+                _turn(run_id, 2, first, input_tokens=1),
+                _turn(run_id, 3, repeated, input_tokens=1),
+            ]
+        )
+    )
+    human_active = ToolResult(
+        first.identity,
+        first.name,
+        ToolResultStatus.REJECTED,
+        DispatchCertainty.NOT_DISPATCHED,
+        code="HUMAN_ACTIVE",
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                ),
+                human_active,
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    payloads = _capture_continuations(monkeypatch)
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    completion_entry_checkpoints: list[dict[str, object]] = []
+    original_complete_tool = (
+        continuation_module.RuntimeContinuationRecorder.complete_tool
+    )
+
+    def inspect_complete_tool(
+        recorder: continuation_module.RuntimeContinuationRecorder,
+        state: RunState,
+        result: ToolResult,
+        *,
+        checkpoint_sequence: int,
+    ) -> object:
+        if result.code == "HUMAN_ACTIVE":
+            checkpoint = read_run_record(config.state_dir, run_id)["state"]
+            assert checkpoint["checkpoint_sequence"] == checkpoint_sequence
+            assert checkpoint["verified_observation_epoch"] is None
+            assert checkpoint["recovery_status"] == "requires_reobservation"
+            completion_entry_checkpoints.append(checkpoint)
+        return original_complete_tool(
+            recorder,
+            state,
+            result,
+            checkpoint_sequence=checkpoint_sequence,
+        )
+
+    monkeypatch.setattr(
+        continuation_module.RuntimeContinuationRecorder,
+        "complete_tool",
+        inspect_complete_tool,
+    )
+
+    with pytest.raises(RunFailure, match="^REOBSERVATION_REQUIRED$") as raised:
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Click only with fresh authority",
+                run_id=run_id,
+            )
+        )
+
+    state = raised.value.state
+    assert state.observation_epoch == 1
+    assert state.verified_observation_epoch is None
+    assert state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION
+    assert state.budgets.side_effects_used == 1
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        first.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [first.identity]
+    assert len(provider.calls) == 3
+    assert len(completion_entry_checkpoints) == 1
+
+    completed = [
+        payload
+        for payload in payloads
+        if isinstance((boundary := payload.get("boundary")), dict)
+        and boundary.get("operation_id") == f"{run_id}:turn_2:call_2"
+        and boundary.get("stage") == "completed"
+    ]
+    assert len(completed) == 1
+    assert completed[0]["observation"] == {
+        "epoch": 1,
+        "verified_epoch": None,
+        "mcp_generation": 1,
+    }
+    assert completed[0]["boundary"] == {
+        "operation_kind": "tool",
+        "stage": "completed",
+        "operation_id": f"{run_id}:turn_2:call_2",
+        "effect": "side_effect",
+        "dispatch": "dispatched",
+        "next_step": "mandatory_reobserve",
+    }
+    completed_result = completed[0]["ledger"][-1]
+    assert completed_result["kind"] == "tool_result"
+    assert completed_result["data"]["status"] == "rejected"
+    assert completed_result["data"]["dispatch"] == "not_dispatched"
+    assert completed_result["data"]["code"] == "HUMAN_ACTIVE"
+    assert not any(
+        isinstance((boundary := payload.get("boundary")), dict)
+        and boundary.get("operation_kind") == "tool"
+        and boundary.get("operation_id") == f"{run_id}:turn_3:call_3"
+        for payload in payloads
+    )
+
+    checkpoint = read_run_record(config.state_dir, run_id)["state"]
+    assert checkpoint["phase"] == "FAILED"
+    assert checkpoint["failure_code"] == "REOBSERVATION_REQUIRED"
+    assert checkpoint["verified_observation_epoch"] is None
+    assert checkpoint["recovery_status"] == "requires_reobservation"
+
+
+def test_human_active_discards_old_refs_across_non_ref_reobservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_human_active_old_ref"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    windows = _call(run_id, 3, "call_3", "list_windows", {})
+    stale = _call(run_id, 4, "call_4", "click", {"ref": "ref_1"})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, first),
+                _turn(run_id, 3, windows),
+                _turn(run_id, 4, stale),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                ),
+                ToolResult(
+                    first.identity,
+                    first.name,
+                    ToolResultStatus.REJECTED,
+                    DispatchCertainty.NOT_DISPATCHED,
+                    code="HUMAN_ACTIVE",
+                ),
+                _result(windows, text='* 42 | app.exe | "App"'),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+
+    with pytest.raises(RunFailure, match="^GROUNDING_REQUIRED$") as raised:
+        asyncio.run(
+            AgentRunner(
+                _config(tmp_path, monkeypatch),
+                RunnerPorts(provider, desktop, approvals),
+            ).run("Do not reuse stale refs", run_id=run_id)
+        )
+
+    assert raised.value.state.observation_epoch == 2
+    assert raised.value.state.verified_observation_epoch == 2
+    assert raised.value.state.recovery_status is RecoveryStatus.READY
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        first.identity,
+        windows.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [first.identity]
+
+
+def test_fresh_snapshot_after_human_active_restores_action_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_human_active_refreshed"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    refreshed = _call(run_id, 3, "call_3", "ui_snapshot", {})
+    second = _call(run_id, 4, "call_4", "click", {"ref": "ref_2"})
+    verified = _call(run_id, 5, "call_5", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, first),
+                _turn(run_id, 3, refreshed),
+                _turn(run_id, 4, second),
+                _turn(run_id, 5, verified),
+                _turn(run_id, 6, text="verified after human yield"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | button "Old" | (1,1,10,10) | enabled',
+                ),
+                ToolResult(
+                    first.identity,
+                    first.name,
+                    ToolResultStatus.REJECTED,
+                    DispatchCertainty.NOT_DISPATCHED,
+                    code="HUMAN_ACTIVE",
+                ),
+                _result(
+                    refreshed,
+                    text='ref_2 | button "Fresh" | (1,1,10,10) | enabled',
+                ),
+                _result(second),
+                _result(
+                    verified,
+                    text='ref_3 | text "Done" | (1,1,10,10) | enabled',
+                ),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+
+    outcome = asyncio.run(
+        AgentRunner(
+            _config(tmp_path, monkeypatch),
+            RunnerPorts(provider, desktop, approvals),
+        ).run("Yield, refresh, and click", run_id=run_id)
+    )
+
+    assert outcome.text == "verified after human yield"
+    assert outcome.state.observation_epoch == 3
+    assert outcome.state.verified_observation_epoch == 3
+    assert outcome.state.recovery_status is RecoveryStatus.READY
+    assert outcome.state.budgets.side_effects_used == 2
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        first.identity,
+        refreshed.identity,
+        second.identity,
+        verified.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [
+        first.identity,
+        second.identity,
+    ]
+
+
+def test_unrelated_rejected_side_effect_preserves_verified_grounding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_unrelated_rejection"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    rejected = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    repeated = _call(run_id, 3, "call_3", "click", {"ref": "ref_1"})
+    verified = _call(run_id, 4, "call_4", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, rejected),
+                _turn(run_id, 3, repeated),
+                _turn(run_id, 4, verified),
+                _turn(run_id, 5, text="unchanged"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                ),
+                ToolResult(
+                    rejected.identity,
+                    rejected.name,
+                    ToolResultStatus.REJECTED,
+                    DispatchCertainty.NOT_DISPATCHED,
+                    code="DENIED_BY_GATE",
+                ),
+                _result(repeated),
+                _result(
+                    verified,
+                    text='ref_2 | text "Done" | (1,1,10,10) | enabled',
+                ),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+
+    outcome = asyncio.run(
+        AgentRunner(
+            _config(tmp_path, monkeypatch),
+            RunnerPorts(provider, desktop, approvals),
+        ).run("Preserve unrelated rejection semantics", run_id=run_id)
+    )
+
+    assert outcome.state.observation_epoch == 2
+    assert outcome.state.verified_observation_epoch == 2
+    assert outcome.state.recovery_status is RecoveryStatus.READY
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        rejected.identity,
+        repeated.identity,
+        verified.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [
+        rejected.identity,
+        repeated.identity,
+    ]
+
+
+def test_human_active_code_cannot_downgrade_unknown_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_human_active_unknown"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, before), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                ),
+                ToolResult(
+                    action.identity,
+                    action.name,
+                    ToolResultStatus.UNKNOWN_OUTCOME,
+                    DispatchCertainty.DISPATCHED,
+                    code="HUMAN_ACTIVE",
+                ),
+            ]
+        )
+    )
+    config = _config(tmp_path, monkeypatch)
+
+    with pytest.raises(RunFailure, match="^UNKNOWN_OUTCOME$") as raised:
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(provider, desktop, DynamicApprovalPort()),
+            ).run("Preserve unknown certainty", run_id=run_id)
+        )
+
+    assert raised.value.state.recovery_status is RecoveryStatus.UNKNOWN_OUTCOME
+    assert raised.value.state.verified_observation_epoch is None
+    checkpoint = read_run_record(config.state_dir, run_id)["state"]
+    assert checkpoint["phase"] == "UNKNOWN_OUTCOME"
+    assert checkpoint["failure_code"] == "UNKNOWN_OUTCOME"
+    assert checkpoint["recovery_status"] == "unknown_outcome"
 
 
 @pytest.mark.parametrize(

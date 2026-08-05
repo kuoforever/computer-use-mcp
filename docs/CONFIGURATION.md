@@ -37,6 +37,13 @@ and cannot be reused by the next MCP call; any newer tick rejects. Windows
 events reported under the same `GetLastInputInfo` millisecond tick cannot be
 distinguished by this boundary.
 
+When a reviewed side effect returns `HUMAN_ACTIVE`, the Agent Host invalidates
+its prior verified observation and all Host-owned grounding before completing
+the continuation record. A later side effect therefore requires a fresh
+successful observation; refs, window ids, and screenshot bounds from before the
+human input cannot regain authority through an unrelated observation. This rule
+does not generalize to observation-shaped results or unrelated rejected actions.
+
 After each known-returning native input inside a multi-event action, an exact
 tick capture is allowed only for the next checkpoint in that same call. It keeps
 pointer/key/drag pacing from yielding to its own preceding event. Physical input

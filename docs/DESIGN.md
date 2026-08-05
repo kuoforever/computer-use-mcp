@@ -135,6 +135,13 @@ Only a bounded safety unwind may release a key/button or detach an input queue
 already acquired by the call. It may clear passive feedback without presentation
 delay, but it does not restore the pointer, window, or application state.
 
+A side-effect `HUMAN_ACTIVE` result is known not dispatched, but it also proves
+that the human may have changed the desktop since the Host's last observation.
+The Runner therefore clears its verified observation and `GroundingState` before
+the next checkpoint and continuation completion. Only a fresh successful
+observation can restore the corresponding side-effect authority; other rejected
+results retain their existing certainty and grounding behavior.
+
 Focused `type` sends literal Unicode scalars as ordered UTF-16 `SendInput`
 batches with a checkpoint between scalars. The old library-specific brace/chord
 grammar is intentionally excluded; reviewed chords use `key`.
