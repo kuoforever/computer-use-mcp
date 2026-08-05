@@ -51,7 +51,11 @@ from .human_activity import (
     HumanActivity,
     HumanInputCapture,
 )
-from .native_authority import NativeActionBoundary, NativeAuthorityLost
+from .native_authority import (
+    NativeActionBoundary,
+    NativeAuthorityLost,
+    NativeOutcomeUnknown,
+)
 from .ocr import (
     OCR_TIMEOUT_SECONDS,
     OcrError,
@@ -376,6 +380,18 @@ def build_server(
         try:
             with native_boundary.call_scope(_revalidate, _capture_native_input):
                 result = operation()
+                native_boundary.complete_action(succeeded=result.ok)
+        except NativeOutcomeUnknown:
+            audit.record(
+                tool,
+                _audit_args(args),
+                "unknown_outcome",
+                "native action outcome unknown after dispatch",
+            )
+            return (
+                "ERROR NATIVE_OUTCOME_UNKNOWN: "
+                "native action outcome unknown after dispatch"
+            )
         except NativeAuthorityLost as exc:
             if exc.after_dispatch:
                 audit.record(

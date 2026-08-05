@@ -4,7 +4,11 @@ from threading import Thread
 
 import pytest
 
-from computer_use_mcp.native_authority import NativeActionBoundary, NativeAuthorityLost
+from computer_use_mcp.native_authority import (
+    NativeActionBoundary,
+    NativeAuthorityLost,
+    NativeOutcomeUnknown,
+)
 
 
 def _allow() -> tuple[bool, str]:
@@ -87,6 +91,49 @@ def test_native_input_capture_runs_after_each_known_returning_input() -> None:
         boundary.mutate(lambda: events.append("uia"))
 
     assert events == ["native", "capture", "uia"]
+
+
+def test_failed_completion_after_native_attempt_is_unknown() -> None:
+    boundary = _bound_boundary()
+
+    with boundary.call_scope(_allow, _allow):
+        boundary.mutate(lambda: None)
+        with pytest.raises(NativeOutcomeUnknown) as caught:
+            boundary.complete_action(succeeded=False)
+
+    assert caught.value.dispatch_attempts == 1
+    assert str(caught.value) == "native action outcome unknown"
+
+    with boundary.call_scope(_allow, _allow):
+        boundary.complete_action(succeeded=False)
+
+
+def test_zero_attempt_completion_retains_existing_failure_semantics() -> None:
+    boundary = _bound_boundary()
+
+    with boundary.call_scope(_allow, _allow):
+        boundary.complete_action(succeeded=False)
+
+
+def test_raising_native_operation_is_fixed_unknown_after_attempt() -> None:
+    boundary = _bound_boundary()
+
+    with pytest.raises(NativeOutcomeUnknown) as caught:
+        with boundary.call_scope(_allow, _allow):
+            boundary.mutate(
+                lambda: (_ for _ in ()).throw(RuntimeError("secret native failure"))
+            )
+
+    assert caught.value.dispatch_attempts == 1
+    assert "secret" not in str(caught.value)
+
+
+def test_exception_before_any_attempt_retains_existing_semantics() -> None:
+    boundary = _bound_boundary()
+
+    with pytest.raises(RuntimeError, match="pre-attempt failure"):
+        with boundary.call_scope(_allow, _allow):
+            raise RuntimeError("pre-attempt failure")
 
 
 def test_missing_closed_nested_and_concurrent_scopes_fail_closed() -> None:

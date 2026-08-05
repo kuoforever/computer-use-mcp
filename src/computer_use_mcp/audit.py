@@ -12,7 +12,16 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-TYPE_AUDIT_DECISIONS = frozenset({"ok", "estop", "human_active", "gate_denied", "user_denied"})
+TYPE_AUDIT_DECISIONS = frozenset(
+    {
+        "ok",
+        "estop",
+        "human_active",
+        "gate_denied",
+        "user_denied",
+        "unknown_outcome",
+    }
+)
 
 
 class AuditLog:

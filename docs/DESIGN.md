@@ -130,10 +130,18 @@ misattributed; no source-tagging or global input hook is claimed.
 
 Authority loss before the first native attempt stays rejected/not-dispatched.
 Loss after an attempt stops target progress and becomes fixed
-`UNKNOWN_OUTCOME / DISPATCHED`; the Runner terminalizes and never replays it.
-Only a bounded safety unwind may release a key/button or detach an input queue
-already acquired by the call. It may clear passive feedback without presentation
-delay, but it does not restore the pointer, window, or application state.
+`NATIVE_AUTHORITY_LOST` with `UNKNOWN_OUTCOME / DISPATCHED`. Independently, if a
+Windows action returns failure or raises after the call-scoped boundary has
+recorded at least one native dispatch attempt, the server replaces that cause
+with the fixed redacted `NATIVE_OUTCOME_UNKNOWN` envelope. This is a server-owned
+certainty code, not a Driver error code; failures with zero recorded native
+attempts retain their existing result and certainty semantics.
+
+The Runner terminalizes either post-attempt unknown outcome, invalidates the MCP
+generation, and never verifies, continues, recovers, or replays the action. Only
+a bounded safety unwind may release a key/button or detach an input queue already
+acquired by the call. It may clear passive feedback without presentation delay,
+but it does not restore the pointer, window, or application state.
 
 A side-effect result with the exact `REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE`
 or `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple is known not dispatched,

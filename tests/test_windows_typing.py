@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from computer_use_mcp.contract import DRIVER_ERROR
 from computer_use_mcp.drivers import windows as windows_driver_module
 from computer_use_mcp.drivers.windows import WindowsDriver
 from computer_use_mcp.interaction_feedback import resolve_interaction_pacing
@@ -274,6 +275,52 @@ def test_partial_odd_unicode_prefix_releases_key_before_tick_capture_failure(
         with pytest.raises(NativeAuthorityLost):
             driver.type(character)
 
+    assert len(calls[0]) == len(WindowsDriver._literal_character_input_batch(character))
+    assert calls[1] == [(cleanup_scan, 0x0006)]
+
+
+@pytest.mark.parametrize(
+    ("character", "inserted", "cleanup_scan"),
+    [("A", 1, 0x0041), ("😀", 3, 0xDE00)],
+)
+def test_partial_odd_unicode_prefix_returns_driver_error_after_bounded_cleanup(
+    character: str,
+    inserted: int,
+    cleanup_scan: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[tuple[int, int]]] = []
+    results = iter((inserted, 1))
+
+    class User32:
+        def SendInput(self, count: int, pointer: object, _size: int) -> int:
+            typed_pointer = ctypes.cast(
+                pointer,
+                ctypes.POINTER(windows_driver_module.auto.INPUT),
+            )
+            calls.append(
+                [
+                    (
+                        int(typed_pointer[index].union.ki.wScan),
+                        int(typed_pointer[index].union.ki.dwFlags),
+                    )
+                    for index in range(count)
+                ]
+            )
+            return next(results)
+
+    monkeypatch.setattr("computer_use_mcp.drivers.windows.ctypes.windll.user32", User32())
+    driver = WindowsDriver.__new__(WindowsDriver)
+    driver._typing_interval = 0.0
+    driver._sleep = lambda _seconds: None
+
+    with _authorized(driver):
+        result = driver.type(character)
+
+    assert not result.ok
+    assert result.code == DRIVER_ERROR
+    assert result.message == "SendInput did not insert the complete scalar"
+    assert len(calls) == 2
     assert len(calls[0]) == len(WindowsDriver._literal_character_input_batch(character))
     assert calls[1] == [(cleanup_scan, 0x0006)]
 

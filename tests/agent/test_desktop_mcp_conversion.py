@@ -122,20 +122,24 @@ def test_pre_dispatch_action_rejections_are_known_not_dispatched(
     assert result.code == code
 
 
-def test_partial_native_authority_loss_is_unknown_and_known_dispatched() -> None:
+@pytest.mark.parametrize(
+    "code",
+    ["NATIVE_AUTHORITY_LOST", "NATIVE_OUTCOME_UNKNOWN"],
+)
+def test_partial_native_result_is_unknown_and_known_dispatched(code: str) -> None:
     call = _call("click")
+    secret = "secret native failure detail"
 
     result = convert_mcp_result(
         call,
-        _text_result(
-            "ERROR NATIVE_AUTHORITY_LOST: native action authority changed after dispatch"
-        ),
+        _text_result(f"ERROR {code}: {secret}"),
     )
 
     assert result.status is ToolResultStatus.UNKNOWN_OUTCOME
     assert result.dispatch is DispatchCertainty.DISPATCHED
-    assert result.code == "NATIVE_AUTHORITY_LOST"
+    assert result.code == code
     assert result.sanitized_text == ""
+    assert secret not in repr(result)
 
 
 @pytest.mark.parametrize(

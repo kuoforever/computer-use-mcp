@@ -510,14 +510,18 @@ def test_server_exception_for_side_effect_invalidates_generation(tmp_path: Path)
     assert factory.exit_calls == 1
 
 
-def test_native_authority_partial_result_is_dispatched_and_invalidates_generation(
+@pytest.mark.parametrize(
+    "code",
+    ["NATIVE_AUTHORITY_LOST", "NATIVE_OUTCOME_UNKNOWN"],
+)
+def test_native_partial_result_is_dispatched_and_invalidates_generation(
     tmp_path: Path,
+    code: str,
 ) -> None:
     session = ScriptedSession(
         results=(
             _text_result(
-                "ERROR NATIVE_AUTHORITY_LOST: "
-                "native action authority changed after dispatch"
+                f"ERROR {code}: native action outcome unknown after dispatch"
             ),
         )
     )
@@ -534,7 +538,7 @@ def test_native_authority_partial_result_is_dispatched_and_invalidates_generatio
 
     assert failed.status is ToolResultStatus.UNKNOWN_OUTCOME
     assert failed.dispatch.value == "dispatched"
-    assert failed.code == "NATIVE_AUTHORITY_LOST"
+    assert failed.code == code
     assert after.status is ToolResultStatus.TRANSPORT_ERROR
     assert after.code == "MCP_CHILD_EXITED_BEFORE_DISPATCH"
     assert len(session.calls) == 1

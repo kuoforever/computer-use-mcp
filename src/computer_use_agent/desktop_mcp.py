@@ -73,6 +73,12 @@ _SERVER_RESULT_CODES = frozenset(
         "DRIVER_ERROR",
     }
 )
+_SERVER_UNKNOWN_CODES = frozenset(
+    {
+        "NATIVE_AUTHORITY_LOST",
+        "NATIVE_OUTCOME_UNKNOWN",
+    }
+)
 _SERVER_ERROR_PREFIXES = (
     ("ABORTED:", "ABORTED"),
     ("HUMAN_ACTIVE:", "HUMAN_ACTIVE"),
@@ -246,7 +252,7 @@ def _classify_action_text(text: str) -> tuple[ToolResultStatus, str | None]:
             return ToolResultStatus.REJECTED, code
     if text.startswith("ERROR "):
         code = text[6:].partition(":")[0].strip()
-        if code == "NATIVE_AUTHORITY_LOST":
+        if code in _SERVER_UNKNOWN_CODES:
             return ToolResultStatus.UNKNOWN_OUTCOME, code
         if code in _SERVER_RESULT_CODES:
             return ToolResultStatus.ACTION_ERROR, code

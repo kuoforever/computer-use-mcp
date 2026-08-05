@@ -38,6 +38,14 @@ class NativeAuthorityLost(RuntimeError):
         return self.dispatch_attempts > 0
 
 
+class NativeOutcomeUnknown(RuntimeError):
+    """A fixed control-flow exception for failure after a native attempt."""
+
+    def __init__(self, *, dispatch_attempts: int) -> None:
+        super().__init__("native action outcome unknown")
+        self.dispatch_attempts = max(1, int(dispatch_attempts))
+
+
 @dataclass(slots=True)
 class _CallScope:
     revalidate: AuthorityProbe
@@ -89,6 +97,14 @@ class NativeActionBoundary:
         token = self._current.set(scope)
         try:
             yield
+        except (NativeAuthorityLost, NativeOutcomeUnknown):
+            raise
+        except Exception:
+            if scope.dispatch_attempts > 0:
+                raise NativeOutcomeUnknown(
+                    dispatch_attempts=scope.dispatch_attempts
+                ) from None
+            raise
         finally:
             scope.closed = True
             self._current.reset(token)
@@ -124,6 +140,17 @@ class NativeActionBoundary:
                 )
         return result
 
+    def complete_action(self, *, succeeded: bool) -> None:
+        """Promote a failed action with any native attempt to unknown outcome."""
+
+        if not isinstance(succeeded, bool):
+            raise TypeError("native action completion requires a boolean result")
+        scope = self._current.get()
+        if scope is None or scope.closed:
+            raise NativeAuthorityLost(dispatch_attempts=0)
+        if not succeeded and scope.dispatch_attempts > 0:
+            raise NativeOutcomeUnknown(dispatch_attempts=scope.dispatch_attempts)
+
     @staticmethod
     def _probe(probe: AuthorityProbe) -> tuple[bool, str]:
         try:
@@ -140,4 +167,4 @@ class NativeActionBoundary:
         return decision
 
 
-__all__ = ["NativeActionBoundary", "NativeAuthorityLost"]
+__all__ = ["NativeActionBoundary", "NativeAuthorityLost", "NativeOutcomeUnknown"]
