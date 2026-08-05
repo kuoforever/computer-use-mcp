@@ -37,12 +37,19 @@ and cannot be reused by the next MCP call; any newer tick rejects. Windows
 events reported under the same `GetLastInputInfo` millisecond tick cannot be
 distinguished by this boundary.
 
-When a reviewed side effect returns `HUMAN_ACTIVE`, the Agent Host invalidates
+When a reviewed side effect returns the exact
+`REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` or
+`REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple, the Agent Host invalidates
 its prior verified observation and all Host-owned grounding before completing
-the continuation record. A later side effect therefore requires a fresh
-successful observation; refs, window ids, and screenshot bounds from before the
-human input cannot regain authority through an unrelated observation. This rule
-does not generalize to observation-shaped results or unrelated rejected actions.
+the continuation record. The former means current human-idle authority is
+unavailable or indicates that local input may have changed the desktop since
+Host grounding was established; the latter proves the live foreground gate no
+longer grants the authority checked for the attempted action. A later side
+effect therefore requires a fresh successful observation; refs, window ids, and
+screenshot bounds from before the yield cannot regain authority through an
+unrelated observation or later allowlisted foreground. This rule does not
+generalize to observation-shaped results, other certainty tuples, or unrelated
+rejected actions.
 
 After each known-returning native input inside a multi-event action, an exact
 tick capture is allowed only for the next checkpoint in that same call. It keeps

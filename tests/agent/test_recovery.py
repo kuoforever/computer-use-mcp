@@ -238,9 +238,11 @@ def _completed_side_effect(
     return tool_state, envelope, result
 
 
-def test_completed_human_active_requires_observation_without_action_replay(
+@pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
+def test_completed_authority_yield_requires_observation_without_action_replay(
     tmp_path: Path,
     monkeypatch: object,
+    authority_yield_code: str,
 ) -> None:
     config = _config(tmp_path, monkeypatch)
     initial = replace(
@@ -255,7 +257,7 @@ def test_completed_human_active_requires_observation_without_action_replay(
         unknown=False,
         status=ToolResultStatus.REJECTED,
         dispatch=DispatchCertainty.NOT_DISPATCHED,
-        code="HUMAN_ACTIVE",
+        code=authority_yield_code,
     )
 
     assert envelope.payload["observation"] == {
@@ -263,9 +265,22 @@ def test_completed_human_active_requires_observation_without_action_replay(
         "verified_epoch": None,
         "mcp_generation": 1,
     }
+    assert envelope.payload["boundary"] == {
+        "operation_kind": "tool",
+        "stage": "completed",
+        "operation_id": f"{state.run_id}:turn_1:call_1",
+        "effect": "side_effect",
+        "dispatch": "dispatched",
+        "next_step": "mandatory_reobserve",
+    }
+    completed_result = envelope.payload["ledger"][-1]
+    assert completed_result["kind"] == "tool_result"
+    assert completed_result["data"]["status"] == "rejected"
+    assert completed_result["data"]["dispatch"] == "not_dispatched"
+    assert completed_result["data"]["code"] == authority_yield_code
     assert result.status is ToolResultStatus.REJECTED
     assert result.dispatch is DispatchCertainty.NOT_DISPATCHED
-    assert result.code == "HUMAN_ACTIVE"
+    assert result.code == authority_yield_code
 
     plan = plan_read_only_recovery(
         _checkpoint(state, 6),

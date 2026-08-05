@@ -454,11 +454,13 @@ def test_approved_action_requires_grounding_then_reobservation_before_success(
     assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "SUCCESS"
 
 
-def test_human_active_invalidates_before_continuation_and_blocks_retry(
+@pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
+def test_authority_yield_invalidates_before_continuation_and_blocks_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    authority_yield_code: str,
 ) -> None:
-    run_id = "run_human_active_retry"
+    run_id = f"run_{authority_yield_code.lower()}_retry"
     before = _call(run_id, 1, "call_1", "ui_snapshot", {})
     first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
     repeated = _call(run_id, 3, "call_3", "click", {"ref": "ref_1"})
@@ -471,12 +473,12 @@ def test_human_active_invalidates_before_continuation_and_blocks_retry(
             ]
         )
     )
-    human_active = ToolResult(
+    authority_yield = ToolResult(
         first.identity,
         first.name,
         ToolResultStatus.REJECTED,
         DispatchCertainty.NOT_DISPATCHED,
-        code="HUMAN_ACTIVE",
+        code=authority_yield_code,
     )
     desktop = FakeDesktopMCP(
         results=deque(
@@ -485,7 +487,7 @@ def test_human_active_invalidates_before_continuation_and_blocks_retry(
                     before,
                     text='ref_1 | button "OK" | (1,1,10,10) | enabled',
                 ),
-                human_active,
+                authority_yield,
             ]
         )
     )
@@ -504,7 +506,7 @@ def test_human_active_invalidates_before_continuation_and_blocks_retry(
         *,
         checkpoint_sequence: int,
     ) -> object:
-        if result.code == "HUMAN_ACTIVE":
+        if result.code == authority_yield_code:
             checkpoint = read_run_record(config.state_dir, run_id)["state"]
             assert checkpoint["checkpoint_sequence"] == checkpoint_sequence
             assert checkpoint["verified_observation_epoch"] is None
@@ -569,7 +571,7 @@ def test_human_active_invalidates_before_continuation_and_blocks_retry(
     assert completed_result["kind"] == "tool_result"
     assert completed_result["data"]["status"] == "rejected"
     assert completed_result["data"]["dispatch"] == "not_dispatched"
-    assert completed_result["data"]["code"] == "HUMAN_ACTIVE"
+    assert completed_result["data"]["code"] == authority_yield_code
     assert not any(
         isinstance((boundary := payload.get("boundary")), dict)
         and boundary.get("operation_kind") == "tool"
@@ -584,11 +586,135 @@ def test_human_active_invalidates_before_continuation_and_blocks_retry(
     assert checkpoint["recovery_status"] == "requires_reobservation"
 
 
-def test_human_active_discards_old_refs_across_non_ref_reobservation(
+def test_gate_denial_invalidates_screenshot_coordinates_before_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    run_id = "run_human_active_old_ref"
+    run_id = "run_gate_denial_coordinates"
+    before = _call(run_id, 1, "call_1", "screenshot", {})
+    first = _call(run_id, 2, "call_2", "click", {"x": 0, "y": 0})
+    repeated = _call(run_id, 3, "call_3", "click", {"x": 0, "y": 0})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, first),
+                _turn(run_id, 3, repeated),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    images=(ImageContent("image/png", _PNG_10X10, 10, 10),),
+                ),
+                ToolResult(
+                    first.identity,
+                    first.name,
+                    ToolResultStatus.REJECTED,
+                    DispatchCertainty.NOT_DISPATCHED,
+                    code="DENIED_BY_GATE",
+                ),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    payloads = _capture_continuations(monkeypatch)
+
+    with pytest.raises(RunFailure, match="^REOBSERVATION_REQUIRED$") as raised:
+        asyncio.run(
+            AgentRunner(
+                _config(tmp_path, monkeypatch, continuation_enabled=True),
+                RunnerPorts(provider, desktop, approvals),
+            ).run("Do not reuse screenshot coordinates", run_id=run_id)
+        )
+
+    state = raised.value.state
+    assert state.observation_epoch == 1
+    assert state.verified_observation_epoch is None
+    assert state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION
+    assert state.budgets.side_effects_used == 1
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        first.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [first.identity]
+    assert not any(
+        isinstance((boundary := payload.get("boundary")), dict)
+        and boundary.get("operation_kind") == "tool"
+        and boundary.get("operation_id") == f"{run_id}:turn_3:call_3"
+        for payload in payloads
+    )
+
+
+def test_gate_denial_discards_coordinates_across_non_image_reobservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_gate_denial_old_coordinates"
+    before = _call(run_id, 1, "call_1", "screenshot", {})
+    first = _call(run_id, 2, "call_2", "click", {"x": 0, "y": 0})
+    windows = _call(run_id, 3, "call_3", "list_windows", {})
+    stale = _call(run_id, 4, "call_4", "click", {"x": 0, "y": 0})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, first),
+                _turn(run_id, 3, windows),
+                _turn(run_id, 4, stale),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    images=(ImageContent("image/png", _PNG_10X10, 10, 10),),
+                ),
+                ToolResult(
+                    first.identity,
+                    first.name,
+                    ToolResultStatus.REJECTED,
+                    DispatchCertainty.NOT_DISPATCHED,
+                    code="DENIED_BY_GATE",
+                ),
+                _result(windows, text='* 42 | app.exe | "App"'),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+
+    with pytest.raises(RunFailure, match="^GROUNDING_REQUIRED$") as raised:
+        asyncio.run(
+            AgentRunner(
+                _config(tmp_path, monkeypatch),
+                RunnerPorts(provider, desktop, approvals),
+            ).run("Do not revive stale screenshot bounds", run_id=run_id)
+        )
+
+    assert raised.value.state.observation_epoch == 2
+    assert raised.value.state.verified_observation_epoch == 2
+    assert raised.value.state.recovery_status is RecoveryStatus.READY
+    assert raised.value.state.budgets.side_effects_used == 1
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        first.identity,
+        windows.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [first.identity]
+
+
+@pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
+def test_authority_yield_discards_old_refs_across_non_ref_reobservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    authority_yield_code: str,
+) -> None:
+    run_id = f"run_{authority_yield_code.lower()}_old_ref"
     before = _call(run_id, 1, "call_1", "ui_snapshot", {})
     first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
     windows = _call(run_id, 3, "call_3", "list_windows", {})
@@ -615,7 +741,7 @@ def test_human_active_discards_old_refs_across_non_ref_reobservation(
                     first.name,
                     ToolResultStatus.REJECTED,
                     DispatchCertainty.NOT_DISPATCHED,
-                    code="HUMAN_ACTIVE",
+                    code=authority_yield_code,
                 ),
                 _result(windows, text='* 42 | app.exe | "App"'),
             ]
@@ -642,11 +768,13 @@ def test_human_active_discards_old_refs_across_non_ref_reobservation(
     assert [request.identity for request in approvals.requests] == [first.identity]
 
 
-def test_fresh_snapshot_after_human_active_restores_action_authority(
+@pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
+def test_fresh_snapshot_after_authority_yield_restores_action_authority(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    authority_yield_code: str,
 ) -> None:
-    run_id = "run_human_active_refreshed"
+    run_id = f"run_{authority_yield_code.lower()}_refreshed"
     before = _call(run_id, 1, "call_1", "ui_snapshot", {})
     first = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
     refreshed = _call(run_id, 3, "call_3", "ui_snapshot", {})
@@ -660,7 +788,7 @@ def test_fresh_snapshot_after_human_active_restores_action_authority(
                 _turn(run_id, 3, refreshed),
                 _turn(run_id, 4, second),
                 _turn(run_id, 5, verified),
-                _turn(run_id, 6, text="verified after human yield"),
+                _turn(run_id, 6, text="verified after authority yield"),
             ]
         )
     )
@@ -676,7 +804,7 @@ def test_fresh_snapshot_after_human_active_restores_action_authority(
                     first.name,
                     ToolResultStatus.REJECTED,
                     DispatchCertainty.NOT_DISPATCHED,
-                    code="HUMAN_ACTIVE",
+                    code=authority_yield_code,
                 ),
                 _result(
                     refreshed,
@@ -696,10 +824,10 @@ def test_fresh_snapshot_after_human_active_restores_action_authority(
         AgentRunner(
             _config(tmp_path, monkeypatch),
             RunnerPorts(provider, desktop, approvals),
-        ).run("Yield, refresh, and click", run_id=run_id)
+        ).run("Yield authority, refresh, and click", run_id=run_id)
     )
 
-    assert outcome.text == "verified after human yield"
+    assert outcome.text == "verified after authority yield"
     assert outcome.state.observation_epoch == 3
     assert outcome.state.verified_observation_epoch == 3
     assert outcome.state.recovery_status is RecoveryStatus.READY
@@ -749,7 +877,7 @@ def test_unrelated_rejected_side_effect_preserves_verified_grounding(
                     rejected.name,
                     ToolResultStatus.REJECTED,
                     DispatchCertainty.NOT_DISPATCHED,
-                    code="DENIED_BY_GATE",
+                    code="DENIED_BY_USER",
                 ),
                 _result(repeated),
                 _result(
@@ -783,11 +911,76 @@ def test_unrelated_rejected_side_effect_preserves_verified_grounding(
     ]
 
 
-def test_human_active_code_cannot_downgrade_unknown_outcome(
+def test_observation_shaped_gate_denial_preserves_verified_grounding(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    run_id = "run_human_active_unknown"
+    run_id = "run_observation_gate_denial"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    rejected = _call(run_id, 2, "call_2", "list_windows", {})
+    action = _call(run_id, 3, "call_3", "click", {"ref": "ref_1"})
+    verified = _call(run_id, 4, "call_4", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, rejected),
+                _turn(run_id, 3, action),
+                _turn(run_id, 4, verified),
+                _turn(run_id, 5, text="observation rejection unchanged"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(
+                    before,
+                    text='ref_1 | button "OK" | (1,1,10,10) | enabled',
+                ),
+                ToolResult(
+                    rejected.identity,
+                    rejected.name,
+                    ToolResultStatus.REJECTED,
+                    DispatchCertainty.NOT_DISPATCHED,
+                    code="DENIED_BY_GATE",
+                ),
+                _result(action),
+                _result(
+                    verified,
+                    text='ref_2 | text "Done" | (1,1,10,10) | enabled',
+                ),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+
+    outcome = asyncio.run(
+        AgentRunner(
+            _config(tmp_path, monkeypatch),
+            RunnerPorts(provider, desktop, approvals),
+        ).run("Keep observation-shaped rejection non-authorizing", run_id=run_id)
+    )
+
+    assert outcome.state.observation_epoch == 2
+    assert outcome.state.verified_observation_epoch == 2
+    assert outcome.state.recovery_status is RecoveryStatus.READY
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        rejected.identity,
+        action.identity,
+        verified.identity,
+    ]
+    assert [request.identity for request in approvals.requests] == [action.identity]
+
+
+@pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
+def test_authority_yield_code_cannot_downgrade_unknown_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    authority_yield_code: str,
+) -> None:
+    run_id = f"run_{authority_yield_code.lower()}_unknown"
     before = _call(run_id, 1, "call_1", "ui_snapshot", {})
     action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
     provider = FakeModelProvider(
@@ -805,7 +998,7 @@ def test_human_active_code_cannot_downgrade_unknown_outcome(
                     action.name,
                     ToolResultStatus.UNKNOWN_OUTCOME,
                     DispatchCertainty.DISPATCHED,
-                    code="HUMAN_ACTIVE",
+                    code=authority_yield_code,
                 ),
             ]
         )
