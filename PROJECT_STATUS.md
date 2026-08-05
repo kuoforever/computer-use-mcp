@@ -13,8 +13,8 @@
 > through PR #245; `GDA-CORE-017` is merged through PR #247;
 > `GDA-CORE-018` is merged through PR #249;
 > `GDA-CORE-019` is merged through PR #251;
-> `GDA-CORE-020` is merged through PR #253; `GDA-CORE-021` is complete locally;
-> and `GDA-CORE-022` is the exact next core Runtime item.
+> `GDA-CORE-020` is merged through PR #253; `GDA-CORE-021` is merged through
+> PR #255; and `GDA-CORE-022` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -364,7 +364,7 @@ delivery work.
 | `GDA-CORE-018` | Complete; merged | Invalidate prior observation and grounding when a side effect yields to `HUMAN_ACTIVE` | Commit `f613056`, merged through PR #249 as `1adce11`; the exact side-effect `REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs cannot revive through an unrelated observation, fresh snapshot grounding restores action authority, unknown/dispatched certainty remains terminal, and recovery plans only a new observation with zero action replay. Complete gate: `1725 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/scope reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-019` | Complete; merged | Invalidate prior observation and grounding when a side-effect action is denied by the live gate | Commit `bf0cbec`, merged through PR #251 as `dfc5f9e`; the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs and screenshot coordinates cannot revive through unrelated observations, fresh snapshot grounding restores action authority, observation-shaped gate denial and every other certainty tuple remain unchanged, and recovery plans only a new observation with zero action replay. Complete gate: `1733 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-020` | Complete; merged | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | Commit `257c42d`, merged through PR #253 as `b53bbe2`; the server-owned call scope now promotes every failed Windows action or ordinary exception after one or more native attempts to fixed redacted `NATIVE_OUTCOME_UNKNOWN`. The Agent maps it to terminal `UNKNOWN_OUTCOME / DISPATCHED`, invalidates the MCP generation, and preserves exact continuation/no-replay certainty. Full action-family, actual Windows UIA/SendInput stitch, zero-attempt, bounded-unwind, redaction, lifecycle, Runner, continuation, and recovery regressions pass. Complete gate: `1763 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/test/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
-| `GDA-CORE-021` | Complete locally | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its model/input or tool budget, executor and locked persistence recheck before authority, and prepared singleton observations reuse their charged call. Digest-valid mismatches, exhausted dimensions, forged verification calls, and uncertain multi-observation boundaries have zero external work; valid recovery and side-effect no-replay remain intact. Complete gate: `1780 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent code/certainty/contract review passed on 2026-08-05; no provider, real-desktop, application, or release claim is made |
+| `GDA-CORE-021` | Complete; merged | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Commit `0e83c6e`, merged through PR #255 as `5d605e7`; full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its model/input or tool budget, executor and locked persistence recheck before authority, and prepared singleton observations reuse their charged call. Digest-valid mismatches, exhausted dimensions, forged verification calls, and uncertain multi-observation boundaries have zero external work; valid recovery and side-effect no-replay remain intact. Complete gate: `1780 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no provider, real-desktop, application, or release claim is made |
 | `GDA-CORE-022` | Queued; exact next | Preserve mandatory verification and terminal certainty across completed-provider recovery finalization | Fold the complete continuation ledger and checkpoint before any local success finalization or external work. A completed final provider tail must not erase an outstanding post-side-effect verification obligation or any earlier terminal unknown certainty. Canonical crash-window and digest-valid corruption cases must fail closed with byte-identical durable files and zero provider/MCP work, while normal final success, completed observations, mandatory re-observation, and side-effect no-replay remain intact |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
@@ -379,8 +379,8 @@ delivery work.
 `GDA-CORE-018` is merged through PR #249 as `1adce11`.
 `GDA-CORE-019` is merged through PR #251 as `dfc5f9e`.
 `GDA-CORE-020` is merged through PR #253 as `b53bbe2`.
-`GDA-CORE-021` is complete locally. `GDA-CORE-022` is the exact next core Runtime
-item.
+`GDA-CORE-021` is merged through PR #255 as `5d605e7`. `GDA-CORE-022` is the
+exact next core Runtime item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -918,6 +918,9 @@ Runner/MCP/Driver dispatch ownership, Driver Contract `1.0.0`, retry semantics,
 Demo, Full Cycle, HUD, platform, hierarchical-control, or Multi-Agent scope
 changed.
 
+Commit `0e83c6e` merged through PR #255 as `5d605e7` after the GitHub Python
+3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
+
 ## Exact next task: `GDA-CORE-022`
 
 Preserve mandatory verification and terminal certainty across
@@ -1121,3 +1124,4 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | `GDA-CORE-020` merged through PR #253 as `b53bbe2`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-021` is the exact next core Runtime item. |
 | 2026-08-05 | `GDA-CORE-021` is complete locally and independently reviewed: full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its budget, and executor plus locked persistence recheck before intent or external work while valid prepared observations are not double charged. |
 | 2026-08-05 | A bounded formal-persistence audit selected `GDA-CORE-022` next: completed-provider recovery finalization must preserve a prior mandatory-verification obligation and terminal unknown certainty by folding the complete ledger and binding it to the checkpoint. |
+| 2026-08-05 | `GDA-CORE-021` merged through PR #255 as `5d605e7`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-022` is the exact next core Runtime item. |
