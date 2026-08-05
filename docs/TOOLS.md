@@ -116,6 +116,7 @@ specific reason where available, for example:
 | `OUT_OF_BOUNDS` | A coordinate lies outside the current supported capture space. |
 | `DRIVER_ERROR` | The platform driver could not perform the operation. |
 | `NATIVE_AUTHORITY_LOST` | Authority changed or the native boundary was unavailable. Before any native attempt this is rejected/not-dispatched; after a partial attempt it is unknown-outcome/dispatched, stops the Runner, and is never replayed. |
+| `NATIVE_OUTCOME_UNKNOWN` | A Windows native action reported failure after at least one native dispatch attempt, so its effect may already have occurred. The server replaces the failure detail with this fixed redacted code; the Agent treats it as unknown-outcome/dispatched, stops, and never replays it. |
 
 Until the planned activation-specific error codes are implemented, stale
 window IDs, Windows foreground-lock denial, and a failed foreground
@@ -124,7 +125,9 @@ failure; do not retry an activation indefinitely.
 
 The driver may also report `NOT_INVOKABLE` or `PERMISSION_DENIED`. Treat
 errors as information for the next observation step, not as a reason to repeat
-a destructive action blindly.
+a destructive action blindly. `NATIVE_OUTCOME_UNKNOWN` is a server-owned
+certainty projection rather than a Driver code; a failure with zero recorded
+native attempts keeps its existing result and certainty semantics.
 
 After partial native dispatch, the driver may only release a key/button or
 detach an input queue acquired by that call. This bounded unwind is not rollback;

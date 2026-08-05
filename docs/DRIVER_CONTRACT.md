@@ -128,11 +128,19 @@ interpret e-stop, Gate, human-input, confirmation, tool-argument, or model data.
 An injected driver that cannot bind and checkpoint its native mutations is not
 permitted to execute actions in the current Runtime.
 
-Loss before the first native attempt retains the server's fixed
-rejected/not-dispatched result. Loss after any attempt escapes the ordinary
-`Result` path and becomes fixed `NATIVE_AUTHORITY_LOST` with
-unknown-outcome/dispatched certainty at the Agent bridge. No later target
-mutation or replay is permitted. A driver may directly perform only the smallest
+Authority loss before the first native attempt retains the server's fixed
+rejected/not-dispatched result. Authority loss after any attempt escapes the
+ordinary `Result` path and becomes fixed `NATIVE_AUTHORITY_LOST` with
+unknown-outcome/dispatched certainty at the Agent bridge.
+
+Separately, if a Windows action returns an unsuccessful `Result` or raises after
+the boundary has recorded at least one native dispatch attempt, the server
+replaces the original failure detail with fixed, redacted
+`NATIVE_OUTCOME_UNKNOWN`. This is a server-owned certainty projection, not a
+Driver error code. A zero-attempt failure retains its existing Driver result and
+Agent certainty semantics. No later target mutation, verification, action
+continuation, recovery dispatch, or replay is permitted after either
+post-attempt unknown outcome. A driver may directly perform only the smallest
 bounded unwind needed to release a key/button or detach an input queue already
 acquired by that call; this cannot downgrade certainty or roll back target state.
 
@@ -174,7 +182,9 @@ product behavior yet.
 | `DRIVER_ERROR` | An unclassified driver failure occurred. |
 
 Server-level guard results such as `DENIED by gate`, `HUMAN_ACTIVE`, and
-`ABORTED` are produced above this driver boundary.
+`ABORTED`, and the certainty projections `NATIVE_AUTHORITY_LOST` and
+`NATIVE_OUTCOME_UNKNOWN`, are produced above this driver boundary. They are not
+Driver error codes and do not change Driver Contract `1.0.0`.
 
 ## Platform mapping
 

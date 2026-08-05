@@ -65,15 +65,21 @@ scrolls and drags, focused-control typing without a ref, and key chords.
 Semantic UIA ref clicks and ref typing, window activation, validation failures,
 no-op motions, and failed driver results never claim an input tick. Concurrent
 human input therefore remains authoritative and makes the next `safe_local`
-action yield without dispatch. A failed native call is left unattributed even
-if it might have injected partial input, so the next call fails conservatively.
+action yield without dispatch. A failed native call is left unattributed. If it
+follows one or more recorded native attempts, the current run instead
+terminalizes immediately with the fixed redacted `NATIVE_OUTCOME_UNKNOWN`
+unknown-outcome/dispatched result and cannot issue a next action or replay.
 
 If repeated authority fails before any native mutation, the action retains its
 fixed rejected/not-dispatched result. If a native attempt already occurred, the
 driver stops target progress, performs only required key/button release or input-
-queue detach cleanup, and returns fixed `NATIVE_AUTHORITY_LOST` as
-unknown-outcome/dispatched. The Agent terminalizes that run and never replays the
-call. Cleanup is not rollback and does not restore pointer or application state.
+queue detach cleanup, and the server returns fixed `NATIVE_AUTHORITY_LOST` as
+unknown-outcome/dispatched. This remains distinct from
+`NATIVE_OUTCOME_UNKNOWN`, which the server emits when the native action itself
+returns failure or raises after an attempt. The Agent terminalizes either result
+and never replays the call. Cleanup is not rollback and does not restore pointer
+or application state. A zero-attempt failure retains its existing result and
+certainty semantics.
 
 ### `full_control_local`
 

@@ -296,20 +296,27 @@ def test_completed_authority_yield_requires_observation_without_action_replay(
     assert plan.call.identity != result.identity
 
 
+@pytest.mark.parametrize(
+    "native_unknown_code",
+    ["NATIVE_AUTHORITY_LOST", "NATIVE_OUTCOME_UNKNOWN"],
+)
 def test_completed_native_unknown_preserves_exact_dispatch_and_stops_recovery(
     tmp_path: Path,
     monkeypatch: object,
+    native_unknown_code: str,
 ) -> None:
     config = _config(tmp_path, monkeypatch)
     state, envelope, result = _completed_side_effect(
         config,
         _state(),
         unknown=True,
+        code=native_unknown_code,
     )
 
     assert envelope.payload["boundary"]["dispatch"] == "dispatched"
     assert envelope.payload["boundary"]["next_step"] == "stop"
     assert envelope.operation_state.result is OperationResult.UNKNOWN_OUTCOME
+    assert envelope.payload["ledger"][-1]["data"]["code"] == native_unknown_code
 
     plan = plan_read_only_recovery(
         _checkpoint(state, 6),
@@ -319,6 +326,7 @@ def test_completed_native_unknown_preserves_exact_dispatch_and_stops_recovery(
     )
 
     assert result.dispatch is DispatchCertainty.DISPATCHED
+    assert result.code == native_unknown_code
     assert plan.decision.action is ReconstructionAction.HUMAN_REOBSERVE
     assert plan.decision.reason == "UNKNOWN_OUTCOME"
 

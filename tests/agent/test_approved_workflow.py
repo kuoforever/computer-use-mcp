@@ -1988,11 +1988,16 @@ def test_unknown_action_outcome_stops_without_replay_and_marks_terminal_state(
     assert record["state"]["recovery_action"] == "human_reobserve_then_start_new_run"
 
 
+@pytest.mark.parametrize(
+    "native_unknown_code",
+    ["NATIVE_AUTHORITY_LOST", "NATIVE_OUTCOME_UNKNOWN"],
+)
 def test_partial_native_unknown_survives_continuation_completion_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    native_unknown_code: str,
 ) -> None:
-    run_id = "run_native_authority_unknown"
+    run_id = f"run_{native_unknown_code.lower()}"
     observe = _call(run_id, 1, "call_1", "ui_snapshot", {})
     action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
     unknown = ToolResult(
@@ -2000,7 +2005,7 @@ def test_partial_native_unknown_survives_continuation_completion_failure(
         action.name,
         ToolResultStatus.UNKNOWN_OUTCOME,
         DispatchCertainty.DISPATCHED,
-        code="NATIVE_AUTHORITY_LOST",
+        code=native_unknown_code,
     )
     provider = FakeModelProvider(
         turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, action)])
@@ -2052,7 +2057,7 @@ def test_partial_native_unknown_survives_continuation_completion_failure(
     assert record["state"]["phase"] == "UNKNOWN_OUTCOME"
     assert record["state"]["failure_code"] == "UNKNOWN_OUTCOME"
     assert record["events"][-1]["dispatch"] == "dispatched"
-    assert record["events"][-1]["code"] == "NATIVE_AUTHORITY_LOST"
+    assert record["events"][-1]["code"] == native_unknown_code
 
 
 @pytest.mark.parametrize("failed_stage", ["prepared", "dispatch_intent"])

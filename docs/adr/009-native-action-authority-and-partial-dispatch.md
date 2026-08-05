@@ -188,20 +188,30 @@ feedback may be cleared without its presentation delay. This exception cannot
 start a new press/attach, cannot downgrade certainty, cannot retry the action,
 and cannot restore the pointer or application state.
 
-The server converts the boundary's typed exception, not a normal Driver
-`Result`, into fixed outcomes:
+The server centrally projects call-scoped boundary evidence into fixed outcomes
+above the Driver `Result` boundary:
 
-| Loss point | Agent status | Dispatch | Code |
+| Condition | Agent status | Dispatch | Code |
 | --- | --- | --- | --- |
-| Before the first native dispatch attempt | `REJECTED` | `NOT_DISPATCHED` | Existing fixed `ABORTED`, `HUMAN_ACTIVE`, or `DENIED_BY_GATE`; boundary composition failures use fixed `NATIVE_AUTHORITY_LOST` |
-| After any native dispatch attempt | `UNKNOWN_OUTCOME` | `DISPATCHED` | Fixed `NATIVE_AUTHORITY_LOST` |
+| Authority is lost before the first native dispatch attempt | `REJECTED` | `NOT_DISPATCHED` | Existing fixed `ABORTED`, `HUMAN_ACTIVE`, or `DENIED_BY_GATE`; boundary composition failures use fixed `NATIVE_AUTHORITY_LOST` |
+| Authority is lost after any native dispatch attempt | `UNKNOWN_OUTCOME` | `DISPATCHED` | Fixed `NATIVE_AUTHORITY_LOST` |
+| A Windows action returns failure or raises after any native dispatch attempt | `UNKNOWN_OUTCOME` | `DISPATCHED` | Fixed `NATIVE_OUTCOME_UNKNOWN` |
+| A Windows action fails with zero recorded native dispatch attempts | Unchanged | Unchanged | Existing result code |
 
-The partial envelope contains no native parameters, typed text, model content,
-or arbitrary exception message. The Agent bridge reviews the exact fixed code
-and maps it to `UNKNOWN_OUTCOME / DISPATCHED`. The Runner persists the correlated
+`NATIVE_AUTHORITY_LOST` records an authority failure. The distinct
+`NATIVE_OUTCOME_UNKNOWN` records only that a native API reported failure after
+dispatch had begun and the effect therefore cannot be proved or disproved. It
+is a server-owned certainty projection, not a Driver error code. The server
+replaces, rather than appends, the original Driver result or exception detail.
+The fixed envelopes contain no native parameters, typed text, model content,
+arbitrary exception message, or original Driver message.
+
+The Agent bridge reviews both exact fixed codes and maps the two post-attempt
+conditions to `UNKNOWN_OUTCOME / DISPATCHED`. The Runner persists the correlated
 result, terminalizes as `UNKNOWN_OUTCOME`, invalidates the MCP generation under
 the existing post-dispatch path, and never verifies, continues, or replays the
-call. Strict continuation v6 retains its existing deliberately conservative
+call.
+Strict continuation v6 retains its existing deliberately conservative
 `next_step=stop` recovery decision while preserving the ToolResult's exact
 `dispatch=dispatched` in both the completed boundary and ledger. Existing v6
 payloads whose completed unknown boundary used `dispatch=unknown` remain
@@ -220,6 +230,9 @@ claim equivalent coverage for an unimplemented platform driver.
   authority decision made before their intervening sleep or native event.
 - A partial pointer, key, drag, typing, UIA, or activation route stops with
   honest unknown/dispatched certainty and zero automatic replay.
+- A native failure after dispatch is no longer exposed as an ordinary
+  `DRIVER_ERROR`; its original failure detail is replaced by the fixed redacted
+  `NATIVE_OUTCOME_UNKNOWN` envelope.
 - Safety unwind avoids leaving input or thread attachment held while preserving
   the unknown outcome.
 - Successful action order, presentation pacing, passive feedback, and final
@@ -252,8 +265,12 @@ claim equivalent coverage for an unimplemented platform driver.
   attached input queue on partial loss.
 - Dangerous-confirmation, full-control, e-stop, and successful agent-input
   attribution behaviors remain explicitly covered.
-- Agent conversion and Runner tests prove fixed
-  `NATIVE_AUTHORITY_LOST`, `UNKNOWN_OUTCOME / DISPATCHED`, terminal unknown
+- Effect-then-raise and partial-return tests cover semantic UIA, coordinate,
+  focused input, and activation paths; zero-attempt validation and ordinary
+  Driver failures retain their existing certainty, and native exception text is
+  absent from the fixed envelope.
+- Agent conversion and Runner tests prove fixed `NATIVE_AUTHORITY_LOST` and
+  `NATIVE_OUTCOME_UNKNOWN`, `UNKNOWN_OUTCOME / DISPATCHED`, terminal unknown
   state, exact one MCP dispatch, and zero replay, including a failed continuation
   completion write.
 

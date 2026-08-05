@@ -6,7 +6,7 @@ from itertools import repeat
 
 import pytest
 
-from computer_use_mcp.contract import Rect
+from computer_use_mcp.contract import DRIVER_ERROR, Rect
 from computer_use_mcp.drivers.windows import WindowsDriver
 from computer_use_mcp.interaction_feedback import resolve_interaction_pacing
 from computer_use_mcp.native_authority import NativeActionBoundary, NativeAuthorityLost
@@ -194,6 +194,57 @@ def test_focused_type_loss_between_scalars_stops_remaining_text(
     assert sent == ["a"]
 
 
+@pytest.mark.parametrize("action", ["invoke", "select", "set_value"])
+def test_uia_effect_then_error_returns_driver_error_without_retry(
+    action: str,
+) -> None:
+    effects: list[str] = []
+
+    class Pattern:
+        IsReadOnly = False
+
+        def _effect_then_error(self) -> None:
+            effects.append(action)
+            raise OSError(f"{action} effect then error")
+
+        def Invoke(self) -> None:
+            self._effect_then_error()
+
+        def Select(self) -> None:
+            self._effect_then_error()
+
+        def SetValue(self, _text: str) -> None:
+            self._effect_then_error()
+
+    class Control:
+        pattern = Pattern()
+
+        def GetInvokePattern(self) -> Pattern:
+            return self.pattern
+
+        def GetSelectionItemPattern(self) -> Pattern:
+            return self.pattern
+
+        def GetValuePattern(self) -> Pattern:
+            return self.pattern
+
+    driver = _driver()
+    control = Control()
+    driver._resolve = lambda _native_id: control  # type: ignore[method-assign]
+    driver._rect_of = lambda _control: Rect(10, 20, 30, 40)  # type: ignore[method-assign]
+
+    with _scope(driver, repeat((True, ""))):
+        result = (
+            driver.set_value("node", "value")
+            if action == "set_value"
+            else getattr(driver, action)("node")
+        )
+
+    assert not result.ok
+    assert result.code == DRIVER_ERROR
+    assert effects == [action]
+
+
 def test_key_down_effect_then_error_still_releases_possible_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -211,6 +262,7 @@ def test_key_down_effect_then_error_still_releases_possible_key(
         result = driver.key("Ctrl")
 
     assert not result.ok
+    assert result.code == DRIVER_ERROR
     assert api.events == [("key", 0x11, 0), ("key", 0x11, 0x0002)]
 
 
@@ -244,10 +296,42 @@ def test_mouse_down_effect_then_error_still_releases_possible_button(
         )
 
     assert not result.ok
+    assert result.code == DRIVER_ERROR
     assert api.events == [
         ("pointer", 10, 20),
         ("mouse", 0x0002, 0),
         ("mouse", 0x0004, 0),
+    ]
+
+
+def test_scroll_wheel_effect_then_error_stops_before_the_second_axis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Api(_PointerInputApi):
+        def mouse_event(
+            self,
+            flags: int,
+            x: int,
+            y: int,
+            data: int,
+            extra: int,
+        ) -> None:
+            super().mouse_event(flags, x, y, data, extra)
+            if flags == 0x0800:
+                raise OSError("vertical wheel effect then error")
+
+    api = Api()
+    driver = _driver()
+    monkeypatch.setattr("computer_use_mcp.drivers.windows.ctypes.windll.user32", api)
+
+    with _scope(driver, repeat((True, ""))):
+        result = driver.scroll(10, 20, delta_x=120, delta_y=-240)
+
+    assert not result.ok
+    assert result.code == DRIVER_ERROR
+    assert api.events == [
+        ("pointer", 10, 20),
+        ("mouse", 0x0800, -240),
     ]
 
 
@@ -267,6 +351,7 @@ def test_pointer_failure_stops_before_mouse_down(
         result = driver.click(50, 60)
 
     assert not result.ok
+    assert result.code == DRIVER_ERROR
     assert api.events == [("pointer", 50, 60)]
 
 
@@ -286,6 +371,7 @@ def test_paced_pointer_failure_stops_after_prefix_without_mouse_down(
         result = driver.click(50, 60)
 
     assert not result.ok
+    assert result.code == DRIVER_ERROR
     assert [event[0] for event in api.events] == ["pointer", "pointer", "pointer"]
 
 
@@ -306,6 +392,7 @@ def test_drag_path_pointer_failure_stops_and_only_releases_button(
         result = driver.drag(10, 20, 30, 40, 32)
 
     assert not result.ok
+    assert result.code == DRIVER_ERROR
     assert api.events == [
         ("pointer", 10, 20),
         ("mouse", 0x0002, 0),

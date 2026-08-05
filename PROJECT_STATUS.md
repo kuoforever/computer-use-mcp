@@ -12,8 +12,9 @@
 > PR #243; `GDA-CORE-015` is merged through PR #244; `GDA-CORE-016` is merged
 > through PR #245; `GDA-CORE-017` is merged through PR #247;
 > `GDA-CORE-018` is merged through PR #249;
-> `GDA-CORE-019` is merged through PR #251; and
-> `GDA-CORE-020` is the exact next core Runtime item.
+> `GDA-CORE-019` is merged through PR #251;
+> `GDA-CORE-020` is complete locally; and
+> `GDA-CORE-021` is the exact next core Runtime item after that slice merges.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -242,14 +243,26 @@ through an unrelated observation or later allowlisted foreground; a fresh
 successful observation restores action authority. Every other result tuple
 retains its prior behavior.
 
-The next bounded audit selected `GDA-CORE-020` under accepted ADR 009. A native
-API may apply an effect and then raise or report a partial failure after the
-server-owned boundary recorded a dispatch attempt. The Windows driver currently
-returns ordinary `DRIVER_ERROR`, which the Agent maps to
-`ACTION_ERROR / DISPATCHED` instead of terminal unknown certainty. The bounded
-fix must centrally promote any failed Windows action with one or more native
-attempts to a fixed redacted `UNKNOWN_OUTCOME / DISPATCHED` result while leaving
-zero-attempt failures unchanged.
+`GDA-CORE-020` closes the post-attempt native-failure certainty gap under
+accepted ADR 009. The server-owned call scope retains its native dispatch-attempt
+count through action completion. A failed Windows action or ordinary exception
+after any attempt is replaced by fixed redacted `NATIVE_OUTCOME_UNKNOWN`; the
+Agent maps it to `UNKNOWN_OUTCOME / DISPATCHED`, invalidates the MCP generation,
+terminalizes, and never verifies, continues, recovers, or replays that action.
+Authority loss keeps its distinct fixed code, while zero-attempt stale,
+missing-pattern, validation, bad-argument, and ordinary Driver failures retain
+their existing semantics. Driver contract `1.0.0` remains unchanged.
+
+The next bounded audit selected `GDA-CORE-021`. Strict continuation v6 currently
+validates `boundary.next_step` only as an enum and then uses that independently
+mutable value to choose the budget dimension before reconstructing the actual
+recovery action. A deterministic formal-persistence probe changed a completed
+observation's `provider_continue` to another schema-valid next step with
+`model_turns_used == max_model_turns == 1`; recovery still reconstructed
+`CONTINUE_PROVIDER`, persisted provider intent, and made one provider call before
+completion finally rejected the over-budget payload. The next slice must bind
+next-step semantics to the boundary/ledger topology and check the budget required
+by the final reconstructed action before any persistence or external call.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -269,7 +282,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1733 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-019` closure revalidation |
+| Offline baseline | `1763 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-020` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -341,7 +354,8 @@ delivery work.
 | `GDA-CORE-017` | Complete; merged | Close the driver-pacing native-authority and partial-dispatch certainty window | Commit `9d0b5d8`, merged through PR #247 as `212081a`; accepted ADR 009 and server-owned call scopes revalidate authority before every driver-controlled native mutation. Pre-mutation loss is rejected/not-dispatched; post-attempt loss is unknown/dispatched with bounded cleanup and zero replay. Literal Unicode input, pointer/mouse/key/UIA/activation paths, exact continuation certainty, pacing, feedback, confirmation, activation, and full-control exceptions are regression tested. Complete gate: `1719 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, three independent reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-018` | Complete; merged | Invalidate prior observation and grounding when a side effect yields to `HUMAN_ACTIVE` | Commit `f613056`, merged through PR #249 as `1adce11`; the exact side-effect `REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs cannot revive through an unrelated observation, fresh snapshot grounding restores action authority, unknown/dispatched certainty remains terminal, and recovery plans only a new observation with zero action replay. Complete gate: `1725 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/scope reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-019` | Complete; merged | Invalidate prior observation and grounding when a side-effect action is denied by the live gate | Commit `bf0cbec`, merged through PR #251 as `dfc5f9e`; the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs and screenshot coordinates cannot revive through unrelated observations, fresh snapshot grounding restores action authority, observation-shaped gate denial and every other certainty tuple remain unchanged, and recovery plans only a new observation with zero action replay. Complete gate: `1733 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
-| `GDA-CORE-020` | Queued; exact next | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | Under accepted ADR 009, centrally retain native attempt count across the server-owned call scope. Any failed Windows action after one or more attempts must become a fixed redacted `UNKNOWN_OUTCOME / DISPATCHED` result, invalidate generation, terminalize the Runner, and remain non-replayable. Zero-attempt validation, stale, missing-pattern, and ordinary driver failures retain their current result semantics |
+| `GDA-CORE-020` | Complete locally | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | The server-owned call scope now promotes every failed Windows action or ordinary exception after one or more native attempts to fixed redacted `NATIVE_OUTCOME_UNKNOWN`; the Agent maps it to terminal `UNKNOWN_OUTCOME / DISPATCHED`, invalidates the MCP generation, and preserves exact continuation/no-replay certainty. Full action-family, actual Windows UIA/SendInput stitch, zero-attempt, bounded-unwind, redaction, lifecycle, Runner, continuation, and recovery regressions pass. Complete gate: `1763 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent code/test/contract review passed on 2026-08-05; no real-desktop claim is made |
+| `GDA-CORE-021` | Queued; exact next | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Reject semantic mismatch between persisted `next_step`, boundary/ledger topology, and reconstructed action; derive budget authority from the final action and recheck it before intent or external I/O. Exhausted model/input budget must make zero provider calls even when a digest-valid next step names a tool path, and the symmetric exhausted-tool case must make zero desktop calls. Preserve valid bounded read-only recovery, continuation v6 shape, and side-effect no-replay |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -354,7 +368,8 @@ delivery work.
 `GDA-CORE-017` is merged through PR #247 as `212081a`.
 `GDA-CORE-018` is merged through PR #249 as `1adce11`.
 `GDA-CORE-019` is merged through PR #251 as `dfc5f9e`.
-`GDA-CORE-020` is the exact next core Runtime item.
+`GDA-CORE-020` is complete locally.
+`GDA-CORE-021` is the exact next core Runtime item after `GDA-CORE-020` merges.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -827,32 +842,67 @@ evidence.
 Commit `bf0cbec` merged through PR #251 as `dfc5f9e` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-020`
+## Completed slice: `GDA-CORE-020`
 
-Accepted ADR 009 records a native dispatch attempt immediately before every
-effect-intending native API because an API may apply an effect and then raise or
-report failure. The Windows driver currently catches that post-attempt failure
-and returns ordinary `DRIVER_ERROR`; the Agent bridge maps it to
-`ACTION_ERROR / DISPATCHED`. A deterministic UIA callback probe produced one
-effect and then raised, and a full-server `SendInput` probe returned a partial
-batch; both lost their unknown certainty through this path.
+The server-owned `NativeActionBoundary` now retains monotonic attempt evidence
+for the whole native action call. `complete_action` promotes an unsuccessful
+Driver `Result` after any attempt, while the call scope replaces an ordinary
+post-attempt exception, with one fixed `NativeOutcomeUnknown` control-flow
+exception. The server exposes only
+`ERROR NATIVE_OUTCOME_UNKNOWN: native action outcome unknown after dispatch`;
+the original Driver message, exception, typed text, and native details do not
+enter the MCP result or audit record.
 
-Create `codex/core-runtime-native-failure-certainty` after `GDA-CORE-019` is
-merged. Retain native attempt count inside the server-owned call scope and
-centralize the result projection: if any Windows action returns failure or
-raises after at least one native dispatch attempt, emit one fixed redacted
-native-outcome-unknown envelope that the Agent maps to
-`UNKNOWN_OUTCOME / DISPATCHED`. The Runner must persist the exact result,
-invalidate the MCP generation, terminalize as unknown, and never verify,
-continue, recover, or replay the action.
+The Agent reviews the distinct new code as `UNKNOWN_OUTCOME / DISPATCHED` and
+uses its existing unknown path to invalidate the MCP generation, terminalize the
+Runner, persist exact continuation v6 `dispatch=dispatched,next_step=stop`, and
+prevent verification, continuation, recovery dispatch, or replay. Authority
+loss remains `NATIVE_AUTHORITY_LOST`. Zero-attempt validation, stale refs,
+missing patterns, bad arguments, ordinary Driver failures, and the synthetic E2
+`DRIVER_ERROR` control retain their prior certainty.
 
-Freeze effect-then-raise and partial-return regressions across UIA invoke,
-select, and set-value; coordinate click, scroll, and drag; focused type and key;
-and activation. Central composition tests must prove zero-attempt validation,
-stale element, missing pattern, bad arguments, and ordinary driver failures keep
-their current certainty. Preserve successful action order, call-scoped input
-attribution, bounded key/button/thread-detach unwind, continuation v6 no-replay,
-and redaction of native exception text.
+Deterministic regressions cover all current Windows action families, actual
+WindowsDriver UIA effect-then-raise and positive-partial `SendInput` through the
+production server boundary, exact pointer/key/button/thread-detach unwind,
+fixed audit redaction, generation invalidation, Runner terminal state, and
+continuation/recovery no-replay. The complete offline gate passed with
+`1763 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency for
+all 13 reviewed tools, and diff check. Independent code, certainty, test, and
+contract reviews found no P1/P2/P3 issue. This is offline fake-native evidence
+only; it does not promote provider, real-desktop, application, or release
+evidence.
+
+## Exact next task: `GDA-CORE-021`
+
+Strict continuation v6 treats persisted data as non-authoritative, but its
+schema currently validates `boundary.next_step` only as one of four strings.
+`plan_read_only_recovery` uses that string to choose a tool or model/input budget
+check before it independently reconstructs the executable action from the
+operation state. The two facts are not semantically bound.
+
+A deterministic probe used a valid completed-observation envelope with
+`model_turns_used == max_model_turns == 1`, replaced `provider_continue` with the
+schema-valid `mandatory_reobserve`, and recomputed the ordinary payload digest.
+The planner returned `CONTINUE_PROVIDER / OBSERVATION_COMPLETED`; formal
+`LockedRecoveryPersistence` committed provider intent and the fake provider was
+called exactly once. Only completion then raised `CONTINUATION_INVALID` while
+trying to persist model budget `2/1`. This crosses the hard external-call bound
+before failure.
+
+After `GDA-CORE-020` merges, create
+`codex/core-runtime-recovery-budget-binding`. Bind each valid next step to the
+complete boundary/ledger topology, derive budget availability from the final
+`ReconstructionAction`, and revalidate that dimension before intent persistence
+or external I/O. Exhausted model-turn and input-token cases with swapped valid
+next steps must make zero provider calls and leave checkpoint/continuation bytes
+unchanged. The symmetric exhausted-tool cases must make zero desktop calls.
+Untampered provider continuation, prepared/pending read-only observation,
+mandatory re-observation, terminal unknown, and side-effect no-replay controls
+must retain their current behavior.
+
+Do not change continuation v6 fields, ordinary Runner budgeting, MCP/Driver or
+public tools, side-effect retry semantics, Demo, HUD, Full Cycle, campaign,
+another platform, or any broader hierarchical/Multi-Agent scope.
 
 Use a distinct fixed reviewed outcome code rather than mislabeling native API
 failure as authority loss. Update the owning accepted contract without changing
@@ -1018,3 +1068,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | `GDA-CORE-019` is complete locally and independently reviewed: the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple invalidates verified observation and all Host grounding before continuation completion, while every other result tuple retains its prior behavior. |
 | 2026-08-05 | A bounded full-server audit selected `GDA-CORE-020` next under accepted ADR 009: any Windows action failure after one or more recorded native dispatch attempts must retain fixed redacted `UNKNOWN_OUTCOME / DISPATCHED` certainty; zero-attempt failures remain unchanged. |
 | 2026-08-05 | `GDA-CORE-019` merged through PR #251 as `dfc5f9e`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-020` is the exact next core Runtime item. |
+| 2026-08-05 | `GDA-CORE-020` is complete locally and independently reviewed: post-attempt Windows action failure or ordinary exception becomes fixed redacted `NATIVE_OUTCOME_UNKNOWN / UNKNOWN_OUTCOME / DISPATCHED`, while authority loss, zero-attempt failures, Driver Contract `1.0.0`, and side-effect no-replay remain unchanged. |
+| 2026-08-05 | A bounded formal-persistence audit selected `GDA-CORE-021` next: recovery must semantically bind continuation next steps to reconstructed actions and enforce that action's model/input or tool budget before any intent persistence or external call. |
