@@ -11,8 +11,9 @@
 > `GDA-CORE-013` is merged through PR #242; `GDA-CORE-014` is merged through
 > PR #243; `GDA-CORE-015` is merged through PR #244; `GDA-CORE-016` is merged
 > through PR #245; `GDA-CORE-017` is merged through PR #247;
-> `GDA-CORE-018` is merged through PR #249; and
-> `GDA-CORE-019` is the exact next core Runtime item.
+> `GDA-CORE-018` is merged through PR #249;
+> `GDA-CORE-019` is complete locally and independently reviewed; and
+> `GDA-CORE-020` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -233,12 +234,22 @@ before continuation completion. A fresh successful observation restores action
 authority; unrelated rejected results and unknown/dispatched certainty remain
 unchanged.
 
-The next bounded audit selected `GDA-CORE-019`. A side-effect rejected with the
-exact `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple proves that current
-foreground authority no longer matches the authority checked for the attempted
-action. The bounded fix must invalidate the prior verified observation and Host
-grounding before any later side effect can reuse them, while leaving other
-rejected results unchanged.
+`GDA-CORE-019` closes the live-gate grounding gap. A side-effect result with the
+exact `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple now clears the prior
+verified observation, requires re-observation, and invalidates Host grounding
+before continuation completion. Old refs and screenshot bounds cannot revive
+through an unrelated observation or later allowlisted foreground; a fresh
+successful observation restores action authority. Every other result tuple
+retains its prior behavior.
+
+The next bounded audit selected `GDA-CORE-020` under accepted ADR 009. A native
+API may apply an effect and then raise or report a partial failure after the
+server-owned boundary recorded a dispatch attempt. The Windows driver currently
+returns ordinary `DRIVER_ERROR`, which the Agent maps to
+`ACTION_ERROR / DISPATCHED` instead of terminal unknown certainty. The bounded
+fix must centrally promote any failed Windows action with one or more native
+attempts to a fixed redacted `UNKNOWN_OUTCOME / DISPATCHED` result while leaving
+zero-attempt failures unchanged.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -258,7 +269,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1725 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-018` closure revalidation |
+| Offline baseline | `1733 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-019` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -329,7 +340,8 @@ delivery work.
 | `GDA-CORE-016` | Complete; merged | Forbid stale relocation from dynamic `foreground` and `all` scope tokens | Commit `64bca1e`, merged through PR #245 as `6ea1b1f`; dynamic-scope stale refs return fixed `STALE_ELEMENT` with zero additional relocation query, candidate action, coordinate action, or ref-map mutation. Explicit numeric window-id success and collision controls preserve the CORE-015 path and Driver contract `1.0.0`. Complete gate: `1671 passed, 8 skipped`, Ruff, mypy over 120 source files, docs consistency, diff check, independent code/test/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05 |
 | `GDA-CORE-017` | Complete; merged | Close the driver-pacing native-authority and partial-dispatch certainty window | Commit `9d0b5d8`, merged through PR #247 as `212081a`; accepted ADR 009 and server-owned call scopes revalidate authority before every driver-controlled native mutation. Pre-mutation loss is rejected/not-dispatched; post-attempt loss is unknown/dispatched with bounded cleanup and zero replay. Literal Unicode input, pointer/mouse/key/UIA/activation paths, exact continuation certainty, pacing, feedback, confirmation, activation, and full-control exceptions are regression tested. Complete gate: `1719 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, three independent reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-018` | Complete; merged | Invalidate prior observation and grounding when a side effect yields to `HUMAN_ACTIVE` | Commit `f613056`, merged through PR #249 as `1adce11`; the exact side-effect `REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs cannot revive through an unrelated observation, fresh snapshot grounding restores action authority, unknown/dispatched certainty remains terminal, and recovery plans only a new observation with zero action replay. Complete gate: `1725 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/scope reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
-| `GDA-CORE-019` | Queued; exact next | Invalidate prior observation and grounding when a side-effect action is denied by the live gate | For the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple, clear the verified observation, require re-observation, and invalidate Host grounding before continuation completion. Old refs and coordinates must receive zero later authority until a fresh successful observation; preserve all other result tuples |
+| `GDA-CORE-019` | Complete locally; independently reviewed | Invalidate prior observation and grounding when a side-effect action is denied by the live gate | The exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs and screenshot coordinates cannot revive through unrelated observations, fresh snapshot grounding restores action authority, observation-shaped gate denial and every other certainty tuple remain unchanged, and recovery plans only a new observation with zero action replay. Complete gate: `1733 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent code/certainty/contract reviews passed on 2026-08-05; no real-desktop claim is made |
+| `GDA-CORE-020` | Queued; exact next | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | Under accepted ADR 009, centrally retain native attempt count across the server-owned call scope. Any failed Windows action after one or more attempts must become a fixed redacted `UNKNOWN_OUTCOME / DISPATCHED` result, invalidate generation, terminalize the Runner, and remain non-replayable. Zero-attempt validation, stale, missing-pattern, and ordinary driver failures retain their current result semantics |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -341,7 +353,8 @@ delivery work.
 `GDA-CORE-016` is merged through PR #245 as `6ea1b1f`.
 `GDA-CORE-017` is merged through PR #247 as `212081a`.
 `GDA-CORE-018` is merged through PR #249 as `1adce11`.
-`GDA-CORE-019` is the exact next core Runtime item.
+`GDA-CORE-019` is complete locally and awaits automatic publication.
+`GDA-CORE-020` is the exact next core Runtime item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -757,10 +770,11 @@ not promote provider, desktop, application, or release evidence.
 ## Completed slice: `GDA-CORE-018`
 
 The Runner now treats the exact side-effect
-`REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple as proof that physical human
-input occurred after the Host's last verified observation. Immediately after
-recording that result and before lifecycle, checkpoint, or continuation
-completion, it clears `verified_observation_epoch`, sets
+`REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple as evidence that current
+human-idle authority is unavailable or that local input may have changed the
+desktop since Host grounding was established. Immediately after recording that
+result and before lifecycle, checkpoint, or continuation completion, it clears
+`verified_observation_epoch`, sets
 `REQUIRES_REOBSERVATION`, and invalidates `GroundingState`. The existing presence
 release remains unchanged.
 
@@ -782,37 +796,65 @@ promote provider, desktop, application, or release evidence.
 Commit `f613056` merged through PR #249 as `1adce11` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-019`
+## Completed slice: `GDA-CORE-019`
 
-The Runner currently leaves the prior verified observation and Host grounding
-intact when a side-effect action returns the exact
-`REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple. That denial proves the live
-foreground gate no longer grants the authority checked for the attempted action.
-If the foreground later becomes allowlisted again, a provider can currently
-reuse refs or coordinates authorized by the older observation without first
-observing the intervening desktop state.
+The Runner now treats the exact side-effect
+`REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple as proof that the live
+foreground gate no longer grants the authority checked for the attempted
+action. Immediately after recording that result and before lifecycle,
+checkpoint, or continuation completion, it clears
+`verified_observation_epoch`, sets `REQUIRES_REOBSERVATION`, and invalidates
+`GroundingState`. No presence lifecycle behavior is added for gate denial.
 
-Create `codex/core-runtime-gate-yield-grounding` after `GDA-CORE-018` is merged.
-For side effects only, the exact gate-denial tuple must clear
-`verified_observation_epoch`, set recovery to `REQUIRES_REOBSERVATION`, and
-invalidate `GroundingState` before continuation completion is persisted. The
-next ref-based or coordinate side effect must fail with fixed
-`REOBSERVATION_REQUIRED` before approval, side-effect budget, action
-continuation, or MCP dispatch. One fresh successful observation must restore
-normal grounding and side-effect authority.
+The next ref-based or screenshot-coordinate side effect therefore fails with
+fixed `REOBSERVATION_REQUIRED` before a second approval, side-effect budget,
+action continuation, or MCP dispatch. A successful unrelated observation cannot
+revive the old ref set or screenshot bounds, while a fresh successful snapshot
+mints current grounding and restores normal action plus mandatory verification.
+Recovery from the completed continuation plans only a new `ui_snapshot` and
+never replays the denied action. Exact `HUMAN_ACTIVE` behavior remains intact;
+`DENIED_BY_USER`, observation-shaped gate denial, and
+`UNKNOWN_OUTCOME / DISPATCHED` controls retain their prior behavior.
 
-Freeze direct and continuation-enabled regressions for the full sequence:
-verified observation, `DENIED_BY_GATE`, blocked second side effect with zero
-second desktop action call, then fresh observation and successful action. Assert
-the persisted checkpoint and continuation carry the cleared verified epoch and
-re-observation requirement, and recovery plans only a mandatory observation
-with no original-action replay. Preserve exact `HUMAN_ACTIVE` behavior plus
-`POLICY_DENIED`, `DENIED_BY_USER`, `ABORTED`, observation-error, and every other
-status/dispatch/code tuple.
+The complete offline gate passed with `1733 passed, 8 skipped`, Ruff, mypy over
+121 source files, docs consistency for all 13 reviewed tools, and diff check.
+Independent code, certainty, and contract reviews found one overstrong
+`HUMAN_ACTIVE` documentation claim, which was corrected and independently
+rechecked; no P1/P2/P3 issue remains. This is deterministic offline/fake-native
+evidence only; it does not promote provider, desktop, application, or release
+evidence.
 
-Do not change certainty vocabulary, MCP/tool/driver APIs, foreground identity
-semantics, retry/cancellation behavior, Demo, Full Cycle, HUD, platform-driver,
-or public-tool scope.
+## Exact next task: `GDA-CORE-020`
+
+Accepted ADR 009 records a native dispatch attempt immediately before every
+effect-intending native API because an API may apply an effect and then raise or
+report failure. The Windows driver currently catches that post-attempt failure
+and returns ordinary `DRIVER_ERROR`; the Agent bridge maps it to
+`ACTION_ERROR / DISPATCHED`. A deterministic UIA callback probe produced one
+effect and then raised, and a full-server `SendInput` probe returned a partial
+batch; both lost their unknown certainty through this path.
+
+Create `codex/core-runtime-native-failure-certainty` after `GDA-CORE-019` is
+merged. Retain native attempt count inside the server-owned call scope and
+centralize the result projection: if any Windows action returns failure or
+raises after at least one native dispatch attempt, emit one fixed redacted
+native-outcome-unknown envelope that the Agent maps to
+`UNKNOWN_OUTCOME / DISPATCHED`. The Runner must persist the exact result,
+invalidate the MCP generation, terminalize as unknown, and never verify,
+continue, recover, or replay the action.
+
+Freeze effect-then-raise and partial-return regressions across UIA invoke,
+select, and set-value; coordinate click, scroll, and drag; focused type and key;
+and activation. Central composition tests must prove zero-attempt validation,
+stale element, missing pattern, bad arguments, and ordinary driver failures keep
+their current certainty. Preserve successful action order, call-scoped input
+attribution, bounded key/button/thread-detach unwind, continuation v6 no-replay,
+and redaction of native exception text.
+
+Use a distinct fixed reviewed outcome code rather than mislabeling native API
+failure as authority loss. Update the owning accepted contract without changing
+Driver Contract `1.0.0`, public Driver primitive signatures, public tools, MCP
+dispatch ownership, Demo, Full Cycle, HUD, retry semantics, or another platform.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -831,7 +873,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-019`.
+  must not displace `GDA-CORE-020`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -969,3 +1011,6 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | `GDA-CORE-018` is complete locally and independently reviewed: the exact side-effect `REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple invalidates verified observation and Host grounding before continuation completion, while unknown certainty and unrelated rejections remain unchanged. |
 | 2026-08-05 | A bounded audit selected `GDA-CORE-019` next: a side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` result must invalidate prior verified observation and Host grounding so restored foreground eligibility cannot revive stale action authority. |
 | 2026-08-05 | `GDA-CORE-018` merged through PR #249 as `1adce11`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-019` is the exact next core Runtime item. |
+| 2026-08-05 | `HUMAN_ACTIVE` is fail-closed evidence that current human-idle authority is unavailable or the desktop may have changed since grounding; it is not proof that a particular physical input occurred after the last Host observation. Current contracts and the CORE-018 status narrative were corrected without promoting evidence. |
+| 2026-08-05 | `GDA-CORE-019` is complete locally and independently reviewed: the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple invalidates verified observation and all Host grounding before continuation completion, while every other result tuple retains its prior behavior. |
+| 2026-08-05 | A bounded full-server audit selected `GDA-CORE-020` next under accepted ADR 009: any Windows action failure after one or more recorded native dispatch attempts must retain fixed redacted `UNKNOWN_OUTCOME / DISPATCHED` certainty; zero-attempt failures remain unchanged. |

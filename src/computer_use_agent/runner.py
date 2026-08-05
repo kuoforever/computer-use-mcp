@@ -808,7 +808,7 @@ class AgentRunner:
             spec.effect is ToolEffect.SIDE_EFFECT
             and result.status is ToolResultStatus.REJECTED
             and result.dispatch is DispatchCertainty.NOT_DISPATCHED
-            and result.code == "HUMAN_ACTIVE"
+            and result.code in {"DENIED_BY_GATE", "HUMAN_ACTIVE"}
         ):
             state = replace(
                 state,
