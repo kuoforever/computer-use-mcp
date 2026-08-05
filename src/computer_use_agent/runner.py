@@ -817,9 +817,12 @@ class AgentRunner:
                     state, result, checkpoint_sequence=recorder.checkpoint_sequence
                 )
             except Exception as exc:
-                if post_dispatch_cancellation is None:
+                if post_dispatch_cancellation is not None:
+                    continuation_failure = exc
+                elif result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+                    raise RunFailure("UNKNOWN_OUTCOME", state) from exc
+                else:
                     raise
-                continuation_failure = exc
         if post_dispatch_cancellation is not None:
             try:
                 recorder.record(

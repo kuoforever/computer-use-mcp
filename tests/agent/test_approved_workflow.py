@@ -1420,6 +1420,73 @@ def test_unknown_action_outcome_stops_without_replay_and_marks_terminal_state(
     assert record["state"]["recovery_action"] == "human_reobserve_then_start_new_run"
 
 
+def test_partial_native_unknown_survives_continuation_completion_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_native_authority_unknown"
+    observe = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    unknown = ToolResult(
+        action.identity,
+        action.name,
+        ToolResultStatus.UNKNOWN_OUTCOME,
+        DispatchCertainty.DISPATCHED,
+        code="NATIVE_AUTHORITY_LOST",
+    )
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(observe, text='ref_1 | button "OK" | (1,1,10,10) | enabled'),
+                unknown,
+            ]
+        )
+    )
+    original_write = continuation_module.write_continuation
+
+    def fail_completed_action(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload.get("boundary")
+        if (
+            isinstance(boundary, dict)
+            and boundary.get("operation_id") == f"{run_id}:turn_2:call_2"
+            and boundary.get("stage") == "completed"
+        ):
+            assert boundary["dispatch"] == "dispatched"
+            assert boundary["next_step"] == "stop"
+            raise OSError("injected native-unknown completion failure")
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(
+        continuation_module,
+        "write_continuation",
+        fail_completed_action,
+    )
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+
+    with pytest.raises(RunFailure, match="^UNKNOWN_OUTCOME$") as raised:
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(provider, desktop, DynamicApprovalPort()),
+            ).run("Click", run_id=run_id)
+        )
+
+    assert isinstance(raised.value.__cause__, OSError)
+    assert str(raised.value.__cause__) == "injected native-unknown completion failure"
+    assert [call.identity.call_id for call in desktop.tool_calls] == ["call_1", "call_2"]
+    persisted_result = raised.value.state.event_log[-1].tool_result
+    assert persisted_result == unknown
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "UNKNOWN_OUTCOME"
+    assert record["state"]["failure_code"] == "UNKNOWN_OUTCOME"
+    assert record["events"][-1]["dispatch"] == "dispatched"
+    assert record["events"][-1]["code"] == "NATIVE_AUTHORITY_LOST"
+
+
 @pytest.mark.parametrize("failed_stage", ["prepared", "dispatch_intent"])
 def test_pre_dispatch_action_continuation_failure_is_known_not_dispatched(
     tmp_path: Path,

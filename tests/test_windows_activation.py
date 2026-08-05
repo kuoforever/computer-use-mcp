@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from computer_use_mcp.contract import DRIVER_ERROR, STALE_ELEMENT
 from computer_use_mcp.drivers.windows import WindowsDriver, _activate_window_with_api
+from computer_use_mcp.native_authority import NativeActionBoundary, NativeAuthorityLost
 
 
 class FakeKernel32:
@@ -38,6 +39,7 @@ class FakeUser32:
         self.minimized = minimized
         self.valid = True
         self.failed_attach: tuple[int, int] | None = None
+        self.raise_after_attach: tuple[int, int] | None = None
         self.failed_detach: set[tuple[int, int]] = set()
         self.set_foreground_result = True
         self.update_foreground = True
@@ -72,6 +74,8 @@ class FakeUser32:
         action = "attach" if attach else "detach"
         self.events.append((action, caller, other))
         pair = (caller, other)
+        if attach and pair == self.raise_after_attach:
+            raise OSError("AttachThreadInput effect then error")
         if attach and pair == self.failed_attach:
             return False
         if not attach and pair in self.failed_detach:
@@ -91,12 +95,24 @@ class FakeUser32:
         return self.set_foreground_result
 
 
-def activate(user32: FakeUser32):
-    return _activate_window_with_api(
-        user32.target,
-        user32,
-        FakeKernel32(user32.events),
+def activate(
+    user32: FakeUser32,
+    decisions=None,
+):
+    boundary = NativeActionBoundary()
+    boundary.bind(user32)
+    revalidate = (
+        (lambda: (True, ""))
+        if decisions is None
+        else lambda: next(decisions)
     )
+    with boundary.call_scope(revalidate, lambda: (True, "")):
+        return _activate_window_with_api(
+            user32.target,
+            user32,
+            FakeKernel32(user32.events),
+            boundary,
+        )
 
 
 class WindowsActivationTests(unittest.TestCase):
@@ -136,7 +152,7 @@ class WindowsActivationTests(unittest.TestCase):
             user32.events.index(("detach", 10, 30)),
         )
 
-    def test_partial_attach_failure_detaches_every_successful_pair(self) -> None:
+    def test_false_attach_detaches_only_the_successful_pair(self) -> None:
         user32 = FakeUser32()
         user32.failed_attach = (10, 30)
 
@@ -148,6 +164,38 @@ class WindowsActivationTests(unittest.TestCase):
         self.assertEqual(
             [event for event in user32.events if event[0] in {"attach", "detach"}],
             [("attach", 10, 20), ("attach", 10, 30), ("detach", 10, 20)],
+        )
+        self.assertNotIn(("bring_to_top", 200), user32.events)
+
+    def test_attach_effect_then_error_still_detaches_attempted_pair(self) -> None:
+        user32 = FakeUser32()
+        user32.raise_after_attach = (10, 30)
+
+        result = activate(user32)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.code, DRIVER_ERROR)
+        self.assertEqual(
+            [event for event in user32.events if event[0] in {"attach", "detach"}],
+            [
+                ("attach", 10, 20),
+                ("attach", 10, 30),
+                ("detach", 10, 30),
+                ("detach", 10, 20),
+            ],
+        )
+
+    def test_authority_loss_after_attach_only_detaches_and_stops_activation(self) -> None:
+        user32 = FakeUser32()
+        decisions = iter(((True, ""), (False, "ABORTED: e-stop engaged")))
+
+        with self.assertRaises(NativeAuthorityLost) as caught:
+            activate(user32, decisions)
+
+        self.assertTrue(caught.exception.after_dispatch)
+        self.assertEqual(
+            [event for event in user32.events if event[0] in {"attach", "detach"}],
+            [("attach", 10, 20), ("detach", 10, 20)],
         )
         self.assertNotIn(("bring_to_top", 200), user32.events)
 

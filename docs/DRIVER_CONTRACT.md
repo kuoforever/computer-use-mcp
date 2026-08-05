@@ -102,7 +102,7 @@ returned as plaintext.
 | `select(native_id)` | Selects an accessible item. |
 | `click(x, y, button="left", modifiers=None)` | Performs a coordinate click. |
 | `key(combo)` | Sends a key chord. |
-| `type(text)` | Types into the focused native control. |
+| `type(text)` | Types literal Unicode text into the focused native control. |
 | `activate_window(window_id)` | Attempts to restore and activate a window. Success means the driver verified that the target is the foreground window before returning. |
 
 `activate_window` is idempotent when the target is already foreground. Native
@@ -111,6 +111,42 @@ failure paths. A stale window, platform denial, or failed foreground
 postcondition is a failure, not best-effort success. More specific activation
 codes are planned for the next backward-compatible contract revision; the
 current implementation may still collapse them into `DRIVER_ERROR`.
+
+## Current Runtime native-action composition
+
+Driver contract `1.0.0` does not make one method call equivalent to one native
+mutation. The Windows implementation can pace an action or issue several native
+events inside `click`, `scroll`, `drag`, `key`, `type`, and
+`activate_window`. The current MCP/Windows Runtime therefore composes the driver
+with one server-owned `NativeActionBoundary`; see
+[ADR-009](adr/009-native-action-authority-and-partial-dispatch.md).
+
+Immediately before every driver-controlled pointer, mouse, keyboard, UIA, or
+activation mutation, the bound controller calls a non-waiting server-owned
+authority probe. The driver receives only allow/reject. It does not receive or
+interpret e-stop, Gate, human-input, confirmation, tool-argument, or model data.
+An injected driver that cannot bind and checkpoint its native mutations is not
+permitted to execute actions in the current Runtime.
+
+Loss before the first native attempt retains the server's fixed
+rejected/not-dispatched result. Loss after any attempt escapes the ordinary
+`Result` path and becomes fixed `NATIVE_AUTHORITY_LOST` with
+unknown-outcome/dispatched certainty at the Agent bridge. No later target
+mutation or replay is permitted. A driver may directly perform only the smallest
+bounded unwind needed to release a key/button or detach an input queue already
+acquired by that call; this cannot downgrade certainty or roll back target state.
+
+Focused `type(text)` is literal text, not the `uiautomation.SendKeys` brace/chord
+grammar. The current Windows implementation checkpoints between Unicode
+scalars and emits each scalar as one ordered UTF-16 `SendInput` batch. Key chords
+remain the responsibility of `key(combo)`.
+
+This composition adds no `Driver` ABC primitive or action parameter, changes no
+shared data structure, and does not add a Driver error code. `Result {ok, code,
+message}`, `capabilities()`, and `CONTRACT_VERSION = "1.0.0"` therefore remain
+unchanged. A future cross-platform boundary API belongs in a separately
+versioned contract change; this Windows Runtime hardening is not evidence for an
+unimplemented platform driver.
 
 The current Windows driver implements these primitives. The public MCP layer
 uses full-primary-display capture for `screenshot()` and passes an explicit,

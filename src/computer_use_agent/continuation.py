@@ -206,9 +206,21 @@ class ContinuationEnvelope:
         )
         result = None
         if stage is OperationStage.COMPLETED:
+            completed_status = None
+            if kind is OperationKind.TOOL:
+                ledger = self.payload["ledger"]
+                assert isinstance(ledger, list)
+                for raw_event in reversed(ledger):
+                    if not isinstance(raw_event, Mapping) or raw_event.get("kind") != "tool_result":
+                        continue
+                    data = raw_event.get("data")
+                    if isinstance(data, Mapping) and isinstance(data.get("status"), str):
+                        completed_status = data["status"]
+                    break
             result = (
                 OperationResult.UNKNOWN_OUTCOME
                 if boundary["dispatch"] == "unknown"
+                or completed_status == "unknown_outcome"
                 else OperationResult.SUCCESS
             )
         return OperationState(
@@ -639,6 +651,7 @@ class RuntimeContinuationRecorder:
             else {"messages": []}
         )
         self._current: OperationState | None = None
+        self._completed_tool_dispatch: str | None = None
 
     def _event(self, kind: str, data: Mapping[str, object]) -> None:
         self.ledger.append(
@@ -677,7 +690,7 @@ class RuntimeContinuationRecorder:
         elif operation.stage is OperationStage.DISPATCH_INTENT:
             dispatch = "unknown"
         elif operation.result is OperationResult.UNKNOWN_OUTCOME:
-            dispatch = "unknown"
+            dispatch = self._completed_tool_dispatch or "unknown"
         else:
             dispatch = "dispatched"
         effect = operation.effect.value if operation.effect is not None else None
@@ -757,6 +770,7 @@ class RuntimeContinuationRecorder:
         self, state: RunState, turn_id: str, *, checkpoint_sequence: int
     ) -> ContinuationEnvelope:
         operation_id = f"{state.run_id}:{turn_id}:provider"
+        self._completed_tool_dispatch = None
         self._current = OperationState.prepare(operation_id, OperationKind.PROVIDER)
         return self._write(state, checkpoint_sequence=checkpoint_sequence)
 
@@ -837,6 +851,7 @@ class RuntimeContinuationRecorder:
         effect: ToolEffect,
         checkpoint_sequence: int,
     ) -> ContinuationEnvelope:
+        self._completed_tool_dispatch = None
         self._current = OperationState.prepare(
             f"{call.identity.run_id}:{call.identity.turn_id}:{call.identity.call_id}",
             OperationKind.TOOL,
@@ -878,6 +893,11 @@ class RuntimeContinuationRecorder:
             OperationResult.UNKNOWN_OUTCOME
             if result.status.value == "unknown_outcome"
             else OperationResult.SUCCESS if result.ok else OperationResult.ERROR
+        )
+        self._completed_tool_dispatch = (
+            result.dispatch.value
+            if outcome is OperationResult.UNKNOWN_OUTCOME
+            else None
         )
         self._current = self._current.apply(
             OperationRecord(

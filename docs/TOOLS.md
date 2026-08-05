@@ -49,7 +49,7 @@ incomplete.
 | `click` | `ref` **or** `x, y` | Invokes an accessible control by ref, or clicks a primary-display coordinate. Supply one form only. |
 | `scroll` | `x, y, delta_x=0, delta_y=0` | Sends bounded horizontal or vertical wheel movement at a screenshot-grounded primary-display coordinate. At least one delta must be non-zero. |
 | `drag` | `x, y, to_x, to_y, duration_ms=250` | Holds the left mouse button along one bounded path between two screenshot-grounded primary-display coordinates. Both endpoints must differ and remain in the current screenshot. |
-| `type` | `text, ref=None` | With a ref, prefers UIA ValuePattern; without one, types into the current focus. |
+| `type` | `text, ref=None` | With a ref, uses one UIA ValuePattern mutation; without one, types literal Unicode scalars into the current focus. Braces are text, not a key-command grammar. |
 | `key` | `combo` | Sends a key chord such as `Ctrl+S` to the foreground window. |
 
 In `safe_local`, `click`, `scroll`, `drag`, `type`, and `key` require an allowlisted
@@ -97,6 +97,11 @@ progress bar using only bounded text length and the Host-selected interval. The
 badge follows the foreground editor's native caret without reading document
 content; a surface that exposes no native caret uses a stable fallback instead.
 
+Presentation pacing never extends action authority. One call-scoped boundary
+rechecks e-stop, applicable foreground, and safe-local human input immediately
+before each driver-controlled native mutation. Focused typing checkpoints
+between Unicode scalars; `key(combo)` remains the only reviewed chord path.
+
 ## Result and error behavior
 
 Action tools return `ok` on success. Failures are returned as text with a
@@ -110,6 +115,7 @@ specific reason where available, for example:
 | `STALE_ELEMENT` | The requested ref no longer resolves; dynamic-scope refs require a fresh snapshot, while explicit-window refs permit one bounded relocation attempt. |
 | `OUT_OF_BOUNDS` | A coordinate lies outside the current supported capture space. |
 | `DRIVER_ERROR` | The platform driver could not perform the operation. |
+| `NATIVE_AUTHORITY_LOST` | Authority changed or the native boundary was unavailable. Before any native attempt this is rejected/not-dispatched; after a partial attempt it is unknown-outcome/dispatched, stops the Runner, and is never replayed. |
 
 Until the planned activation-specific error codes are implemented, stale
 window IDs, Windows foreground-lock denial, and a failed foreground
@@ -119,3 +125,8 @@ failure; do not retry an activation indefinitely.
 The driver may also report `NOT_INVOKABLE` or `PERMISSION_DENIED`. Treat
 errors as information for the next observation step, not as a reason to repeat
 a destructive action blindly.
+
+After partial native dispatch, the driver may only release a key/button or
+detach an input queue acquired by that call. This bounded unwind is not rollback;
+it does not restore pointer, window, or application state and cannot make the
+outcome safe to retry.

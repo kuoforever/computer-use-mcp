@@ -102,6 +102,10 @@ def test_structured_observation_error_is_a_redacted_failure(tool_name: str) -> N
         ("HUMAN_ACTIVE: input detected", "HUMAN_ACTIVE"),
         ("DENIED by gate: wrong foreground", "DENIED_BY_GATE"),
         ("DENIED by user (dangerous)", "DENIED_BY_USER"),
+        (
+            "NATIVE_AUTHORITY_LOST: native action boundary unavailable",
+            "NATIVE_AUTHORITY_LOST",
+        ),
     ],
 )
 def test_pre_dispatch_action_rejections_are_known_not_dispatched(
@@ -116,6 +120,21 @@ def test_pre_dispatch_action_rejections_are_known_not_dispatched(
     assert result.status is ToolResultStatus.REJECTED
     assert result.dispatch is DispatchCertainty.NOT_DISPATCHED
     assert result.code == code
+
+
+def test_partial_native_authority_loss_is_unknown_and_known_dispatched() -> None:
+    call = _call("click")
+
+    result = convert_mcp_result(
+        call,
+        _text_result(
+            "ERROR NATIVE_AUTHORITY_LOST: native action authority changed after dispatch"
+        ),
+    )
+
+    assert result.status is ToolResultStatus.UNKNOWN_OUTCOME
+    assert result.dispatch is DispatchCertainty.DISPATCHED
+    assert result.code == "NATIVE_AUTHORITY_LOST"
     assert result.sanitized_text == ""
 
 

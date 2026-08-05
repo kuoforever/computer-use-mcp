@@ -4,7 +4,7 @@ Each record states one decision, the options that were rejected and why, and the
 consequences the project accepted — including the negative ones.
 
 These are not summaries of the code. A rule that is obvious from reading the
-implementation does not need an ADR; these cover the three places where the
+implementation does not need an ADR; these cover decisions where the
 implementation looks over-strict until you know what the alternative costs.
 
 | ADR | Decision | Short version |
@@ -17,6 +17,7 @@ implementation looks over-strict until you know what the alternative costs.
 | [006](006-durable-state-is-the-source-of-truth.md) | Durable state is the source of truth | In-memory projections and conversation histories survive neither a crash nor a rotation |
 | [007](007-one-active-lease-per-foreground-desktop.md) | One active lease per foreground desktop | "Appear non-interacting" is not enforceable; true concurrency requires an independent desktop |
 | [008](008-android-device-driver-behind-driver-contract.md) | An Android device is a driver behind the contract, not a second MCP | Reach a phone by adding one driver, not a parallel `android.*` surface; deferred until the Windows vertical is proven |
+| [009](009-native-action-authority-and-partial-dispatch.md) | Native action authority is revalidated at each driver-controlled mutation boundary | Authority loss before mutation is not dispatched; loss after partial mutation is unknown/dispatched and never replayed |
 
 Related: [postmortems](../postmortems/) record what actually failed, and
 [AI-assisted development](../AI_ASSISTED_DEVELOPMENT.md) records who is

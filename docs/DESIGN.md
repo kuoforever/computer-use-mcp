@@ -18,6 +18,7 @@ MCP client
       -> server.py: FastMCP schemas and action orchestration
           -> core.py: Session, refs, snapshot serialization
           -> gate.py / human_activity.py / safety.py / audit.py
+          -> native_authority.py: call-scoped native-mutation checkpoints
           -> contract.py: platform-neutral Driver interface
               -> drivers/windows.py: UIA, Win32, capture, process ownership
 ~~~
@@ -35,6 +36,7 @@ server boundary when no driver is explicitly supplied.
 | `drivers/windows.py` | Uses UIA/Win32, screen capture, and process inspection to implement the contract. |
 | `gate.py` | Matches the foreground window's process ancestry against the safe-mode allowlist. |
 | `human_activity.py` | Yields safe-mode actions after recent local input without installing an input listener. |
+| `native_authority.py` | Carries one server-owned non-waiting authority probe through a single driver action call and tracks whether native dispatch has started. |
 | `safety.py` | Provides dangerous ref-click detection, native confirmation, e-stop, and screenshot blackout helpers. |
 | `audit.py` | Writes bounded JSONL action records. |
 
@@ -100,7 +102,10 @@ request
   -> final e-stop check
   -> final single-observation foreground allowlist check
   -> final non-waiting human-idle and input-capture comparison
-  -> native driver action
+  -> open one call-scoped native-action boundary
+  -> Session and native driver action
+       -> before each driver-controlled native mutation:
+            recheck e-stop, applicable foreground, and safe-local human input
   -> audit record
   -> result
 ~~~
@@ -114,6 +119,25 @@ click's final check; this one-call exception is not stored, is not agent-input
 attribution, and cannot authorize the next action. Windows input events sharing
 one `GetLastInputInfo` millisecond tick remain indistinguishable at the platform
 boundary.
+
+The final server check is not a lease. Driver pacing, pointer steps, key/mouse
+events, UIA calls, and activation mutations each use the same call-scoped
+controller immediately before the next native API. After a known-returning
+native-input event, one exact input tick is permitted only inside that call so
+the next checkpoint does not yield to the driver's own event. Physical input in
+the small window between native return and that capture can still be
+misattributed; no source-tagging or global input hook is claimed.
+
+Authority loss before the first native attempt stays rejected/not-dispatched.
+Loss after an attempt stops target progress and becomes fixed
+`UNKNOWN_OUTCOME / DISPATCHED`; the Runner terminalizes and never replays it.
+Only a bounded safety unwind may release a key/button or detach an input queue
+already acquired by the call. It may clear passive feedback without presentation
+delay, but it does not restore the pointer, window, or application state.
+
+Focused `type` sends literal Unicode scalars as ordered UTF-16 `SendInput`
+batches with a checkpoint between scalars. The old library-specific brace/chord
+grammar is intentionally excluded; reviewed chords use `key`.
 `activate_window` is e-stop/human-activity guarded and audited, but
 intentionally skips both foreground allowlist checks because it is the
 operation that makes a listed window foreground. `full_control_local` bypasses

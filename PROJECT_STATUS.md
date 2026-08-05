@@ -10,7 +10,8 @@
 > through PR #240; `GDA-CORE-012` is merged through PR #241;
 > `GDA-CORE-013` is merged through PR #242; `GDA-CORE-014` is merged through
 > PR #243; `GDA-CORE-015` is merged through PR #244; `GDA-CORE-016` is merged
-> through PR #245; and `GDA-CORE-017` is the exact next core Runtime item.
+> through PR #245; `GDA-CORE-017` is complete locally and independently
+> reviewed; and `GDA-CORE-018` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -215,13 +216,21 @@ window-id scopes retain the single bounded complete-Node relocation and
 bijective rebind path, including reverse-conflict failure. Driver contract
 `1.0.0` remains unchanged.
 
-The next bounded audit selected `GDA-CORE-017`. Optional driver-owned
-interaction pacing can sleep or move the pointer after the MCP server's final
-authority guard but before later native mutations. A dedicated ADR must first
-define call-scoped native-boundary revalidation and conservative certainty:
-authority loss before any native mutation is known not dispatched, while loss
-after any pointer, mouse, keyboard, UIA, or activation mutation is an unknown
-or dispatched outcome that must never replay.
+`GDA-CORE-017` closes the driver-pacing authority window under accepted ADR 009.
+A server-owned call scope now revalidates e-stop, applicable foreground, and
+safe-local human authority before each driver-controlled native mutation.
+Authority loss before the first mutation remains rejected/not-dispatched;
+authority loss after any attempted native mutation becomes unknown/dispatched,
+stops later mutation, and is never replayed. Cleanup releases only state held by
+the call; it does not claim rollback of opaque native effects. Driver contract
+`1.0.0` remains unchanged.
+
+The next bounded audit selected `GDA-CORE-018`. A side-effect rejected with
+`HUMAN_ACTIVE` proves that physical human input occurred after the Host's last
+verified observation, but the Runner currently releases presence without
+invalidating that observation or its `GroundingState`. The bounded fix must
+require a fresh observation before any later side effect, including through a
+persisted continuation, while leaving unrelated rejected results unchanged.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -241,7 +250,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1671 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-016` closure revalidation |
+| Offline baseline | `1719 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-017` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -310,7 +319,8 @@ delivery work.
 | `GDA-CORE-014` | Complete; merged | Preserve known-not-dispatched certainty when pre-dispatch tool continuation writes fail | Commit `fbd6758`, merged through PR #243 as `c451526`; `prepare_tool` and `dispatch_tool` failures append a correlated `REJECTED/not_dispatched/CONTINUATION_WRITE_FAILED` result before raising `RunFailure` with the latest state. Observation/action x prepared/intent tests freeze exact ledgers, budgets, checkpoint sequences, cleanup, and zero target MCP calls; complete gate: `1664 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05 |
 | `GDA-CORE-015` | Complete; merged | Bind stale-ref relocation to the ref's original observation scope and keep ref maps bijective | Commit `21650a7`, merged through PR #244 as `16ef9d6`; per-ref set-once scope, complete-Node relocation, and bijective cached-node/native/reverse rebinding preserve the original scope and fail reverse conflicts before candidate action. Complete gate: `1669 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent ref-boundary review passed on 2026-08-05 |
 | `GDA-CORE-016` | Complete; merged | Forbid stale relocation from dynamic `foreground` and `all` scope tokens | Commit `64bca1e`, merged through PR #245 as `6ea1b1f`; dynamic-scope stale refs return fixed `STALE_ELEMENT` with zero additional relocation query, candidate action, coordinate action, or ref-map mutation. Explicit numeric window-id success and collision controls preserve the CORE-015 path and Driver contract `1.0.0`. Complete gate: `1671 passed, 8 skipped`, Ruff, mypy over 120 source files, docs consistency, diff check, independent code/test/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05 |
-| `GDA-CORE-017` | Queued; exact next | Close the driver-pacing native-authority and partial-dispatch certainty window | First accept a dedicated ADR for call-scoped driver-boundary authority checks. Authority loss before any native mutation must stay rejected/not-dispatched; loss after any partial native mutation must become unknown/dispatched and never replay. Preserve successful pacing and every existing authority exception |
+| `GDA-CORE-017` | Complete locally; independently reviewed | Close the driver-pacing native-authority and partial-dispatch certainty window | Accepted ADR 009; server-owned call scopes revalidate authority before every driver-controlled native mutation. Pre-mutation loss is rejected/not-dispatched; post-attempt loss is unknown/dispatched with bounded cleanup and zero replay. Literal Unicode input, pointer/mouse/key/UIA/activation paths, exact continuation certainty, pacing, feedback, confirmation, activation, and full-control exceptions are regression tested. Complete offline gate: `1719 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and three independent reviews passed on 2026-08-05; no real-desktop claim is made |
+| `GDA-CORE-018` | Queued; exact next | Invalidate prior observation and grounding when a side effect yields to `HUMAN_ACTIVE` | Before continuation completion, clear the verified observation, require re-observation, and invalidate Host grounding. The next side effect must fail `REOBSERVATION_REQUIRED` before approval or MCP dispatch; a fresh successful observation restores authority. Preserve unrelated rejected-result behavior |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -320,8 +330,9 @@ delivery work.
 `GDA-CORE-014` is merged through PR #243 as `c451526`.
 `GDA-CORE-015` is merged through PR #244 as `16ef9d6`.
 `GDA-CORE-016` is merged through PR #245 as `6ea1b1f`.
-`GDA-CORE-017` is the exact next core Runtime item; its ADR-first implementation
-branch has not yet been created.
+`GDA-CORE-017` is complete locally on
+`codex/core-runtime-native-authority-boundary` and awaits automatic publication.
+`GDA-CORE-018` is the exact next core Runtime item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -710,44 +721,58 @@ rebind, and reverse-owner conflict failure before candidate action. Two new
 dynamic-scope regressions plus the existing explicit-window success and
 collision controls pass. Driver interfaces and contract `1.0.0` are unchanged.
 
-## Exact next task: `GDA-CORE-017`
+## Completed slice: `GDA-CORE-017`
 
-The MCP server's `_final_authority_guard()` runs immediately before the call
-into `Session`, but optional `CUMCP_INTERACTION_SPEED` behavior inside the
-Windows driver can then sleep or perform multi-step pointer motion before the
-next native desktop mutation. The e-stop, applicable foreground, and safe-local
-human-input evidence can therefore age inside
-`_prepare_semantic_target()`, `_move_pointer()`, focused typing/key pacing, or a
-multi-event drag. A late rejection is not always known not dispatched because a
-pointer, button, key, UIA, or activation mutation may already have occurred.
+Accepted ADR 009 defines one non-nested, server-owned native-action call scope.
+The Windows driver checkpoints e-stop, applicable foreground, and safe-local
+human authority before every driver-controlled native mutation. The scope marks
+the dispatch attempt before entering an opaque native API, so loss before any
+attempt remains rejected/not-dispatched while loss after an attempt is reported
+as unknown/dispatched. Later mutations stop, the Agent terminalizes the run, and
+continuation recovery never replays the action.
 
-Create a fresh `codex/core-runtime-native-authority-boundary` branch. First
-write and accept
-`docs/adr/009-native-action-authority-and-partial-dispatch.md`; do not implement
-an ad hoc callback before the authority and certainty contract is explicit. The
-ADR must define a call-scoped native-boundary authority mechanism and how it
-composes with `Driver`, `Result`, the sole MCP dispatch path, and the Agent
-bridge. Before each next driver-controlled native mutation, revalidate e-stop,
-applicable foreground authority, and safe-local human authority. If authority
-fails before any native mutation, retain a fixed rejected/not-dispatched result.
-If any native mutation has already occurred, stop further mutation, surface a
-fixed unknown/dispatched outcome, terminalize the Runner as `UNKNOWN_OUTCOME`,
-and never replay.
+Pointer, mouse, key, literal Unicode typing, UIA, and activation paths are
+covered. Cleanup can release a key or mouse button held by the call and detach
+only a thread-input pair attached by the call; it never claims to roll back a
+native effect. Successful paths preserve optional pacing and feedback, exact
+call-local dangerous-confirmation input attribution, the activation foreground
+exception, and the full-control local foreground/human bypass without bypassing
+e-stop. Driver contract `1.0.0` and the 13-tool surface are unchanged.
 
-Freeze deterministic cases for a paced semantic single-shot action, coordinate
-pointer motion, and multi-event drag/key behavior: authority loss before the
-first mutation must produce zero native mutation; loss after a partial mutation
-must produce no later mutation and unknown-outcome/no-replay evidence; unchanged
-authority must preserve pacing, feedback, successful agent-input attribution,
-and action order. Preserve the dangerous-confirmation tick as exact and
-call-local, `activate_window`'s foreground exception, and
-`full_control_local`'s human/foreground bypass without bypassing e-stop. Update
-ADR index, Driver contract, design, configuration, and tool semantics selected
-by the accepted design.
+The complete offline gate passed with `1719 passed, 8 skipped`, Ruff, mypy over
+121 source files, docs consistency for all 13 reviewed tools, and diff check.
+Three independent code, certainty, and documentation reviews found no remaining
+P1/P2/P3 issue. This is deterministic offline/fake-native evidence only; it does
+not promote provider, desktop, application, or release evidence.
 
-Do not treat presentation delay as authority, claim rollback or opaque native
-API preemption, or widen Demo, Full Cycle, HUD, platform-driver, tool,
-cancellation, retry, or replay scope.
+## Exact next task: `GDA-CORE-018`
+
+The Runner currently invalidates verified observation and Host grounding only
+when a side-effect result is not known-not-dispatched. `HUMAN_ACTIVE` is a
+rejected/not-dispatched result, so the special case releases presence but leaves
+the last verified observation epoch and `GroundingState` intact. Because the
+result itself proves that physical human input occurred, the desktop may have
+changed after the observation that authorized the attempted action. A later
+provider turn can therefore reuse stale refs, windows, or screenshot bounds.
+
+Create `codex/core-runtime-human-yield-grounding` after `GDA-CORE-017` is merged.
+For side effects only, a `HUMAN_ACTIVE` result must clear
+`verified_observation_epoch`, set recovery to `REQUIRES_REOBSERVATION`, and
+invalidate `GroundingState` before continuation completion is persisted. The
+next side effect must fail with fixed `REOBSERVATION_REQUIRED` before approval,
+side-effect budget, action continuation, or MCP dispatch. One fresh successful
+observation must restore normal grounding and side-effect authority.
+
+Freeze direct and continuation-enabled regressions for the full sequence:
+verified observation, `HUMAN_ACTIVE`, blocked second side effect with zero second
+desktop action call, then fresh observation and successful action. Assert the
+persisted checkpoint/continuation state carries the cleared verified epoch and
+re-observation requirement. Preserve the existing presence release and keep
+other rejected/not-dispatched results such as policy denial, user denial, and
+`ABORTED` unchanged.
+
+Do not widen CORE017 native-boundary behavior, retry/cancellation semantics,
+Demo, Full Cycle, HUD, platform-driver, or public-tool scope.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -766,7 +791,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-016`.
+  must not displace `GDA-CORE-018`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -898,3 +923,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | A bounded audit selected ADR-first `GDA-CORE-017` next: driver-controlled pacing must not outlive native-action authority, and any authority loss after partial native mutation must retain unknown/dispatched certainty with zero replay. |
 | 2026-08-05 | `GDA-CORE-016` merged through PR #245 as `6ea1b1f`; all four GitHub checks passed, and ADR-first `GDA-CORE-017` is the exact next core Runtime item. |
 | 2026-08-05 | For this repository, completed and validated slices are automatically committed, pushed, opened as PRs, merged only when checks, review state, and conflicts are clear, and then cleaned up locally and remotely. Failing, blocked, conflicting, requested-changes, or unresolved work never merges. |
+| 2026-08-05 | `GDA-CORE-017` is complete locally and independently reviewed under accepted ADR 009: per-mutation native authority revalidation preserves rejected/not-dispatched before the first attempt and unknown/dispatched after any attempted native mutation, with bounded cleanup and zero replay. |
+| 2026-08-05 | A bounded audit selected `GDA-CORE-018` next: side-effect `HUMAN_ACTIVE` must invalidate the prior verified observation and Host grounding before continuation persistence, forcing fresh observation before later side-effect authority. |
