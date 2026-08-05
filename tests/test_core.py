@@ -70,6 +70,88 @@ def snapshot_ref(snapshot: str) -> str:
     return snapshot.split(" | ", 1)[0]
 
 
+def test_stale_foreground_ref_does_not_relocate_into_new_foreground_window() -> None:
+    driver = RefDriver(
+        [
+            ("foreground", TreeResult([node("window-a-old")], truncated=0)),
+            (
+                "foreground",
+                TreeResult(
+                    [node("window-b-candidate", patterns=("selectionitem",))],
+                    truncated=0,
+                ),
+            ),
+        ],
+        stale_native_ids=frozenset({"window-a-old"}),
+    )
+    session = Session(driver)
+    ref = snapshot_ref(session.ui_snapshot())
+    bindings_before = (
+        dict(session._by_ref),
+        dict(session._native_by_ref),
+        dict(session._ref_by_native),
+        dict(session._scope_by_ref),
+    )
+
+    result = session.click(ref=ref)
+
+    assert result == Result.fail(
+        STALE_ELEMENT,
+        f"{ref} is stale in a dynamic scope; re-snapshot",
+    )
+    assert driver.tree_scopes == ["foreground"]
+    assert driver.invoked == ["window-a-old"]
+    assert driver.selected == []
+    assert driver.coordinate_clicks == []
+    assert (
+        session._by_ref,
+        session._native_by_ref,
+        session._ref_by_native,
+        session._scope_by_ref,
+    ) == bindings_before
+
+
+def test_stale_all_scope_ref_does_not_query_or_act_on_relocation_candidate() -> None:
+    driver = RefDriver(
+        [
+            ("all", TreeResult([node("all-old")], truncated=0)),
+            (
+                "all",
+                TreeResult(
+                    [node("other-window-candidate", patterns=("selectionitem",))],
+                    truncated=0,
+                ),
+            ),
+        ],
+        stale_native_ids=frozenset({"all-old"}),
+    )
+    session = Session(driver)
+    ref = snapshot_ref(session.ui_snapshot(scope="all"))
+    bindings_before = (
+        dict(session._by_ref),
+        dict(session._native_by_ref),
+        dict(session._ref_by_native),
+        dict(session._scope_by_ref),
+    )
+
+    result = session.click(ref=ref)
+
+    assert result == Result.fail(
+        STALE_ELEMENT,
+        f"{ref} is stale in a dynamic scope; re-snapshot",
+    )
+    assert driver.tree_scopes == ["all"]
+    assert driver.invoked == ["all-old"]
+    assert driver.selected == []
+    assert driver.coordinate_clicks == []
+    assert (
+        session._by_ref,
+        session._native_by_ref,
+        session._ref_by_native,
+        session._scope_by_ref,
+    ) == bindings_before
+
+
 def test_later_observation_cannot_move_ref_relocation_scope() -> None:
     driver = RefDriver(
         [
@@ -128,35 +210,35 @@ def test_successful_relocation_rebinds_node_and_native_maps_bijectively() -> Non
     relocated = node("new")
     driver = RefDriver(
         [
-            ("scope-A", TreeResult([node("old")], truncated=0)),
-            ("scope-A", TreeResult([relocated], truncated=0)),
+            ("101", TreeResult([node("old")], truncated=0)),
+            ("101", TreeResult([relocated], truncated=0)),
             (
-                "scope-A",
+                "101",
                 TreeResult([relocated, node("old")], truncated=0),
             ),
         ],
         stale_native_ids=frozenset({"old"}),
     )
     session = Session(driver)
-    ref = snapshot_ref(session.ui_snapshot(scope="scope-A"))
+    ref = snapshot_ref(session.ui_snapshot(scope="101"))
 
     result = session.click(ref=ref)
     refreshed_refs = [
         line.split(" | ", 1)[0]
-        for line in session.ui_snapshot(scope="scope-A").splitlines()
+        for line in session.ui_snapshot(scope="101").splitlines()
     ]
 
     assert result.ok is True
     assert refreshed_refs[0] == ref
     assert refreshed_refs[1] != ref
-    assert driver.tree_scopes == ["scope-A", "scope-A", "scope-A"]
+    assert driver.tree_scopes == ["101", "101", "101"]
     assert driver.invoked == ["old", "new"]
     assert session._by_ref[ref] == relocated
     assert session._native_by_ref == {ref: "new", refreshed_refs[1]: "old"}
     assert session._ref_by_native == {"new": ref, "old": refreshed_refs[1]}
     assert session._scope_by_ref == {
-        ref: "scope-A",
-        refreshed_refs[1]: "scope-A",
+        ref: "101",
+        refreshed_refs[1]: "101",
     }
 
 
@@ -164,15 +246,15 @@ def test_relocation_reverse_collision_fails_before_candidate_action() -> None:
     driver = RefDriver(
         [
             (
-                "scope-A",
+                "101",
                 TreeResult([node("old"), node("owned", name="Other")], truncated=0),
             ),
-            ("scope-A", TreeResult([node("owned")], truncated=0)),
+            ("101", TreeResult([node("owned")], truncated=0)),
         ],
         stale_native_ids=frozenset({"old"}),
     )
     session = Session(driver)
-    snapshot = session.ui_snapshot(scope="scope-A")
+    snapshot = session.ui_snapshot(scope="101")
     old_ref, owner_ref = [line.split(" | ", 1)[0] for line in snapshot.splitlines()]
 
     result = session.click(ref=old_ref)
@@ -181,7 +263,7 @@ def test_relocation_reverse_collision_fails_before_candidate_action() -> None:
         STALE_ELEMENT,
         f"{old_ref} is stale and relocation conflicts with another ref; re-snapshot",
     )
-    assert driver.tree_scopes == ["scope-A", "scope-A"]
+    assert driver.tree_scopes == ["101", "101"]
     assert driver.invoked == ["old"]
     assert driver.selected == []
     assert driver.coordinate_clicks == []

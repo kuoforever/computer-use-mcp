@@ -4,8 +4,9 @@ This is the platform-agnostic half of the system. It owns the ref<->native_id
 table and its lifecycle (Driver Contract section D): the model only ever sees
 stable ``ref_N`` handles; the driver only ever sees ``native_id``. Refs stay
 stable across snapshots where the native_id is unchanged, and an action on a
-stale ref is relocated once by (role, name) inside its original observation
-scope. Accepted relocation keeps the node/native reverse bindings consistent.
+stale ref from an explicit window scope is relocated once by (role, name)
+inside its original observation scope. Dynamic-scope refs fail closed instead.
+Accepted relocation keeps the node/native reverse bindings consistent.
 
 The MCP server is a thin wrapper that exposes these methods as reviewed tools.
 """
@@ -170,6 +171,11 @@ class Session:
         res = action(native_id, node)
         if res.ok or res.code != STALE_ELEMENT:
             return res
+        if scope in {"foreground", "all"}:
+            return Result.fail(
+                STALE_ELEMENT,
+                f"{ref} is stale in a dynamic scope; re-snapshot",
+            )
         # Relocate once inside the scope that originally minted this ref.
         relocated = self._relocate(node, scope)
         if relocated is None:
