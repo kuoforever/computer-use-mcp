@@ -11,6 +11,7 @@ from PIL import Image
 from computer_use_mcp.audit import AuditLog
 from computer_use_mcp.contract import Node, ProcRef, Rect, Result, TreeResult
 from computer_use_mcp.human_activity import HumanInputCapture
+from computer_use_mcp.native_authority import NativeActionBoundary
 from computer_use_mcp.safety import EStop, is_dangerous, parse_combo, redact
 from computer_use_mcp.server import build_server
 
@@ -18,7 +19,20 @@ from computer_use_mcp.server import build_server
 SECRET = "typed-secret-" + "x" * 160
 
 
-class AuditDriver:
+class AtomicBoundaryDriver:
+    def __init__(self) -> None:
+        self.native_boundary: NativeActionBoundary | None = None
+
+    def bind_native_action_boundary(self, boundary: NativeActionBoundary) -> None:
+        boundary.bind(self)
+        self.native_boundary = boundary
+
+    def _mutate(self, operation, *, native_input: bool = False):
+        assert self.native_boundary is not None
+        return self.native_boundary.mutate(operation, native_input=native_input)
+
+
+class AuditDriver(AtomicBoundaryDriver):
     def __init__(
         self,
         *,
@@ -26,6 +40,7 @@ class AuditDriver:
         foreground_name: str = "notepad.exe",
         echo_typed_text_on_error: bool = False,
     ) -> None:
+        super().__init__()
         self.idle_seconds = idle_seconds
         self.foreground_name = foreground_name
         self.echo_typed_text_on_error = echo_typed_text_on_error
@@ -43,24 +58,31 @@ class AuditDriver:
         return [ProcRef(pid=1, name=self.foreground_name)]
 
     def type(self, text: str) -> Result:
-        self.type_calls.append(text)
+        self._mutate(lambda: self.type_calls.append(text), native_input=True)
         if self.echo_typed_text_on_error:
             return Result.fail("DRIVER_ERROR", f"driver echoed {text}")
         return Result.success()
 
     def scroll(self, x: int, y: int, delta_x: int, delta_y: int) -> Result:
-        self.scroll_calls.append((x, y, delta_x, delta_y))
+        self._mutate(
+            lambda: self.scroll_calls.append((x, y, delta_x, delta_y)),
+            native_input=True,
+        )
         return Result.success()
 
     def drag(
         self, x: int, y: int, to_x: int, to_y: int, duration_ms: int
     ) -> Result:
-        self.drag_calls.append((x, y, to_x, to_y, duration_ms))
+        self._mutate(
+            lambda: self.drag_calls.append((x, y, to_x, to_y, duration_ms)),
+            native_input=True,
+        )
         return Result.success()
 
 
-class AuthorityDriver:
+class AuthorityDriver(AtomicBoundaryDriver):
     def __init__(self, foreground_names: list[str] | None = None) -> None:
+        super().__init__()
         self.foreground_names = foreground_names or ["notepad.exe"]
         self.action_calls: list[str] = []
 
@@ -78,15 +100,18 @@ class AuthorityDriver:
         return [ProcRef(pid=1, name=name)]
 
     def activate_window(self, _window_id: str) -> Result:
-        self.action_calls.append("activate_window")
+        self._mutate(lambda: self.action_calls.append("activate_window"))
         return Result.success()
 
     def click(self, _x: int, _y: int, button: str = "left") -> Result:
-        self.action_calls.append(f"click:{button}")
+        self._mutate(
+            lambda: self.action_calls.append(f"click:{button}"),
+            native_input=True,
+        )
         return Result.success()
 
     def scroll(self, _x: int, _y: int, _delta_x: int, _delta_y: int) -> Result:
-        self.action_calls.append("scroll")
+        self._mutate(lambda: self.action_calls.append("scroll"), native_input=True)
         return Result.success()
 
     def drag(
@@ -97,15 +122,15 @@ class AuthorityDriver:
         _to_y: int,
         _duration_ms: int,
     ) -> Result:
-        self.action_calls.append("drag")
+        self._mutate(lambda: self.action_calls.append("drag"), native_input=True)
         return Result.success()
 
     def type(self, _text: str) -> Result:
-        self.action_calls.append("type")
+        self._mutate(lambda: self.action_calls.append("type"), native_input=True)
         return Result.success()
 
     def key(self, _combo: str) -> Result:
-        self.action_calls.append("key")
+        self._mutate(lambda: self.action_calls.append("key"), native_input=True)
         return Result.success()
 
     def get_tree(self, _opts) -> TreeResult:
@@ -125,7 +150,7 @@ class AuthorityDriver:
         )
 
     def invoke(self, _native_id: str) -> Result:
-        self.action_calls.append("invoke")
+        self._mutate(lambda: self.action_calls.append("invoke"))
         return Result.success()
 
 
@@ -169,28 +194,58 @@ class AttributionDriver(AuthorityDriver):
         )
 
     def invoke(self, _native_id: str) -> Result:
-        self.action_calls.append("invoke")
-        self.input_tick += 1
-        self.idle_seconds = 0.1
+        def invoke() -> None:
+            self.action_calls.append("invoke")
+            self.input_tick += 1
+            self.idle_seconds = 0.1
+
+        self._mutate(invoke)
         return Result.success()
 
     def click(self, _x: int, _y: int, button: str = "left") -> Result:
-        self.action_calls.append(f"click:{button}")
-        self.input_tick += 1
-        self.idle_seconds = 0.1
+        def click() -> None:
+            self.action_calls.append(f"click:{button}")
+            self.input_tick += 1
+            self.idle_seconds = 0.1
+
+        self._mutate(click, native_input=True)
         return Result.success()
 
     def key(self, _combo: str) -> Result:
-        self.action_calls.append("key")
-        self.input_tick += 1
-        self.idle_seconds = 0.1
+        def key() -> None:
+            self.action_calls.append("key")
+            self.input_tick += 1
+            self.idle_seconds = 0.1
+
+        self._mutate(key, native_input=True)
         if self.fail_key:
             return Result.fail("DRIVER_ERROR", "injected failure")
         return Result.success()
 
     def set_value(self, _native_id: str, text: str) -> Result:
-        self.action_calls.append("set_value")
-        self.set_value_calls.append(text)
+        def set_value() -> None:
+            self.action_calls.append("set_value")
+            self.set_value_calls.append(text)
+
+        self._mutate(set_value)
+        return Result.success()
+
+
+class MultiEventDriver(AttributionDriver):
+    def __init__(self, after_first=None) -> None:
+        super().__init__()
+        self.after_first = after_first
+
+    def key(self, _combo: str) -> Result:
+        def event(label: str, *, first: bool = False) -> None:
+            self.action_calls.append(label)
+            self.input_tick += 1
+            self.idle_seconds = 0.1
+            if first and self.after_first is not None:
+                self.after_first()
+
+        self._mutate(lambda: event("key:first", first=True), native_input=True)
+        self._mutate(lambda: event("key:second"), native_input=True)
         return Result.success()
 
 
@@ -826,6 +881,147 @@ def test_dangerous_confirmation_tick_is_allowed_once_for_its_click(
     assert confirmed == "ok"
     assert next_action.startswith("HUMAN_ACTIVE:")
     assert driver.action_calls == ["invoke"]
+
+
+@pytest.mark.parametrize("control_mode", ["safe_local", "full_control_local"])
+def test_estop_loss_after_partial_native_input_is_unknown_and_stops(
+    tmp_path: Path,
+    control_mode: str,
+) -> None:
+    estop = EStop()
+    driver = MultiEventDriver(after_first=estop.engage)
+    audit_path = tmp_path / f"{control_mode}.jsonl"
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        estop=estop,
+        start_estop=False,
+        audit_path=str(audit_path),
+        control_mode=control_mode,
+    )
+
+    result = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+    records = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result == (
+        "ERROR NATIVE_AUTHORITY_LOST: "
+        "native action authority changed after dispatch"
+    )
+    assert driver.action_calls == ["key:first"]
+    assert len(records) == 1
+    assert records[0]["decision"] == "unknown_outcome"
+
+
+def test_foreground_loss_after_partial_native_input_is_unknown_and_stops(
+    tmp_path: Path,
+) -> None:
+    driver = MultiEventDriver()
+    driver.after_first = lambda: setattr(driver, "foreground_names", ["calc.exe"])
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+
+    assert result.startswith("ERROR NATIVE_AUTHORITY_LOST:")
+    assert driver.action_calls == ["key:first"]
+
+
+def test_call_local_agent_input_tick_allows_the_next_event_and_next_call(
+    tmp_path: Path,
+) -> None:
+    driver = MultiEventDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    first = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+    second = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+
+    assert first == second == "ok"
+    assert driver.action_calls == ["key:first", "key:second"] * 2
+
+
+def test_call_local_agent_input_tick_is_consumed_by_exactly_one_checkpoint(
+    tmp_path: Path,
+) -> None:
+    class OneInputThenTwoChecksDriver(AuthorityDriver):
+        def key(self, _combo: str) -> Result:
+            self._mutate(
+                lambda: self.action_calls.append("key:first"),
+                native_input=True,
+            )
+            self._mutate(lambda: self.action_calls.append("key:second"))
+            self._mutate(lambda: self.action_calls.append("key:third"))
+            return Result.success()
+
+    class OneShotActivity(NoteTrackingActivity):
+        def final_blocking_reason(
+            self,
+            readiness: HumanInputCapture | None,
+            *,
+            allowed_confirmation: HumanInputCapture | None = None,
+        ) -> str | None:
+            self.final_calls.append((readiness, allowed_confirmation))
+            if len(self.final_calls) == 4 and allowed_confirmation is None:
+                return "human input changed after action readiness"
+            return None
+
+    activity = OneShotActivity()
+    driver = OneInputThenTwoChecksDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+
+    assert result.startswith("ERROR NATIVE_AUTHORITY_LOST:")
+    assert driver.action_calls == ["key:first", "key:second"]
+    assert [allowed for _readiness, allowed in activity.final_calls] == [
+        None,
+        None,
+        HumanInputCapture(1),
+        None,
+    ]
+
+
+def test_human_loss_after_partial_native_input_is_unknown_and_stops(
+    tmp_path: Path,
+) -> None:
+    class DriftingActivity(NoteTrackingActivity):
+        def final_blocking_reason(
+            self,
+            readiness: HumanInputCapture | None,
+            *,
+            allowed_confirmation: HumanInputCapture | None = None,
+        ) -> str | None:
+            self.final_calls.append((readiness, allowed_confirmation))
+            return "human input changed after action readiness" if len(self.final_calls) == 3 else None
+
+    activity = DriftingActivity()
+    driver = MultiEventDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+
+    result = tool_text(asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"})))
+
+    assert result.startswith("ERROR NATIVE_AUTHORITY_LOST:")
+    assert driver.action_calls == ["key:first"]
 
 
 def test_input_after_dangerous_confirmation_invalidates_its_exact_tick(

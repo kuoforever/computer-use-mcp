@@ -510,6 +510,38 @@ def test_server_exception_for_side_effect_invalidates_generation(tmp_path: Path)
     assert factory.exit_calls == 1
 
 
+def test_native_authority_partial_result_is_dispatched_and_invalidates_generation(
+    tmp_path: Path,
+) -> None:
+    session = ScriptedSession(
+        results=(
+            _text_result(
+                "ERROR NATIVE_AUTHORITY_LOST: "
+                "native action authority changed after dispatch"
+            ),
+        )
+    )
+    factory = FakeSessionFactory(session)
+    bridge = StdioDesktopMCP(_launch(tmp_path), session_factory=factory)
+
+    async def scenario() -> tuple[object, object]:
+        await bridge.discover_tools()
+        failed = await bridge.call_tool(_call("key", {"combo": "Ctrl+S"}))
+        after = await bridge.call_tool(_call(call_id="after-native-unknown"))
+        return failed, after
+
+    failed, after = asyncio.run(scenario())
+
+    assert failed.status is ToolResultStatus.UNKNOWN_OUTCOME
+    assert failed.dispatch.value == "dispatched"
+    assert failed.code == "NATIVE_AUTHORITY_LOST"
+    assert after.status is ToolResultStatus.TRANSPORT_ERROR
+    assert after.code == "MCP_CHILD_EXITED_BEFORE_DISPATCH"
+    assert len(session.calls) == 1
+    assert bridge.generation == 1
+    assert factory.exit_calls == 1
+
+
 def test_post_dispatch_eof_is_unknown_once_and_requires_rediscovery(tmp_path: Path) -> None:
     secret = "eof-secret-message"
     session = ScriptedSession(results=(EOFError(secret),))

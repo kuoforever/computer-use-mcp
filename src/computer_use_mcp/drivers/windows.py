@@ -27,6 +27,7 @@ from ..interaction_feedback import (
     InteractionPacing,
     resolve_interaction_pacing,
 )
+from ..native_authority import NativeActionBoundary, NativeAuthorityLost
 from ..contract import (
     CONTRACT_VERSION,
     DRIVER_ERROR,
@@ -81,7 +82,12 @@ _BROWSER_PROCESS_NAMES = frozenset({"chrome.exe", "chromium.exe", "msedge.exe"})
 _BROWSER_SNAPSHOT_WARMUP_SECONDS = 1.0
 
 
-def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Result:
+def _activate_window_with_api(
+    hwnd: int,
+    user32: object,
+    kernel32: object,
+    boundary: NativeActionBoundary,
+) -> Result:
     """Activate ``hwnd`` while balancing every attached input queue.
 
     Keeping the native API objects injectable makes the ordering and cleanup
@@ -90,6 +96,7 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
     attached: list[tuple[int, int]] = []
     operation_error: str | None = None
     cleanup_errors: list[str] = []
+    authority_lost: NativeAuthorityLost | None = None
 
     try:
         if hwnd <= 0 or not user32.IsWindow(hwnd):
@@ -98,7 +105,7 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
         foreground_hwnd = int(user32.GetForegroundWindow() or 0)
         was_minimized = bool(user32.IsIconic(hwnd))
         if was_minimized:
-            user32.ShowWindow(hwnd, _SW_RESTORE)
+            boundary.mutate(lambda: user32.ShowWindow(hwnd, _SW_RESTORE))
             if user32.IsIconic(hwnd):
                 return Result.fail(DRIVER_ERROR, "could not restore minimized window")
         if foreground_hwnd == hwnd and not was_minimized:
@@ -126,28 +133,59 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
 
         try:
             for caller, other in pairs:
-                if not user32.AttachThreadInput(caller, other, True):
+                def attach(caller=caller, other=other):
+                    # Record the possibly acquired queue before entering the
+                    # native API so effect-then-error still detaches it.
+                    attached.append((caller, other))
+                    attached_now = user32.AttachThreadInput(caller, other, True)
+                    if not attached_now:
+                        # A normal FALSE return is a known non-acquisition;
+                        # retain only an exception-uncertain attempt.
+                        attached.pop()
+                    return attached_now
+
+                if not boundary.mutate(attach):
                     error = int(kernel32.GetLastError())
                     raise OSError(
                         "AttachThreadInput failed for threads "
                         f"{caller} and {other} (win32 error {error})"
                     )
-                attached.append((caller, other))
 
-            if not user32.BringWindowToTop(hwnd):
+            if not boundary.mutate(lambda: user32.BringWindowToTop(hwnd)):
                 raise OSError("BringWindowToTop failed")
-            if not user32.SetForegroundWindow(hwnd):
+            if not boundary.mutate(lambda: user32.SetForegroundWindow(hwnd)):
                 raise OSError("SetForegroundWindow failed")
+        except NativeAuthorityLost as exc:
+            authority_lost = exc
         except Exception as exc:
             operation_error = str(exc)
         finally:
             for caller, other in reversed(attached):
                 try:
-                    if not user32.AttachThreadInput(caller, other, False):
+                    def detach(caller=caller, other=other):
+                        return user32.AttachThreadInput(caller, other, False)
+
+                    detached = (
+                        detach()
+                        if authority_lost is not None
+                        else boundary.mutate(detach)
+                    )
+                    if not detached:
                         cleanup_errors.append(f"threads {caller} and {other}")
+                except NativeAuthorityLost as exc:
+                    authority_lost = exc
+                    try:
+                        if not user32.AttachThreadInput(caller, other, False):
+                            cleanup_errors.append(f"threads {caller} and {other}")
+                    except Exception as cleanup_exc:
+                        cleanup_errors.append(
+                            f"threads {caller} and {other}: {cleanup_exc}"
+                        )
                 except Exception as exc:
                     cleanup_errors.append(f"threads {caller} and {other}: {exc}")
 
+        if authority_lost is not None:
+            raise authority_lost
         if operation_error is not None:
             return Result.fail(DRIVER_ERROR, operation_error)
         if cleanup_errors:
@@ -159,12 +197,14 @@ def _activate_window_with_api(hwnd: int, user32: object, kernel32: object) -> Re
         # queues are being detached. Re-assert the restore only for a target
         # that was minimized on entry, then enforce the final postcondition.
         if was_minimized and user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, _SW_RESTORE)
+            boundary.mutate(lambda: user32.ShowWindow(hwnd, _SW_RESTORE))
             if user32.IsIconic(hwnd):
                 return Result.fail(DRIVER_ERROR, "could not restore minimized window")
         if int(user32.GetForegroundWindow() or 0) != hwnd:
             return Result.fail(DRIVER_ERROR, "could not bring window to foreground")
         return Result.success()
+    except NativeAuthorityLost:
+        raise
     except Exception as exc:
         return Result.fail(DRIVER_ERROR, str(exc))
 
@@ -176,6 +216,7 @@ class WindowsDriver(Driver):
         type_wait_seconds: float | None = None,
         interaction_speed: str | None = None,
         action_feedback: ActionFeedback | None = None,
+        native_action_boundary: NativeActionBoundary | None = None,
         sleep: object = time.sleep,
     ) -> None:
         pacing = resolve_interaction_pacing(interaction_speed)
@@ -206,6 +247,9 @@ class WindowsDriver(Driver):
         self._pacing = pacing
         self._action_feedback = action_feedback
         self._sleep = sleep
+        self._native_action_boundary: NativeActionBoundary | None = None
+        if native_action_boundary is not None:
+            self.bind_native_action_boundary(native_action_boundary)
         # native_id -> live UIA control, repopulated each get_tree(); actions
         # resolve refs through it. The core owns ref<->native_id; this is the
         # driver-side native_id<->handle half of that mapping.
@@ -214,6 +258,26 @@ class WindowsDriver(Driver):
     def _pause(self, seconds: float) -> None:
         if seconds > 0:
             self._sleep(seconds)  # type: ignore[operator]
+
+    def bind_native_action_boundary(self, boundary: NativeActionBoundary) -> None:
+        """Bind the MCP-owned controller once without changing Driver v1."""
+
+        if not isinstance(boundary, NativeActionBoundary):
+            raise ValueError("native action boundary is invalid")
+        if getattr(self, "_native_action_boundary", None) is not None:
+            raise ValueError("native action boundary is already bound")
+        boundary.bind(self)
+        self._native_action_boundary = boundary
+
+    def _require_native_action_boundary(self) -> NativeActionBoundary:
+        boundary = getattr(self, "_native_action_boundary", None)
+        if not isinstance(boundary, NativeActionBoundary):
+            raise NativeAuthorityLost(dispatch_attempts=0)
+        return boundary
+
+    def _mutate(self, operation, *, native_input: bool = False):
+        boundary = self._require_native_action_boundary()
+        return boundary.mutate(operation, native_input=native_input)
 
     def _show_pointer_feedback(self, x: int, y: int, action: str) -> None:
         feedback = getattr(self, "_action_feedback", None)
@@ -243,9 +307,9 @@ class WindowsDriver(Driver):
         except Exception:
             self._action_feedback = None
 
-    def _finish_feedback(self) -> None:
+    def _finish_feedback(self, *, skip_delay: bool = False) -> None:
         pacing: InteractionPacing | None = getattr(self, "_pacing", None)
-        if pacing is not None:
+        if pacing is not None and not skip_delay:
             self._pause(pacing.post_action_seconds)
         feedback = getattr(self, "_action_feedback", None)
         if feedback is None:
@@ -270,7 +334,12 @@ class WindowsDriver(Driver):
     def _move_pointer(self, user32: object, x: int, y: int, action: str) -> None:
         pacing: InteractionPacing | None = getattr(self, "_pacing", None)
         if pacing is None:
-            user32.SetCursorPos(int(x), int(y))
+            moved = self._mutate(
+                lambda: user32.SetCursorPos(int(x), int(y)),
+                native_input=True,
+            )
+            if not moved:
+                raise OSError("SetCursorPos failed")
             self._show_pointer_feedback(x, y, action)
             return
         point = wintypes.POINT()
@@ -280,7 +349,14 @@ class WindowsDriver(Driver):
         for step in range(1, steps + 1):
             next_x = int(point.x + (x - point.x) * step / steps)
             next_y = int(point.y + (y - point.y) * step / steps)
-            user32.SetCursorPos(next_x, next_y)
+            moved = self._mutate(
+                lambda next_x=next_x, next_y=next_y: user32.SetCursorPos(
+                    next_x, next_y
+                ),
+                native_input=True,
+            )
+            if not moved:
+                raise OSError("SetCursorPos failed")
             self._show_pointer_feedback(next_x, next_y, "move" if step < steps else action)
             self._pause(pacing.pointer_move_ms / steps / 1000)
         self._pause(pacing.pre_action_seconds)
@@ -715,14 +791,18 @@ class WindowsDriver(Driver):
         pattern = self._safe(lambda: ctrl.GetInvokePattern(), None)
         if pattern is None:
             return Result.fail(NOT_INVOKABLE, "no InvokePattern")
+        authority_lost = False
         try:
             self._prepare_semantic_target(ctrl)
-            pattern.Invoke()
+            self._mutate(pattern.Invoke)
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            self._finish_feedback(skip_delay=authority_lost)
 
     def set_value(self, native_id: str, text: str) -> Result:
         """Set a control's value via ValuePattern — focus-independent, robust to
@@ -735,17 +815,21 @@ class WindowsDriver(Driver):
             return Result.fail(NOT_INVOKABLE, "no ValuePattern")
         if self._safe(lambda: bool(pattern.IsReadOnly), False):
             return Result.fail(NOT_INVOKABLE, "value is read-only")
+        authority_lost = False
         try:
             self._show_keyboard_feedback("typing")
             pacing: InteractionPacing | None = getattr(self, "_pacing", None)
             if pacing is not None:
                 self._pause(pacing.pre_action_seconds)
-            pattern.SetValue(text)
+            self._mutate(lambda: pattern.SetValue(text))
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            self._finish_feedback(skip_delay=authority_lost)
 
     def select(self, native_id: str) -> Result:
         ctrl = self._resolve(native_id)
@@ -754,18 +838,23 @@ class WindowsDriver(Driver):
         pattern = self._safe(lambda: ctrl.GetSelectionItemPattern(), None)
         if pattern is None:
             return Result.fail(NOT_INVOKABLE, "no SelectionItemPattern")
+        authority_lost = False
         try:
             self._prepare_semantic_target(ctrl)
-            pattern.Select()
+            self._mutate(pattern.Select)
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            self._finish_feedback(skip_delay=authority_lost)
 
     def type(self, text: str) -> Result:
         # Keyboard fallback for surfaces without a writable ValuePattern; targets
         # whatever holds focus, so callers must focus first.
+        authority_lost = False
         try:
             interval = getattr(self, "_typing_interval", None)
             estimated_interval = 0.01 if interval is None else interval
@@ -777,15 +866,84 @@ class WindowsDriver(Driver):
             pacing: InteractionPacing | None = getattr(self, "_pacing", None)
             if pacing is not None:
                 self._pause(pacing.pre_action_seconds)
-            if interval is None:
-                auto.SendKeys(text, waitTime=0.0)
-            else:
-                auto.SendKeys(text, interval=interval, waitTime=0.0)
+            for character in text:
+                batch = self._literal_character_input_batch(character)
+                inserted = self._mutate(
+                    lambda batch=batch: self._send_input_batch(batch),
+                    native_input=True,
+                )
+                if inserted != len(batch):
+                    raise OSError("SendInput did not insert the complete scalar")
+                self._pause(estimated_interval)
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            self._finish_feedback(skip_delay=authority_lost)
+
+    @staticmethod
+    def _utf16_input_units(character: str) -> tuple[str, ...]:
+        encoded = character.encode("utf-16-le", errors="surrogatepass")
+        return tuple(
+            chr(int.from_bytes(encoded[index : index + 2], "little"))
+            for index in range(0, len(encoded), 2)
+        )
+
+    @classmethod
+    def _literal_character_input_batch(cls, character: str) -> tuple[object, ...]:
+        inputs = []
+        for unit in cls._utf16_input_units(character):
+            scan = ord(unit)
+            inputs.extend(
+                (
+                    auto.KeyboardInput(
+                        0,
+                        scan,
+                        auto.KeyboardEventFlag.KeyUnicode
+                        | auto.KeyboardEventFlag.KeyDown,
+                    ),
+                    auto.KeyboardInput(
+                        0,
+                        scan,
+                        auto.KeyboardEventFlag.KeyUnicode
+                        | auto.KeyboardEventFlag.KeyUp,
+                    ),
+                )
+            )
+        return tuple(inputs)
+
+    @staticmethod
+    def _send_input_batch(inputs: tuple[object, ...]) -> int:
+        """Submit one scalar and unwind a reported odd key-down prefix."""
+
+        if not inputs:
+            return 0
+
+        def submit(batch: tuple[object, ...]) -> int:
+            input_array = (auto.INPUT * len(batch))(*batch)
+            input_pointer = ctypes.cast(input_array, ctypes.POINTER(auto.INPUT))
+            return int(
+                ctypes.windll.user32.SendInput(
+                    len(batch),
+                    input_pointer,
+                    ctypes.sizeof(auto.INPUT),
+                )
+            )
+
+        inserted = submit(inputs)
+        if 0 < inserted < len(inputs) and inserted % 2:
+            # The batch is ordered down/up pairs. If Win32 reports an odd
+            # prefix, the next uninserted event is the matching key-up. This
+            # direct bounded unwind must occur before call-local tick capture,
+            # which can itself fail and hide ``inserted`` from the caller.
+            try:
+                submit((inputs[inserted],))
+            except Exception:
+                pass
+        return inserted
 
     @staticmethod
     def _vk(token: str) -> int | None:
@@ -814,23 +972,49 @@ class WindowsDriver(Driver):
                 return Result.fail(DRIVER_ERROR, f"unknown key {tok!r} in {combo!r}")
             (mods if tok.strip().lower() in _MOD_KEYS else keys).append(vk)
         user32 = ctypes.windll.user32
+        held: list[int] = []
+        authority_lost = False
         try:
             self._show_keyboard_feedback("key")
             pacing: InteractionPacing | None = getattr(self, "_pacing", None)
             if pacing is not None:
                 self._pause(pacing.pre_action_seconds)
             for m in mods:
-                user32.keybd_event(m, 0, 0, 0)
+                def press_modifier(m=m) -> None:
+                    held.append(m)
+                    user32.keybd_event(m, 0, 0, 0)
+
+                self._mutate(press_modifier, native_input=True)
             for k in keys:
-                user32.keybd_event(k, 0, 0, 0)
-                user32.keybd_event(k, 0, _KEYEVENTF_KEYUP, 0)
+                def press_key(k=k) -> None:
+                    held.append(k)
+                    user32.keybd_event(k, 0, 0, 0)
+
+                self._mutate(press_key, native_input=True)
+                self._mutate(
+                    lambda k=k: user32.keybd_event(k, 0, _KEYEVENTF_KEYUP, 0),
+                    native_input=True,
+                )
+                held.pop()
             for m in reversed(mods):
-                user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0)
+                self._mutate(
+                    lambda m=m: user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0),
+                    native_input=True,
+                )
+                held.pop()
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            for vk in reversed(held):
+                try:
+                    user32.keybd_event(vk, 0, _KEYEVENTF_KEYUP, 0)
+                except Exception:
+                    pass
+            self._finish_feedback(skip_delay=authority_lost)
 
     def activate_window(self, window_id: str) -> Result:
         """Bring a window to the foreground (a prerequisite for keyboard input).
@@ -842,7 +1026,12 @@ class WindowsDriver(Driver):
             return Result.fail(DRIVER_ERROR, f"bad window_id {window_id!r}")
         user32 = ctypes.windll.user32
         user32.GetForegroundWindow.restype = ctypes.c_void_p
-        return _activate_window_with_api(hwnd, user32, ctypes.windll.kernel32)
+        return _activate_window_with_api(
+            hwnd,
+            user32,
+            ctypes.windll.kernel32,
+            self._require_native_action_boundary(),
+        )
 
     def click(self, x: int, y: int, button: str = "left", modifiers: list[str] | None = None) -> Result:
         """Coordinate click in the shared pixel space (DPI-aware). For ref-based
@@ -854,40 +1043,85 @@ class WindowsDriver(Driver):
         }.get(button.lower())
         if downup is None:
             return Result.fail(DRIVER_ERROR, f"unknown button {button!r}")
-        mod_vks = [self._vk(m) for m in (modifiers or [])]
-        if any(v is None for v in mod_vks):
+        resolved_mod_vks = [self._vk(m) for m in (modifiers or [])]
+        if any(v is None for v in resolved_mod_vks):
             return Result.fail(DRIVER_ERROR, f"unknown modifier in {modifiers!r}")
+        mod_vks = [int(v) for v in resolved_mod_vks if v is not None]
         user32 = ctypes.windll.user32
+        held_mods: list[int] = []
+        mouse_held = False
+        authority_lost = False
         try:
             self._move_pointer(user32, int(x), int(y), "click")
             for m in mod_vks:
-                user32.keybd_event(m, 0, 0, 0)
+                def press_modifier(m=m) -> None:
+                    held_mods.append(m)
+                    user32.keybd_event(m, 0, 0, 0)
+
+                self._mutate(press_modifier, native_input=True)
             down, up = downup
-            user32.mouse_event(down, 0, 0, 0, 0)
-            user32.mouse_event(up, 0, 0, 0, 0)
+
+            def press_mouse() -> None:
+                nonlocal mouse_held
+                mouse_held = True
+                user32.mouse_event(down, 0, 0, 0, 0)
+
+            self._mutate(press_mouse, native_input=True)
+            self._mutate(
+                lambda: user32.mouse_event(up, 0, 0, 0, 0),
+                native_input=True,
+            )
+            mouse_held = False
             for m in reversed(mod_vks):
-                user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0)
+                self._mutate(
+                    lambda m=m: user32.keybd_event(m, 0, _KEYEVENTF_KEYUP, 0),
+                    native_input=True,
+                )
+                held_mods.pop()
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            if mouse_held:
+                try:
+                    user32.mouse_event(downup[1], 0, 0, 0, 0)
+                except Exception:
+                    pass
+            for vk in reversed(held_mods):
+                try:
+                    user32.keybd_event(vk, 0, _KEYEVENTF_KEYUP, 0)
+                except Exception:
+                    pass
+            self._finish_feedback(skip_delay=authority_lost)
 
     def scroll(self, x: int, y: int, delta_x: int, delta_y: int) -> Result:
         """Inject bounded horizontal and vertical wheel movement at one point."""
 
         user32 = ctypes.windll.user32
+        authority_lost = False
         try:
             self._move_pointer(user32, int(x), int(y), "scroll")
             if delta_y:
-                user32.mouse_event(0x0800, 0, 0, int(delta_y), 0)
+                self._mutate(
+                    lambda: user32.mouse_event(0x0800, 0, 0, int(delta_y), 0),
+                    native_input=True,
+                )
             if delta_x:
-                user32.mouse_event(0x1000, 0, 0, int(delta_x), 0)
+                self._mutate(
+                    lambda: user32.mouse_event(0x1000, 0, 0, int(delta_x), 0),
+                    native_input=True,
+                )
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            self._finish_feedback(skip_delay=authority_lost)
 
     def drag(
         self, x: int, y: int, to_x: int, to_y: int, duration_ms: int = 250
@@ -896,23 +1130,46 @@ class WindowsDriver(Driver):
 
         user32 = ctypes.windll.user32
         steps = max(1, min(60, int(duration_ms) // 16 or 1))
+        mouse_held = False
+        authority_lost = False
         try:
             self._move_pointer(user32, int(x), int(y), "drag")
-            user32.mouse_event(0x0002, 0, 0, 0, 0)
+
+            def press_mouse() -> None:
+                nonlocal mouse_held
+                mouse_held = True
+                user32.mouse_event(0x0002, 0, 0, 0, 0)
+
+            self._mutate(press_mouse, native_input=True)
             for step in range(1, steps + 1):
                 next_x = int(x + (to_x - x) * step / steps)
                 next_y = int(y + (to_y - y) * step / steps)
-                user32.SetCursorPos(next_x, next_y)
+                moved = self._mutate(
+                    lambda next_x=next_x, next_y=next_y: user32.SetCursorPos(
+                        next_x, next_y
+                    ),
+                    native_input=True,
+                )
+                if not moved:
+                    raise OSError("SetCursorPos failed")
                 self._show_pointer_feedback(next_x, next_y, "drag")
                 if duration_ms:
                     self._pause(duration_ms / steps / 1000)
-            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            self._mutate(
+                lambda: user32.mouse_event(0x0004, 0, 0, 0, 0),
+                native_input=True,
+            )
+            mouse_held = False
             return Result.success()
+        except NativeAuthorityLost:
+            authority_lost = True
+            raise
         except Exception as exc:
-            try:
-                user32.mouse_event(0x0004, 0, 0, 0, 0)
-            except Exception:
-                pass
             return Result.fail(DRIVER_ERROR, str(exc))
         finally:
-            self._finish_feedback()
+            if mouse_held:
+                try:
+                    user32.mouse_event(0x0004, 0, 0, 0, 0)
+                except Exception:
+                    pass
+            self._finish_feedback(skip_delay=authority_lost)

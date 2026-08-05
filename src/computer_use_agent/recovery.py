@@ -16,6 +16,8 @@ from .continuation import (
 )
 from .reconstruction import (
     OperationEffect,
+    OperationKind,
+    OperationStage,
     ReconstructionAction,
     ReconstructionContext,
     ReconstructionDecision,
@@ -569,7 +571,56 @@ def plan_read_only_recovery(
         budget_available=budget_available,
         pending_effect=pending_effect,
     )
-    decision = classify_operation_state(envelope.operation_state, context=context)
+    operation = envelope.operation_state
+    completed_stop: tuple[ToolCall, ToolResult] | None = None
+    if (
+        operation.kind is OperationKind.TOOL
+        and operation.stage is OperationStage.COMPLETED
+        and next_step == "stop"
+    ):
+        if raw_effect not in {
+            ToolEffect.OBSERVATION.value,
+            ToolEffect.SIDE_EFFECT.value,
+        }:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        completed_stop = _completed_tool(
+            envelope,
+            required_effect=ToolEffect(str(raw_effect)),
+        )
+        _call, result = completed_stop
+        expected_id = (
+            f"{result.identity.run_id}:{result.identity.turn_id}:"
+            f"{result.identity.call_id}"
+        )
+        boundary_dispatch = boundary.get("dispatch")
+        valid_unknown = (
+            result.status is ToolResultStatus.UNKNOWN_OUTCOME
+            and boundary_dispatch in {"dispatched", "unknown"}
+            and (
+                boundary_dispatch != "dispatched"
+                or result.dispatch is DispatchCertainty.DISPATCHED
+            )
+        )
+        valid_completed_reobservation = (
+            result.status is not ToolResultStatus.UNKNOWN_OUTCOME
+            and raw_effect == ToolEffect.OBSERVATION.value
+            and boundary_dispatch == "dispatched"
+        )
+        if (
+            operation.operation_id != expected_id
+            or not (valid_unknown or valid_completed_reobservation)
+        ):
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+
+    decision = classify_operation_state(operation, context=context)
+    if decision.action is ReconstructionAction.HUMAN_REOBSERVE:
+        if operation.stage is OperationStage.COMPLETED:
+            if (
+                completed_stop is None
+                or completed_stop[1].status is not ToolResultStatus.UNKNOWN_OUTCOME
+            ):
+                raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return ReadOnlyRecoveryPlan(decision)
     if decision.action is ReconstructionAction.FINALIZE_BLOCKED:
         if next_step != "stop" or raw_effect != ToolEffect.SIDE_EFFECT.value:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")

@@ -78,6 +78,7 @@ _SERVER_ERROR_PREFIXES = (
     ("HUMAN_ACTIVE:", "HUMAN_ACTIVE"),
     ("DENIED by gate:", "DENIED_BY_GATE"),
     ("DENIED by user", "DENIED_BY_USER"),
+    ("NATIVE_AUTHORITY_LOST:", "NATIVE_AUTHORITY_LOST"),
 )
 _STRUCTURED_OBSERVATION_ERROR_TOOLS = frozenset(
     {"capture_region", "document_text", "ocr"}
@@ -245,6 +246,8 @@ def _classify_action_text(text: str) -> tuple[ToolResultStatus, str | None]:
             return ToolResultStatus.REJECTED, code
     if text.startswith("ERROR "):
         code = text[6:].partition(":")[0].strip()
+        if code == "NATIVE_AUTHORITY_LOST":
+            return ToolResultStatus.UNKNOWN_OUTCOME, code
         if code in _SERVER_RESULT_CODES:
             return ToolResultStatus.ACTION_ERROR, code
         raise MCPResultConversionError("unreviewed MCP action error code")
@@ -383,7 +386,16 @@ def convert_mcp_result(call: ToolCall, raw_result: object) -> ToolResult:
 
     if spec.effect is ToolEffect.SIDE_EFFECT:
         status, code = _classify_action_text(text)
-        result = _safe_result(call, status, code=code)
+        result = _safe_result(
+            call,
+            status,
+            code=code,
+            dispatch=(
+                DispatchCertainty.DISPATCHED
+                if status is ToolResultStatus.UNKNOWN_OUTCOME
+                else None
+            ),
+        )
     elif _is_structured_observation_error(call.name, text):
         result = _safe_result(
             call,

@@ -51,6 +51,7 @@ from .human_activity import (
     HumanActivity,
     HumanInputCapture,
 )
+from .native_authority import NativeActionBoundary, NativeAuthorityLost
 from .ocr import (
     OCR_TIMEOUT_SECONDS,
     OcrError,
@@ -127,6 +128,8 @@ def build_server(
     ocr_reader: OcrReader | None = None,
 ) -> FastMCP:
     enable_dpi_awareness()
+    native_boundary = NativeActionBoundary()
+    native_boundary_ready = True
     if driver is None:
         from .drivers.windows import WindowsDriver
 
@@ -144,7 +147,17 @@ def build_server(
             ),
             interaction_speed=os.environ.get("CUMCP_INTERACTION_SPEED"),
             action_feedback=action_feedback,
+            native_action_boundary=native_boundary,
         )
+    else:
+        bind_boundary = getattr(driver, "bind_native_action_boundary", None)
+        if not callable(bind_boundary):
+            native_boundary_ready = False
+        else:
+            try:
+                bind_boundary(native_boundary)
+            except Exception:
+                native_boundary_ready = False
     session = Session(driver)
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
     activity = human_activity or HumanActivity(
@@ -191,9 +204,15 @@ def build_server(
     def _audit_args(args: dict) -> dict:
         return {**args, "control_mode": mode}
 
-    def _estop_guard(tool: str, args: dict) -> tuple[bool, str]:
+    def _estop_guard(
+        tool: str,
+        args: dict,
+        *,
+        audit_denial: bool = True,
+    ) -> tuple[bool, str]:
         if estop.engaged:
-            audit.record(tool, _audit_args(args), "estop", "aborted")
+            if audit_denial:
+                audit.record(tool, _audit_args(args), "estop", "aborted")
             return False, "ABORTED: e-stop engaged (restart the server to clear)"
         return True, ""
 
@@ -202,22 +221,31 @@ def build_server(
         args: dict,
         *,
         final: bool,
+        audit_denial: bool = True,
     ) -> tuple[bool, str]:
         allowed, reason = (
             gate.foreground_allowed_once() if final else gate.foreground_allowed()
         )
         if not allowed:
-            audit.record(tool, _audit_args(args), "gate_denied", reason)
+            if audit_denial:
+                audit.record(tool, _audit_args(args), "gate_denied", reason)
             return False, f"DENIED by gate: {reason}"
         return True, ""
 
-    def _human_activity_denied(tool: str, args: dict, reason: str) -> tuple[bool, str]:
-        audit.record(
-            tool,
-            _audit_args(args),
-            "human_active",
-            reason,
-        )
+    def _human_activity_denied(
+        tool: str,
+        args: dict,
+        reason: str,
+        *,
+        audit_denial: bool = True,
+    ) -> tuple[bool, str]:
+        if audit_denial:
+            audit.record(
+                tool,
+                _audit_args(args),
+                "human_active",
+                reason,
+            )
         return False, f"HUMAN_ACTIVE: {reason}"
 
     def _guard(
@@ -255,16 +283,22 @@ def build_server(
         require_foreground: bool = True,
         readiness: HumanInputCapture | None,
         allowed_confirmation: HumanInputCapture | None = None,
+        audit_denial: bool = True,
     ) -> tuple[bool, str]:
         """Revalidate non-waiting authority immediately before driver dispatch."""
 
-        allowed, reason = _estop_guard(tool, args)
+        allowed, reason = _estop_guard(tool, args, audit_denial=audit_denial)
         if not allowed:
             return allowed, reason
         if mode == FULL_CONTROL_LOCAL:
             return True, ""
         if require_foreground:
-            allowed, reason = _foreground_guard(tool, args, final=True)
+            allowed, reason = _foreground_guard(
+                tool,
+                args,
+                final=True,
+                audit_denial=audit_denial,
+            )
             if not allowed:
                 return allowed, reason
         activity_reason = activity.final_blocking_reason(
@@ -272,7 +306,12 @@ def build_server(
             allowed_confirmation=allowed_confirmation,
         )
         if activity_reason:
-            return _human_activity_denied(tool, args, activity_reason)
+            return _human_activity_denied(
+                tool,
+                args,
+                activity_reason,
+                audit_denial=audit_denial,
+            )
         return True, ""
 
     def _record_action(
@@ -287,6 +326,91 @@ def build_server(
             activity.note_agent_action()
         audit.record(tool, _audit_args(args), "ok", out)
         return out
+
+    def _run_native_action(
+        tool: str,
+        args: dict,
+        operation,
+        *,
+        readiness: HumanInputCapture | None,
+        require_foreground: bool = True,
+        allowed_confirmation: HumanInputCapture | None = None,
+        native_input_on_success: bool = False,
+    ) -> str:
+        """Run one Session action inside the sole call-scoped native boundary."""
+
+        if not native_boundary_ready:
+            audit.record(
+                tool,
+                _audit_args(args),
+                "authority_lost",
+                "native action boundary unavailable",
+            )
+            return "NATIVE_AUTHORITY_LOST: native action boundary unavailable"
+
+        call_allowed_input = allowed_confirmation
+
+        def _revalidate() -> tuple[bool, str]:
+            nonlocal call_allowed_input
+            allowed_input = call_allowed_input
+            call_allowed_input = None
+            return _final_authority_guard(
+                tool,
+                args,
+                require_foreground=require_foreground,
+                readiness=readiness,
+                allowed_confirmation=allowed_input,
+                audit_denial=False,
+            )
+
+        def _capture_native_input() -> tuple[bool, str]:
+            nonlocal call_allowed_input
+            if mode == FULL_CONTROL_LOCAL:
+                return True, ""
+            captured = activity.capture()
+            if captured is None:
+                return False, "HUMAN_ACTIVE: human input idle state unavailable"
+            call_allowed_input = captured
+            return True, ""
+
+        try:
+            with native_boundary.call_scope(_revalidate, _capture_native_input):
+                result = operation()
+        except NativeAuthorityLost as exc:
+            if exc.after_dispatch:
+                audit.record(
+                    tool,
+                    _audit_args(args),
+                    "unknown_outcome",
+                    "native authority lost after dispatch",
+                )
+                return (
+                    "ERROR NATIVE_AUTHORITY_LOST: "
+                    "native action authority changed after dispatch"
+                )
+            if exc.rejection.startswith(("ABORTED:", "HUMAN_ACTIVE:", "DENIED by gate:")):
+                decision = (
+                    "estop"
+                    if exc.rejection.startswith("ABORTED:")
+                    else "human_active"
+                    if exc.rejection.startswith("HUMAN_ACTIVE:")
+                    else "gate_denied"
+                )
+                audit.record(tool, _audit_args(args), decision, exc.rejection)
+                return exc.rejection
+            audit.record(
+                tool,
+                _audit_args(args),
+                "authority_lost",
+                "native action boundary unavailable",
+            )
+            return "NATIVE_AUTHORITY_LOST: native action boundary unavailable"
+        return _record_action(
+            tool,
+            args,
+            result,
+            native_input_on_success=native_input_on_success,
+        )
 
     # --- perception ---------------------------------------------------------
 
@@ -412,7 +536,13 @@ def build_server(
         )
         if not ok:
             return msg
-        return _record_action("activate_window", args, session.activate(window_id))
+        return _run_native_action(
+            "activate_window",
+            args,
+            lambda: session.activate(window_id),
+            readiness=readiness,
+            require_foreground=False,
+        )
 
     @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "
                           "or at coordinates x,y. Allowlisted app must be in front; dangerous "
@@ -438,11 +568,12 @@ def build_server(
         )
         if not ok:
             return msg
-        result = session.click(ref=ref, x=x, y=y)
-        return _record_action(
+        return _run_native_action(
             "click",
             args,
-            result,
+            lambda: session.click(ref=ref, x=x, y=y),
+            readiness=readiness,
+            allowed_confirmation=allowed_confirmation,
             native_input_on_success=(ref is None and x is not None and y is not None),
         )
 
@@ -468,10 +599,11 @@ def build_server(
         ok, msg = _final_authority_guard("scroll", args, readiness=readiness)
         if not ok:
             return msg
-        return _record_action(
+        return _run_native_action(
             "scroll",
             args,
-            session.scroll(x, y, delta_x, delta_y),
+            lambda: session.scroll(x, y, delta_x, delta_y),
+            readiness=readiness,
             native_input_on_success=True,
         )
 
@@ -505,10 +637,11 @@ def build_server(
         ok, msg = _final_authority_guard("drag", args, readiness=readiness)
         if not ok:
             return msg
-        return _record_action(
+        return _run_native_action(
             "drag",
             args,
-            session.drag(x, y, to_x, to_y, duration_ms),
+            lambda: session.drag(x, y, to_x, to_y, duration_ms),
+            readiness=readiness,
             native_input_on_success=True,
         )
 
@@ -523,10 +656,11 @@ def build_server(
         ok, msg = _final_authority_guard("type", args, readiness=readiness)
         if not ok:
             return msg
-        return _record_action(
+        return _run_native_action(
             "type",
             args,
-            session.type(text, ref=ref),
+            lambda: session.type(text, ref=ref),
+            readiness=readiness,
             native_input_on_success=(ref is None and bool(text)),
         )
 
@@ -540,10 +674,11 @@ def build_server(
         ok, msg = _final_authority_guard("key", args, readiness=readiness)
         if not ok:
             return msg
-        return _record_action(
+        return _run_native_action(
             "key",
             args,
-            session.key(combo),
+            lambda: session.key(combo),
+            readiness=readiness,
             native_input_on_success=bool(combo.strip()),
         )
 

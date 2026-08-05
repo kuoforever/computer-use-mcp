@@ -9,6 +9,7 @@ from pathlib import Path
 
 from computer_use_mcp.contract import ProcRef, Result
 from computer_use_mcp.human_activity import HumanActivity, HumanInputCapture
+from computer_use_mcp.native_authority import NativeActionBoundary
 from computer_use_mcp.safety import EStop
 from computer_use_mcp.server import build_server
 
@@ -19,6 +20,15 @@ class FakeDriver:
         self.input_tick = 1
         self.key_calls = 0
         self.activate_calls = 0
+        self.native_boundary: NativeActionBoundary | None = None
+
+    def bind_native_action_boundary(self, boundary: NativeActionBoundary) -> None:
+        boundary.bind(self)
+        self.native_boundary = boundary
+
+    def _mutate(self, operation, *, native_input: bool = False):
+        assert self.native_boundary is not None
+        return self.native_boundary.mutate(operation, native_input=native_input)
 
     def last_input_idle_seconds(self) -> float:
         return self.idle_seconds
@@ -30,12 +40,18 @@ class FakeDriver:
         return [ProcRef(pid=1, name="notepad.exe")]
 
     def key(self, _combo: str) -> Result:
-        self.key_calls += 1
+        self._mutate(self._record_key, native_input=True)
         return Result.success()
 
+    def _record_key(self) -> None:
+        self.key_calls += 1
+
     def activate_window(self, _window_id: str) -> Result:
-        self.activate_calls += 1
+        self._mutate(self._record_activation)
         return Result.success()
+
+    def _record_activation(self) -> None:
+        self.activate_calls += 1
 
 
 class SamplingDriver(FakeDriver):
@@ -169,7 +185,7 @@ class HumanActivityTests(unittest.TestCase):
         )
 
     def test_server_stabilizes_inside_one_call_then_dispatches_once(self) -> None:
-        driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3, 1.4))
+        driver = SamplingDriver((0.1, 1.1, 0.2, 1.1, 1.2, 1.3, 1.4, 1.5))
         activity = HumanActivity(
             driver,
             idle_seconds=1.0,

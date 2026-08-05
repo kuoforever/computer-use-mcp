@@ -23,6 +23,7 @@ from computer_use_agent.continuation import (
     RuntimeContinuationRecorder,
     continuation_path,
     read_continuation,
+    write_continuation,
 )
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.recovery import (
@@ -32,7 +33,7 @@ from computer_use_agent.recovery import (
     execute_read_only_recovery_step,
     plan_read_only_recovery,
 )
-from computer_use_agent.reconstruction import ReconstructionAction
+from computer_use_agent.reconstruction import OperationResult, ReconstructionAction
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
 from computer_use_agent.trace import RunPhase, RunRecorder, read_run_checkpoint
@@ -166,6 +167,245 @@ def _completed_observation(
     recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
     envelope = recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
     return tool_state, envelope, result
+
+
+def _completed_side_effect(
+    config: AgentConfig,
+    state: RunState,
+    *,
+    unknown: bool,
+) -> tuple[RunState, ContinuationEnvelope, ToolResult]:
+    call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "click",
+        {"ref": "ref_1"},
+    )
+    recorder = _recorder(config, state)
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (call,)),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+    tool_state = replace(
+        state,
+        budgets=RunBudget(
+            4,
+            4,
+            8,
+            model_turns_used=1,
+            tool_calls_used=1,
+            side_effects_used=1,
+        ),
+        recovery_status=(
+            RecoveryStatus.UNKNOWN_OUTCOME
+            if unknown
+            else RecoveryStatus.REQUIRES_REOBSERVATION
+        ),
+    )
+    result = ToolResult(
+        call.identity,
+        call.name,
+        (
+            ToolResultStatus.UNKNOWN_OUTCOME
+            if unknown
+            else ToolResultStatus.SUCCESS
+        ),
+        DispatchCertainty.DISPATCHED,
+        code="NATIVE_AUTHORITY_LOST" if unknown else None,
+    )
+    recorder.prepare_tool(
+        tool_state,
+        call,
+        effect=ToolEffect.SIDE_EFFECT,
+        checkpoint_sequence=4,
+    )
+    recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
+    envelope = recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
+    return tool_state, envelope, result
+
+
+def test_completed_native_unknown_preserves_exact_dispatch_and_stops_recovery(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state, envelope, result = _completed_side_effect(
+        config,
+        _state(),
+        unknown=True,
+    )
+
+    assert envelope.payload["boundary"]["dispatch"] == "dispatched"
+    assert envelope.payload["boundary"]["next_step"] == "stop"
+    assert envelope.operation_state.result is OperationResult.UNKNOWN_OUTCOME
+
+    plan = plan_read_only_recovery(
+        _checkpoint(state, 6),
+        envelope,
+        config,
+        task=state.task,
+    )
+
+    assert result.dispatch is DispatchCertainty.DISPATCHED
+    assert plan.decision.action is ReconstructionAction.HUMAN_REOBSERVE
+    assert plan.decision.reason == "UNKNOWN_OUTCOME"
+
+
+def test_legacy_v6_unknown_boundary_with_dispatched_ledger_remains_readable(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state, envelope, _result = _completed_side_effect(
+        config,
+        _state(),
+        unknown=True,
+    )
+    payload = json.loads(json.dumps(envelope.payload))
+    payload.pop("payload_digest")
+    payload["boundary"]["dispatch"] = "unknown"
+    legacy = write_continuation(config.state_dir, payload)
+
+    plan = plan_read_only_recovery(
+        _checkpoint(state, 6),
+        legacy,
+        config,
+        task=state.task,
+    )
+
+    assert legacy.operation_state.result is OperationResult.UNKNOWN_OUTCOME
+    assert plan.decision.action is ReconstructionAction.HUMAN_REOBSERVE
+
+
+def test_dispatched_unknown_boundary_without_correlated_result_fails_closed(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state, envelope, _result = _completed_side_effect(
+        config,
+        _state(),
+        unknown=True,
+    )
+    payload = json.loads(json.dumps(envelope.payload))
+    payload.pop("payload_digest")
+    payload["ledger"] = [
+        event for event in payload["ledger"] if event["kind"] != "tool_result"
+    ]
+    tampered = write_continuation(config.state_dir, payload)
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(
+            _checkpoint(state, 6),
+            tampered,
+            config,
+            task=state.task,
+        )
+
+
+@pytest.mark.parametrize(
+    ("status", "dispatch", "code", "expected_boundary", "expected_action"),
+    [
+        (
+            ToolResultStatus.UNKNOWN_OUTCOME,
+            DispatchCertainty.UNKNOWN,
+            "MCP_PROTOCOL_ERROR",
+            "unknown",
+            ReconstructionAction.HUMAN_REOBSERVE,
+        ),
+        (
+            ToolResultStatus.ACTION_ERROR,
+            DispatchCertainty.DISPATCHED,
+            "DRIVER_ERROR",
+            "dispatched",
+            ReconstructionAction.START_NEW_RUN,
+        ),
+    ],
+)
+def test_recovery_synthesized_observation_result_preserves_stop_semantics(
+    tmp_path: Path,
+    monkeypatch: object,
+    status: ToolResultStatus,
+    dispatch: DispatchCertainty,
+    code: str,
+    expected_boundary: str,
+    expected_action: ReconstructionAction,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state, envelope, _result = _completed_side_effect(
+        config,
+        _state(),
+        unknown=False,
+    )
+    checkpoint = _safe_checkpoint(config, state, 6)
+    plan = plan_read_only_recovery(
+        checkpoint,
+        envelope,
+        config,
+        task=state.task,
+    )
+    assert plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE
+    assert plan.call is not None
+    recovery_result = ToolResult(
+        plan.call.identity,
+        plan.call.name,
+        status,
+        dispatch,
+        code=code,
+    )
+    desktop = FakeDesktopMCP(results=deque([recovery_result]))
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=None,
+                desktop=desktop,
+                commit_intent=persistence.commit_intent,
+                commit_completion=persistence.commit_completion,
+            )
+        )
+    finally:
+        lock.release()
+
+    completed = read_continuation(config.state_dir, state.run_id)
+    completed_checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    second_plan = plan_read_only_recovery(
+        completed_checkpoint,
+        completed,
+        config,
+        task=state.task,
+    )
+
+    assert completed.payload["boundary"]["dispatch"] == expected_boundary
+    assert second_plan.decision.action is expected_action
+    assert second_plan.decision.reason == (
+        "UNKNOWN_OUTCOME"
+        if expected_action is ReconstructionAction.HUMAN_REOBSERVE
+        else "RECOVERY_STEP_COMPLETED"
+    )
 
 
 def test_completed_provider_reconstructs_exactly_one_pending_observation(
