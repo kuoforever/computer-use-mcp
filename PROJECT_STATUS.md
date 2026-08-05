@@ -13,8 +13,8 @@
 > through PR #245; `GDA-CORE-017` is merged through PR #247;
 > `GDA-CORE-018` is merged through PR #249;
 > `GDA-CORE-019` is merged through PR #251;
-> `GDA-CORE-020` is merged through PR #253; and
-> `GDA-CORE-021` is the exact next core Runtime item.
+> `GDA-CORE-020` is merged through PR #253; `GDA-CORE-021` is complete locally;
+> and `GDA-CORE-022` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -253,16 +253,25 @@ Authority loss keeps its distinct fixed code, while zero-attempt stale,
 missing-pattern, validation, bad-argument, and ordinary Driver failures retain
 their existing semantics. Driver contract `1.0.0` remains unchanged.
 
-The next bounded audit selected `GDA-CORE-021`. Strict continuation v6 currently
-validates `boundary.next_step` only as an enum and then uses that independently
-mutable value to choose the budget dimension before reconstructing the actual
-recovery action. A deterministic formal-persistence probe changed a completed
-observation's `provider_continue` to another schema-valid next step with
-`model_turns_used == max_model_turns == 1`; recovery still reconstructed
-`CONTINUE_PROVIDER`, persisted provider intent, and made one provider call before
-completion finally rejected the over-budget payload. The next slice must bind
-next-step semantics to the boundary/ledger topology and check the budget required
-by the final reconstructed action before any persistence or external call.
+`GDA-CORE-021` closes that recovery authority gap. Strict continuation v6 now
+reconstructs and validates the complete boundary/ledger topology before treating
+`boundary.next_step` as an equality constraint. The final
+`ReconstructionAction`, not the persisted hint, selects model/input or tool-call
+budget authority. The executor rechecks before external I/O, and locked
+persistence rereads and replans before intent; an already-accounted singleton
+prepared observation reuses its call without double charging. Contradictory or
+forged topology fails before intent or external work, while uncertain
+multi-observation state remains human-reviewed with zero replay. The v6 shape is
+unchanged.
+
+The next bounded audit selected `GDA-CORE-022`. A real crash window can leave a
+completed side effect in `REQUIRES_REOBSERVATION`, followed by a completed final
+provider response just before the ordinary Runner rejects the missing mandatory
+verification. Recovery currently inspects only the tail operation, so it can
+finalize that run as success, clear the recovery obligation, and delete the
+continuation. The next slice must fold the complete ledger and checkpoint so a
+mandatory verification or terminal unknown certainty is monotonic across
+completed-provider recovery finalization.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -282,7 +291,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1763 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-020` closure revalidation |
+| Offline baseline | `1780 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-021` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -355,7 +364,8 @@ delivery work.
 | `GDA-CORE-018` | Complete; merged | Invalidate prior observation and grounding when a side effect yields to `HUMAN_ACTIVE` | Commit `f613056`, merged through PR #249 as `1adce11`; the exact side-effect `REJECTED / NOT_DISPATCHED / HUMAN_ACTIVE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs cannot revive through an unrelated observation, fresh snapshot grounding restores action authority, unknown/dispatched certainty remains terminal, and recovery plans only a new observation with zero action replay. Complete gate: `1725 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/scope reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-019` | Complete; merged | Invalidate prior observation and grounding when a side-effect action is denied by the live gate | Commit `bf0cbec`, merged through PR #251 as `dfc5f9e`; the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs and screenshot coordinates cannot revive through unrelated observations, fresh snapshot grounding restores action authority, observation-shaped gate denial and every other certainty tuple remain unchanged, and recovery plans only a new observation with zero action replay. Complete gate: `1733 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-020` | Complete; merged | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | Commit `257c42d`, merged through PR #253 as `b53bbe2`; the server-owned call scope now promotes every failed Windows action or ordinary exception after one or more native attempts to fixed redacted `NATIVE_OUTCOME_UNKNOWN`. The Agent maps it to terminal `UNKNOWN_OUTCOME / DISPATCHED`, invalidates the MCP generation, and preserves exact continuation/no-replay certainty. Full action-family, actual Windows UIA/SendInput stitch, zero-attempt, bounded-unwind, redaction, lifecycle, Runner, continuation, and recovery regressions pass. Complete gate: `1763 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/test/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
-| `GDA-CORE-021` | Queued; exact next | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Reject semantic mismatch between persisted `next_step`, boundary/ledger topology, and reconstructed action; derive budget authority from the final action and recheck it before intent or external I/O. Exhausted model/input budget must make zero provider calls even when a digest-valid next step names a tool path, and the symmetric exhausted-tool case must make zero desktop calls. Preserve valid bounded read-only recovery, continuation v6 shape, and side-effect no-replay |
+| `GDA-CORE-021` | Complete locally | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its model/input or tool budget, executor and locked persistence recheck before authority, and prepared singleton observations reuse their charged call. Digest-valid mismatches, exhausted dimensions, forged verification calls, and uncertain multi-observation boundaries have zero external work; valid recovery and side-effect no-replay remain intact. Complete gate: `1780 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent code/certainty/contract review passed on 2026-08-05; no provider, real-desktop, application, or release claim is made |
+| `GDA-CORE-022` | Queued; exact next | Preserve mandatory verification and terminal certainty across completed-provider recovery finalization | Fold the complete continuation ledger and checkpoint before any local success finalization or external work. A completed final provider tail must not erase an outstanding post-side-effect verification obligation or any earlier terminal unknown certainty. Canonical crash-window and digest-valid corruption cases must fail closed with byte-identical durable files and zero provider/MCP work, while normal final success, completed observations, mandatory re-observation, and side-effect no-replay remain intact |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -369,7 +379,8 @@ delivery work.
 `GDA-CORE-018` is merged through PR #249 as `1adce11`.
 `GDA-CORE-019` is merged through PR #251 as `dfc5f9e`.
 `GDA-CORE-020` is merged through PR #253 as `b53bbe2`.
-`GDA-CORE-021` is the exact next core Runtime item.
+`GDA-CORE-021` is complete locally. `GDA-CORE-022` is the exact next core Runtime
+item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -875,42 +886,76 @@ evidence.
 Commit `257c42d` merged through PR #253 as `b53bbe2` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-021`
+## Completed slice: `GDA-CORE-021`
 
-Strict continuation v6 treats persisted data as non-authoritative, but its
-schema currently validates `boundary.next_step` only as one of four strings.
-`plan_read_only_recovery` uses that string to choose a tool or model/input budget
-check before it independently reconstructs the executable action from the
-operation state. The two facts are not semantically bound.
+Recovery now derives one ledger-proven semantic topology before classifying an
+operation. The persisted `boundary.next_step` is checked only against that
+topology; it no longer selects a budget dimension. The final reconstructed
+action owns its actual model/input or tool-call budget, including the distinction
+between a newly synthesized observation and a singleton prepared observation
+whose call is already charged.
 
-A deterministic probe used a valid completed-observation envelope with
-`model_turns_used == max_model_turns == 1`, replaced `provider_continue` with the
-schema-valid `mandatory_reobserve`, and recomputed the ordinary payload digest.
-The planner returned `CONTINUE_PROVIDER / OBSERVATION_COMPLETED`; formal
-`LockedRecoveryPersistence` committed provider intent and the fake provider was
-called exactly once. Only completion then raised `CONTINUATION_INVALID` while
-trying to persist model budget `2/1`. This crosses the hard external-call bound
-before failure.
+The executor repeats the topology and action-budget gate before provider restore
+or desktop dispatch. `LockedRecoveryPersistence` rereads the durable checkpoint
+and continuation under the run lock, replans the exact action, compares it with
+the reviewed plan, and rechecks its budget before writing intent. A prepared
+observation is reused without a duplicate ledger event or budget charge;
+mandatory recovery observation still uses the fixed Host-generated identity.
 
-After `GDA-CORE-020` merges, create
-`codex/core-runtime-recovery-budget-binding`. Bind each valid next step to the
-complete boundary/ledger topology, derive budget availability from the final
-`ReconstructionAction`, and revalidate that dimension before intent persistence
-or external I/O. Exhausted model-turn and input-token cases with swapped valid
-next steps must make zero provider calls and leave checkpoint/continuation bytes
-unchanged. The symmetric exhausted-tool cases must make zero desktop calls.
-Untampered provider continuation, prepared/pending read-only observation,
-mandatory re-observation, terminal unknown, and side-effect no-replay controls
-must retain their current behavior.
+Formal regressions cover digest-valid next-step swaps across completed provider,
+observation, and side-effect boundaries; exhausted model-turn, input-token, and
+tool-call dimensions; prepared-call reuse at the exact tool limit; forged
+post-side-effect observation lineage; and pure multi-observation dispatch-intent
+and unknown-result crash states. Invalid artifacts leave checkpoint and
+continuation bytes unchanged and grant zero provider, desktop, or persistence
+authority. The complete offline gate passed with `1780 passed, 8 skipped`, Ruff,
+mypy over 121 source files, docs consistency for all 13 reviewed tools, and diff
+check. Independent review found no remaining P1/P2/P3 issue. This does not
+promote provider, real-desktop, application, or release evidence.
 
-Do not change continuation v6 fields, ordinary Runner budgeting, MCP/Driver or
-public tools, side-effect retry semantics, Demo, HUD, Full Cycle, campaign,
-another platform, or any broader hierarchical/Multi-Agent scope.
+Continuation remains v6: no fields, enums, serialization shape, public tools,
+Runner/MCP/Driver dispatch ownership, Driver Contract `1.0.0`, retry semantics,
+Demo, Full Cycle, HUD, platform, hierarchical-control, or Multi-Agent scope
+changed.
 
-Use a distinct fixed reviewed outcome code rather than mislabeling native API
-failure as authority loss. Update the owning accepted contract without changing
-Driver Contract `1.0.0`, public Driver primitive signatures, public tools, MCP
-dispatch ownership, Demo, Full Cycle, HUD, retry semantics, or another platform.
+## Exact next task: `GDA-CORE-022`
+
+Preserve mandatory verification and terminal certainty across
+completed-provider recovery finalization. The ordinary Runner durably completes
+a provider turn before checking that a prior side effect still requires
+verification. A crash between those operations can therefore leave canonical
+continuation v6 with a completed final provider tail while the checkpoint remains
+`requires_reobservation` with no verified observation. Recovery currently sees
+only the tail, returns `FINALIZE_SUCCESS`, and can rewrite the checkpoint to
+`SUCCESS/ready` while deleting the continuation. An impossible history with an
+earlier `UNKNOWN_OUTCOME` followed by a final provider turn has the same
+tail-only weakness.
+
+Fold the complete continuation ledger into monotonic observation/recovery
+certainty, then bind that fold to the checkpoint before planning or local
+finalization. A completed provider turn without calls may finalize only when
+both sources prove `ready`. A still-required post-side-effect observation must
+produce fixed `START_NEW_RUN/VERIFICATION_REQUIRED`; an event after terminal
+unknown must fail `CONTINUATION_LEDGER_INVALID`; the current tail-unknown control
+must remain `HUMAN_REOBSERVE/UNKNOWN_OUTCOME`.
+
+Acceptance covers successful, action-error, `HUMAN_ACTIVE`, and
+`DENIED_BY_GATE` side-effect outcomes that still require verification; digest-
+valid checkpoint/counter swaps; earlier unknown certainty; OpenAI and Anthropic
+parity; formal locked-persistence refusal with byte-identical files and zero
+provider/MCP work; and the ordinary no-crash Runner's existing
+`VERIFICATION_REQUIRED` behavior. Valid initial final success, final success
+after a successful verifying observation, one pending observation dispatch,
+completed-side-effect mandatory re-observation, and unrelated known-not-
+dispatched denials must remain unchanged.
+
+Update `docs/CONTINUATION.md`, `docs/AGENT.md`, and this tracker. Keep
+continuation v6 and every trace/checkpoint/Agent/Driver/Full Cycle schema version;
+reuse recovery reason `VERIFICATION_REQUIRED`. Do not move the Runner dispatch
+site, replay any side effect, or change ordinary approval/budget/grounding,
+provider adapters, MCP/Driver/public tools, Driver Contract `1.0.0`, Demo, HUD,
+Full Cycle Lane A/B, campaign/Executor, another platform, hierarchical control,
+or Multi-Agent scope.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -929,7 +974,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-020`.
+  must not displace `GDA-CORE-022`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -1074,3 +1119,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | `GDA-CORE-020` is complete locally and independently reviewed: post-attempt Windows action failure or ordinary exception becomes fixed redacted `NATIVE_OUTCOME_UNKNOWN / UNKNOWN_OUTCOME / DISPATCHED`, while authority loss, zero-attempt failures, Driver Contract `1.0.0`, and side-effect no-replay remain unchanged. |
 | 2026-08-05 | A bounded formal-persistence audit selected `GDA-CORE-021` next: recovery must semantically bind continuation next steps to reconstructed actions and enforce that action's model/input or tool budget before any intent persistence or external call. |
 | 2026-08-05 | `GDA-CORE-020` merged through PR #253 as `b53bbe2`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-021` is the exact next core Runtime item. |
+| 2026-08-05 | `GDA-CORE-021` is complete locally and independently reviewed: full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its budget, and executor plus locked persistence recheck before intent or external work while valid prepared observations are not double charged. |
+| 2026-08-05 | A bounded formal-persistence audit selected `GDA-CORE-022` next: completed-provider recovery finalization must preserve a prior mandatory-verification obligation and terminal unknown certainty by folding the complete ledger and binding it to the checkpoint. |

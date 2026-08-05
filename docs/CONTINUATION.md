@@ -61,6 +61,9 @@ accepted.
 
 ## Continuation envelope v6
 
+This is a shape excerpt. Placeholder identities, digests, timestamps, provider
+state, and the empty ledger are illustrative and are not accepted verbatim.
+
 ~~~json
 {
   "continuation_version": 6,
@@ -72,8 +75,14 @@ accepted.
   "advertised_tool_names": ["ui_snapshot"],
   "task": "original task",
   "budget": {
-    "limits": {},
-    "used": {}
+    "max_model_turns": 12,
+    "max_tool_calls": 32,
+    "max_side_effects": 8,
+    "max_input_tokens": 1000000,
+    "model_turns_used": 2,
+    "tool_calls_used": 1,
+    "side_effects_used": 0,
+    "input_tokens_used": 1234
   },
   "observation": {
     "epoch": 2,
@@ -82,7 +91,8 @@ accepted.
   },
   "ledger": [],
   "boundary": {
-    "kind": "tool_completed",
+    "operation_kind": "tool",
+    "stage": "completed",
     "operation_id": "run_...:turn_2:call_1",
     "effect": "observation",
     "dispatch": "dispatched",
@@ -113,6 +123,12 @@ Required validation is exact and fail-closed:
 - require every tool result to match exactly one earlier call by
   `(run_id, turn_id, call_id, tool_name)` and stable call digest;
 - require budgets and observation epochs to equal a fresh fold of the ledger;
+- treat the recomputable payload digest as corruption evidence, never
+  authority;
+- require non-authoritative `boundary.next_step` to match the complete operation
+  kind/stage/identity/effect/dispatch plus correlated ledger and provider state,
+  or fail with fixed `CONTINUATION_LEDGER_INVALID` before any budget choice,
+  intent write, provider restore, MCP discovery, or dispatch;
 - require `advertised_tool_names` to be the unique, current-reviewed names in
   canonical registry order and require every persisted provider-requested call
   to belong to that immutable set;
@@ -213,6 +229,20 @@ v6 names. If the caller did not advertise `ui_snapshot`, recovery returns
 `START_NEW_RUN/RECOVERY_MANDATORY_OBSERVATION_NOT_ADVERTISED` with no new intent
 or MCP call; a safety observation never becomes an implicit scope expansion.
 
+Recovery budget authority is derived only after the complete topology has
+reconstructed the final action. `CONTINUE_PROVIDER` requires both a fresh model
+turn and remaining input-token capacity. A new `DISPATCH_OBSERVATION` or
+`MANDATORY_REOBSERVE` requires a fresh tool-call slot. A provider-correlated tool
+observation already durable at `prepared` has consumed its one slot, so recovery
+advances that same call without incrementing the budget or appending a duplicate
+`tool_call`. A non-provider verification call must instead match the fixed
+Host-synthesized mandatory identity, arguments, and checkpoint sequence; it can
+never appear as an executable `prepared` call. Local terminal, unknown, and
+start-new-run decisions consume no new external-call budget. The CLI planner
+applies this rule before opening a provider or MCP connection; the executor
+repeats it before the first port call, and locked persistence replans the current
+sequence before writing intent.
+
 ## Write-ahead operation protocol
 
 Every external operation has a unique `operation_id` and three possible durable
@@ -284,7 +314,7 @@ The conservative reconstruction matrix is:
 | `prepared`, provider request | Do not send it; start a new run. |
 | `dispatch_intent`, provider request, no completion | `UNKNOWN_OUTCOME`; do not resend. |
 | `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A provider-requested side effect is validated as an input record, terminalized as a fixed failure, and never dispatched. |
-| `prepared`, tool call | Observation may be dispatched once only if no dispatch intent exists and its current required MCP safety baselines are satisfied. Pending side-effect requires a new run. |
+| `prepared`, tool call | A provider-correlated observation may be dispatched once only if no dispatch intent exists and its current required MCP safety baselines are satisfied. It advances the already charged call without another ledger entry or tool-budget increment. A forged/non-provider prepared call fails closed; a pending side effect requires a new run. |
 | `dispatch_intent`, any tool call, no completion | `UNKNOWN_OUTCOME`; do not call the tool again. |
 | `completed`, observation result | Consume the result and issue only the next new provider continuation with the original v6 scope narrowed to current-safe observations. |
 | `completed`, side-effect result | Consume the result, invalidate grounding, and issue only a new mandatory observation. Never repeat the side-effect. |
@@ -357,6 +387,19 @@ and consumed side-effect budget; neither fact becomes dispatch authority.
 Normal WAL completion, provider-side intent failure, post-dispatch unknown
 outcome, and result-carrying cancellation remain separate controls.
 
+Recovery semantic-binding tests recompute a valid v6 digest after replacing the
+three completed executable boundary classes' canonical `next_step` with every
+other schema-valid value. All mismatches fail as
+`CONTINUATION_LEDGER_INVALID` without intent or external I/O and leave
+checkpoint and continuation bytes unchanged. Separate canonical controls
+exhaust model turns, input tokens, and tool calls and retain
+`START_NEW_RUN/BUDGET_EXHAUSTED`. A prepared-observation control exhausts its
+single already charged tool slot, dispatches exactly once, and proves that
+intent/completion neither duplicate the call nor increment the budget again.
+A digest-valid non-provider observation appended after a completed side effect
+is rejected before intent or MCP; only the exact Host-synthesized mandatory
+identity can represent that verification lineage.
+
 The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
 digest-bound replay artifacts. Its manifest freezes successful text and
 screenshot compilation, unknown/missing/mismatched/reordered items,
@@ -406,6 +449,12 @@ and retains JUnit evidence without enabling provider or desktop integration.
    enabled, so no advertised provider call can require persisting raw typed text.
    The v6 validator remains strict and continuation-disabled behavior is
    unchanged.
-9. Keep uncertain dispatches, pending side-effects, drift, corruption, and
+9. **Implemented:** semantically bind v6 `next_step` to the complete durable
+   topology before using it, reconstruct the final recovery action before
+   selecting its budget dimension, and repeat that check at executor and locked
+   persistence boundaries. Digest-valid semantic swaps and canonical exhausted
+   budgets stop before intent or external I/O; a prepared observation reuses its
+   already charged call.
+10. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.

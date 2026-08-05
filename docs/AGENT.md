@@ -106,6 +106,14 @@ the following commands:
   generation. Missing evidence produces fixed
   `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, with no recovery-state mutation and
   zero MCP tool dispatch.
+  Persisted `next_step` is only a redundant fact, never dispatch or budget
+  authority. Recovery first binds it to the complete boundary/ledger topology,
+  reconstructs the final action, and then checks that action's model/input or
+  tool budget before provider restore, MCP discovery, intent, or dispatch.
+  A provider-correlated prepared observation advances its already charged call
+  without a duplicate ledger entry or second tool-budget increment; a
+  non-provider verification call must match the fixed Host-synthesized
+  mandatory identity, arguments, and sequence.
 - `campaign resume-synthetic --config PATH --campaign-id ID --run-id ID`
   exposes only the fixed durable restart/resume boundary. It accepts no task,
   item selector, provider, or desktop option; reconstructs the finished
@@ -804,6 +812,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v5 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Crash reconstruction release evidence is explicit | Release preflight and each CI Python job run the classifier plus 15-case exact-call runtime matrix as a separate fail-closed gate; preflight v5 records case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Recovered observation authority is current | Before persisting either an observation or mandatory re-observation intent, the executor rechecks the reviewed tool's required safety baselines against the connected MCP generation. Missing evidence has a fixed failure, byte-stable checkpoint/continuation state, and zero MCP dispatch | implemented locked recovery tests |
+| Recovery action owns its budget dimension | Continuation v6 `next_step` must agree with the complete boundary/ledger topology before budget selection. The final reconstructed action selects model-plus-input or new-tool capacity at the planner, executor, and locked-persistence gates; digest-valid semantic swaps, forged non-provider prepared calls, and canonical exhaustion leave bytes unchanged with zero provider/MCP calls, while a provider-correlated prepared observation reuses its already charged call | implemented semantic-binding and formal persistence tests |
 | Recovered provider scope cannot widen | Continuation v6 binds the original final Host names; v1-v5 or malformed scope fails closed. Recovery retains only observations with current baseline evidence, uses one identical tuple for restore/replay/create, and rejects a mixed unadvertised response before completion or any valid-prefix/MCP execution | implemented provider-neutral recovery and real-adapter tests |
 | Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls; hidden call output, drift, and sequence mismatch fail closed | implemented terminal recovery boundary |
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
