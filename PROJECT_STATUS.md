@@ -9,9 +9,8 @@
 > PR #238; `GDA-CORE-010` is merged through PR #239; `GDA-CORE-011` is merged
 > through PR #240; `GDA-CORE-012` is merged through PR #241;
 > `GDA-CORE-013` is merged through PR #242; `GDA-CORE-014` is merged through
-> PR #243; `GDA-CORE-015` is merged through PR #244;
-> `GDA-CORE-016` is complete locally pending review; and `GDA-CORE-017` is the
-> exact next core Runtime item after that slice merges.
+> PR #243; `GDA-CORE-015` is merged through PR #244; `GDA-CORE-016` is merged
+> through PR #245; and `GDA-CORE-017` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -310,8 +309,8 @@ delivery work.
 | `GDA-CORE-013` | Complete; merged | Revalidate human-input authority at the final MCP-to-driver boundary | Commit `eee77a6`, merged through PR #242 as `48ef716`; stable readiness plus final double-sampling rejects missing, changed, or newer human input before all six safe-local driver boundaries. The dangerous-confirmation exception is exact, call-local, non-persisted, and never attributed as agent input; activation/full-control exceptions remain bounded. Complete gate: `1660 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent safety review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-014` | Complete; merged | Preserve known-not-dispatched certainty when pre-dispatch tool continuation writes fail | Commit `fbd6758`, merged through PR #243 as `c451526`; `prepare_tool` and `dispatch_tool` failures append a correlated `REJECTED/not_dispatched/CONTINUATION_WRITE_FAILED` result before raising `RunFailure` with the latest state. Observation/action x prepared/intent tests freeze exact ledgers, budgets, checkpoint sequences, cleanup, and zero target MCP calls; complete gate: `1664 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05 |
 | `GDA-CORE-015` | Complete; merged | Bind stale-ref relocation to the ref's original observation scope and keep ref maps bijective | Commit `21650a7`, merged through PR #244 as `16ef9d6`; per-ref set-once scope, complete-Node relocation, and bijective cached-node/native/reverse rebinding preserve the original scope and fail reverse conflicts before candidate action. Complete gate: `1669 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent ref-boundary review passed on 2026-08-05 |
-| `GDA-CORE-016` | Complete locally; review pending | Forbid stale relocation from dynamic `foreground` and `all` scope tokens | Dynamic-scope stale refs return fixed `STALE_ELEMENT` with zero additional relocation query, candidate action, coordinate action, or ref-map mutation; explicit numeric window-id success and collision controls preserve the CORE-015 path and Driver contract `1.0.0`. Complete gate: `1671 passed, 8 skipped`, Ruff, mypy over 120 source files, docs consistency, diff check, and independent code/test/contract reviews passed on 2026-08-05 |
-| `GDA-CORE-017` | Queued; exact next after merge | Close the driver-pacing native-authority and partial-dispatch certainty window | First accept a dedicated ADR for call-scoped driver-boundary authority checks. Authority loss before any native mutation must stay rejected/not-dispatched; loss after any partial native mutation must become unknown/dispatched and never replay. Preserve successful pacing and every existing authority exception |
+| `GDA-CORE-016` | Complete; merged | Forbid stale relocation from dynamic `foreground` and `all` scope tokens | Commit `64bca1e`, merged through PR #245 as `6ea1b1f`; dynamic-scope stale refs return fixed `STALE_ELEMENT` with zero additional relocation query, candidate action, coordinate action, or ref-map mutation. Explicit numeric window-id success and collision controls preserve the CORE-015 path and Driver contract `1.0.0`. Complete gate: `1671 passed, 8 skipped`, Ruff, mypy over 120 source files, docs consistency, diff check, independent code/test/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05 |
+| `GDA-CORE-017` | Queued; exact next | Close the driver-pacing native-authority and partial-dispatch certainty window | First accept a dedicated ADR for call-scoped driver-boundary authority checks. Authority loss before any native mutation must stay rejected/not-dispatched; loss after any partial native mutation must become unknown/dispatched and never replay. Preserve successful pacing and every existing authority exception |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -320,10 +319,9 @@ delivery work.
 `GDA-CORE-013` is merged through PR #242 as `48ef716`.
 `GDA-CORE-014` is merged through PR #243 as `c451526`.
 `GDA-CORE-015` is merged through PR #244 as `16ef9d6`.
-`GDA-CORE-016` is complete locally on
-`codex/core-runtime-dynamic-ref-relocation` and remains the sole delivery item
-until it is reviewed and merged. `GDA-CORE-017` is the exact next item after
-that merge.
+`GDA-CORE-016` is merged through PR #245 as `6ea1b1f`.
+`GDA-CORE-017` is the exact next core Runtime item; its ADR-first implementation
+branch has not yet been created.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -723,8 +721,8 @@ human-input evidence can therefore age inside
 multi-event drag. A late rejection is not always known not dispatched because a
 pointer, button, key, UIA, or activation mutation may already have occurred.
 
-After `GDA-CORE-016` merges, create a fresh
-`codex/core-runtime-native-authority-boundary` branch. First write and accept
+Create a fresh `codex/core-runtime-native-authority-boundary` branch. First
+write and accept
 `docs/adr/009-native-action-authority-and-partial-dispatch.md`; do not implement
 an ad hoc callback before the authority and certainty contract is explicit. The
 ADR must define a call-scoped native-boundary authority mechanism and how it
@@ -898,3 +896,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | `GDA-CORE-015` merged through PR #244 as `16ef9d6`; `GDA-CORE-016` became the sole active item on `codex/core-runtime-dynamic-ref-relocation`. |
 | 2026-08-05 | `GDA-CORE-016` is complete locally and independently reviewed: stale dynamic-scope refs fail before any relocation query, candidate action, coordinate fallback, or map mutation, while explicit numeric window-id relocation and Driver contract `1.0.0` remain intact. |
 | 2026-08-05 | A bounded audit selected ADR-first `GDA-CORE-017` next: driver-controlled pacing must not outlive native-action authority, and any authority loss after partial native mutation must retain unknown/dispatched certainty with zero replay. |
+| 2026-08-05 | `GDA-CORE-016` merged through PR #245 as `6ea1b1f`; all four GitHub checks passed, and ADR-first `GDA-CORE-017` is the exact next core Runtime item. |
+| 2026-08-05 | For this repository, completed and validated slices are automatically committed, pushed, opened as PRs, merged only when checks, review state, and conflicts are clear, and then cleaned up locally and remotely. Failing, blocked, conflicting, requested-changes, or unresolved work never merges. |
