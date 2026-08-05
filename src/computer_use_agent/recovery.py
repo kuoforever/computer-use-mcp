@@ -1,4 +1,5 @@
 """Strict planning and execution for reviewed read-only crash boundaries."""
+
 from __future__ import annotations
 
 from base64 import b64decode, b64encode
@@ -18,6 +19,7 @@ from .reconstruction import (
     OperationEffect,
     OperationKind,
     OperationStage,
+    OperationState,
     ReconstructionAction,
     ReconstructionContext,
     ReconstructionDecision,
@@ -156,6 +158,19 @@ class ReadOnlyRecoveryStep:
             raise ValueError("a recovery step requires an executable plan")
 
 
+@dataclass(frozen=True)
+class _RecoveryTopology:
+    """Ledger-proven meaning of one non-authoritative boundary."""
+
+    operation: OperationState
+    pending_effect: OperationEffect | None = None
+    call: ToolCall | None = None
+    result: ToolResult | None = None
+    final_text: str | None = None
+    blocked_call_count: int | None = None
+    recovery_step_completed: bool = False
+
+
 def _mapping(value: object, code: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise RecoveryPlanError(code)
@@ -167,9 +182,7 @@ def _identity(value: object, run_id: str) -> CallIdentity:
     if set(raw) != {"run_id", "turn_id", "call_id"} or raw.get("run_id") != run_id:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     try:
-        return CallIdentity(
-            str(raw["run_id"]), str(raw["turn_id"]), str(raw["call_id"])
-        )
+        return CallIdentity(str(raw["run_id"]), str(raw["turn_id"]), str(raw["call_id"]))
     except (KeyError, ValueError) as exc:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID") from exc
 
@@ -208,11 +221,7 @@ def _recovery_tools(
     envelope: ContinuationEnvelope, desktop: DesktopMCPPort | None
 ) -> tuple[ToolSpec, ...]:
     advertised = _advertised_tool_names(envelope)
-    satisfied = (
-        frozenset()
-        if desktop is None
-        else desktop.satisfied_safety_baselines
-    )
+    satisfied = frozenset() if desktop is None else desktop.satisfied_safety_baselines
     return tuple(
         tool
         for tool in REVIEWED_TOOLS
@@ -222,9 +231,7 @@ def _recovery_tools(
     )
 
 
-def _last_event(
-    events: list[Mapping[str, object]], kind: str
-) -> Mapping[str, object]:
+def _last_event(events: list[Mapping[str, object]], kind: str) -> Mapping[str, object]:
     for event in reversed(events):
         if event.get("kind") == kind:
             return _mapping(event.get("data"), "CONTINUATION_LEDGER_INVALID")
@@ -283,14 +290,10 @@ def _validate_provider_correlation(
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     payload = envelope.payload
     provider = _mapping(payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID")
-    state = _mapping(
-        payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID"
-    )
+    state = _mapping(payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID")
     model_turn = _last_event(_ledger(envelope), "model_turn")
     if provider.get("name") == "openai":
-        usage = _mapping(
-            model_turn.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID"
-        )
+        usage = _mapping(model_turn.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID")
         raw_input_tokens = usage.get("input_tokens")
         raw_output_tokens = usage.get("output_tokens")
         if (
@@ -314,9 +317,7 @@ def _validate_provider_correlation(
     if assistant.get("role") != "assistant" or not isinstance(content, list):
         raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
     tool_uses = [
-        block
-        for block in content
-        if isinstance(block, Mapping) and block.get("type") == "tool_use"
+        block for block in content if isinstance(block, Mapping) and block.get("type") == "tool_use"
     ]
     if len(tool_uses) != len(calls):
         raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
@@ -366,65 +367,109 @@ def _pending_side_effects(envelope: ContinuationEnvelope) -> tuple[ToolCall, ...
     return calls
 
 
-def _completed_tool(
-    envelope: ContinuationEnvelope, *, required_effect: ToolEffect
-) -> tuple[ToolCall, ToolResult]:
-    events = _ledger(envelope)
-    call_data = _last_event(events, "tool_call")
-    result_data = _last_event(events, "tool_result")
-    call_identity = _identity(call_data.get("identity"), str(envelope.payload["run_id"]))
-    result_identity = _identity(
-        result_data.get("identity"), str(envelope.payload["run_id"])
-    )
-    if call_identity != result_identity:
+def _persisted_tool_call(
+    envelope: ContinuationEnvelope,
+    data: Mapping[str, object],
+    *,
+    required_effect: ToolEffect | None = None,
+) -> tuple[ToolCall, ToolEffect]:
+    if set(data) != {
+        "identity",
+        "tool_name",
+        "arguments",
+        "call_digest",
+        "effect",
+    }:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    name = call_data.get("tool_name")
-    if not isinstance(name, str) or result_data.get("tool_name") != name:
+    identity = _identity(data.get("identity"), str(envelope.payload["run_id"]))
+    name = data.get("tool_name")
+    if not isinstance(name, str) or name not in _advertised_tool_names(envelope):
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     try:
-        spec = get_tool_spec(name)
+        effect = get_tool_spec(name).effect
     except ToolValidationError as exc:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID") from exc
-    if spec.effect is not required_effect:
+    if data.get("effect") != effect.value or (
+        required_effect is not None and effect is not required_effect
+    ):
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    call = _validated_call(name, call_identity, call_data.get("arguments"))
-    if call_data.get("call_digest") != call.digest:
+    call = _validated_call(name, identity, data.get("arguments"))
+    if data.get("call_digest") != call.digest:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    return call, effect
+
+
+def _persisted_tool_result(
+    envelope: ContinuationEnvelope,
+    data: Mapping[str, object],
+    call: ToolCall,
+) -> ToolResult:
+    result_identity = _identity(data.get("identity"), str(envelope.payload["run_id"]))
+    if result_identity != call.identity or data.get("tool_name") != call.name:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     try:
-        status = ToolResultStatus(str(result_data["status"]))
-        dispatch = DispatchCertainty(str(result_data["dispatch"]))
-        images_raw = result_data.get("images", [])
+        status = ToolResultStatus(str(data["status"]))
+        dispatch = DispatchCertainty(str(data["dispatch"]))
+        images_raw = data.get("images", [])
         if not isinstance(images_raw, list):
             raise ValueError
         images = tuple(
             ImageContent(
                 mime_type=str(_mapping(image, "CONTINUATION_LEDGER_INVALID")["mime_type"]),
-                data=b64decode(str(_mapping(image, "CONTINUATION_LEDGER_INVALID")["data"]), validate=True),
+                data=b64decode(
+                    str(_mapping(image, "CONTINUATION_LEDGER_INVALID")["data"]), validate=True
+                ),
                 width=int(_mapping(image, "CONTINUATION_LEDGER_INVALID")["width"]),
                 height=int(_mapping(image, "CONTINUATION_LEDGER_INVALID")["height"]),
             )
             for image in images_raw
         )
-        code = result_data.get("code")
+        code = data.get("code")
         if code is not None and not isinstance(code, str):
             raise ValueError
-        text = result_data.get("sanitized_text", "")
-        if not isinstance(text, str):
+        result_text = data.get("sanitized_text", "")
+        if not isinstance(result_text, str):
             raise ValueError
-        return (
-            call,
-            ToolResult(
-                result_identity,
-                name,
-                status,
-                dispatch,
-                sanitized_text=text,
-                code=code,
-                images=images,
-            ),
+        return ToolResult(
+            result_identity,
+            call.name,
+            status,
+            dispatch,
+            sanitized_text=result_text,
+            code=code,
+            images=images,
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID") from exc
+
+
+def _completed_tool_pair(
+    envelope: ContinuationEnvelope,
+    call_event: Mapping[str, object],
+    result_event: Mapping[str, object],
+    *,
+    required_effect: ToolEffect,
+) -> tuple[ToolCall, ToolResult]:
+    if call_event.get("kind") != "tool_call" or result_event.get("kind") != "tool_result":
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    call_data = _mapping(call_event.get("data"), "CONTINUATION_LEDGER_INVALID")
+    result_data = _mapping(result_event.get("data"), "CONTINUATION_LEDGER_INVALID")
+    call, _effect = _persisted_tool_call(envelope, call_data, required_effect=required_effect)
+    return call, _persisted_tool_result(envelope, result_data, call)
+
+
+def _completed_tool(
+    envelope: ContinuationEnvelope, *, required_effect: ToolEffect
+) -> tuple[ToolCall, ToolResult]:
+    events = _ledger(envelope)
+    if len(events) < 2:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    return _completed_tool_pair(
+        envelope,
+        events[-2],
+        events[-1],
+        required_effect=required_effect,
+    )
 
 
 def _completed_observation(envelope: ContinuationEnvelope) -> tuple[ToolCall, ToolResult]:
@@ -464,12 +509,8 @@ def _completed_final_text(envelope: ContinuationEnvelope) -> str:
         or envelope.operation_state.operation_id != f"{run_id}:{turn_id}:provider"
     ):
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-    provider = _mapping(
-        envelope.payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID"
-    )
-    state = _mapping(
-        envelope.payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID"
-    )
+    provider = _mapping(envelope.payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID")
+    state = _mapping(envelope.payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID")
     if provider.get("name") == "openai":
         usage = _mapping(data.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID")
         input_tokens = usage.get("input_tokens")
@@ -482,40 +523,265 @@ def _completed_final_text(envelope: ContinuationEnvelope) -> str:
             or isinstance(output_tokens, bool)
             or output_tokens is not None
             and (not isinstance(output_tokens, int) or output_tokens < 0)
-            or state.get("prior_context_tokens")
-            != (input_tokens or 0) + (output_tokens or 0)
+            or state.get("prior_context_tokens") != (input_tokens or 0) + (output_tokens or 0)
         ):
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
         batches = state.get("output_batches")
         if not isinstance(batches, list) or not batches:
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
-        last_batch = _mapping(
-            batches[-1], "CONTINUATION_PROVIDER_STATE_INVALID"
-        )
+        last_batch = _mapping(batches[-1], "CONTINUATION_PROVIDER_STATE_INVALID")
         items = last_batch.get("items")
         if not isinstance(items, list) or any(
-            isinstance(item, Mapping) and item.get("type") == "function_call"
-            for item in items
+            isinstance(item, Mapping) and item.get("type") == "function_call" for item in items
         ):
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
     else:
         messages = state.get("messages")
         if not isinstance(messages, list) or not messages:
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
-        assistant = _mapping(
-            messages[-1], "CONTINUATION_PROVIDER_STATE_INVALID"
-        )
+        assistant = _mapping(messages[-1], "CONTINUATION_PROVIDER_STATE_INVALID")
         content = assistant.get("content")
         if (
             assistant.get("role") != "assistant"
             or not isinstance(content, list)
             or any(
-                isinstance(block, Mapping) and block.get("type") == "tool_use"
-                for block in content
+                isinstance(block, Mapping) and block.get("type") == "tool_use" for block in content
             )
         ):
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
     return text
+
+
+def _provider_completed_topology(
+    envelope: ContinuationEnvelope,
+) -> _RecoveryTopology:
+    events = _ledger(envelope)
+    if events[-1].get("kind") != "model_turn":
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    data = _mapping(events[-1].get("data"), "CONTINUATION_LEDGER_INVALID")
+    calls_raw = data.get("tool_calls")
+    if not isinstance(calls_raw, list):
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    operation = envelope.operation_state
+    if not calls_raw:
+        return _RecoveryTopology(
+            operation,
+            final_text=_completed_final_text(envelope),
+        )
+
+    calls = _pending_calls(envelope)
+    run_id = str(envelope.payload["run_id"])
+    turn_id = data.get("turn_id")
+    if (
+        data.get("run_id") != run_id
+        or not isinstance(turn_id, str)
+        or fullmatch(r"turn_[1-9][0-9]{0,8}", turn_id) is None
+        or operation.operation_id != f"{run_id}:{turn_id}:provider"
+        or any(call.identity.turn_id != turn_id for call in calls)
+    ):
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    _validate_provider_correlation(envelope, calls)
+    effects = tuple(get_tool_spec(call.name).effect for call in calls)
+    if all(effect is ToolEffect.OBSERVATION for effect in effects):
+        if len(calls) != 1:
+            raise RecoveryPlanError("PENDING_SIDE_EFFECT")
+        return _RecoveryTopology(
+            operation,
+            pending_effect=OperationEffect.OBSERVATION,
+            call=calls[0],
+        )
+    return _RecoveryTopology(
+        operation,
+        pending_effect=OperationEffect.SIDE_EFFECT,
+        blocked_call_count=len(calls),
+    )
+
+
+def _next_provider_operation_id(envelope: ContinuationEnvelope) -> str:
+    model_turns = sum(event.get("kind") == "model_turn" for event in _ledger(envelope))
+    return f"{envelope.payload['run_id']}:turn_{model_turns + 1}:provider"
+
+
+def _tool_lineage(
+    envelope: ContinuationEnvelope,
+    events: list[Mapping[str, object]],
+    call_index: int,
+    call: ToolCall,
+    effect: ToolEffect,
+) -> str:
+    try:
+        provider_calls = _pending_calls(envelope)
+        _validate_provider_correlation(envelope, provider_calls)
+        if call not in provider_calls:
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        if len(provider_calls) > 1 and any(
+            get_tool_spec(item.name).effect is not ToolEffect.OBSERVATION
+            for item in provider_calls
+        ):
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return "provider" if provider_calls == (call,) else "provider_multi"
+    except RecoveryPlanError as provider_error:
+        if call_index < 2 or effect is not ToolEffect.OBSERVATION:
+            raise provider_error
+        try:
+            prior_call, prior_result = _completed_tool_pair(
+                envelope,
+                events[call_index - 2],
+                events[call_index - 1],
+                required_effect=ToolEffect.SIDE_EFFECT,
+            )
+            if prior_result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+                raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+            _validate_provider_correlation(envelope, (prior_call,))
+        except RecoveryPlanError:
+            raise provider_error
+        return "verification"
+
+
+def _is_recovery_mandatory_call(
+    envelope: ContinuationEnvelope,
+    call: ToolCall,
+    stage: OperationStage,
+    lineage: str,
+) -> bool:
+    if lineage != "verification" or stage is OperationStage.PREPARED:
+        return False
+    sequence = envelope.payload["checkpoint_sequence"]
+    if isinstance(sequence, bool) or not isinstance(sequence, int):
+        raise RecoveryPlanError("CONTINUATION_INVALID")
+    recovery_sequence = sequence if stage is OperationStage.DISPATCH_INTENT else sequence - 1
+    return (
+        recovery_sequence >= 1
+        and call.identity.turn_id == f"recovery_{recovery_sequence}"
+        and call.identity.call_id == "mandatory_ui_snapshot"
+        and call.name == "ui_snapshot"
+        and dict(call.arguments) == {}
+    )
+
+
+def _tool_topology(envelope: ContinuationEnvelope) -> _RecoveryTopology:
+    events = _ledger(envelope)
+    operation = envelope.operation_state
+    completed = operation.stage is OperationStage.COMPLETED
+    call_index = len(events) - (2 if completed else 1)
+    if call_index < 0 or events[call_index].get("kind") != "tool_call":
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    call_data = _mapping(events[call_index].get("data"), "CONTINUATION_LEDGER_INVALID")
+    call, effect = _persisted_tool_call(envelope, call_data)
+    expected_id = f"{call.identity.run_id}:{call.identity.turn_id}:{call.identity.call_id}"
+    if operation.operation_id != expected_id or operation.effect is not OperationEffect(
+        effect.value
+    ):
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    lineage = _tool_lineage(envelope, events, call_index, call, effect)
+    recovery_mandatory_call = _is_recovery_mandatory_call(
+        envelope, call, operation.stage, lineage
+    )
+    if lineage == "verification" and not recovery_mandatory_call:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    if lineage == "provider_multi" and operation.stage is OperationStage.PREPARED:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    boundary = _mapping(envelope.payload["boundary"], "CONTINUATION_INVALID")
+    next_step = boundary.get("next_step")
+    dispatch = boundary.get("dispatch")
+
+    if operation.stage is OperationStage.PREPARED:
+        if dispatch != "not_dispatched" or next_step != "stop":
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return _RecoveryTopology(operation, call=call)
+    if operation.stage is OperationStage.DISPATCH_INTENT:
+        if dispatch != "unknown" or next_step != "stop":
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return _RecoveryTopology(operation, call=call)
+
+    if events[-1].get("kind") != "tool_result":
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    result_data = _mapping(events[-1].get("data"), "CONTINUATION_LEDGER_INVALID")
+    result = _persisted_tool_result(envelope, result_data, call)
+    unknown = result.status is ToolResultStatus.UNKNOWN_OUTCOME
+    if lineage == "provider_multi" and not unknown:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    if unknown:
+        valid_dispatch = dispatch in {"dispatched", "unknown"} and (
+            dispatch != "dispatched" or result.dispatch is DispatchCertainty.DISPATCHED
+        )
+    else:
+        valid_dispatch = dispatch == "dispatched"
+    expected_next_step = (
+        "stop"
+        if unknown or recovery_mandatory_call
+        else ("provider_continue" if effect is ToolEffect.OBSERVATION else "mandatory_reobserve")
+    )
+    if not valid_dispatch or next_step != expected_next_step:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    return _RecoveryTopology(
+        operation,
+        call=call,
+        result=result,
+        recovery_step_completed=recovery_mandatory_call and not unknown,
+    )
+
+
+def _validated_recovery_topology(
+    envelope: ContinuationEnvelope,
+) -> _RecoveryTopology:
+    boundary = _mapping(envelope.payload["boundary"], "CONTINUATION_INVALID")
+    operation = envelope.operation_state
+    if operation.kind is OperationKind.TOOL:
+        return _tool_topology(envelope)
+
+    next_step = boundary.get("next_step")
+    dispatch = boundary.get("dispatch")
+    raw_effect = boundary.get("effect")
+    if operation.stage is OperationStage.PREPARED:
+        if (
+            raw_effect is not None
+            or dispatch != "not_dispatched"
+            or next_step != "stop"
+            or operation.operation_id != _next_provider_operation_id(envelope)
+        ):
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return _RecoveryTopology(operation)
+    if operation.stage is OperationStage.DISPATCH_INTENT:
+        if (
+            raw_effect is not None
+            or dispatch != "unknown"
+            or next_step != "stop"
+            or operation.operation_id != _next_provider_operation_id(envelope)
+        ):
+            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+        return _RecoveryTopology(operation)
+    if dispatch != "dispatched":
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    topology = _provider_completed_topology(envelope)
+    expected_effect = None if topology.pending_effect is None else topology.pending_effect.value
+    expected_next_step = (
+        "dispatch_observation" if topology.pending_effect is OperationEffect.OBSERVATION else "stop"
+    )
+    if raw_effect != expected_effect or next_step != expected_next_step:
+        raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+    return topology
+
+
+def _recovery_budget_available(
+    action: ReconstructionAction,
+    topology: _RecoveryTopology,
+    budget: Mapping[str, object],
+) -> bool:
+    if action is ReconstructionAction.CONTINUE_PROVIDER:
+        return int(budget["model_turns_used"]) < int(budget["max_model_turns"]) and int(
+            budget["input_tokens_used"]
+        ) < int(budget["max_input_tokens"])
+    if action is ReconstructionAction.DISPATCH_OBSERVATION:
+        if (
+            topology.operation.kind is OperationKind.TOOL
+            and topology.operation.stage is OperationStage.PREPARED
+        ):
+            return int(budget["tool_calls_used"]) <= int(budget["max_tool_calls"])
+        return int(budget["tool_calls_used"]) < int(budget["max_tool_calls"])
+    if action is ReconstructionAction.MANDATORY_REOBSERVE:
+        return int(budget["tool_calls_used"]) < int(budget["max_tool_calls"])
+    return True
 
 
 def plan_read_only_recovery(
@@ -552,149 +818,81 @@ def plan_read_only_recovery(
         and all(budget.get(name) == value for name, value in folded_budget.items())
     )
     sequence_matches = checkpoint.get("checkpoint_sequence") == payload["checkpoint_sequence"]
-    boundary = _mapping(payload["boundary"], "CONTINUATION_INVALID")
-    raw_effect = boundary.get("effect")
-    pending_effect = None if raw_effect is None else OperationEffect(str(raw_effect))
-    next_step = boundary.get("next_step")
-    if next_step in {"dispatch_observation", "mandatory_reobserve"}:
-        budget_available = int(budget["tool_calls_used"]) < int(budget["max_tool_calls"])
-    elif next_step == "provider_continue":
-        budget_available = (
-            int(budget["model_turns_used"]) < int(budget["max_model_turns"])
-            and int(budget["input_tokens_used"]) < int(budget["max_input_tokens"])
-        )
-    else:
-        budget_available = True
+    topology = _validated_recovery_topology(envelope)
     context = ReconstructionContext(
         identity_matches=identity_matches,
         sequence_matches=sequence_matches,
-        budget_available=budget_available,
-        pending_effect=pending_effect,
+        budget_available=True,
+        pending_effect=topology.pending_effect,
     )
-    operation = envelope.operation_state
-    completed_stop: tuple[ToolCall, ToolResult] | None = None
-    if (
-        operation.kind is OperationKind.TOOL
-        and operation.stage is OperationStage.COMPLETED
-        and next_step == "stop"
-    ):
-        if raw_effect not in {
-            ToolEffect.OBSERVATION.value,
-            ToolEffect.SIDE_EFFECT.value,
-        }:
-            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        completed_stop = _completed_tool(
-            envelope,
-            required_effect=ToolEffect(str(raw_effect)),
-        )
-        _call, result = completed_stop
-        expected_id = (
-            f"{result.identity.run_id}:{result.identity.turn_id}:"
-            f"{result.identity.call_id}"
-        )
-        boundary_dispatch = boundary.get("dispatch")
-        valid_unknown = (
-            result.status is ToolResultStatus.UNKNOWN_OUTCOME
-            and boundary_dispatch in {"dispatched", "unknown"}
-            and (
-                boundary_dispatch != "dispatched"
-                or result.dispatch is DispatchCertainty.DISPATCHED
-            )
-        )
-        valid_completed_reobservation = (
-            result.status is not ToolResultStatus.UNKNOWN_OUTCOME
-            and raw_effect == ToolEffect.OBSERVATION.value
-            and boundary_dispatch == "dispatched"
-        )
-        if (
-            operation.operation_id != expected_id
-            or not (valid_unknown or valid_completed_reobservation)
-        ):
-            raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-
-    decision = classify_operation_state(operation, context=context)
+    decision = classify_operation_state(topology.operation, context=context)
     if decision.action is ReconstructionAction.HUMAN_REOBSERVE:
-        if operation.stage is OperationStage.COMPLETED:
-            if (
-                completed_stop is None
-                or completed_stop[1].status is not ToolResultStatus.UNKNOWN_OUTCOME
-            ):
-                raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        return ReadOnlyRecoveryPlan(decision)
-    if decision.action is ReconstructionAction.FINALIZE_BLOCKED:
-        if next_step != "stop" or raw_effect != ToolEffect.SIDE_EFFECT.value:
+        plan = ReadOnlyRecoveryPlan(decision)
+    elif decision.action is ReconstructionAction.FINALIZE_BLOCKED:
+        if topology.blocked_call_count is None:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        calls = _pending_side_effects(envelope)
-        _validate_provider_correlation(envelope, calls)
-        return ReadOnlyRecoveryPlan(
-            decision, blocked_call_count=len(calls)
-        )
-    if decision.action is ReconstructionAction.FINALIZE_SUCCESS:
-        if next_step != "stop" or raw_effect is not None:
+        plan = ReadOnlyRecoveryPlan(decision, blocked_call_count=topology.blocked_call_count)
+    elif decision.action is ReconstructionAction.FINALIZE_SUCCESS:
+        if topology.final_text is None:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        return ReadOnlyRecoveryPlan(
-            decision, final_text=_completed_final_text(envelope)
-        )
-    if decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
-        call = _pending_observation(envelope)
-        expected_id = f"{call.identity.run_id}:{call.identity.turn_id}:provider"
-        if envelope.operation_state.operation_id != expected_id:
+        plan = ReadOnlyRecoveryPlan(decision, final_text=topology.final_text)
+    elif decision.action is ReconstructionAction.DISPATCH_OBSERVATION:
+        if topology.call is None:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        _validate_provider_correlation(envelope, (call,))
-        return ReadOnlyRecoveryPlan(decision, call=call)
-    if decision.action is ReconstructionAction.CONTINUE_PROVIDER:
-        if next_step == "stop":
-            return ReadOnlyRecoveryPlan(
+        plan = ReadOnlyRecoveryPlan(decision, call=topology.call)
+    elif decision.action is ReconstructionAction.CONTINUE_PROVIDER:
+        if topology.recovery_step_completed:
+            plan = ReadOnlyRecoveryPlan(
                 ReconstructionDecision(
                     ReconstructionAction.START_NEW_RUN,
                     "RECOVERY_STEP_COMPLETED",
                     ReconstructionPhase.FAILED,
                 )
             )
-        call, result = _completed_observation(envelope)
-        expected_id = (
-            f"{result.identity.run_id}:{result.identity.turn_id}:{result.identity.call_id}"
-        )
-        if envelope.operation_state.operation_id != expected_id:
+        elif topology.result is None:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        _validate_provider_correlation(envelope, (call,))
-        return ReadOnlyRecoveryPlan(decision, result=result)
-    if decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
-        call, result = _completed_side_effect(envelope)
-        expected_id = (
-            f"{result.identity.run_id}:{result.identity.turn_id}:{result.identity.call_id}"
-        )
-        if envelope.operation_state.operation_id != expected_id:
+        else:
+            plan = ReadOnlyRecoveryPlan(decision, result=topology.result)
+    elif decision.action is ReconstructionAction.MANDATORY_REOBSERVE:
+        if topology.result is None:
             raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        _validate_provider_correlation(envelope, (call,))
         if "ui_snapshot" not in _advertised_tool_names(envelope):
-            return ReadOnlyRecoveryPlan(
+            plan = ReadOnlyRecoveryPlan(
                 ReconstructionDecision(
                     ReconstructionAction.START_NEW_RUN,
                     "RECOVERY_MANDATORY_OBSERVATION_NOT_ADVERTISED",
                     ReconstructionPhase.FAILED,
                 )
             )
-        sequence = payload["checkpoint_sequence"]
-        if isinstance(sequence, bool) or not isinstance(sequence, int):
-            raise RecoveryPlanError("CONTINUATION_INVALID")
-        identity = CallIdentity(
-            str(payload["run_id"]),
-            f"recovery_{sequence + 1}",
-            "mandatory_ui_snapshot",
+        else:
+            sequence = payload["checkpoint_sequence"]
+            if isinstance(sequence, bool) or not isinstance(sequence, int):
+                raise RecoveryPlanError("CONTINUATION_INVALID")
+            identity = CallIdentity(
+                str(payload["run_id"]),
+                f"recovery_{sequence + 1}",
+                "mandatory_ui_snapshot",
+            )
+            for event in _ledger(envelope):
+                data = _mapping(event.get("data"), "CONTINUATION_LEDGER_INVALID")
+                raw_identity = data.get("identity")
+                if isinstance(raw_identity, Mapping) and raw_identity == {
+                    "run_id": identity.run_id,
+                    "turn_id": identity.turn_id,
+                    "call_id": identity.call_id,
+                }:
+                    raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
+            plan = ReadOnlyRecoveryPlan(decision, call=ToolCall(identity, "ui_snapshot", {}))
+    else:
+        plan = ReadOnlyRecoveryPlan(decision)
+
+    if not _recovery_budget_available(plan.decision.action, topology, budget):
+        exhausted = classify_operation_state(
+            topology.operation,
+            context=replace(context, budget_available=False),
         )
-        for event in _ledger(envelope):
-            data = _mapping(event.get("data"), "CONTINUATION_LEDGER_INVALID")
-            raw_identity = data.get("identity")
-            if isinstance(raw_identity, Mapping) and raw_identity == {
-                "run_id": identity.run_id,
-                "turn_id": identity.turn_id,
-                "call_id": identity.call_id,
-            }:
-                raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
-        mandatory_call = ToolCall(identity, "ui_snapshot", {})
-        return ReadOnlyRecoveryPlan(decision, call=mandatory_call)
-    return ReadOnlyRecoveryPlan(decision)
+        return ReadOnlyRecoveryPlan(exhausted)
+    return plan
 
 
 class LockedRecoveryPersistence:
@@ -711,11 +909,9 @@ class LockedRecoveryPersistence:
         lock: RunLock,
         phase_observer: Callable[[RunPhase], None] | None = None,
     ) -> None:
-        if (
-            not lock.acquired
-            or lock.lock_dir.resolve(strict=False)
-            != config.application_state_dir.resolve(strict=False)
-        ):
+        if not lock.acquired or lock.lock_dir.resolve(
+            strict=False
+        ) != config.application_state_dir.resolve(strict=False):
             raise RecoveryExecutionError("RECOVERY_RUN_LOCK_REQUIRED")
         if state_dir != config.state_dir or not config.continuation.enabled:
             raise RecoveryExecutionError("RECOVERY_CONTINUATION_DISABLED")
@@ -733,11 +929,7 @@ class LockedRecoveryPersistence:
 
     @staticmethod
     def _copy_payload(envelope: ContinuationEnvelope) -> dict[str, object]:
-        return {
-            key: value
-            for key, value in envelope.payload.items()
-            if key != "payload_digest"
-        }
+        return {key: value for key, value in envelope.payload.items() if key != "payload_digest"}
 
     def _assert_locked(self) -> None:
         if not self.lock.acquired:
@@ -800,19 +992,29 @@ class LockedRecoveryPersistence:
         self._envelope = written
         self._notify_phase(phase)
 
-    def commit_intent(
-        self, sequence: int, operation_id: str, action: ReconstructionAction
-    ) -> None:
+    def commit_intent(self, sequence: int, operation_id: str, action: ReconstructionAction) -> None:
         """Persist a new, uniquely identified dispatch intent before I/O."""
 
-        _, envelope = self._current(sequence)
-        if action is not self.plan.decision.action or self._intent_operation_id is not None:
+        checkpoint, envelope = self._current(sequence)
+        current_plan = plan_read_only_recovery(checkpoint, envelope, self.config, task=self.task)
+        topology = _validated_recovery_topology(envelope)
+        current_budget = _mapping(envelope.payload["budget"], "CONTINUATION_INVALID")
+        if (
+            action is not self.plan.decision.action
+            or current_plan != self.plan
+            or not _recovery_budget_available(action, topology, current_budget)
+            or self._intent_operation_id is not None
+        ):
             raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
         payload = self._copy_payload(envelope)
         boundary = payload.get("boundary")
         ledger = payload.get("ledger")
         budget = payload.get("budget")
-        if not isinstance(boundary, Mapping) or not isinstance(ledger, list) or not isinstance(budget, Mapping):
+        if (
+            not isinstance(boundary, Mapping)
+            or not isinstance(ledger, list)
+            or not isinstance(budget, Mapping)
+        ):
             raise RecoveryExecutionError("RECOVERY_PERSISTENCE_INVALID")
         updated_budget = dict(budget)
         updated_ledger = list(ledger)
@@ -825,24 +1027,37 @@ class LockedRecoveryPersistence:
                 f"{call.identity.run_id}:{call.identity.turn_id}:{call.identity.call_id}"
             ):
                 raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
-            updated_budget["tool_calls_used"] = int(updated_budget["tool_calls_used"]) + 1
-            updated_ledger.append(
-                {
-                    "kind": "tool_call",
-                    "event_id": f"{self.run_id}:recovery:{len(updated_ledger) + 1}",
-                    "data": {
-                        "identity": {
-                            "run_id": call.identity.run_id,
-                            "turn_id": call.identity.turn_id,
-                            "call_id": call.identity.call_id,
-                        },
-                        "tool_name": call.name,
-                        "arguments": dict(call.arguments),
-                        "call_digest": call.digest,
-                        "effect": ToolEffect.OBSERVATION.value,
-                    },
-                }
+            reuse_prepared_call = (
+                action is ReconstructionAction.DISPATCH_OBSERVATION
+                and topology.operation.kind is OperationKind.TOOL
+                and topology.operation.stage is OperationStage.PREPARED
             )
+            if reuse_prepared_call:
+                if topology.call != call:
+                    raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
+            else:
+                tool_calls_used = int(updated_budget["tool_calls_used"])
+                max_tool_calls = int(updated_budget["max_tool_calls"])
+                if tool_calls_used >= max_tool_calls:
+                    raise RecoveryExecutionError("RECOVERY_INTENT_MISMATCH")
+                updated_budget["tool_calls_used"] = tool_calls_used + 1
+                updated_ledger.append(
+                    {
+                        "kind": "tool_call",
+                        "event_id": f"{self.run_id}:recovery:{len(updated_ledger) + 1}",
+                        "data": {
+                            "identity": {
+                                "run_id": call.identity.run_id,
+                                "turn_id": call.identity.turn_id,
+                                "call_id": call.identity.call_id,
+                            },
+                            "tool_name": call.name,
+                            "arguments": dict(call.arguments),
+                            "call_digest": call.digest,
+                            "effect": ToolEffect.OBSERVATION.value,
+                        },
+                    }
+                )
             kind = "tool"
             effect: str | None = ToolEffect.OBSERVATION.value
             phase = (
@@ -904,7 +1119,11 @@ class LockedRecoveryPersistence:
         ledger = payload.get("ledger")
         budget = payload.get("budget")
         observation = payload.get("observation")
-        if not isinstance(ledger, list) or not isinstance(budget, Mapping) or not isinstance(observation, Mapping):
+        if (
+            not isinstance(ledger, list)
+            or not isinstance(budget, Mapping)
+            or not isinstance(observation, Mapping)
+        ):
             raise RecoveryExecutionError("RECOVERY_PERSISTENCE_INVALID")
         updated_ledger = list(ledger)
         updated_budget = dict(budget)
@@ -945,10 +1164,7 @@ class LockedRecoveryPersistence:
                 epoch = int(updated_observation["epoch"]) + 1
                 updated_observation["epoch"] = epoch
                 updated_observation["verified_epoch"] = epoch
-            mandatory = (
-                step.plan.decision.action
-                is ReconstructionAction.MANDATORY_REOBSERVE
-            )
+            mandatory = step.plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE
             next_step = "stop" if mandatory else "provider_continue"
             if mandatory:
                 recovery_status = "stopped"
@@ -996,7 +1212,9 @@ class LockedRecoveryPersistence:
             effect = (
                 ToolEffect.OBSERVATION.value
                 if effects and all(item is ToolEffect.OBSERVATION for item in effects)
-                else ToolEffect.SIDE_EFFECT.value if effects else None
+                else ToolEffect.SIDE_EFFECT.value
+                if effects
+                else None
             )
             next_step = "dispatch_observation" if effect == ToolEffect.OBSERVATION.value else "stop"
         else:
@@ -1020,8 +1238,7 @@ class LockedRecoveryPersistence:
                 if recovery_status == "unknown_outcome"
                 else (
                     RunPhase.VERIFYING
-                    if step.plan.decision.action
-                    is ReconstructionAction.MANDATORY_REOBSERVE
+                    if step.plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE
                     else RunPhase.PLANNING
                 )
             ),
@@ -1032,9 +1249,7 @@ class LockedRecoveryPersistence:
         """Close a fully persisted final response without external dispatch."""
 
         checkpoint, envelope = self._current(sequence)
-        plan = plan_read_only_recovery(
-            checkpoint, envelope, self.config, task=self.task
-        )
+        plan = plan_read_only_recovery(checkpoint, envelope, self.config, task=self.task)
         if (
             plan.decision.action is not ReconstructionAction.FINALIZE_SUCCESS
             or plan.final_text is None
@@ -1049,15 +1264,11 @@ class LockedRecoveryPersistence:
         self._notify_phase(RunPhase.SUCCESS)
         return plan.final_text, completed
 
-    def finalize_blocked_action(
-        self, sequence: int
-    ) -> tuple[int, Mapping[str, JSONValue]]:
+    def finalize_blocked_action(self, sequence: int) -> tuple[int, Mapping[str, JSONValue]]:
         """Fail one complete recovered action request without dispatching it."""
 
         checkpoint, envelope = self._current(sequence)
-        plan = plan_read_only_recovery(
-            checkpoint, envelope, self.config, task=self.task
-        )
+        plan = plan_read_only_recovery(checkpoint, envelope, self.config, task=self.task)
         if (
             plan.decision.action is not ReconstructionAction.FINALIZE_BLOCKED
             or plan.blocked_call_count is None
@@ -1100,6 +1311,10 @@ async def execute_read_only_recovery_step(
         raise RecoveryExecutionError("RECOVERY_SEQUENCE_INVALID")
     if not isinstance(run_id, str):
         raise RecoveryExecutionError("RECOVERY_IDENTITY_INVALID")
+    topology = _validated_recovery_topology(envelope)
+    budget = _mapping(envelope.payload["budget"], "CONTINUATION_INVALID")
+    if not _recovery_budget_available(plan.decision.action, topology, budget):
+        raise RecoveryExecutionError("RECOVERY_BUDGET_EXHAUSTED")
 
     if plan.decision.action in {
         ReconstructionAction.DISPATCH_OBSERVATION,
@@ -1109,13 +1324,10 @@ async def execute_read_only_recovery_step(
         if desktop is None:
             raise RecoveryExecutionError("RECOVERY_DESKTOP_REQUIRED")
         spec = get_tool_spec(plan.call.name)
-        if not set(spec.required_safety_baselines).issubset(
-            desktop.satisfied_safety_baselines
-        ):
+        if not set(spec.required_safety_baselines).issubset(desktop.satisfied_safety_baselines):
             raise RecoveryExecutionError("RECOVERY_SAFETY_BASELINE_UNSATISFIED")
         operation_id = (
-            f"{plan.call.identity.run_id}:{plan.call.identity.turn_id}:"
-            f"{plan.call.identity.call_id}"
+            f"{plan.call.identity.run_id}:{plan.call.identity.turn_id}:{plan.call.identity.call_id}"
         )
         commit_intent(sequence, operation_id, plan.decision.action)
         authorized = replace(plan.call, status=ToolCallStatus.AUTHORIZED)
@@ -1175,9 +1387,7 @@ async def execute_read_only_recovery_step(
             for call in turn.tool_calls:
                 if call.identity.run_id != run_id or call.identity.turn_id != turn_id:
                     raise ToolValidationError("tool-call identity mismatch")
-                if dict(call.arguments) != validate_tool_arguments(
-                    call.name, call.arguments
-                ):
+                if dict(call.arguments) != validate_tool_arguments(call.name, call.arguments):
                     raise ToolValidationError("tool arguments are not canonical")
         except ToolValidationError as exc:
             raise RecoveryExecutionError("RECOVERY_PROVIDER_TURN_INVALID") from exc
