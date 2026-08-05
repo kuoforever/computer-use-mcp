@@ -4,7 +4,8 @@ This is the platform-agnostic half of the system. It owns the ref<->native_id
 table and its lifecycle (Driver Contract section D): the model only ever sees
 stable ``ref_N`` handles; the driver only ever sees ``native_id``. Refs stay
 stable across snapshots where the native_id is unchanged, and an action on a
-stale ref is relocated by (role, name) before giving up.
+stale ref is relocated once by (role, name) inside its original observation
+scope. Accepted relocation keeps the node/native reverse bindings consistent.
 
 The MCP server is a thin wrapper that exposes these methods as reviewed tools.
 """
@@ -33,7 +34,7 @@ class Session:
         self._by_ref: dict[str, Node] = {}         # ref -> Node from the last snapshot
         self._native_by_ref: dict[str, str] = {}   # ref -> native_id
         self._ref_by_native: dict[str, str] = {}   # native_id -> ref (for stability)
-        self._scope: str = "foreground"
+        self._scope_by_ref: dict[str, str] = {}     # ref -> first observation scope
         self._counter = 0
 
     # --- perception ----------------------------------------------------------
@@ -124,10 +125,9 @@ class Session:
         # resolvable even after a narrowing find() that doesn't list it again;
         # staleness is caught at action time and relocated. The returned text
         # reflects only the current view.
-        self._scope = scope
         lines: list[str] = []
         for node in tree.nodes:
-            ref = self._ref_for(node.native_id)
+            ref = self._ref_for(node.native_id, scope)
             self._by_ref[ref] = node
             self._native_by_ref[ref] = node.native_id
             lines.append(self._format(ref, node))
@@ -143,11 +143,12 @@ class Session:
             out.append("# (no interactive elements in scope)")
         return "\n".join(out)
 
-    def _ref_for(self, native_id: str) -> str:
+    def _ref_for(self, native_id: str, scope: str) -> str:
         if native_id and native_id in self._ref_by_native:
             return self._ref_by_native[native_id]
         self._counter += 1
         ref = f"ref_{self._counter}"
+        self._scope_by_ref[ref] = scope
         if native_id:
             self._ref_by_native[native_id] = ref
         return ref
@@ -163,22 +164,46 @@ class Session:
     def _act_on_ref(self, ref: str, action) -> Result:
         node = self._by_ref.get(ref)
         native_id = self._native_by_ref.get(ref)
-        if node is None or not native_id:
+        scope = self._scope_by_ref.get(ref)
+        if node is None or not native_id or scope is None:
             return Result.fail(STALE_ELEMENT, f"{ref} not in current snapshot; call ui_snapshot first")
         res = action(native_id, node)
         if res.ok or res.code != STALE_ELEMENT:
             return res
-        # relocate by (role, name) and retry once (Driver Contract section D)
-        relocated = self._relocate(node)
-        if not relocated:
+        # Relocate once inside the scope that originally minted this ref.
+        relocated = self._relocate(node, scope)
+        if relocated is None:
             return Result.fail(STALE_ELEMENT, f"{ref} is stale and could not be relocated; re-snapshot")
-        self._native_by_ref[ref] = relocated
-        return action(relocated, node)
+        if not self._rebind(ref, relocated):
+            return Result.fail(
+                STALE_ELEMENT,
+                f"{ref} is stale and relocation conflicts with another ref; re-snapshot",
+            )
+        return action(relocated.native_id, relocated)
 
-    def _relocate(self, node: Node) -> str | None:
-        tree = self.driver.get_tree(PruneOpts(scope=self._scope))
+    def _relocate(self, node: Node, scope: str) -> Node | None:
+        tree = self.driver.get_tree(PruneOpts(scope=scope))
         cands = [n for n in tree.nodes if n.role == node.role and n.name == node.name and n.native_id]
         if not cands:
             return None
         best = min(cands, key=lambda n: abs(n.bbox.cx - node.bbox.cx) + abs(n.bbox.cy - node.bbox.cy))
-        return best.native_id
+        return best
+
+    def _rebind(self, ref: str, node: Node) -> bool:
+        native_id = node.native_id
+        if not native_id:
+            return False
+        owner = self._ref_by_native.get(native_id)
+        if owner is not None and owner != ref:
+            return False
+        old_native_id = self._native_by_ref.get(ref)
+        if (
+            old_native_id
+            and old_native_id != native_id
+            and self._ref_by_native.get(old_native_id) == ref
+        ):
+            del self._ref_by_native[old_native_id]
+        self._by_ref[ref] = node
+        self._native_by_ref[ref] = native_id
+        self._ref_by_native[native_id] = ref
+        return True

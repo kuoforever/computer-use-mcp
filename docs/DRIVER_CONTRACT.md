@@ -16,7 +16,17 @@ The contract keeps platform-native code out of the core. It defines:
    accessibility tree.
 
 The shared core owns `ref_N` handles. Drivers only receive and return their
-own `native_id` values.
+own `native_id` values. For each ref, the core retains the first `PruneOpts.scope`
+token and uses only that token for one stale-handle relocation query. The core
+also owns a bijective native/ref binding: a relocated candidate already owned
+by another ref fails closed, while an accepted candidate updates the cached
+Node plus both binding directions before one semantic retry. Drivers neither
+mint refs nor turn a ref into coordinates.
+
+This ref lifecycle does not change Driver contract `1.0.0` or add a method.
+`scope="foreground"` is still a dynamic selector resolved by `get_tree`; the
+current `TreeResult` carries no atomic resolved-window identity. A future
+physical-window binding would require a separately reviewed contract revision.
 
 ## Shared data model
 

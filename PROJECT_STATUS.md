@@ -8,8 +8,9 @@
 > `GDA-CORE-008` is merged through PR #237; `GDA-CORE-009` is merged through
 > PR #238; `GDA-CORE-010` is merged through PR #239; `GDA-CORE-011` is merged
 > through PR #240; `GDA-CORE-012` is merged through PR #241;
-> `GDA-CORE-013` is merged through PR #242; `GDA-CORE-014` is complete locally
-> pending merge; and `GDA-CORE-015` is the exact next core Runtime item.
+> `GDA-CORE-013` is merged through PR #242; `GDA-CORE-014` is merged through
+> PR #243; `GDA-CORE-015` is complete locally pending merge; and
+> `GDA-CORE-016` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -178,6 +179,7 @@ The terminal recorder therefore advances from the latest ledger without a
 rewind. Observation and approved-action failures at both WAL stages preserve
 their exact budgets and audit facts while making zero target MCP calls;
 post-dispatch completion, unknown-outcome, and cancellation paths are unchanged.
+It is merged through PR #243.
 
 The next bounded audit selected `GDA-CORE-015`. A ref currently relocates stale
 native handles using one mutable session-wide observation scope. Observing scope
@@ -187,6 +189,23 @@ allowing duplicate refs and stale reverse entries. The next slice must bind each
 ref to its first observation scope token, relocate only in that scope, and
 atomically maintain the node/native/reverse maps. A candidate already owned by
 another ref must fail closed with no candidate action and no coordinate fallback.
+
+`GDA-CORE-015` closes that explicit-scope and binding gap. Each ref now retains
+the scope token from its first observation, later snapshot/find calls cannot
+replace it, and stale relocation queries only that token. A successful candidate
+uses its complete fresh Node and rebinds cached node, forward native id, and
+reverse ownership together; collision fails `STALE_ELEMENT` before candidate
+action. Cross-scope, rebinding, collision, same-native, unknown-ref, and
+semantic-only controls are regression tested. Driver APIs remain unchanged.
+
+The next bounded audit selected `GDA-CORE-016`. The default `foreground` and
+broad `all` scopes are dynamic selectors rather than stable window identities.
+Even with `GDA-CORE-015`'s set-once token, a stale foreground ref can re-resolve
+after focus moves to another allowlisted window and invoke a same-role/name
+control there. The next slice must fail closed without a relocation query for
+refs minted from `foreground` or `all`; only an explicit window-id scope may use
+the bounded stale relocation path. A fresh observation is required after a
+dynamic-scope ref becomes stale.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -206,7 +225,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1664 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-014` closure revalidation |
+| Offline baseline | `1669 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-015` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -272,18 +291,19 @@ delivery work.
 | `GDA-CORE-011` | Complete; merged | Keep continuation-incompatible sensitive actions out of the advertised tool set | Commit `7be485f`, merged through PR #240 as `2c6b9bb`; when continuation is enabled, `type` is excluded from the final provider tuple and persisted scope. Attempted typed text fails whole-turn before budget or authority, while continuation-disabled baseline-satisfied typing is unchanged; complete gate: `1643 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-012` | Complete; merged | Make every side-effect-bearing provider turn exactly one call | Commit `d7ca143`, merged through PR #241 as `059734d`; action/action, observation/action, and action/observation returns fail before budget or authority, while pure observations and single-action verification are unchanged. The reviewed E2 fixture/manifest pins zero dispatch; complete gate: `1647 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-013` | Complete; merged | Revalidate human-input authority at the final MCP-to-driver boundary | Commit `eee77a6`, merged through PR #242 as `48ef716`; stable readiness plus final double-sampling rejects missing, changed, or newer human input before all six safe-local driver boundaries. The dangerous-confirmation exception is exact, call-local, non-persisted, and never attributed as agent input; activation/full-control exceptions remain bounded. Complete gate: `1660 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent safety review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
-| `GDA-CORE-014` | Complete locally; merge pending | Preserve known-not-dispatched certainty when pre-dispatch tool continuation writes fail | `prepare_tool` and `dispatch_tool` failures append a correlated `REJECTED/not_dispatched/CONTINUATION_WRITE_FAILED` result before raising `RunFailure` with the latest state. Observation/action x prepared/intent tests freeze exact ledgers, budgets, checkpoint sequences, cleanup, and zero target MCP calls; complete gate: `1664 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent boundary review passed on 2026-08-05 |
-| `GDA-CORE-015` | Queued; exact next after merge | Bind stale-ref relocation to the ref's original observation scope and keep ref maps bijective | Replace the mutable session relocation scope with a per-ref set-once scope token. Relocate once only inside that scope, rebind node/native/reverse maps together, and fail `STALE_ELEMENT` without candidate dispatch on reverse-map conflict. Preserve semantic-only ref actions and zero coordinate fallback |
+| `GDA-CORE-014` | Complete; merged | Preserve known-not-dispatched certainty when pre-dispatch tool continuation writes fail | Commit `fbd6758`, merged through PR #243 as `c451526`; `prepare_tool` and `dispatch_tool` failures append a correlated `REJECTED/not_dispatched/CONTINUATION_WRITE_FAILED` result before raising `RunFailure` with the latest state. Observation/action x prepared/intent tests freeze exact ledgers, budgets, checkpoint sequences, cleanup, and zero target MCP calls; complete gate: `1664 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05 |
+| `GDA-CORE-015` | Complete locally; merge pending | Bind stale-ref relocation to the ref's original observation scope and keep ref maps bijective | Per-ref set-once scope replaces the mutable session scope; relocation uses the complete fresh Node and rebinds cached node/native/reverse ownership together. Cross-scope drift, empty original scope, successful old/new reuse, reverse collision, same-native cross-scope reuse, unknown ref, and `NOT_INVOKABLE` tests prove fixed `STALE_ELEMENT`, zero foreign/conflicting candidate action, and zero coordinate fallback; complete gate: `1669 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent ref-boundary review passed on 2026-08-05 |
+| `GDA-CORE-016` | Queued; exact next after merge | Forbid stale relocation from dynamic `foreground` and `all` scope tokens | A stale ref minted from either dynamic selector must return fixed `STALE_ELEMENT` without another tree query or candidate action. Preserve one bounded relocation only for explicit window-id scopes, bijective rebinding, collision failure, and zero coordinate fallback |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
 `GDA-CORE-011` is merged through PR #240 as `2c6b9bb`.
 `GDA-CORE-012` is merged through PR #241 as `059734d`.
 `GDA-CORE-013` is merged through PR #242 as `48ef716`.
-`GDA-CORE-014` is complete locally on
-`codex/core-runtime-pre-dispatch-continuation-failure` and remains the sole
-delivery item until it merges. `GDA-CORE-015` is the exact next item on a fresh
-branch from that merged `main`.
+`GDA-CORE-014` is merged through PR #243 as `c451526`.
+`GDA-CORE-015` is complete locally on `codex/core-runtime-ref-scope-binding`
+and remains the sole delivery item until it merges. `GDA-CORE-016` is the exact
+next item on a fresh branch from that merged `main`.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -639,36 +659,51 @@ not authority. Normal WAL completion, provider-intent failure, post-dispatch
 unknown outcome, result-carrying cancellation, and continuation completion
 failure remain unchanged and independently tested.
 
-## Exact next task: `GDA-CORE-015`
+## Completed slice: `GDA-CORE-015`
 
-`Session` currently retains refs across observations but keeps only one mutable
-`_scope` for stale-handle relocation. A ref minted from scope A can therefore be
-relocated in a later scope B to a same-role/name control. Successful relocation
-also changes only `_native_by_ref`, leaving stale `_ref_by_native` entries and
-allowing two refs to bind one native handle.
+The ref table now binds each newly minted ref to its first observation scope
+token. Later snapshot/find calls can refresh the same native Node but cannot
+change that relocation domain. A stale semantic action queries that original
+scope at most once, selects a same-role/name candidate by nearest-center
+tie-break, and retries using the complete fresh Node rather than stale patterns.
+No ref path can degrade to a coordinate action.
 
-After `GDA-CORE-014` merges, create a fresh
-`codex/core-runtime-ref-scope-binding` branch. Replace the mutable session scope
-with `_scope_by_ref`; record the original `PruneOpts.scope` token only when a ref
-is first minted, and never overwrite it on later snapshot/find ingestion.
-Relocate a stale handle at most once using that original scope and return the
-complete candidate `Node`. Route every successful relocation through one helper
-that rejects a candidate already owned by another ref, otherwise removes the
-old reverse entry only when it still names this ref and updates `_by_ref`,
-`_native_by_ref`, and `_ref_by_native` together before the one semantic retry.
-Unknown or incomplete bindings and reverse-map conflicts return fixed
-`STALE_ELEMENT`; foreign/conflicting candidates receive zero semantic calls.
-Never add a coordinate fallback.
+One `_rebind` path owns every accepted native change. It rejects a candidate
+already owned by another ref without candidate action or mutation, removes the
+old reverse entry only when it still points to this ref, and updates cached Node,
+forward native id, and reverse ownership together. Tests freeze explicit A/B
+scope separation with and without a candidate, fresh-Node semantics, stable ref
+reuse after old-to-new relocation, new ref assignment when the old handle
+reappears, collision failure, same-native cross-scope scope preservation,
+unknown-ref zero I/O, and `NOT_INVOKABLE` zero coordinate fallback.
 
-Test A-then-B scope drift with and without an A candidate, successful old-to-new
-stability and old-handle reuse, reverse-map collision with byte-stable bindings,
-same-native cross-scope observation with set-once scope, and unknown-ref zero
-driver calls. Retain the existing `NOT_INVOKABLE` zero-coordinate test. Update
-`docs/TOOLS.md`, `docs/DESIGN.md`, and `docs/DRIVER_CONTRACT.md`; Driver contract
-version `1.0.0` and APIs remain unchanged. Document that `foreground` is still a
-dynamic selector, not a frozen physical window identity; atomic resolved-window
-binding would require a separate TreeResult/Driver contract slice. Do not resume
-Demo, training, BF16, Operator HUD, Universal GUI, or Multi-Agent work.
+## Exact next task: `GDA-CORE-016`
+
+Per-ref scope-token binding does not make dynamic selectors stable identities.
+For the default `foreground` scope, a ref can be minted while window A is front,
+then become stale after focus moves to allowlisted window B. A relocation query
+using the same `foreground` token resolves B and can invoke a same-role/name
+control there. The `all` selector has the same absence of a single bound window.
+
+After `GDA-CORE-015` merges, create a fresh
+`codex/core-runtime-dynamic-ref-relocation` branch. Do not expand Driver contract
+`1.0.0`: in `_act_on_ref`, allow the one bounded role/name relocation only when
+the ref's first scope token is an explicit window id. If that token is exactly
+`foreground` or `all`, a stale result must return fixed `STALE_ELEMENT`
+immediately, without another `get_tree`, candidate semantic action, coordinate
+action, or map mutation. Require a fresh observation instead. Preserve explicit
+window-id relocation, complete-Node retry, bijective `_rebind`, reverse-conflict
+failure, and all CORE-015 invariants.
+
+Test foreground A-to-B same-name drift and `all` with zero relocation queries
+and zero candidate action, plus explicit window-id success and collision
+controls. Update `docs/TOOLS.md`, `docs/DESIGN.md`,
+`docs/DRIVER_CONTRACT.md`, and ADR-002. Do not mix the separately reproduced
+driver-pacing authority window into this slice: final server guards can still
+age during optional driver sleep/pointer motion, but defining native-boundary
+authority callbacks and partial-dispatch certainty requires its own next ADR.
+Do not resume Demo, training, BF16, Operator HUD, Universal GUI, or Multi-Agent
+work.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -687,7 +722,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-015`.
+  must not displace `GDA-CORE-016`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -811,3 +846,6 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-04 | `GDA-CORE-013` merged through PR #242 as `48ef716`; all four GitHub checks passed. `GDA-CORE-014` is now the sole active item on `codex/core-runtime-pre-dispatch-continuation-failure`. |
 | 2026-08-05 | `GDA-CORE-014` is complete locally and independently reviewed: observation and approved-action tool-WAL failures at both pre-dispatch stages retain exact known-not-dispatched results and terminalize from the latest ledger without changing post-dispatch semantics. |
 | 2026-08-05 | A bounded audit selected `GDA-CORE-015` next: each ref must retain its first observation scope for stale relocation, and successful relocation must update node/native/reverse bindings together while reverse-map conflicts fail closed. |
+| 2026-08-05 | `GDA-CORE-014` merged through PR #243 as `c451526`; all four GitHub checks passed. `GDA-CORE-015` is now the sole active item on `codex/core-runtime-ref-scope-binding`. |
+| 2026-08-05 | `GDA-CORE-015` is complete locally and independently reviewed: explicit-scope relocation is set-once per ref, full-Node semantic retry and bijective rebinding are enforced, and foreign/conflicting candidates receive zero authority with no coordinate fallback. |
+| 2026-08-05 | A bounded audit selected `GDA-CORE-016` next: stale refs minted from dynamic `foreground` or `all` must fail without relocation; explicit window-id refs retain one bounded retry. The separately reproduced driver-pacing authority window remains queued for its own ADR and slice. |

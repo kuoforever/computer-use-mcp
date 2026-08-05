@@ -2,6 +2,7 @@
 
 Status: Accepted
 Date: 2026-07-20
+Clarified: 2026-08-05
 
 ## Context
 
@@ -65,15 +66,25 @@ coordinate clicks — the exact outcome this ADR exists to prevent.
 A stale ref gets **one bounded relocation attempt by identity**, then fails.
 
 Relocation searches the fresh tree for a node with the **same role and the same
-name**, and among those matches picks the one nearest the original center. Role
-and name are the identity; geometry is only a tie-breaker between candidates
-that already match. If no candidate matches, the call fails with
-`STALE_ELEMENT` and the caller is told to re-snapshot.
+name**, inside the exact observation scope token that first minted the ref, and
+among those matches picks the one nearest the original center. Later snapshot or
+find calls cannot change that per-ref relocation domain. Role and name are the
+identity; geometry is only a tie-breaker between candidates that already match.
+If no candidate matches, the call fails with `STALE_ELEMENT` and the caller is
+told to re-snapshot.
+
+An accepted relocation uses the complete fresh Node for the single semantic
+retry and updates the cached node, forward native binding, and reverse binding
+together. If the candidate native id is already owned by another ref, relocation
+fails closed without acting on that candidate or changing either binding. This
+keeps the session maps bijective after native-handle churn.
 
 Explicitly forbidden:
 
 - Clicking a cached bounding box center after a failed relocation.
 - Relocating by geometry alone, or by position index.
+- Relocating in the scope of a later, unrelated observation.
+- Stealing a native handle already bound to another ref.
 - Reporting success when the target could not be confirmed.
 
 Coordinate clicking remains available as `click(x=..., y=...)`. It is a
@@ -96,6 +107,11 @@ buttons both named "Open") can still relocate to the wrong one of the two —
 identity is only as good as what UIA exposes, which is a real remaining limit,
 not a solved problem.
 
+The stored scope is also a selector token rather than an atomic resolved-window
+identity. In particular, `foreground` can resolve to a different window by the
+time relocation runs. Solving that requires new Driver/TreeResult identity
+evidence; this clarification does not claim it is solved.
+
 **Future migration point.** If a driver ever exposes a stable per-element
 identity (an automation id honored across rebuilds), relocation should prefer it
 over role+name, which would narrow the duplicate-name gap above.
@@ -105,8 +121,12 @@ over role+name, which would narrow the duplicate-name gap above.
 Implemented:
 
 - `_act_on_ref` and `_relocate` in `src/computer_use_mcp/core.py`: one retry
-  after a `STALE_ELEMENT` result, matching on `role` and `name`, nearest-center
-  tie-break, explicit failure when no candidate exists.
+  after a `STALE_ELEMENT` result, matching on `role` and `name` in the ref's
+  original scope token, nearest-center tie-break, complete-Node retry, and
+  explicit failure when no candidate exists.
+- `_rebind` in `src/computer_use_mcp/core.py`: reverse-owner conflicts fail
+  closed; accepted relocation updates cached Node plus both map directions and
+  releases the old reverse entry.
 - `_press` returns `NOT_INVOKABLE` when a resolved ref exposes neither
   `Invoke` nor `SelectionItem`; it never calls the coordinate driver for that
   ref.
@@ -117,7 +137,12 @@ Implemented:
 
 Tested offline:
 
-- `tests/test_core.py::test_stale_ref_is_relocated_once_by_role_and_name`
+- `tests/test_core.py::test_later_observation_cannot_move_ref_relocation_scope`
+- `tests/test_core.py::test_foreign_scope_candidate_is_never_used_when_original_scope_has_none`
+- `tests/test_core.py::test_successful_relocation_rebinds_node_and_native_maps_bijectively`
+- `tests/test_core.py::test_relocation_reverse_collision_fails_before_candidate_action`
+- `tests/test_core.py::test_same_native_cross_scope_reuses_ref_and_first_scope`
+- `tests/test_core.py::test_unknown_ref_fails_without_any_driver_call`
 - `tests/test_core.py::test_ref_without_semantic_action_never_falls_back_to_coordinates`
 
 Not verified: relocation quality across applications that expose duplicate
