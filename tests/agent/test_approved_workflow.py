@@ -19,7 +19,7 @@ from computer_use_agent.config import (
     PolicyConfig,
     ProviderConfig,
 )
-from computer_use_agent.continuation import continuation_path
+from computer_use_agent.continuation import ContinuationError, continuation_path
 from computer_use_agent.approvals import DecisionCardApprovalPort
 from computer_use_agent.decision_cards import DecisionSelection
 from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
@@ -1418,6 +1418,108 @@ def test_unknown_action_outcome_stops_without_replay_and_marks_terminal_state(
     record = read_run_record(config.state_dir, run_id)
     assert record["state"]["phase"] == "UNKNOWN_OUTCOME"
     assert record["state"]["recovery_action"] == "human_reobserve_then_start_new_run"
+
+
+@pytest.mark.parametrize("failed_stage", ["prepared", "dispatch_intent"])
+def test_pre_dispatch_action_continuation_failure_is_known_not_dispatched(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failed_stage: str,
+) -> None:
+    run_id = f"run_action_wal_{failed_stage}"
+    provider, desktop, approvals, action = _verification_workflow(run_id)
+    observe = provider.turns[0].tool_calls[0]
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    original_write = continuation_module.write_continuation
+    attempted_action_stages: list[str] = []
+
+    def fail_action_boundary(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        if (
+            boundary["operation_kind"] == "tool"
+            and boundary["operation_id"] == f"{run_id}:turn_2:call_2"
+        ):
+            attempted_action_stages.append(str(boundary["stage"]))
+            if boundary["stage"] == failed_stage:
+                raise ContinuationError("CONTINUATION_WRITE_FAILED")
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(
+        continuation_module,
+        "write_continuation",
+        fail_action_boundary,
+    )
+
+    with pytest.raises(RunFailure, match="^CONTINUATION_WRITE_FAILED$") as raised:
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Click OK and verify", run_id=run_id
+            )
+        )
+
+    state = raised.value.state
+    assert isinstance(raised.value.__cause__, ContinuationError)
+    assert str(raised.value.__cause__) == "CONTINUATION_WRITE_FAILED"
+    assert attempted_action_stages == {
+        "prepared": ["prepared"],
+        "dispatch_intent": ["prepared", "dispatch_intent"],
+    }[failed_stage]
+    assert [event.kind for event in state.event_log] == [
+        LedgerEventKind.USER_TASK,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+        LedgerEventKind.OBSERVATION,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.POLICY_DECISION,
+        LedgerEventKind.TOOL_RESULT,
+    ]
+    decision = state.event_log[-2].policy_decision
+    assert decision is not None
+    assert decision.identity == action.identity
+    assert decision.kind is PolicyDecisionKind.ALLOW
+    rejected = state.event_log[-1].tool_result
+    assert rejected is not None
+    assert rejected.identity == action.identity
+    assert rejected.tool_name == action.name
+    assert rejected.status is ToolResultStatus.REJECTED
+    assert rejected.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert rejected.code == "CONTINUATION_WRITE_FAILED"
+    assert rejected.sanitized_text == ""
+    assert rejected.images == ()
+    assert state.event_log[-1].payload == {}
+    assert state.budgets.model_turns_used == 2
+    assert state.budgets.input_tokens_used == 2
+    assert state.budgets.tool_calls_used == 2
+    assert state.budgets.side_effects_used == 1
+    assert state.observation_epoch == state.verified_observation_epoch == 1
+    assert state.recovery_status is RecoveryStatus.READY
+    assert len(provider.calls) == 2
+    assert len(approvals.requests) == 1
+    assert [call.identity for call in desktop.tool_calls] == [observe.identity]
+    assert [result.identity for result in desktop.results] == [
+        action.identity,
+        CallIdentity(run_id, "turn_3", "call_3"),
+    ]
+    assert desktop.close_calls == 1
+
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "CONTINUATION_WRITE_FAILED"
+    assert record["state"]["checkpoint_sequence"] == {
+        "prepared": 11,
+        "dispatch_intent": 12,
+    }[failed_stage]
+    assert record["state"]["budgets"]["side_effects_used"] == 1
+    assert record["state"]["resume_allowed"] is False
+    assert record["state"]["recovery_action"] == "inspect_trace_then_start_new_run"
+    assert record["events"][-1]["status"] == "rejected"
+    assert record["events"][-1]["dispatch"] == "not_dispatched"
+    assert record["events"][-1]["code"] == "CONTINUATION_WRITE_FAILED"
+    assert not continuation_path(config.state_dir, run_id).exists()
 
 
 @pytest.mark.parametrize("completion_write_fails", [False, True])

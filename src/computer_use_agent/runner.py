@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from .campaign import CampaignStore
 from .config import AgentConfig
-from .continuation import RuntimeContinuationRecorder
+from .continuation import ContinuationError, RuntimeContinuationRecorder
 from .context import ContextBudgetError, reduce_ledger
 from .grounding import GroundingError, GroundingState
 from .executor_final_store import FinalResponseStore
@@ -378,6 +378,25 @@ class AgentRunner:
             )
         return state
 
+    def _record_pre_dispatch_continuation_failure(
+        self,
+        state: RunState,
+        call: ToolCall,
+        *,
+        effect: ToolEffect,
+    ) -> RunState:
+        return self._record_result(
+            state,
+            ToolResult(
+                identity=call.identity,
+                tool_name=call.name,
+                status=ToolResultStatus.REJECTED,
+                dispatch=DispatchCertainty.NOT_DISPATCHED,
+                code="CONTINUATION_WRITE_FAILED",
+            ),
+            effect=effect,
+        )
+
     def _record_policy_decision(self, state: RunState, decision: PolicyDecision) -> RunState:
         return self._append(
             state,
@@ -727,16 +746,28 @@ class AgentRunner:
         tool_started_ns = perf_counter_ns()
         if continuation is not None:
             recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
-            continuation.prepare_tool(
-                state,
-                authorized_call,
-                effect=spec.effect,
-                checkpoint_sequence=recorder.checkpoint_sequence,
-            )
+            try:
+                continuation.prepare_tool(
+                    state,
+                    authorized_call,
+                    effect=spec.effect,
+                    checkpoint_sequence=recorder.checkpoint_sequence,
+                )
+            except ContinuationError as exc:
+                state = self._record_pre_dispatch_continuation_failure(
+                    state, call, effect=spec.effect
+                )
+                raise RunFailure("CONTINUATION_WRITE_FAILED", state) from exc
             recorder.record(state, recorder.phase, advance_checkpoint_sequence=True)
-            continuation.dispatch_tool(
-                state, checkpoint_sequence=recorder.checkpoint_sequence
-            )
+            try:
+                continuation.dispatch_tool(
+                    state, checkpoint_sequence=recorder.checkpoint_sequence
+                )
+            except ContinuationError as exc:
+                state = self._record_pre_dispatch_continuation_failure(
+                    state, call, effect=spec.effect
+                )
+                raise RunFailure("CONTINUATION_WRITE_FAILED", state) from exc
         post_dispatch_cancellation: MCPCallCancelled | None = None
         try:
             dispatch_call = (
