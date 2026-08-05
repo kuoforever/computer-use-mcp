@@ -8,15 +8,15 @@
 > `GDA-CORE-008` is merged through PR #237; `GDA-CORE-009` is merged through
 > PR #238; `GDA-CORE-010` is merged through PR #239; `GDA-CORE-011` is merged
 > through PR #240; `GDA-CORE-012` is merged through PR #241;
-> `GDA-CORE-013` is complete locally pending merge; and `GDA-CORE-014` is the
-> exact next core Runtime item.
+> `GDA-CORE-013` is merged through PR #242; `GDA-CORE-014` is complete locally
+> pending merge; and `GDA-CORE-015` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
 > Demo work. The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
 > remains paused.**
-> Updated: 2026-08-04.
+> Updated: 2026-08-05.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
@@ -150,7 +150,7 @@ activity check before driver dispatch. An affirmative dangerous confirmation
 may carry only its exact current input tick as a one-call, non-persisted
 exception; any newer or unavailable tick fails closed without dispatch.
 
-`GDA-CORE-013` closes that final human-authority gap. Safe-local calls now bind
+`GDA-CORE-013` closed that final human-authority gap. Safe-local calls now bind
 one stable readiness tick, then double-sample fresh input around the final
 non-waiting idle observation after the final e-stop and applicable foreground
 checks. Missing, changed, or newer evidence returns fixed `HUMAN_ACTIVE` with
@@ -158,6 +158,7 @@ redacted audit and zero driver calls. An affirmative dangerous confirmation can
 excuse only its exact call-local tick; it is never persisted, attributed to the
 agent, or reused. Activation retains its foreground exception but not the final
 human check, and full-control-local retains its intentional human-yield bypass.
+It is merged through PR #242.
 
 The next bounded audit selected `GDA-CORE-014`. A continuation `prepare_tool`
 or `dispatch_tool` write failure occurs before the sole MCP dispatch site, so
@@ -168,6 +169,24 @@ no correlated result. The next slice must turn only those two pre-dispatch WAL
 failures into fixed `CONTINUATION_WRITE_FAILED` plus a rejected/not-dispatched
 result and a terminal `FAILED` checkpoint. It must not catch post-dispatch
 completion failures, infer unknown outcome, retry, or move the dispatch site.
+
+`GDA-CORE-014` closes that persistence/certainty gap. The shared Runner catches
+`ContinuationError` only around `prepare_tool` and `dispatch_tool`, appends a
+same-identity/name `REJECTED/not_dispatched` result with reviewed fixed code
+`CONTINUATION_WRITE_FAILED`, then raises `RunFailure` with the updated state.
+The terminal recorder therefore advances from the latest ledger without a
+rewind. Observation and approved-action failures at both WAL stages preserve
+their exact budgets and audit facts while making zero target MCP calls;
+post-dispatch completion, unknown-outcome, and cancellation paths are unchanged.
+
+The next bounded audit selected `GDA-CORE-015`. A ref currently relocates stale
+native handles using one mutable session-wide observation scope. Observing scope
+B after minting a ref in scope A can therefore retarget that ref to a same-name
+control in B; a successful relocation also updates only the forward native map,
+allowing duplicate refs and stale reverse entries. The next slice must bind each
+ref to its first observation scope token, relocate only in that scope, and
+atomically maintain the node/native/reverse maps. A candidate already owned by
+another ref must fail closed with no candidate action and no coordinate fallback.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -187,7 +206,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1660 passed, 8 skipped` in the 2026-08-04 `GDA-CORE-013` closure revalidation |
+| Offline baseline | `1664 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-014` closure revalidation |
 | Worktree at start | Clean |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -252,17 +271,19 @@ delivery work.
 | `GDA-CORE-010` | Complete; merged | Revalidate live MCP generation and required safety baselines after approval wait | Commit `8b49c36`, merged through PR #239 as `0b58044`; after a valid audited `ALLOW`, ref/window/screenshot generation drift and typed-text baseline loss now fail before side-effect budget, action continuation, or MCP. Each path retains an exact nine-event audited-ALLOW ledger, prior verified observation, and `ready` recovery state with a rejected/not-dispatched policy result and zero action calls; unchanged authority completes normally; complete gate: `1642 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent authority review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-011` | Complete; merged | Keep continuation-incompatible sensitive actions out of the advertised tool set | Commit `7be485f`, merged through PR #240 as `2c6b9bb`; when continuation is enabled, `type` is excluded from the final provider tuple and persisted scope. Attempted typed text fails whole-turn before budget or authority, while continuation-disabled baseline-satisfied typing is unchanged; complete gate: `1643 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
 | `GDA-CORE-012` | Complete; merged | Make every side-effect-bearing provider turn exactly one call | Commit `d7ca143`, merged through PR #241 as `059734d`; action/action, observation/action, and action/observation returns fail before budget or authority, while pure observations and single-action verification are unchanged. The reviewed E2 fixture/manifest pins zero dispatch; complete gate: `1647 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent boundary review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
-| `GDA-CORE-013` | Complete locally; merge pending | Revalidate human-input authority at the final MCP-to-driver boundary | Stable readiness plus final double-sampling rejects missing, changed, or newer human input before all six safe-local driver boundaries. The dangerous-confirmation exception is exact, call-local, non-persisted, and never attributed as agent input; activation/full-control exceptions remain bounded. Complete gate: `1660 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent safety review passed on 2026-08-04 |
-| `GDA-CORE-014` | Queued; exact next after merge | Preserve known-not-dispatched certainty when pre-dispatch tool continuation writes fail | Catch only `prepare_tool` and `dispatch_tool` continuation failures before the sole MCP call; append a correlated rejected/not-dispatched result and terminalize with fixed `CONTINUATION_WRITE_FAILED`. Do not catch `complete_tool`, retry, or infer unknown outcome |
+| `GDA-CORE-013` | Complete; merged | Revalidate human-input authority at the final MCP-to-driver boundary | Commit `eee77a6`, merged through PR #242 as `48ef716`; stable readiness plus final double-sampling rejects missing, changed, or newer human input before all six safe-local driver boundaries. The dangerous-confirmation exception is exact, call-local, non-persisted, and never attributed as agent input; activation/full-control exceptions remain bounded. Complete gate: `1660 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, independent safety review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-04 |
+| `GDA-CORE-014` | Complete locally; merge pending | Preserve known-not-dispatched certainty when pre-dispatch tool continuation writes fail | `prepare_tool` and `dispatch_tool` failures append a correlated `REJECTED/not_dispatched/CONTINUATION_WRITE_FAILED` result before raising `RunFailure` with the latest state. Observation/action x prepared/intent tests freeze exact ledgers, budgets, checkpoint sequences, cleanup, and zero target MCP calls; complete gate: `1664 passed, 8 skipped`, Ruff, mypy, docs consistency, diff check, and independent boundary review passed on 2026-08-05 |
+| `GDA-CORE-015` | Queued; exact next after merge | Bind stale-ref relocation to the ref's original observation scope and keep ref maps bijective | Replace the mutable session relocation scope with a per-ref set-once scope token. Relocate once only inside that scope, rebind node/native/reverse maps together, and fail `STALE_ELEMENT` without candidate dispatch on reverse-map conflict. Preserve semantic-only ref actions and zero coordinate fallback |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
 `GDA-CORE-011` is merged through PR #240 as `2c6b9bb`.
 `GDA-CORE-012` is merged through PR #241 as `059734d`.
-`GDA-CORE-013` is complete locally on
-`codex/core-runtime-final-human-authority` and remains the sole delivery item
-until it merges. `GDA-CORE-014` is the exact next item on a fresh branch from
-that merged `main`.
+`GDA-CORE-013` is merged through PR #242 as `48ef716`.
+`GDA-CORE-014` is complete locally on
+`codex/core-runtime-pre-dispatch-continuation-failure` and remains the sole
+delivery item until it merges. `GDA-CORE-015` is the exact next item on a fresh
+branch from that merged `main`.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -600,33 +621,54 @@ and cannot excuse unavailable idle evidence or any newer tick. The documented
 Windows tick-granularity limit remains explicit; same-millisecond physical
 events that do not change the platform tick cannot be distinguished.
 
-## Exact next task: `GDA-CORE-014`
+## Completed slice: `GDA-CORE-014`
 
-With continuation enabled, the shared Runner records an authorized tool and
-then calls `prepare_tool()` and `dispatch_tool()` before its single
-`desktop.call_tool()` site. An injected continuation write failure at either
-point therefore proves the MCP tool was not dispatched. Today the raw exception
-escapes with an older local state; the outer terminal write can then fail with
-`RUN_EVENT_LOG_REWIND`, masking the cause and leaving an `EXECUTING` checkpoint
-without a correlated tool result.
+The shared Runner now catches continuation failures only around the two tool-WAL
+writes that precede its sole MCP call. Either failure appends a same-identity and
+same-name `REJECTED/not_dispatched` result with reviewed fixed code
+`CONTINUATION_WRITE_FAILED`, then raises `RunFailure` with that updated canonical
+state. The outer recorder can therefore write a terminal `FAILED` checkpoint
+without event-log rewind. There is no retry, replay, unknown-outcome inference,
+or new dispatch path.
 
-After `GDA-CORE-013` merges, create a fresh
-`codex/core-runtime-pre-dispatch-continuation-failure` branch. In the shared call
-boundary, narrowly catch `ContinuationError` only around `prepare_tool()` and
-`dispatch_tool()`. Append a same-identity/name `REJECTED` /
-`NOT_DISPATCHED` result with fixed `CONTINUATION_WRITE_FAILED`, then raise
-`RunFailure("CONTINUATION_WRITE_FAILED", updated_state)` so the outer recorder
-writes one terminal `FAILED` checkpoint from the latest ledger. Do not catch
-`complete_tool()` or any exception after MCP entry; do not infer unknown outcome,
-retry, replay, widen recovery, or move the sole dispatch site.
+The observation/action x prepared/intent matrix freezes four and nine ledger
+events, checkpoint sequences `5/6` and `11/12`, budgets `1/1/1/0` and
+`2/2/2/1`, continuation cleanup, and zero target MCP calls. Approved actions
+retain their correlated `ALLOW` and consumed side-effect budget as audit facts,
+not authority. Normal WAL completion, provider-intent failure, post-dispatch
+unknown outcome, result-carrying cancellation, and continuation completion
+failure remain unchanged and independently tested.
 
-Test observation and approved action calls at both failed WAL stages. Freeze the
-exact ledger, budget and checkpoint state; retain the action's audited `ALLOW`
-but prove zero action MCP calls and a correlated known-not-dispatched result.
-Verify continuation cleanup and unchanged success, cancellation, unknown-outcome,
-and single-dispatch behavior. Update `docs/CONTINUATION.md`, `docs/AGENT.md`, and
-`docs/EVALUATION.md`. Do not resume Demo, training, BF16, Operator HUD,
-Universal GUI, or Multi-Agent work.
+## Exact next task: `GDA-CORE-015`
+
+`Session` currently retains refs across observations but keeps only one mutable
+`_scope` for stale-handle relocation. A ref minted from scope A can therefore be
+relocated in a later scope B to a same-role/name control. Successful relocation
+also changes only `_native_by_ref`, leaving stale `_ref_by_native` entries and
+allowing two refs to bind one native handle.
+
+After `GDA-CORE-014` merges, create a fresh
+`codex/core-runtime-ref-scope-binding` branch. Replace the mutable session scope
+with `_scope_by_ref`; record the original `PruneOpts.scope` token only when a ref
+is first minted, and never overwrite it on later snapshot/find ingestion.
+Relocate a stale handle at most once using that original scope and return the
+complete candidate `Node`. Route every successful relocation through one helper
+that rejects a candidate already owned by another ref, otherwise removes the
+old reverse entry only when it still names this ref and updates `_by_ref`,
+`_native_by_ref`, and `_ref_by_native` together before the one semantic retry.
+Unknown or incomplete bindings and reverse-map conflicts return fixed
+`STALE_ELEMENT`; foreign/conflicting candidates receive zero semantic calls.
+Never add a coordinate fallback.
+
+Test A-then-B scope drift with and without an A candidate, successful old-to-new
+stability and old-handle reuse, reverse-map collision with byte-stable bindings,
+same-native cross-scope observation with set-once scope, and unknown-ref zero
+driver calls. Retain the existing `NOT_INVOKABLE` zero-coordinate test. Update
+`docs/TOOLS.md`, `docs/DESIGN.md`, and `docs/DRIVER_CONTRACT.md`; Driver contract
+version `1.0.0` and APIs remain unchanged. Document that `foreground` is still a
+dynamic selector, not a frozen physical window identity; atomic resolved-window
+binding would require a separate TreeResult/Driver contract slice. Do not resume
+Demo, training, BF16, Operator HUD, Universal GUI, or Multi-Agent work.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -645,7 +687,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-014`.
+  must not displace `GDA-CORE-015`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -766,3 +808,6 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-04 | `GDA-CORE-012` merged through PR #241 as `059734d`; all four GitHub checks passed, and `GDA-CORE-013` is now the sole active core Runtime item on `codex/core-runtime-final-human-authority`. |
 | 2026-08-04 | `GDA-CORE-013` is complete locally and independently reviewed: stable readiness plus a final double-sampled human-input decision guards all safe-local native actions; the dangerous-confirmation tick is exact, call-local, non-persisted, and cannot excuse drift or unavailable evidence. |
 | 2026-08-04 | A bounded audit selected `GDA-CORE-014` next: pre-dispatch tool continuation write failures must retain certain not-dispatched evidence and terminalize from the latest ledger, without catching post-dispatch completion failures or changing the sole MCP dispatch path. |
+| 2026-08-04 | `GDA-CORE-013` merged through PR #242 as `48ef716`; all four GitHub checks passed. `GDA-CORE-014` is now the sole active item on `codex/core-runtime-pre-dispatch-continuation-failure`. |
+| 2026-08-05 | `GDA-CORE-014` is complete locally and independently reviewed: observation and approved-action tool-WAL failures at both pre-dispatch stages retain exact known-not-dispatched results and terminalize from the latest ledger without changing post-dispatch semantics. |
+| 2026-08-05 | A bounded audit selected `GDA-CORE-015` next: each ref must retain its first observation scope for stale relocation, and successful relocation must update node/native/reverse bindings together while reverse-map conflicts fail closed. |

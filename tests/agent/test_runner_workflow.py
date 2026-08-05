@@ -1332,6 +1332,111 @@ def test_continuation_intent_write_failure_stops_before_provider_dispatch(
     assert not continuation_path(config.state_dir, run_id).exists()
 
 
+@pytest.mark.parametrize("failed_stage", ["prepared", "dispatch_intent"])
+def test_pre_dispatch_observation_continuation_failure_is_known_not_dispatched(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failed_stage: str,
+) -> None:
+    run_id = f"run_tool_wal_{failed_stage}"
+    call = ToolCall(CallIdentity(run_id, "turn_1", "call_1"), "list_windows", {})
+    config = _config(tmp_path, monkeypatch, continuation_enabled=True)
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (call,),
+                    ModelUsage(input_tokens=1, output_tokens=1),
+                )
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP()
+    original_write = continuation_module.write_continuation
+    attempted_tool_stages: list[str] = []
+
+    def fail_tool_boundary(state_dir: Path, payload: object) -> object:
+        assert isinstance(payload, dict)
+        boundary = payload["boundary"]
+        assert isinstance(boundary, dict)
+        if (
+            boundary["operation_kind"] == "tool"
+            and boundary["operation_id"] == f"{run_id}:turn_1:call_1"
+        ):
+            attempted_tool_stages.append(str(boundary["stage"]))
+            if boundary["stage"] == failed_stage:
+                raise ContinuationError("CONTINUATION_WRITE_FAILED")
+        return original_write(state_dir, payload)
+
+    monkeypatch.setattr(
+        continuation_module,
+        "write_continuation",
+        fail_tool_boundary,
+    )
+
+    with pytest.raises(RunFailure, match="^CONTINUATION_WRITE_FAILED$") as raised:
+        asyncio.run(_runner(config, provider, desktop).run("Inspect", run_id=run_id))
+
+    state = raised.value.state
+    assert isinstance(raised.value.__cause__, ContinuationError)
+    assert str(raised.value.__cause__) == "CONTINUATION_WRITE_FAILED"
+    assert attempted_tool_stages == {
+        "prepared": ["prepared"],
+        "dispatch_intent": ["prepared", "dispatch_intent"],
+    }[failed_stage]
+    assert [event.kind for event in state.event_log] == [
+        LedgerEventKind.USER_TASK,
+        LedgerEventKind.MODEL_TURN,
+        LedgerEventKind.TOOL_CALL,
+        LedgerEventKind.TOOL_RESULT,
+    ]
+    rejected = state.event_log[-1].tool_result
+    assert rejected is not None
+    assert rejected.identity == call.identity
+    assert rejected.tool_name == call.name
+    assert rejected.status is ToolResultStatus.REJECTED
+    assert rejected.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert rejected.code == "CONTINUATION_WRITE_FAILED"
+    assert rejected.sanitized_text == ""
+    assert rejected.images == ()
+    assert state.event_log[-1].payload == {}
+    assert state.budgets.model_turns_used == 1
+    assert state.budgets.input_tokens_used == 1
+    assert state.budgets.tool_calls_used == 1
+    assert state.budgets.side_effects_used == 0
+    assert state.observation_epoch == 0
+    assert state.verified_observation_epoch is None
+    assert state.recovery_status is RecoveryStatus.READY
+    assert len(provider.calls) == 1
+    assert desktop.tool_calls == []
+    assert desktop.close_calls == 1
+
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "CONTINUATION_WRITE_FAILED"
+    assert record["state"]["checkpoint_sequence"] == {
+        "prepared": 5,
+        "dispatch_intent": 6,
+    }[failed_stage]
+    assert record["state"]["resume_allowed"] is False
+    assert record["state"]["recovery_action"] == "inspect_trace_then_start_new_run"
+    assert record["state"]["budgets"]["tool_calls_used"] == 1
+    assert [event["kind"] for event in record["events"]] == [
+        "user_task",
+        "model_turn",
+        "tool_call",
+        "tool_result",
+    ]
+    assert record["events"][-1]["status"] == "rejected"
+    assert record["events"][-1]["dispatch"] == "not_dispatched"
+    assert record["events"][-1]["code"] == "CONTINUATION_WRITE_FAILED"
+    assert not continuation_path(config.state_dir, run_id).exists()
+
+
 def test_read_only_action_is_recorded_as_denied_and_never_dispatched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

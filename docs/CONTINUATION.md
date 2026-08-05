@@ -224,6 +224,18 @@ records:
 3. `completed`: the normalized response/result is durable and the next step is
    named explicitly.
 
+The active Runner can distinguish a local tool-WAL write failure from a crash.
+If `prepare_tool` or `dispatch_tool` raises `CONTINUATION_WRITE_FAILED`, control
+has not yet entered the sole MCP call site, so dispatch is known not to have
+occurred even if a `dispatch_intent` replacement reached disk before a later
+filesystem operation failed. The Runner appends a correlated
+`REJECTED/not_dispatched` result, terminalizes the safe checkpoint as fixed
+`FAILED/CONTINUATION_WRITE_FAILED` from that latest ledger, and closes the
+sensitive continuation. It does not retry or reinterpret the failure as an
+unknown outcome. This mapping is deliberately limited to those two calls;
+`complete_tool` runs after MCP entry and its failures never gain
+known-not-dispatched semantics.
+
 A provider `dispatch_intent` does not make the returned turn trusted or
 completed. After the provider returns and turn identity is checked, the Runner
 atomically verifies every requested tool against the exact set the Host actually
@@ -335,6 +347,15 @@ Each fails before model/tool budget, provider completion, approval, or MCP and
 leaves only provider `prepared` and `dispatch_intent` evidence. A separate pure
 observation multi-call turn completes both tool boundaries, and the existing
 single-action workflow still reaches mandatory re-observation and success.
+
+Live tool-WAL failure tests inject both `prepared` and `dispatch_intent` writes
+for an observation and an approved action. All four cases retain exact budgets
+and canonical ledger order, end with a correlated rejected/not-dispatched
+result and terminal safe checkpoint, close the continuation, and prove the
+target MCP call is zero. The approved-action cases retain the audited `ALLOW`
+and consumed side-effect budget; neither fact becomes dispatch authority.
+Normal WAL completion, provider-side intent failure, post-dispatch unknown
+outcome, and result-carrying cancellation remain separate controls.
 
 The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
 digest-bound replay artifacts. Its manifest freezes successful text and

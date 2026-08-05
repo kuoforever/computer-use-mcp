@@ -71,6 +71,7 @@ provider credentials, a child process, or a desktop.
 | An approved action has no complete post-action verification lane | After recording the action request but before approval, project the `ALLOW` plus dispatched-result context and reject in model, input, context, then tool priority. Record one `BUDGET_EXHAUSTED`/`not_dispatched` result, retain the prior verified observation, and create zero approval, side-effect use, action continuation, or action MCP dispatch. |
 | MCP generation changes or a required safety baseline disappears while approval is open | Preserve a fresh correlated `ALLOW` as an audit event, then reject with `MCP_GENERATION_CHANGED` or `SAFETY_BASELINE_UNSATISFIED` before side-effect accounting, action continuation, or MCP. Append `POLICY_DENIED`/`not_dispatched`, retain the verified observation and `ready` state, and never replay or reinterpret the approval. |
 | Human input changes after stable readiness, during foreground retry, dangerous confirmation, or the final observation itself | Compare call-scoped platform input captures after final e-stop/foreground checks and reject as `HUMAN_ACTIVE` with zero driver calls. Permit only the exact affirmative-confirmation tick for that click; never store, attribute, or reuse the exception. |
+| A live tool continuation write fails at `prepared` or `dispatch_intent` | Because the sole MCP call has not been entered, append a correlated `CONTINUATION_WRITE_FAILED`/`not_dispatched` result and terminalize from the latest ledger. Test observations and approved actions at both stages; retain audited approval/budgets but dispatch zero target tool calls. Never apply this certainty to post-dispatch completion failures. |
 
 ## CI boundary
 
@@ -329,6 +330,17 @@ provider `prepared` and `dispatch_intent`; a prior verified observation remains
 ready. A pure observation multi-call control completes sequentially, and the
 existing single action -> fresh observation workflow remains successful.
 
+The live Runner's tool-WAL failure matrix injects `CONTINUATION_WRITE_FAILED`
+at both `prepare_tool` and `dispatch_tool` for an observation and an approved
+action. Observation cases freeze four ledger events, checkpoint sequences 5/6,
+and used budgets `1/1/1/0`; action cases freeze nine events, sequences 11/12,
+and budgets `2/2/2/1`. Every case ends in `FAILED` with the same correlated
+rejected/not-dispatched result, preserves `ready` recovery, deletes the
+continuation, and makes zero target MCP calls. The action cases retain the prior
+observation and audited `ALLOW`. Existing normal completion, provider-intent
+failure, unknown outcome, and result-carrying cancellation tests prove the
+mapping does not cross the MCP boundary.
+
 Continuation v6 persists that exact name set without making it executable.
 Recovery tests separately prove monotonic narrowing to current-safe
 observations, identical restore/replay/create inputs for OpenAI and Claude, and
@@ -385,6 +397,9 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - provider-neutral v6 scope persistence plus restricted OpenAI and Claude
   recovery, including old/malformed evidence, missing current baseline
   evidence, and mixed unadvertised response rejection before completion;
+- live observation/action tool-WAL failures at both `prepared` and
+  `dispatch_intent`, with exact ledger, budget, checkpoint, cleanup, and zero
+  target-dispatch assertions;
 - approved, grounded calls rejected by initial or final human activity,
   foreground gate, E-stop, or driver outcome, including foreground-retry and
   dangerous-confirmation tick drift, each followed by mandatory re-observation;
