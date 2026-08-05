@@ -804,6 +804,18 @@ class AgentRunner:
             effect=spec.effect,
             latency_ms=max(0, (perf_counter_ns() - tool_started_ns) // 1_000_000),
         )
+        if (
+            spec.effect is ToolEffect.SIDE_EFFECT
+            and result.status is ToolResultStatus.REJECTED
+            and result.dispatch is DispatchCertainty.NOT_DISPATCHED
+            and result.code == "HUMAN_ACTIVE"
+        ):
+            state = replace(
+                state,
+                verified_observation_epoch=None,
+                recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+            )
+            grounding = grounding.invalidate()
         if result.code == "ABORTED":
             safe_presence.estop()
             safe_progress.estop()

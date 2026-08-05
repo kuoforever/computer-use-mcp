@@ -174,6 +174,9 @@ def _completed_side_effect(
     state: RunState,
     *,
     unknown: bool,
+    status: ToolResultStatus | None = None,
+    dispatch: DispatchCertainty | None = None,
+    code: str | None = None,
 ) -> tuple[RunState, ContinuationEnvelope, ToolResult]:
     call = ToolCall(
         CallIdentity(state.run_id, "turn_1", "call_1"),
@@ -215,13 +218,14 @@ def _completed_side_effect(
     result = ToolResult(
         call.identity,
         call.name,
-        (
+        status
+        or (
             ToolResultStatus.UNKNOWN_OUTCOME
             if unknown
             else ToolResultStatus.SUCCESS
         ),
-        DispatchCertainty.DISPATCHED,
-        code="NATIVE_AUTHORITY_LOST" if unknown else None,
+        dispatch or DispatchCertainty.DISPATCHED,
+        code=code if code is not None else ("NATIVE_AUTHORITY_LOST" if unknown else None),
     )
     recorder.prepare_tool(
         tool_state,
@@ -232,6 +236,49 @@ def _completed_side_effect(
     recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
     envelope = recorder.complete_tool(tool_state, result, checkpoint_sequence=6)
     return tool_state, envelope, result
+
+
+def test_completed_human_active_requires_observation_without_action_replay(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    initial = replace(
+        _state(),
+        observation_epoch=1,
+        verified_observation_epoch=None,
+        recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+    )
+    state, envelope, result = _completed_side_effect(
+        config,
+        initial,
+        unknown=False,
+        status=ToolResultStatus.REJECTED,
+        dispatch=DispatchCertainty.NOT_DISPATCHED,
+        code="HUMAN_ACTIVE",
+    )
+
+    assert envelope.payload["observation"] == {
+        "epoch": 1,
+        "verified_epoch": None,
+        "mcp_generation": 1,
+    }
+    assert result.status is ToolResultStatus.REJECTED
+    assert result.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert result.code == "HUMAN_ACTIVE"
+
+    plan = plan_read_only_recovery(
+        _checkpoint(state, 6),
+        envelope,
+        config,
+        task=state.task,
+    )
+
+    assert plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE
+    assert plan.decision.reason == "SIDE_EFFECT_COMPLETED"
+    assert plan.call is not None
+    assert plan.call.name == "ui_snapshot"
+    assert plan.call.identity != result.identity
 
 
 def test_completed_native_unknown_preserves_exact_dispatch_and_stops_recovery(
