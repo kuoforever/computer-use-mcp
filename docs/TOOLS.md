@@ -60,9 +60,20 @@ for the complete guard behavior.
 
 `ui_snapshot` and `find` return session-scoped names such as `ref_7`.
 Refs are kept across later snapshots when the driver still recognizes the same
-native UIA element. If the native element becomes stale, the server makes one
-best-effort relocation attempt based on role and name. If that fails, it returns
-`STALE_ELEMENT`; take a new snapshot before acting again.
+native UIA element. Each ref also retains the exact scope token from the
+snapshot or find call that first minted it; later observations in another scope
+do not change its relocation domain. If the native element becomes stale, the
+server makes one best-effort role-and-name relocation attempt only in that
+original scope. A candidate already owned by another ref is a conflict and
+fails closed without acting on the candidate. Successful relocation updates the
+ref's node and both native/ref bindings together. If relocation fails, the
+server returns `STALE_ELEMENT`; take a new snapshot before acting again.
+
+The token `foreground` remains a dynamic driver selector, not a frozen physical
+window identity. A ref first observed with that token relocates in whatever the
+driver resolves as `foreground` at retry time. Atomic binding to a resolved
+window would require additional driver identity evidence and is not claimed by
+the current contract.
 
 Prefer refs whenever possible:
 

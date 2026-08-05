@@ -1,10 +1,23 @@
 from __future__ import annotations
 
-from computer_use_mcp.contract import NOT_INVOKABLE, Node, Rect, Result, TreeResult
+from computer_use_mcp.contract import (
+    NOT_INVOKABLE,
+    STALE_ELEMENT,
+    Node,
+    PruneOpts,
+    Rect,
+    Result,
+    TreeResult,
+)
 from computer_use_mcp.core import Session
 
 
-def node(native_id: str, name: str = "Save") -> Node:
+def node(
+    native_id: str,
+    name: str = "Save",
+    *,
+    patterns: tuple[str, ...] = ("invoke",),
+) -> Node:
     return Node(
         native_id=native_id,
         role="Button",
@@ -12,52 +25,215 @@ def node(native_id: str, name: str = "Save") -> Node:
         value=None,
         bbox=Rect(10, 10, 20, 20),
         states=["enabled"],
-        patterns=["invoke"],
+        patterns=list(patterns),
     )
 
 
-class RelocatingDriver:
-    def __init__(self) -> None:
-        self.trees = [TreeResult([node("old")], truncated=0), TreeResult([node("new")], truncated=0)]
+class RefDriver:
+    def __init__(
+        self,
+        trees: list[tuple[str, TreeResult]],
+        *,
+        stale_native_ids: frozenset[str] = frozenset(),
+    ) -> None:
+        self.trees = list(trees)
+        self.stale_native_ids = stale_native_ids
+        self.tree_scopes: list[str] = []
         self.invoked: list[str] = []
+        self.selected: list[str] = []
+        self.coordinate_clicks: list[tuple[int, int, str]] = []
 
-    def get_tree(self, _opts) -> TreeResult:
-        return self.trees.pop(0)
+    def get_tree(self, opts: PruneOpts) -> TreeResult:
+        self.tree_scopes.append(opts.scope)
+        expected_scope, tree = self.trees.pop(0)
+        assert opts.scope == expected_scope
+        return tree
 
     def invoke(self, native_id: str) -> Result:
         self.invoked.append(native_id)
-        return Result.fail("STALE_ELEMENT") if native_id == "old" else Result.success()
+        if native_id in self.stale_native_ids:
+            return Result.fail(STALE_ELEMENT)
+        return Result.success()
+
+    def select(self, native_id: str) -> Result:
+        self.selected.append(native_id)
+        if native_id in self.stale_native_ids:
+            return Result.fail(STALE_ELEMENT)
+        return Result.success()
+
+    def click(self, x: int, y: int, button: str = "left") -> Result:
+        self.coordinate_clicks.append((x, y, button))
+        return Result.success()
 
 
-def test_stale_ref_is_relocated_once_by_role_and_name() -> None:
-    driver = RelocatingDriver()
+def snapshot_ref(snapshot: str) -> str:
+    return snapshot.split(" | ", 1)[0]
+
+
+def test_later_observation_cannot_move_ref_relocation_scope() -> None:
+    driver = RefDriver(
+        [
+            ("window-A", TreeResult([node("a-old")], truncated=0)),
+            ("window-B", TreeResult([node("b-current")], truncated=0)),
+            (
+                "window-A",
+                TreeResult(
+                    [node("a-new", patterns=("selectionitem",))],
+                    truncated=0,
+                ),
+            ),
+        ],
+        stale_native_ids=frozenset({"a-old"}),
+    )
     session = Session(driver)
-    snapshot = session.ui_snapshot(scope="42")
-    ref = snapshot.split(" | ", 1)[0]
+    ref_a = snapshot_ref(session.ui_snapshot(scope="window-A"))
+    ref_b = snapshot_ref(session.ui_snapshot(scope="window-B"))
+
+    result = session.click(ref=ref_a)
+
+    assert ref_a != ref_b
+    assert result.ok is True
+    assert driver.tree_scopes == ["window-A", "window-B", "window-A"]
+    assert driver.invoked == ["a-old"]
+    assert driver.selected == ["a-new"]
+    assert driver.coordinate_clicks == []
+
+
+def test_foreign_scope_candidate_is_never_used_when_original_scope_has_none() -> None:
+    driver = RefDriver(
+        [
+            ("window-A", TreeResult([node("a-old")], truncated=0)),
+            ("window-B", TreeResult([node("b-new")], truncated=0)),
+            ("window-A", TreeResult([], truncated=0)),
+        ],
+        stale_native_ids=frozenset({"a-old"}),
+    )
+    session = Session(driver)
+    ref = snapshot_ref(session.ui_snapshot(scope="window-A"))
+    session.ui_snapshot(scope="window-B")
 
     result = session.click(ref=ref)
 
+    assert result == Result.fail(
+        STALE_ELEMENT,
+        f"{ref} is stale and could not be relocated; re-snapshot",
+    )
+    assert driver.tree_scopes == ["window-A", "window-B", "window-A"]
+    assert driver.invoked == ["a-old"]
+    assert driver.selected == []
+    assert driver.coordinate_clicks == []
+
+
+def test_successful_relocation_rebinds_node_and_native_maps_bijectively() -> None:
+    relocated = node("new")
+    driver = RefDriver(
+        [
+            ("scope-A", TreeResult([node("old")], truncated=0)),
+            ("scope-A", TreeResult([relocated], truncated=0)),
+            (
+                "scope-A",
+                TreeResult([relocated, node("old")], truncated=0),
+            ),
+        ],
+        stale_native_ids=frozenset({"old"}),
+    )
+    session = Session(driver)
+    ref = snapshot_ref(session.ui_snapshot(scope="scope-A"))
+
+    result = session.click(ref=ref)
+    refreshed_refs = [
+        line.split(" | ", 1)[0]
+        for line in session.ui_snapshot(scope="scope-A").splitlines()
+    ]
+
     assert result.ok is True
+    assert refreshed_refs[0] == ref
+    assert refreshed_refs[1] != ref
+    assert driver.tree_scopes == ["scope-A", "scope-A", "scope-A"]
     assert driver.invoked == ["old", "new"]
+    assert session._by_ref[ref] == relocated
+    assert session._native_by_ref == {ref: "new", refreshed_refs[1]: "old"}
+    assert session._ref_by_native == {"new": ref, "old": refreshed_refs[1]}
+    assert session._scope_by_ref == {
+        ref: "scope-A",
+        refreshed_refs[1]: "scope-A",
+    }
+
+
+def test_relocation_reverse_collision_fails_before_candidate_action() -> None:
+    driver = RefDriver(
+        [
+            (
+                "scope-A",
+                TreeResult([node("old"), node("owned", name="Other")], truncated=0),
+            ),
+            ("scope-A", TreeResult([node("owned")], truncated=0)),
+        ],
+        stale_native_ids=frozenset({"old"}),
+    )
+    session = Session(driver)
+    snapshot = session.ui_snapshot(scope="scope-A")
+    old_ref, owner_ref = [line.split(" | ", 1)[0] for line in snapshot.splitlines()]
+
+    result = session.click(ref=old_ref)
+
+    assert result == Result.fail(
+        STALE_ELEMENT,
+        f"{old_ref} is stale and relocation conflicts with another ref; re-snapshot",
+    )
+    assert driver.tree_scopes == ["scope-A", "scope-A"]
+    assert driver.invoked == ["old"]
+    assert driver.selected == []
+    assert driver.coordinate_clicks == []
+    assert session._native_by_ref == {old_ref: "old", owner_ref: "owned"}
+    assert session._ref_by_native == {"old": old_ref, "owned": owner_ref}
+    assert session._by_ref[old_ref].native_id == "old"
+
+
+def test_same_native_cross_scope_reuses_ref_and_first_scope() -> None:
+    driver = RefDriver(
+        [
+            ("scope-A", TreeResult([node("shared")], truncated=0)),
+            ("scope-B", TreeResult([node("shared")], truncated=0)),
+            ("scope-A", TreeResult([node("a-new")], truncated=0)),
+        ],
+        stale_native_ids=frozenset({"shared"}),
+    )
+    session = Session(driver)
+    first_ref = snapshot_ref(session.ui_snapshot(scope="scope-A"))
+    second_ref = snapshot_ref(session.ui_snapshot(scope="scope-B"))
+
+    result = session.click(ref=first_ref)
+
+    assert second_ref == first_ref
+    assert result.ok is True
+    assert driver.tree_scopes == ["scope-A", "scope-B", "scope-A"]
+    assert driver.invoked == ["shared", "a-new"]
+    assert session._scope_by_ref == {first_ref: "scope-A"}
+
+
+def test_unknown_ref_fails_without_any_driver_call() -> None:
+    driver = RefDriver([])
+
+    result = Session(driver).click(ref="ref_999")
+
+    assert result == Result.fail(
+        STALE_ELEMENT,
+        "ref_999 not in current snapshot; call ui_snapshot first",
+    )
+    assert driver.tree_scopes == []
+    assert driver.invoked == []
+    assert driver.selected == []
+    assert driver.coordinate_clicks == []
+    assert driver.trees == []
 
 
 def test_ref_without_semantic_action_never_falls_back_to_coordinates() -> None:
-    class NonInvokableDriver:
-        def __init__(self) -> None:
-            self.coordinate_clicks: list[tuple[int, int, str]] = []
-
-        def get_tree(self, _opts) -> TreeResult:
-            target = node("target")
-            target.patterns = []
-            return TreeResult([target], truncated=0)
-
-        def click(self, x: int, y: int, button: str = "left") -> Result:
-            self.coordinate_clicks.append((x, y, button))
-            return Result.success()
-
-    driver = NonInvokableDriver()
+    driver = RefDriver(
+        [("scope-A", TreeResult([node("target", patterns=())], truncated=0))]
+    )
     session = Session(driver)
-    ref = session.ui_snapshot().split(" | ", 1)[0]
+    ref = snapshot_ref(session.ui_snapshot(scope="scope-A"))
 
     result = session.click(ref=ref)
 
@@ -65,6 +241,9 @@ def test_ref_without_semantic_action_never_falls_back_to_coordinates() -> None:
         NOT_INVOKABLE,
         "ref exposes no supported accessibility action",
     )
+    assert driver.tree_scopes == ["scope-A"]
+    assert driver.invoked == []
+    assert driver.selected == []
     assert driver.coordinate_clicks == []
 
 

@@ -65,7 +65,17 @@ display.
 
 Ref actions must not be silently converted to center-of-bounding-box clicks.
 If a native control is stale, the session makes at most one role-and-name
-relocation attempt, then returns an explainable error.
+relocation attempt inside the scope token that first minted that ref, then
+returns an explainable error. Later snapshot/find calls do not replace this
+per-ref relocation scope. A successful relocation updates the cached Node and
+both directions of the native/ref binding together; a candidate already owned
+by another ref fails closed without a second semantic action. The ref path never
+falls back to coordinates.
+
+This binds the original scope token, not a resolved physical-window identity.
+In particular, `foreground` remains a dynamic selector. Freezing its resolved
+window across observation and action would require new atomic identity evidence
+from the Driver/TreeResult contract and is outside the current `1.0.0` surface.
 
 ### One coordinate model, with a current boundary
 
