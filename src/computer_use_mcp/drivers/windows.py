@@ -568,6 +568,9 @@ class WindowsDriver(Driver):
     # --- tree ----------------------------------------------------------------
 
     def get_tree(self, opts: PruneOpts) -> TreeResult:
+        return self._get_tree(opts)
+
+    def _get_tree(self, opts: PruneOpts, *, query: str | None = None) -> TreeResult:
         self._node_cache = {}
         root = self._root_for_scope(opts)
         root_rect = self._rect_of(root)
@@ -579,6 +582,7 @@ class WindowsDriver(Driver):
 
         nodes: list[Node] = []
         seen: dict[tuple, int] = {}
+        truncated_keys: set[tuple] = set()
         truncated = 0
         visited = 0
         stack: list[tuple[object, int]] = [(root, 0)]
@@ -595,6 +599,8 @@ class WindowsDriver(Driver):
             node = self._maybe_node(ctrl, wanted, clip_rect, opts)
             if node is None:
                 continue
+            if query is not None and query not in node.name.lower() and query not in node.role.lower():
+                continue
             # de-dup: one visual control can surface under two control types
             # (e.g. a menu-bar item as both MenuItem and Button at the same
             # bbox) -> keep the first, merge the duplicate's patterns into it.
@@ -605,8 +611,12 @@ class WindowsDriver(Driver):
                     if pat not in kept.patterns:
                         kept.patterns.append(pat)
                 continue
+            if dedup_key is not None and dedup_key in truncated_keys:
+                continue
             if len(nodes) >= opts.max_nodes:
                 truncated += 1
+                if dedup_key is not None:
+                    truncated_keys.add(dedup_key)
                 continue
             if dedup_key is not None:
                 seen[dedup_key] = len(nodes)
@@ -616,10 +626,7 @@ class WindowsDriver(Driver):
         return TreeResult(nodes=nodes, truncated=truncated)
 
     def find(self, opts: PruneOpts, query: str) -> TreeResult:
-        tree = self.get_tree(opts)
-        q = query.lower()
-        matched = [n for n in tree.nodes if q in n.name.lower() or q in n.role.lower()]
-        return TreeResult(nodes=matched, truncated=tree.truncated)
+        return self._get_tree(opts, query=query.lower())
 
     def get_document_text(self, opts: PruneOpts) -> DocumentTextResult:
         """Read semantic text through UIA TextPattern, not the interactive tree.
