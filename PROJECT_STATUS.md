@@ -14,8 +14,9 @@
 > `GDA-CORE-018` is merged through PR #249;
 > `GDA-CORE-019` is merged through PR #251;
 > `GDA-CORE-020` is merged through PR #253; `GDA-CORE-021` is merged through
-> PR #255; `GDA-CORE-022` is merged through PR #257; and `GDA-CORE-023` is the
-> exact next core Runtime item.
+> PR #255; `GDA-CORE-022` is merged through PR #257; `GDA-CORE-023` is complete
+> locally and independently reviewed; and `GDA-CORE-024` is the exact next core
+> Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -276,14 +277,22 @@ later events after terminal evidence fail before persistence or external work.
 The locked writer preserves Host-only stricter state, and the trace finalizer
 independently refuses every non-`ready` checkpoint.
 
-The next bounded audit selected `GDA-CORE-023`. `activate_window` currently
-grounds only the reusable `window_id`. If the observed window disappears and the
-same native id is reused by a different owner during approval or pacing, the MCP
-and Windows Driver can activate the replacement and report success. The next
-slice must bind activation to the owner identity observed by `list_windows` and
-revalidate it at the final MCP/native boundary. Drift before the first mutation
-is known not dispatched; drift after any native attempt is unknown/dispatched;
-only a fresh model-visible window observation may bind the replacement.
+`GDA-CORE-023` closes that activation-target gap. A successful model-visible
+`list_windows` atomically replaces an MCP-instance-local map from each unique,
+valid window id to its exact direct-owner PID and executable name. Activation
+captures one binding before any wait, rejects concurrent replacement, and
+revalidates exactly one live owner before every native mutation and after the
+Driver returns. Target enumeration precedes the final e-stop/human probe at each
+mutation checkpoint. Missing, invalid, duplicate, disappeared, or drifted
+targets fail fixed and redacted; only a fresh successful list binds a
+replacement.
+
+The next bounded audit selected `GDA-CORE-024`. `_env_list` filters entries with
+`x.strip()` but returns the untrimmed `x`, so the normal custom setting
+`CUMCP_REDACT_TITLES=KeePass, Bitwarden` retains `" Bitwarden"` and silently
+misses a `Bitwarden` window in screenshot, OCR, and cropped-capture redaction.
+The next slice must normalize each non-empty comma item once and freeze all three
+redaction consumers plus the shared allowlist parsing semantics.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -303,7 +312,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1813 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-022` closure revalidation |
+| Offline baseline | `1832 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-023` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -378,7 +387,8 @@ delivery work.
 | `GDA-CORE-020` | Complete; merged | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | Commit `257c42d`, merged through PR #253 as `b53bbe2`; the server-owned call scope now promotes every failed Windows action or ordinary exception after one or more native attempts to fixed redacted `NATIVE_OUTCOME_UNKNOWN`. The Agent maps it to terminal `UNKNOWN_OUTCOME / DISPATCHED`, invalidates the MCP generation, and preserves exact continuation/no-replay certainty. Full action-family, actual Windows UIA/SendInput stitch, zero-attempt, bounded-unwind, redaction, lifecycle, Runner, continuation, and recovery regressions pass. Complete gate: `1763 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/test/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-021` | Complete; merged | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Commit `0e83c6e`, merged through PR #255 as `5d605e7`; full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its model/input or tool budget, executor and locked persistence recheck before authority, and prepared singleton observations reuse their charged call. Digest-valid mismatches, exhausted dimensions, forged verification calls, and uncertain multi-observation boundaries have zero external work; valid recovery and side-effect no-replay remain intact. Complete gate: `1780 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no provider, real-desktop, application, or release claim is made |
 | `GDA-CORE-022` | Complete; merged | Preserve mandatory verification and terminal certainty across completed-provider recovery finalization | Commit `dc59252`, merged through PR #257 as `5c0ab09`; complete-ledger folding, exact checkpoint binding, monotonic locked persistence, and a non-`ready` trace-finalization guard preserve verification, Host-only stricter state, terminal unknown, and synthetic stop. OpenAI/Anthropic crash windows, result variants, non-serial histories, abandoned calls, counter/status swaps, mandatory success/failure, Host-only unknown, byte-stable refusal, valid finalization, current-tail blocking, and pure-observation controls pass. Complete gate: `1813 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, two independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no provider, real-desktop, application, or release claim is made |
-| `GDA-CORE-023` | Queued; exact next | Bind `activate_window` to the owner identity observed for its target window | MCP-owned activation identity must require a successful `list_windows` binding, retain the intentional foreground exception, reject missing/disappeared/owner-drifted targets before the first native mutation as `NATIVE_AUTHORITY_LOST / REJECTED / NOT_DISPATCHED`, preserve `UNKNOWN_OUTCOME / DISPATCHED` after any native attempt, and require a fresh model-visible list to bind a replacement. Deterministic fake-native tests own the evidence; no Driver API, continuation/export schema, frozen E2, Demo, HUD, or Full Cycle lane changes |
+| `GDA-CORE-023` | Complete locally; independently reviewed | Bind `activate_window` to the owner identity observed for its target window | The MCP atomically binds unique valid ids to exact direct-owner `(pid, name)` evidence from successful `list_windows`, captures one generation before waits, rechecks owner before each mutation and after Driver return, and never lets internal enumeration or an old in-flight call bind/follow/delete a replacement. Stable, missing, invalid, duplicate, disappeared, PID-only/name-only drift, pre-first/intermediate/final-attempt drift, probe failure, full-control, foreground-exception, failed/empty/internal list, fresh rebind, concurrent rebind, guard-order, audit, and fixed-certainty cases pass. Complete gate: `1832 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and two independent final reviews passed on 2026-08-06; Driver Contract `1.0.0` and every public/schema/Full Cycle boundary remain unchanged, and no real-desktop claim is made |
+| `GDA-CORE-024` | Queued; exact next | Normalize configured comma-list entries before safety matching | Trim every non-empty `CUMCP_REDACT_TITLES` and `CUMCP_ALLOWLIST` item exactly once while preserving blank-env defaults. Deterministic real-server fakes must prove a spaced second redaction title blacks out screenshot, capture-region, and OCR pixels; no-space controls remain equal; blank config still uses defaults; and spaced allowlist entries authorize only their exact trimmed process names. No default-list, general secret detection, Driver/API/tool/baseline/schema, Runner/provider/continuation/export/E2, Demo/HUD, or Full Cycle changes |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -393,8 +403,9 @@ delivery work.
 `GDA-CORE-019` is merged through PR #251 as `dfc5f9e`.
 `GDA-CORE-020` is merged through PR #253 as `b53bbe2`.
 `GDA-CORE-021` is merged through PR #255 as `5d605e7`. `GDA-CORE-022` is
-merged through PR #257 as `5c0ab09`.
-`GDA-CORE-023` is the exact next core Runtime item.
+merged through PR #257 as `5c0ab09`. `GDA-CORE-023` is complete locally and
+awaits its validated publish/merge workflow.
+`GDA-CORE-024` is the exact next core Runtime item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -974,37 +985,73 @@ real-desktop, application, or release evidence.
 Commit `dc59252` merged through PR #257 as `5c0ab09` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-023`
+## Completed slice: `GDA-CORE-023`
 
-Bind `activate_window` to the owner identity observed for its target at the
-final MCP/native boundary. A deterministic fake currently proves the gap:
-`list_windows` reports native id `42` owned by `notepad.exe` / PID 100; the fake
-then reuses id `42` for `secrets.exe` / PID 200; the existing server still
-returns success and records one activation. Host grounding and approval bind
-only the reusable `window_id`, MCP does not retain the structured listed owner,
-and the Driver checks `IsWindow` plus final foreground identity without checking
-that owner.
+The MCP now retains activation authority only from its own successful
+model-visible `list_windows` tool. One complete structured result produces both
+the unchanged text rows and a locked all-or-nothing binding table. Each unique,
+non-empty id binds only when its direct owner has a positive integer PID and
+non-empty exact executable name; malformed or duplicate ids remain visible but
+cannot authorize activation. Empty successful lists clear the table, while
+failed and internal screenshot/OCR/capture enumerations cannot change it.
 
-The MCP must own a set-on-observation target binding derived only from a
-successful model-visible `list_windows`. Activation without that binding, a
-disappeared target, or owner drift before the first native mutation must return
-fixed redacted `NATIVE_AUTHORITY_LOST` and map to
-`REJECTED / NOT_DISPATCHED` with zero mutation. Stable identity must retain the
-intentional `activate_window` foreground-gate exception and one successful
-dispatch. Drift after any recorded native attempt must retain
-`UNKNOWN_OUTCOME / DISPATCHED`, stop later mutation, and never replay. A fresh
-successful `list_windows` is required before the replacement identity can be
-activated.
+`activate_window` captures the exact binding object before its potentially
+waiting guard, so a concurrent fresh list cannot silently retarget an in-flight
+call. A live probe requires that captured generation plus exactly one matching
+window and owner. It runs before the final non-waiting e-stop/human check at
+every native mutation, preserving ADR-009's volatile-authority ordering, and it
+runs once after the Driver returns so drift during the final native attempt
+cannot become success. Compare-and-delete invalidation cannot erase a newer
+binding.
 
-Start with the deterministic matrix in `tests/test_safety_audit.py`, then make
-the smallest MCP-owned change in `src/computer_use_mcp/server.py`. Update the
-owning activation/authority sections in `docs/DESIGN.md`,
-`docs/CONFIGURATION.md`, `docs/TOOLS.md`, `docs/APPROVALS.md`, accepted ADR 009
-only if its target-identity wording needs clarification, and this tracker. Do
-not change Driver method signatures or contract version, trace/checkpoint/
-continuation/export schemas, the frozen E2 manifest, provider/Runner authority,
-public tools, Demo/HUD, Full Cycle Lane A/B, another platform, hierarchical
-control, campaign/Executor, or Multi-Agent scope.
+Pre-attempt owner loss returns fixed redacted `NATIVE_AUTHORITY_LOST` and maps
+to `REJECTED / NOT_DISPATCHED`; any prior native attempt retains fixed
+`UNKNOWN_OUTCOME / DISPATCHED`, later target mutation stops, and the Runner never
+replays. A fresh model-visible list is the only replacement-binding path. The
+intentional activation foreground exception remains, and full-control mode does
+not bypass target identity.
+
+The deterministic matrix covers stable identity; no observation; empty, failed,
+and internal lists; invalid and duplicate owners; disappeared targets;
+PID-only/name-only drift; pre-first, intermediate, and final-attempt drift;
+probe failure; exact fixed audit/results; e-stop ordering; and concurrent old/new
+binding behavior. The final offline gate passed with `1832 passed, 8 skipped`,
+Ruff, mypy over 121 source files, docs consistency for all 13 reviewed tools,
+and diff check. Two independent final reviews found no remaining P1/P2/P3. This
+does not establish an atomic Windows identity lease or distinguish extreme
+same-id/PID/name reuse, and it adds no real-desktop, provider, application, or
+release evidence.
+
+## Exact next task: `GDA-CORE-024`
+
+Normalize configured comma-list entries before they reach safety matching. A
+read-only reproduction currently gives:
+
+```text
+CUMCP_REDACT_TITLES=KeePass, Bitwarden -> ['KeePass', ' Bitwarden'] -> False
+CUMCP_REDACT_TITLES=KeePass,Bitwarden  -> ['KeePass', 'Bitwarden']  -> True
+```
+
+The boolean is the current substring match against `Bitwarden Vault`. Because
+the spaced value is common shell/config syntax, the leading space silently
+prevents the second configured sensitive-window title from being blacked out.
+The same `_env_list` parser supplies `CUMCP_ALLOWLIST`, so its normalization must
+be frozen rather than corrected only at one redaction call site.
+
+Start with deterministic real-`build_server` failures for screenshot,
+`capture_region`, and OCR, proving the relevant returned/recognized pixels are
+blacked out with a spaced second title and match the no-space control. Preserve
+the blank-environment default behavior. Add an allowlist control proving
+`notepad.exe, calc.exe` means exactly the two trimmed literal process names and
+does not authorize another process. Then make the smallest parser fix in
+`src/computer_use_mcp/server.py` and update `docs/CONFIGURATION.md` plus this
+tracker.
+
+Do not change default title/allowlist contents, add general secret detection,
+widen title matching, alter Driver/API/public tool/safety-baseline/schema
+versions, or touch Runner/provider/continuation/export/frozen E2, Demo/HUD,
+Full Cycle Lane A/B, another platform, hierarchical control, campaign/Executor,
+or Multi-Agent scope.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -1023,7 +1070,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-023`.
+  must not displace `GDA-CORE-024`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -1174,3 +1221,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-06 | `GDA-CORE-022` is complete locally and independently reviewed: complete-ledger folding plus checkpoint, locked-persistence, and trace-finalizer gates preserve verification debt, Host-only stricter state, unknown certainty, and stopped recovery without changing continuation v6 or any public contract. |
 | 2026-08-06 | A bounded MCP/native authority audit selected `GDA-CORE-023` next: `activate_window` must bind its reusable native id to the owner identity from a successful model-visible `list_windows`, fail known-not-dispatched on pre-attempt drift, and retain unknown/dispatched certainty after any native attempt. |
 | 2026-08-06 | `GDA-CORE-022` merged through PR #257 as `5c0ab09`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-023` is the exact next core Runtime item. |
+| 2026-08-06 | `GDA-CORE-023` is complete locally and independently reviewed: MCP-owned list/owner binding plus per-mutation and post-return probes reject missing, invalid, duplicate, disappeared, drifted, and concurrently replaced activation targets with exact pre/post dispatch certainty while retaining the foreground exception and Driver contract `1.0.0`. |
+| 2026-08-06 | A bounded configuration/redaction audit selected `GDA-CORE-024` next: comma-list parsing must trim each configured title and allowlist item so ordinary spaced syntax cannot silently bypass sensitive-window blackout or change process authorization semantics. |

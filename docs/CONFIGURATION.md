@@ -24,8 +24,16 @@ Before an action is executed, the server:
 7. Writes one action result to the JSONL audit log.
 
 `activate_window(window_id)` intentionally skips the foreground allowlist
-check, because it is used to bring a listed target forward. In safe mode it is
-still human-activity guarded, e-stop guarded, and audited.
+check, because it is used to bring a listed target forward. It still requires
+that this MCP instance successfully returned the id from `list_windows`, bound
+to the exact direct-owner PID and executable name. The server captures that
+binding when the activation call begins, rechecks the live owner before every
+native mutation and after the Driver returns, and requires a fresh successful
+`list_windows` after the target disappears or its owner changes. At a mutation
+checkpoint the owner enumeration runs before the final non-waiting e-stop and
+human checks, so that slower read cannot age the more volatile human authority.
+In safe mode activation remains human-activity guarded, e-stop guarded, and
+audited.
 
 The initial stable-idle gate captures the current platform input tick for this
 MCP call. The final human check samples the tick around one fresh idle-age
@@ -81,11 +89,18 @@ and never replays the call. Cleanup is not rollback and does not restore pointer
 or application state. A zero-attempt failure retains its existing result and
 certainty semantics.
 
+For activation, `NATIVE_AUTHORITY_LOST` also covers a missing observation
+binding, a disappeared target, owner drift, ambiguous duplicate ids, or invalid
+direct-owner evidence. The fixed result never includes the observed or live
+owner. Internal window enumeration for screenshot, OCR, or redaction cannot
+create or refresh activation authority.
+
 ### `full_control_local`
 
 This mode explicitly bypasses the foreground allowlist and human-activity
 yielding checks. It **does not** disable the emergency stop or auditing; the
 e-stop is still rechecked before every driver-controlled native mutation.
+Activation's observed-owner binding and live target checks also remain active.
 Dangerous ref-click confirmation defaults to off in this mode, but can be
 enabled with `CUMCP_DANGEROUS_CONFIRM=1`.
 

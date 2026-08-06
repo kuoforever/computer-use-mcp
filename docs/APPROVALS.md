@@ -107,6 +107,15 @@ reviewed observations:
 | `key(combo)` | At least one current-generation successful observation exists. |
 | `type(...)` | Disabled; the Host has not bound its required audit baseline to a verified child revision. |
 
+Host grounding for `activate_window` is necessary but not sufficient. The MCP
+server separately captures the exact direct-owner PID and executable name from
+its own successful model-visible `list_windows` result. It rechecks that owner
+at the final native boundary and after the Driver returns. Missing, disappeared,
+ambiguous, invalid, or owner-drifted targets cannot use the old approval or id;
+only another successful `list_windows` can bind a replacement. Internal window
+enumeration does not establish this authority. This adds no approval payload,
+Driver method, or public tool-schema field.
+
 The current provider adapters do not return screenshots to the model, so
 coordinate click grounding is implemented and tested but is not normally
 reachable through the live provider loop yet.

@@ -3,13 +3,17 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 from PIL import Image
 
 from computer_use_mcp.audit import AuditLog
-from computer_use_mcp.contract import Node, ProcRef, Rect, Result, TreeResult
+from computer_use_mcp.contract import Image as ScreenImage
+from computer_use_mcp.contract import Node, ProcRef, Rect, Result, TreeResult, Window
 from computer_use_mcp.human_activity import HumanInputCapture
 from computer_use_mcp.native_authority import NativeActionBoundary
 from computer_use_mcp.safety import EStop, is_dangerous, parse_combo, redact
@@ -17,6 +21,9 @@ from computer_use_mcp.server import build_server
 
 
 SECRET = "typed-secret-" + "x" * 160
+ACTIVATION_TARGET_AUTHORITY_LOST = (
+    "NATIVE_AUTHORITY_LOST: activation target identity unavailable"
+)
 
 
 class AtomicBoundaryDriver:
@@ -85,6 +92,24 @@ class AuthorityDriver(AtomicBoundaryDriver):
         super().__init__()
         self.foreground_names = foreground_names or ["notepad.exe"]
         self.action_calls: list[str] = []
+
+    def list_windows(self) -> list[Window]:
+        owner = ProcRef(pid=100, name=self.foreground_names[0])
+        return [
+            Window(
+                id="window-1",
+                title="Target",
+                bounds=Rect(0, 0, 100, 100),
+                owner=owner,
+                owner_chain=[owner],
+                is_foreground=False,
+            )
+        ]
+
+    def capture_screen(self, _region: Rect | None = None) -> ScreenImage:
+        raw = io.BytesIO()
+        Image.new("RGB", (1, 1), (255, 255, 255)).save(raw, format="PNG")
+        return ScreenImage(png=raw.getvalue(), width=1, height=1, scale=1.0)
 
     def last_input_idle_seconds(self) -> float:
         return 10.0
@@ -746,6 +771,8 @@ def test_failed_windows_action_after_attempt_is_fixed_redacted_unknown(
     )
     if snapshot_first:
         asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+    if tool == "activate_window":
+        asyncio.run(server.call_tool("list_windows", {}))
 
     result = tool_text(asyncio.run(server.call_tool(tool, arguments)))
     raw = audit_path.read_text(encoding="utf-8")
@@ -907,6 +934,7 @@ def test_activation_does_not_claim_an_agent_input_tick(tmp_path: Path) -> None:
         start_estop=False,
         audit_path=str(tmp_path / "actions.jsonl"),
     )
+    asyncio.run(server.call_tool("list_windows", {}))
 
     result = tool_text(
         asyncio.run(server.call_tool("activate_window", {"window_id": "window-1"}))
@@ -1084,6 +1112,7 @@ def test_activate_window_rechecks_human_input_without_a_foreground_gate(
         start_estop=False,
         audit_path=str(tmp_path / "actions.jsonl"),
     )
+    asyncio.run(server.call_tool("list_windows", {}))
 
     result = tool_text(
         asyncio.run(server.call_tool("activate_window", {"window_id": "window-1"}))
@@ -1102,6 +1131,7 @@ def test_activate_window_keeps_its_foreground_gate_exception(tmp_path: Path) -> 
         start_estop=False,
         audit_path=str(tmp_path / "actions.jsonl"),
     )
+    asyncio.run(server.call_tool("list_windows", {}))
 
     result = tool_text(
         asyncio.run(server.call_tool("activate_window", {"window_id": "window-1"}))
@@ -1109,6 +1139,460 @@ def test_activate_window_keeps_its_foreground_gate_exception(tmp_path: Path) -> 
 
     assert result == "ok"
     assert driver.action_calls == ["activate_window"]
+
+
+class ActivationOwnerReuseDriver(AuthorityDriver):
+    OWNER_A = ProcRef(pid=100, name="notepad.exe")
+    OWNER_B = ProcRef(pid=200, name="secrets.exe")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.window_owner: ProcRef | None = self.OWNER_A
+        self.activation_entries = 0
+        self.native_mutations: list[str] = []
+        self.window_reads = 0
+        self.raise_window_read = False
+        self.raise_window_read_at: int | None = None
+        self.additional_window_owner: ProcRef | None = None
+        self.drift_before_first = False
+        self.drift_after_first = False
+        self.drift_after_last = False
+
+    def list_windows(self) -> list[Window]:
+        self.window_reads += 1
+        if self.raise_window_read or self.window_reads == self.raise_window_read_at:
+            raise RuntimeError("injected window enumeration failure")
+        if self.window_owner is None:
+            return []
+        owner = ProcRef(pid=self.window_owner.pid, name=self.window_owner.name)
+        windows = [
+            Window(
+                id="42",
+                title="Reusable target",
+                bounds=Rect(0, 0, 100, 100),
+                owner=owner,
+                owner_chain=[owner],
+                is_foreground=False,
+            )
+        ]
+        if self.additional_window_owner is not None:
+            additional_owner = ProcRef(
+                pid=self.additional_window_owner.pid,
+                name=self.additional_window_owner.name,
+            )
+            windows.append(
+                Window(
+                    id="42",
+                    title="Ambiguous target",
+                    bounds=Rect(0, 0, 100, 100),
+                    owner=additional_owner,
+                    owner_chain=[additional_owner],
+                    is_foreground=False,
+                )
+            )
+        return windows
+
+    def activate_window(self, _window_id: str) -> Result:
+        self.activation_entries += 1
+        if self.drift_before_first:
+            self.drift_before_first = False
+            self.window_owner = self.OWNER_B
+
+        def first_mutation() -> None:
+            self.native_mutations.append("first")
+            if self.drift_after_first:
+                self.drift_after_first = False
+                self.window_owner = self.OWNER_B
+
+        self._mutate(first_mutation)
+
+        def second_mutation() -> None:
+            self.native_mutations.append("second")
+            if self.drift_after_last:
+                self.drift_after_last = False
+                self.window_owner = self.OWNER_B
+
+        self._mutate(second_mutation)
+        return Result.success()
+
+
+def _activation_server(
+    tmp_path: Path,
+    driver: ActivationOwnerReuseDriver,
+    *,
+    control_mode: str = "safe_local",
+):
+    return build_server(
+        allowlist=["notepad.exe", "secrets.exe"],
+        driver=driver,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+        control_mode=control_mode,
+    )
+
+
+def test_activate_window_requires_a_model_visible_window_binding(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    audit_path = tmp_path / "actions.jsonl"
+    server = _activation_server(tmp_path, driver)
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+    _, record = _read_single_record(audit_path)
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.window_reads == 0
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+    assert record["decision"] == "authority_lost"
+
+
+def test_activate_window_accepts_a_stable_observed_owner(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    observed = tool_text(asyncio.run(server.call_tool("list_windows", {})))
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert '42 | notepad.exe | "Reusable target"' in observed
+    assert result == "ok"
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == ["first", "second"]
+
+
+@pytest.mark.parametrize("control_mode", ["safe_local", "full_control_local"])
+def test_activate_window_rechecks_owner_before_first_native_mutation(
+    tmp_path: Path,
+    control_mode: str,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver, control_mode=control_mode)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.drift_before_first = True
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == []
+
+
+def test_activate_window_rechecks_estop_after_target_enumeration(tmp_path: Path) -> None:
+    estop = EStop()
+
+    class EngagingTargetProbeDriver(ActivationOwnerReuseDriver):
+        def list_windows(self) -> list[Window]:
+            windows = super().list_windows()
+            if self.window_reads == 3:
+                estop.engage()
+            return windows
+
+    driver = EngagingTargetProbeDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        estop=estop,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("list_windows", {}))
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result.startswith("ABORTED:")
+    assert driver.window_reads == 3
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == []
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        ProcRef(pid=200, name="notepad.exe"),
+        ProcRef(pid=100, name="secrets.exe"),
+    ],
+)
+def test_activate_window_binds_both_owner_pid_and_name(
+    tmp_path: Path,
+    replacement: ProcRef,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.window_owner = replacement
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_activate_window_owner_loss_after_attempt_is_unknown_and_stops(
+    tmp_path: Path,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    audit_path = tmp_path / "actions.jsonl"
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.drift_after_first = True
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+    _, record = _read_single_record(audit_path)
+
+    assert result == (
+        "ERROR NATIVE_AUTHORITY_LOST: "
+        "native action authority changed after dispatch"
+    )
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == ["first"]
+    assert record["decision"] == "unknown_outcome"
+
+
+def test_activate_window_owner_loss_after_last_attempt_is_not_reported_success(
+    tmp_path: Path,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    audit_path = tmp_path / "actions.jsonl"
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.drift_after_last = True
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+    _, record = _read_single_record(audit_path)
+
+    assert result == (
+        "ERROR NATIVE_AUTHORITY_LOST: "
+        "native action authority changed after dispatch"
+    )
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == ["first", "second"]
+    assert record["decision"] == "unknown_outcome"
+
+
+def test_activate_window_rejects_a_disappeared_observed_target(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.window_owner = None
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_duplicate_window_ids_never_bind_or_validate_activation_owner(
+    tmp_path: Path,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    driver.additional_window_owner = ProcRef(pid=0, name="")
+    asyncio.run(server.call_tool("list_windows", {}))
+
+    unbound = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+    driver.additional_window_owner = None
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.additional_window_owner = driver.OWNER_B
+    ambiguous = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert unbound == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert ambiguous == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+@pytest.mark.parametrize(
+    "invalid_owner",
+    [
+        ProcRef(pid=0, name="notepad.exe"),
+        ProcRef(pid=100, name=""),
+    ],
+)
+def test_invalid_unique_window_owner_never_binds_activation(
+    tmp_path: Path,
+    invalid_owner: ProcRef,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    driver.window_owner = invalid_owner
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_inflight_activation_never_follows_a_concurrent_rebinding(tmp_path: Path) -> None:
+    class BlockingActivity(NoteTrackingActivity):
+        def __init__(self) -> None:
+            super().__init__()
+            self.waiting = Event()
+            self.release = Event()
+            self.wait_calls = 0
+
+        def wait_until_stable(self) -> None:
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                self.waiting.set()
+                assert self.release.wait(timeout=5)
+            return None
+
+    activity = BlockingActivity()
+    driver = ActivationOwnerReuseDriver()
+    server = build_server(
+        allowlist=["notepad.exe", "secrets.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("list_windows", {}))
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        inflight = executor.submit(
+            lambda: tool_text(
+                asyncio.run(
+                    server.call_tool("activate_window", {"window_id": "42"})
+                )
+            )
+        )
+        assert activity.waiting.wait(timeout=5)
+        driver.window_owner = driver.OWNER_B
+        asyncio.run(server.call_tool("list_windows", {}))
+        activity.release.set()
+        old_result = inflight.result(timeout=5)
+
+    new_result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert old_result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert new_result == "ok"
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == ["first", "second"]
+
+
+def test_empty_model_visible_list_clears_activation_bindings(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.window_owner = None
+
+    observed = tool_text(asyncio.run(server.call_tool("list_windows", {})))
+    driver.window_owner = driver.OWNER_A
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert observed == "(no windows)"
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_internal_window_reads_cannot_rebind_activation_owner(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.window_owner = driver.OWNER_B
+
+    assert driver.window_reads == 1
+    asyncio.run(server.call_tool("screenshot", {}))
+    assert driver.window_reads == 2
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.window_reads == 3
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_failed_model_visible_list_cannot_rebind_activation_owner(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.window_owner = driver.OWNER_B
+    driver.raise_window_read = True
+
+    with pytest.raises(ToolError):
+        asyncio.run(server.call_tool("list_windows", {}))
+    driver.raise_window_read = False
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_activation_owner_probe_failure_is_known_not_dispatched(tmp_path: Path) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.raise_window_read_at = 2
+
+    result = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert result == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert driver.activation_entries == 0
+    assert driver.native_mutations == []
+
+
+def test_activate_window_requires_fresh_list_after_owner_replacement(
+    tmp_path: Path,
+) -> None:
+    driver = ActivationOwnerReuseDriver()
+    server = _activation_server(tmp_path, driver)
+    asyncio.run(server.call_tool("list_windows", {}))
+    driver.window_owner = driver.OWNER_B
+
+    first = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+    second = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+    observed = tool_text(asyncio.run(server.call_tool("list_windows", {})))
+    rebound = tool_text(
+        asyncio.run(server.call_tool("activate_window", {"window_id": "42"}))
+    )
+
+    assert first == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert second == ACTIVATION_TARGET_AUTHORITY_LOST
+    assert '42 | secrets.exe | "Reusable target"' in observed
+    assert rebound == "ok"
+    assert driver.activation_entries == 1
+    assert driver.native_mutations == ["first", "second"]
 
 
 def test_dangerous_confirmation_cannot_outlive_foreground_authority(
