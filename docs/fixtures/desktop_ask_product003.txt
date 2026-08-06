@@ -1,0 +1,7 @@
+Desktop Ask Product Verification
+
+Release codename: ORBIT-LANTERN-731
+North region units: 37
+South region units: 58
+
+The launch decision is GO only if the combined units equal 95.

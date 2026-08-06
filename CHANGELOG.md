@@ -18,6 +18,16 @@ a version number states what is packaged, never what has been verified.
   used one tool call, zero provider calls, and zero tokens; final handoff points
   to ordinal 4 with no retryable or uncertain items.
 
+### Fixed
+
+- **Planner scope values are now executable, not prose.** The first
+  exact-candidate Desktop Ask attempt exposed a real `document_text` failure
+  when the Planner emitted `"foreground document"` and the Host accepted any
+  non-empty scope. Provider schemas now disclose the exact
+  `foreground | all | positive decimal window id` grammar, Host compilation
+  rejects paraphrased scopes before persistence or MCP dispatch, and both
+  Planner prompts require literal schema values.
+
 ### Added
 
 - **Installed Runtime doctor and actionable setup UX.** Added `config doctor`

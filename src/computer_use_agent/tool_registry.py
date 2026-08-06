@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Mapping, Sequence
@@ -140,7 +141,11 @@ def _mcp_schema(
     return schema
 
 
-_SCOPE = {"type": "string", "minLength": 1}
+_SCOPE_PATTERN = r"^(?:foreground|all|[1-9][0-9]*)$"
+_SCOPE = {
+    "type": "string",
+    "pattern": _SCOPE_PATTERN,
+}
 _NONEMPTY_STRING = {"type": "string", "minLength": 1}
 _OPTIONAL_REF = {"type": "string", "minLength": 1}
 _INTEGER = {"type": "integer"}
@@ -281,7 +286,7 @@ REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         name="document_text",
-        description="Read bounded semantic document text for a scope.",
+        description="Read semantic document text for a scope.",
         input_schema=_host_schema({"scope": _SCOPE}),
         mcp_input_schema=_mcp_schema("document_textArguments", {"scope": _MCP_SCOPE}),
         effect=ToolEffect.OBSERVATION,
@@ -567,6 +572,9 @@ def _validate_scalar(name: str, value: object, schema: Mapping[str, object]) -> 
         minimum = schema.get("minLength")
         if isinstance(minimum, int) and len(value) < minimum:
             raise ToolValidationError(f"{name} must not be empty")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and re.fullmatch(pattern, value) is None:
+            raise ToolValidationError(f"{name} does not match the reviewed format")
     elif expected_type == "integer":
         if isinstance(value, bool) or not isinstance(value, int):
             raise ToolValidationError(f"{name} must be an integer")

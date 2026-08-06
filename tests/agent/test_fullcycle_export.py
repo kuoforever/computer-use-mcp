@@ -101,7 +101,12 @@ def test_manifest_is_exactly_versioned_and_derived_from_reviewed_tools() -> None
         "description": "List interactive UI elements and session-scoped refs.",
         "input_schema": {
             "additionalProperties": False,
-            "properties": {"scope": {"minLength": 1, "type": "string"}},
+                "properties": {
+                    "scope": {
+                        "pattern": r"^(?:foreground|all|[1-9][0-9]*)$",
+                        "type": "string",
+                    }
+                },
             "required": [],
             "type": "object",
         },

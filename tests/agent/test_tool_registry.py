@@ -74,7 +74,7 @@ def test_registry_contains_the_exact_thirteen_reviewed_mcp_tools() -> None:
     assert get_tool_spec("screenshot").result_sensitivity is ResultSensitivity.SENSITIVE
     assert (
         reviewed_registry_digest()
-        == "63bb30e074ef4213923ddf2a4b5b8118160c23ccf8ac5414f6d381b50a6e693b"
+        == "3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb"
     )
 
 
@@ -229,6 +229,22 @@ def test_region_host_validation_accepts_one_bounded_region() -> None:
 
     assert validate_tool_arguments("ocr", arguments) == arguments
     assert validate_tool_arguments("capture_region", arguments) == arguments
+
+
+@pytest.mark.parametrize("name", ["ui_snapshot", "find", "document_text"])
+def test_scope_contract_accepts_only_runtime_resolvable_values(name: str) -> None:
+    base = {"query": "Save"} if name == "find" else {}
+
+    assert validate_tool_arguments(name, base) == base
+    for scope in ("foreground", "all", "5244578"):
+        arguments = {**base, "scope": scope}
+        assert validate_tool_arguments(name, arguments) == arguments
+    for scope in ("", "foreground document", "window:42", "0"):
+        with pytest.raises(ToolValidationError, match="reviewed format"):
+            validate_tool_arguments(name, {**base, "scope": scope})
+
+    scope_schema = get_tool_spec(name).input_schema["properties"]["scope"]
+    assert scope_schema["pattern"] == r"^(?:foreground|all|[1-9][0-9]*)$"
 
 
 def test_only_the_pixel_returning_tools_declare_image_output() -> None:

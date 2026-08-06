@@ -7,7 +7,7 @@
 
 | Tool | Parameters | Behavior |
 | --- | --- | --- |
-| `ui_snapshot` | `scope="foreground"` | Returns a flat list of interactive UIA controls with refs, bounding boxes, states, and safe value summaries. Scope is `"foreground"`, a window id from `list_windows()`, or `"all"`. |
+| `ui_snapshot` | `scope="foreground"` | Returns a flat list of interactive UIA controls with refs, bounding boxes, states, and safe value summaries. Scope is exactly `"foreground"`, a positive decimal window id from `list_windows()`, or `"all"`. |
 | `find` | `query, scope="foreground"` | Returns a matching subset using the same snapshot/ref model. Use this to reduce context for large windows. |
 | `list_windows` | none | Lists visible top-level windows, including owned dialogs. Each row includes a window id, owner executable, title, and foreground marker. A successful call atomically replaces this MCP instance's window-id/direct-owner activation bindings. |
 | `screenshot` | none | Returns a PNG of the primary display. It does not accept a region parameter and does not provide a virtual-desktop capture. |
@@ -35,6 +35,11 @@ control's text range already covers its subtree, so page text comes back as a
 small number of ordered blocks, each with an optional bounding box. It returns
 at most 200 blocks and 20,000 characters with explicit truncation metadata, and
 its offsets do not imply clickable coordinates.
+
+The Agent Host advertises and validates that exact scope grammar for
+`ui_snapshot`, `find`, and `document_text`. A Planner candidate such as
+`"foreground document"` is invalid and stops before plan persistence or MCP
+dispatch; scope labels are identifiers, not natural-language descriptions.
 
 Snapshots are capped at 200 qualifying controls. If controls were omitted, the
 text result explicitly reports a truncation count. `ui_snapshot` and `find`
