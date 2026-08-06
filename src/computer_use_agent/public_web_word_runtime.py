@@ -70,7 +70,16 @@ _WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEMPLATE_RESOURCE = "assets/public-web-word.docx"
 _FIXED_ALLOWLIST = "chrome.exe,winword.exe"
 _FIXED_HUMAN_STABLE_SAMPLES = "3"
-_VISION_PREVIEW_SIZE = (160, 120)
+_VISION_PREVIEW_SIZES = (
+    (160, 120),
+    (128, 96),
+    (96, 72),
+    (64, 48),
+    (32, 24),
+    (16, 12),
+    (8, 6),
+    (1, 1),
+)
 _VISION_PREVIEW_MAX_BYTES = 64 * 1024
 
 
@@ -166,15 +175,21 @@ def _bounded_vision_preview(image: ImageContent) -> ImageContent:
     try:
         with PILImage.open(BytesIO(image.data)) as source:
             original_size = source.size
-            samples = source.convert("L")
-            samples.thumbnail(_VISION_PREVIEW_SIZE, PILImage.Resampling.LANCZOS)
-            preview = samples.resize(original_size, PILImage.Resampling.NEAREST)
-            output = BytesIO()
-            preview.save(output, format="PNG", optimize=True)
+            grayscale = source.convert("L")
+            encoded: bytes | None = None
+            for sample_size in _VISION_PREVIEW_SIZES:
+                samples = grayscale.copy()
+                samples.thumbnail(sample_size, PILImage.Resampling.LANCZOS)
+                preview = samples.resize(original_size, PILImage.Resampling.NEAREST)
+                output = BytesIO()
+                preview.save(output, format="PNG", optimize=True)
+                candidate = output.getvalue()
+                if len(candidate) <= _VISION_PREVIEW_MAX_BYTES:
+                    encoded = candidate
+                    break
     except (OSError, ValueError) as exc:
         raise PublicWebWordError("PUBLIC_WEB_WORD_SCREENSHOT_INVALID") from exc
-    encoded = output.getvalue()
-    if len(encoded) > _VISION_PREVIEW_MAX_BYTES:
+    if encoded is None:
         raise PublicWebWordError("PUBLIC_WEB_WORD_SCREENSHOT_INVALID")
     return ImageContent(
         "image/png",

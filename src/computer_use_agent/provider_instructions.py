@@ -41,7 +41,11 @@ the exact Word window and identify the enabled main page editor (for example,
 `Page 1 content` or `页面 1 内容`), not a title-bar Search box. Take a fresh
 screenshot, then click the exact center of the main editor bounds with explicit
 x/y coordinates. Re-observe the focused editor, send Ctrl+End, and re-observe
-the focused editor again before typing. Never submit the editor ref to click.
+the focused editor again before typing. The screenshot is a one-time grounding
+step before the first editor click; never request another screenshot after that
+click. When the fresh post-click snapshot reports the main editor focused, the
+only valid next tool is key with combo Ctrl+End. Never submit the editor ref to
+click.
 
 Author the requested two-to-four-bullet brief from observed source facts; the
 Host does not provide prewritten prose. Follow the task's exact leading-newline,

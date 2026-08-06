@@ -106,6 +106,14 @@ _WORD_EDITOR_NAME = re.compile(
     r"(?:Page [1-9][0-9]* content|页面 [1-9][0-9]* 内容)",
     re.IGNORECASE,
 )
+_PROPOSAL_CORRECTION_HINTS = {
+    "PUBLIC_WEB_WORD_SCREENSHOT_OUT_OF_SCOPE": (
+        "Screenshot is allowed once, after Word activation and a fresh editor "
+        "snapshot, before the first editor click. After a successful editor click "
+        "and fresh snapshot reporting the main editor focused, request only key "
+        "with combo Ctrl+End; do not request another screenshot."
+    ),
+}
 
 
 class PublicWebWordError(RuntimeError):
@@ -575,6 +583,10 @@ class ModelDrivenPublicWebWordProvider:
     def _proposal_feedback_events(
         calls: Sequence[ToolCall], rejection: PublicWebWordProposalRejection
     ) -> tuple[LedgerEvent, ...]:
+        guidance = _PROPOSAL_CORRECTION_HINTS.get(
+            rejection.code,
+            "Replan inside the fixed workflow.",
+        )
         return tuple(
             LedgerEvent(
                 event_id=(
@@ -592,7 +604,7 @@ class ModelDrivenPublicWebWordProvider:
                         ""
                         if call.name == "type"
                         else "Host rejected this proposal before desktop dispatch: "
-                        f"{rejection.code}. Replan inside the fixed workflow."
+                        f"{rejection.code}. {guidance}"
                     ),
                     code="POLICY_DENIED",
                 ),

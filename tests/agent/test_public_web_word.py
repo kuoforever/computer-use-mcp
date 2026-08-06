@@ -26,6 +26,7 @@ from computer_use_agent.public_web_word import (
     PUBLIC_WEB_WORD_SOURCE_TITLE,
     PUBLIC_WEB_WORD_SOURCE_URL,
     PublicWebWordError,
+    PublicWebWordProposalRejection,
 )
 from computer_use_agent.public_web_word_runtime import (
     PublicWebWordRequest,
@@ -561,3 +562,21 @@ def test_one_invalid_model_proposal_is_corrected_before_desktop_dispatch() -> No
     assert turn.tool_calls[0].name == "list_windows"
     assert turn.usage == ModelUsage(8, 2)
     assert provider.correction_count(RUN_ID) == 1
+
+
+def test_redundant_screenshot_feedback_names_the_exact_next_step() -> None:
+    call = _call(RUN_ID, "turn_12", "screenshot", {})
+    rejection = PublicWebWordProposalRejection(
+        attempt=1,
+        max_attempts=2,
+        code="PUBLIC_WEB_WORD_SCREENSHOT_OUT_OF_SCOPE",
+        tool_names=("screenshot",),
+    )
+
+    event = ModelDrivenPublicWebWordProvider._proposal_feedback_events(
+        (call,), rejection
+    )[0]
+
+    assert event.tool_result is not None
+    assert "do not request another screenshot" in event.tool_result.sanitized_text
+    assert "combo Ctrl+End" in event.tool_result.sanitized_text
