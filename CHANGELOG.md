@@ -12,11 +12,27 @@ a version number states what is packaged, never what has been verified.
 
 ### Evidence
 
+- **Exact-candidate Desktop Ask.** A fresh Python 3.13 wheel and state completed
+  one installed OpenAI `gpt-5.6-terra` Windows/Notepad
+  `document_text(scope=foreground) -> final_response` run. The answer recovered
+  the fixture-only codename, arithmetic, and decision with one tool call, one
+  final model turn, zero side effects, zero retries, and retained redacted
+  [evidence](docs/DESKTOP_ASK_EVIDENCE.md).
 - **Clean BOSS item/restart sequence.** Retained a fixed-code on-device result
   with two discovery passes, twelve stable identities, and three consecutive
   fresh-run identity commits without local state correction. All accepted runs
   used one tool call, zero provider calls, and zero tokens; final handoff points
   to ordinal 4 with no retryable or uncertain items.
+
+### Fixed
+
+- **Planner scope values are now executable, not prose.** The first
+  exact-candidate Desktop Ask attempt exposed a real `document_text` failure
+  when the Planner emitted `"foreground document"` and the Host accepted any
+  non-empty scope. Provider schemas now disclose the exact
+  `foreground | all | positive decimal window id` grammar, Host compilation
+  rejects paraphrased scopes before persistence or MCP dispatch, and both
+  Planner prompts require literal schema values.
 
 ### Added
 
@@ -38,7 +54,8 @@ a version number states what is packaged, never what has been verified.
   can traverse Planner -> Runner -> MCP -> tool-free final response without a
   new dispatch path. English and Chinese quick starts plus the clean-wheel smoke
   exercise the canonical product commands. This expanded scope is offline
-  verified and still requires exact-candidate live evidence.
+  verified; its exact-candidate live result is retained separately from the
+  packaged feature claim.
 - **Guarded Desktop Agent project identity.** Renamed the repository,
   distribution, product, and MCP service to distinguish the project-local
   runtime from platform Computer Use plugins. Added canonical

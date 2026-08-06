@@ -121,7 +121,7 @@ must not create a second native-action path.
 | Installed readiness | `config doctor` | Check provider setup and verify the configured MCP child's exact thirteen-tool discovery contract | Implemented; real child handshake, no provider request or MCP tool call |
 | Agent config validation | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
-| Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; expanded document-aware scope still needs live evidence |
+| Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; one exact-candidate OpenAI/Windows/Notepad [result](DESKTOP_ASK_EVIDENCE.md) is retained |
 | Evaluation | `eval` | Run deterministic frozen E1/E2 cases | Implemented offline |
 | Release preflight | `release preflight` | Run clean-candidate offline gates and build smoke | Implemented; not release approval |
 | Inspection | `trace`, `report`, `recovery` | Read validated redacted state and classify recovery | Implemented, no implicit execution |
@@ -378,15 +378,16 @@ In priority order:
 2. Retain one on-device UIA/document-text semantic item through the new bounded
    runtime; review the OCR Host safety baseline separately and add another
    source only on a demonstrated gap.
-3. Retain one exact-candidate document-aware Desktop Ask result, then harden the
-   installed first-run and product error experience around that public path.
+3. Deliver the installed model-driven public-browser-to-disposable-Word
+   workflow with a non-prewritten brief and durable document verification.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host
    notification semantics without broadening the campaign selector.
 6. With provider E3 and isolated E4 retained, execute bounded BOSS evidence,
    then Google Docs and WeChat cases only after their preceding gates.
-7. Build operator projections and continual-learning L0 from real retained
+7. Build and verify the exact-candidate `0.1.0` release wheel, then build
+   operator projections and continual-learning L0 from real retained
    state, not model prose or invented completion.
 
 The authoritative current priorities live in

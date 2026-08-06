@@ -89,6 +89,7 @@ def test_openai_planner_uses_one_stateless_tool_free_structured_request() -> Non
     call = scripted.calls[0]
     assert call["model"] == "gpt-test"
     assert call["instructions"] == OPENAI_PLANNER_INSTRUCTIONS
+    assert "copy literal" in OPENAI_PLANNER_INSTRUCTIONS
     assert call["input"] == request.canonical_json
     assert call["store"] is False
     assert call["max_output_tokens"] == planner.output_token_reserve

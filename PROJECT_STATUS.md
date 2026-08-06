@@ -19,12 +19,12 @@
 > `GDA-CORE-025` is merged through PR #262; `GDA-CORE-026` is merged through
 > PR #263; `GDA-CORE-027` is merged through PR #264; and `GDA-CORE-028` is
 > merged through PR #265. `GDA-PRODUCT-001` is merged through PR #266 as
-> `3c7aa48`. `GDA-PRODUCT-002` is complete locally and awaiting publication:
-> it delivers Runtime readiness, actionable setup errors, exact installed MCP
-> discovery, and truthful Driver capability metadata as one product batch.
-> `GDA-PRODUCT-003` is the exact post-merge next item.
-> `GDA-CORE-029` remains preserved and is grouped into the later product
-> readiness batch instead of becoming another standalone micro-PR.
+> `3c7aa48`. `GDA-PRODUCT-002` is merged through PR #267 as `d94d5f9`.
+> `GDA-PRODUCT-003` is complete locally and awaiting publication: one
+> exact-candidate Windows/OpenAI/Notepad Desktop Ask result passed after the
+> only observed scope-grammar defect was repaired. `GDA-PRODUCT-004` is the
+> exact post-merge next item. `GDA-CORE-029` closed inside
+> `GDA-PRODUCT-002` rather than becoming another standalone micro-PR.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below. The Full Cycle Runtime baseline remains frozen at
@@ -61,10 +61,18 @@ Those are post-MVP programs, not blockers for the first honest release.
 | Product batch | State | Product outcome | Acceptance |
 | --- | --- | --- | --- |
 | `GDA-PRODUCT-001` | Complete; merged | Installed-first-run Desktop Ask: `config init`, public `ask`, semantic `document_text` planning, EN/ZH quick start, and clean-wheel entry smoke | Commit `2b7198e`, merged through PR #266 as `3c7aa48`; generated config immediately validates, `ask` and `plan run` share one Runner path, Planner -> `document_text` -> final answer is functionally verified, all four GitHub checks passed, and both feature-branch copies were removed |
-| `GDA-PRODUCT-002` | Complete locally; publish pending | Readiness and error UX: `config doctor`, actionable provider/setup failures, truthful Driver `scroll`/`drag` capability metadata, and a stronger clean-wheel first-run contract | `1853 passed, 8 skipped`; Ruff, mypy, docs, diff, and independent review passed; a clean Python 3.13 wheel with both provider extras produced `ready=true` and exact 13-tool discovery for OpenAI and Claude without a provider request, MCP tool call, desktop content read, or desktop action |
-| `GDA-PRODUCT-003` | Exact next after merge | One exact-candidate real Windows/provider document-aware Desktop Ask result, with functional hardening only for defects actually observed | Fresh environment reaches a correct bounded answer from semantic document text; run/plan/tool evidence is retained without claiming broader application coverage |
-| `GDA-PRODUCT-004` | Queued | Model-driven public-browser-to-disposable-Word workflow through product surfaces; selectively port required work from draft PR #231 rather than merging its stale 41-file snapshot wholesale | Fresh observations produce a non-prewritten 2-4 bullet brief, durable DOCX verification passes, and disposable fixtures clean up without manual content correction |
+| `GDA-PRODUCT-002` | Complete; merged | Readiness and error UX: `config doctor`, actionable provider/setup failures, truthful Driver `scroll`/`drag` capability metadata, and a stronger clean-wheel first-run contract | Commit `f0e78cd`, merged through PR #267 as `d94d5f9` after all four GitHub checks passed; both branch copies were removed |
+| `GDA-PRODUCT-003` | Complete locally; publish pending | One exact-candidate real Windows/provider document-aware Desktop Ask result, with functional hardening only for defects actually observed | Commit `8bf139f`, wheel `54ec7077...a7a3`, and run `2699db750c314b178e1f2fb400e233bf` passed from fresh state: completed `document_text(scope=foreground) -> final_response`, correct codename/arithmetic/decision, 0 side effects/retries/failures, and retained redacted evidence |
+| `GDA-PRODUCT-004` | Exact next after merge | Model-driven public-browser-to-disposable-Word workflow through product surfaces; selectively port required work from draft PR #231 rather than merging its stale 41-file snapshot wholesale | Fresh observations produce a non-prewritten 2-4 bullet brief, durable DOCX verification passes, and disposable fixtures clean up without manual content correction |
 | `GDA-PRODUCT-005` | Queued | Exact-candidate integration and release: current-wheel E3/E4, clean preflight, version/changelog/package metadata, GitHub release wheel and SHA-256 | Same commit and wheel hash pass CI, reviewed provider/desktop gates, release review, clean install, version check, and rollback/uninstall instructions |
+
+During every live desktop test, the user may take the mouse, keyboard, or
+foreground focus. Treat unexpected input/focus drift as possible operator
+interference first: mark that attempt interrupted or invalid, re-establish a
+fresh observation, and rerun. Diagnose a code defect only when trace, window,
+and timing evidence exclude user intervention. This is evidence-interpretation
+discipline, not an additional product feature or `GDA-PRODUCT-004` acceptance
+item.
 
 After `GDA-PRODUCT-005`, campaign `status`/single-step `advance`, bounded BOSS
 semantic batches, broader Wave 1 applications, and richer operator surfaces are
@@ -441,9 +449,9 @@ delivery work.
 | ID | Status | Deliverable | Completion evidence |
 | --- | --- | --- | --- |
 | `GDA-PRODUCT-001` | Complete; merged | Installed-first-run, document-aware Desktop Ask vertical slice | Commit `2b7198e`, merged through PR #266 as `3c7aa48`; `config init` creates one non-overwriting, immediately valid read-only profile with automatic sibling MCP discovery and no stored credential; `ask` shares the bounded Planner/Runner path with `plan run`, prints direct text by default, and adds semantic `document_text`. Complete gate: `1840 passed, 8 skipped`, Ruff, mypy over 122 source files, docs consistency, diff check, isolated Python 3.13 wheel install/init/validate/dry-run smoke, shared text/JSON routing tests, independent functional review, and all four GitHub checks on 2026-08-06; no live provider, desktop, application, or release claim is made |
-| `GDA-PRODUCT-002` | Complete locally; publish pending | Runtime doctor, actionable setup errors, truthful capability metadata, and installed-wheel first-run contract | Fixed JSON doctor checks config, SDK, documented key, executable, cwd, and exact names/schemas; six OpenAI/Claude provider/planner/final constructors share one-line actionable setup errors; Driver metadata exposes all 15 implemented primitives. Complete gate: `1853 passed, 8 skipped`, Ruff, mypy over 124 source files, docs consistency, diff check, clean Python 3.13 wheel installation with both provider extras, two real sibling-MCP `ready=true` / 13-tool handshakes, and independent functional review on 2026-08-06; no provider request, MCP tool call, desktop content read/action, application, or release evidence is claimed |
-| `GDA-PRODUCT-003` | Exact next after merge | Current-candidate real document-aware Desktop Ask evidence | One fresh Windows/provider run with retained semantic-document answer and exact bounded evidence |
-| `GDA-PRODUCT-004` | Queued | Model-driven public-browser-to-disposable-Word product workflow | Non-prewritten brief, durable document verification, exact cleanup, and retained current-main evidence |
+| `GDA-PRODUCT-002` | Complete; merged | Runtime doctor, actionable setup errors, truthful capability metadata, and installed-wheel first-run contract | Commit `f0e78cd`, merged through PR #267 as `d94d5f9`; fixed JSON doctor checks config, SDK, documented key, executable, cwd, and exact names/schemas; six OpenAI/Claude provider/planner/final constructors share one-line actionable setup errors; Driver metadata exposes all 15 implemented primitives. Complete gate: `1853 passed, 8 skipped`, Ruff, mypy over 124 source files, docs consistency, diff check, clean Python 3.13 wheel installation with both provider extras, two real sibling-MCP `ready=true` / 13-tool handshakes, independent functional review, and all four GitHub checks on 2026-08-06; both feature-branch copies were removed and no provider request, MCP tool call, desktop content read/action, application, or release evidence is claimed |
+| `GDA-PRODUCT-003` | Complete locally; publish pending | Current-candidate real document-aware Desktop Ask evidence | Attempt 1 retained the scope-paraphrase failure. Commit `8bf139f` repaired only that observed contract; its clean Python 3.13 wheel passed `config init` / `doctor` / `validate` and one installed OpenAI `gpt-5.6-terra` Windows/Notepad `ask --json` run with correct fixture-only facts, one successful semantic observation, one final response, zero side effects/retries/failures, and [retained bounded evidence](docs/DESKTOP_ASK_EVIDENCE.md). Complete local gate: `1857 passed, 8 skipped`, Ruff, mypy over 124 source files, docs consistency, diff check, and independent functional review |
+| `GDA-PRODUCT-004` | Exact next after merge | Model-driven public-browser-to-disposable-Word product workflow | Installed product entry, non-prewritten brief, durable document verification, exact cleanup, and retained current-main evidence |
 | `GDA-PRODUCT-005` | Queued | Exact-candidate integration and first GitHub release | Current-wheel E3/E4, clean preflight, release review, tagged wheel/digest, clean install and rollback result |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
@@ -505,9 +513,10 @@ as `1c5b2a0`.
 merged through PR #262 as `0b43442`. `GDA-CORE-026` is merged through PR #263
 as `95bd16a`. `GDA-CORE-027` is merged through PR #264 as `ee4aebf`.
 `GDA-CORE-028` is merged through PR #265 as `9a0ae0e`. `GDA-PRODUCT-001` is
-merged through PR #266 as `3c7aa48`. `GDA-CORE-029` is closed inside the
-locally complete `GDA-PRODUCT-002` batch; `GDA-PRODUCT-003` is the exact item
-to start after that product PR merges.
+merged through PR #266 as `3c7aa48`. `GDA-PRODUCT-002` is merged through PR
+#267 as `d94d5f9`, including closure of `GDA-CORE-029`. `GDA-PRODUCT-003` is
+complete locally and awaiting publication; `GDA-PRODUCT-004` is the exact
+post-merge next item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -1338,3 +1347,7 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-06 | `GDA-PRODUCT-001` is complete locally: a clean wheel now reaches generated valid configuration and dry-run through the canonical CLI, while public `ask` adds a direct-answer document-aware path through existing Planner/Runner/MCP boundaries. `GDA-PRODUCT-002` is the exact post-merge next batch. |
 | 2026-08-06 | `GDA-PRODUCT-001` merged through PR #266 as `3c7aa48` after all four GitHub checks passed; both branch copies were removed and work continued directly into the single coherent `GDA-PRODUCT-002` readiness/error-UX batch. |
 | 2026-08-06 | `GDA-PRODUCT-002` is complete locally: installed Runtime doctor, actionable dual-provider setup failures, truthful 15-primitive Windows Driver metadata, and a clean-wheel two-provider exact 13-tool handshake passed without a provider request or MCP tool call. `GDA-PRODUCT-003` is the exact post-merge next batch. |
+| 2026-08-06 | `GDA-PRODUCT-002` merged through PR #267 as `d94d5f9` after all four GitHub checks passed; both branch copies were removed and work continued directly into `GDA-PRODUCT-003` under an explicit `NOT RUN` exact-candidate Desktop Ask evidence plan. |
+| 2026-08-06 | `GDA-PRODUCT-003` Attempt 1 is retained as a real failure, not evidence: the Planner chose `list_windows` then `document_text` but paraphrased the scope as `foreground document`; the Host's non-empty-string schema allowed dispatch and Windows returned `DRIVER_ERROR` / `EXECUTOR_TOOL_FAILED`. The next candidate narrows only this observed functional contract before a fresh rerun. |
+| 2026-08-06 | `GDA-PRODUCT-003` is complete locally on commit `8bf139f`: fresh wheel `54ec7077...a7a3` and fresh-state run `2699db750c314b178e1f2fb400e233bf` completed `document_text(scope=foreground) -> final_response`, returned the fixture-only codename, `37 + 58 = 95`, and `GO`, and retained `SUCCESS` evidence with zero side effects, retries, or tool failures. `GDA-PRODUCT-004` is the exact post-merge next batch. |
+| 2026-08-06 | During any live desktop test, the user may take mouse, keyboard, or focus. Unexpected drift must first be classified as possible operator interference and the attempt rerun from a fresh observation; it becomes a code defect only when trace, window, and timing evidence exclude user intervention. This corrects an over-broad interpretation: it is test-evidence discipline, not a new `GDA-PRODUCT-004` acceptance item. |

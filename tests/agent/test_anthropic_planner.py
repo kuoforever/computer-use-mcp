@@ -74,6 +74,7 @@ def test_anthropic_planner_uses_one_stateless_tool_free_structured_request() -> 
     assert call["model"] == "claude-test"
     assert call["max_tokens"] == planner.output_token_reserve
     assert call["system"] == ANTHROPIC_PLANNER_SYSTEM_PROMPT
+    assert "copy literal" in ANTHROPIC_PLANNER_SYSTEM_PROMPT
     assert call["messages"] == [{"role": "user", "content": request.canonical_json}]
     assert not ({"tools", "tool_choice", "thinking", "metadata"} & set(call))
     assert set(call) == {"model", "max_tokens", "system", "messages", "output_config"}

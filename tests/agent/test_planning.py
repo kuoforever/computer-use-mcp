@@ -149,6 +149,20 @@ def test_unreviewed_unscoped_or_invalid_tool_steps_fail_closed(
         )
 
 
+def test_compiler_rejects_a_paraphrased_document_scope_before_execution() -> None:
+    candidate = _candidate(
+        {
+            "action": "tool",
+            "tool": "document_text",
+            "arguments": {"scope": "foreground document"},
+        },
+        {"action": "final_response"},
+    )
+
+    with pytest.raises(PlanValidationError, match="tool arguments are invalid"):
+        _compile(candidate, allowed_tools=("document_text",))
+
+
 def test_allowed_tool_scope_must_be_explicit_reviewed_and_unique() -> None:
     candidate = _candidate({"action": "final_response"})
 

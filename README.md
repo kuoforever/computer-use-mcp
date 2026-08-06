@@ -188,9 +188,10 @@ desktop content, and performs no desktop action. MCP startup can still create
 its configured audit directory and start its emergency-stop key polling before
 the child is closed.
 
-This path is offline verified. The expanded document-aware scope has not yet
-been rerun as exact-candidate provider, desktop, application, or release
-evidence.
+This path is offline verified and has one exact-candidate
+[OpenAI/Windows/Notepad result](docs/DESKTOP_ASK_EVIDENCE.md). That bounded
+result does not establish another provider, application, desktop action, or
+release artifact.
 
 ## Raw MCP server quick start
 

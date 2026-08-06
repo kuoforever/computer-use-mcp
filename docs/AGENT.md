@@ -185,6 +185,10 @@ plan-digest comparison. `planner.py` adds a one-shot provider-neutral port: its
 bounded immutable request contains only task text and host-selected exact
 non-sensitive tool schemas, and its only result is untrusted JSON passed to the
 same compiler. Planner failures are fixed, never retried, and never fall back.
+The shared Host schema limits observation scope to exact `"foreground"`,
+`"all"`, or a positive decimal window id returned by `list_windows`; both
+Planner prompts require literal schema values, and paraphrases fail during
+compilation before plan persistence or MCP dispatch.
 `providers/openai_planner.py` implements that port as one isolated, stateless
 Responses API Structured Outputs request. It advertises no function tools,
 continuation, replay history, or reasoning payload; sets `store=false`; applies
@@ -659,8 +663,8 @@ authority.
 
 | Tool | Effect | Input contract | Result kind | Host policy metadata |
 | --- | --- | --- | --- | --- |
-| `ui_snapshot` | observation | optional non-empty `scope` | text | establishes an observation epoch |
-| `find` | observation | non-empty `query`, optional non-empty `scope` | text | establishes an observation epoch |
+| `ui_snapshot` | observation | optional exact `foreground`, `all`, or positive decimal window-id `scope` | text | establishes an observation epoch |
+| `find` | observation | non-empty `query`, optional exact `foreground`, `all`, or positive decimal window-id `scope` | text | establishes an observation epoch |
 | `list_windows` | observation | none | text | establishes current window IDs |
 | `screenshot` | observation | none | image | sensitive output with configured title-based redaction; establishes screenshot geometry |
 | `capture_region` | observation | integer `x`, `y`, `w`, `h` | text and image | sensitive output with configured title-based redaction inside the crop; the envelope declares the crop origin and does not establish click grounding |
