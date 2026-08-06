@@ -484,6 +484,8 @@ def test_public_web_word_profile_survives_restore_and_stateless_replay(
 
     request = scripted.calls[0]
     assert request["instructions"] == PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS
+    assert "Never return a text-only response" in request["instructions"]
+    assert "post-Ctrl+S document_text" in request["instructions"]
     assert [tool["name"] for tool in request["tools"]] == [
         "ui_snapshot",
         "find",

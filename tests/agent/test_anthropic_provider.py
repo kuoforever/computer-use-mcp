@@ -934,6 +934,11 @@ def test_public_web_word_profile_uses_same_tools_for_create_and_restore() -> Non
         PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS,
         PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS,
     ]
+    assert all(
+        "Never return a text-only response" in request["system"]
+        and "post-Ctrl+S document_text" in request["system"]
+        for request in scripted.calls
+    )
     assert [
         [tool["name"] for tool in request["tools"]] for request in scripted.calls
     ] == [expected_names, expected_names]
