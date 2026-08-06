@@ -379,8 +379,7 @@ In priority order:
    runtime; review the OCR Host safety baseline separately and add another
    source only on a demonstrated gap.
 3. Deliver the installed model-driven public-browser-to-disposable-Word
-   workflow, including cooperative yield when the user takes mouse or keyboard
-   authority and a fresh observation before any resume.
+   workflow with a non-prewritten brief and durable document verification.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host
