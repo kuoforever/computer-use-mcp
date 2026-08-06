@@ -12,6 +12,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from computer_use_agent.provider_instructions import (
+    ActionInstructionProfile,
+    PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS,
+)
 from computer_use_agent.providers.openai import (
     MEMORY_RULE,
     OpenAIProviderError,
@@ -108,10 +112,15 @@ def _continuation_state(
     output_items: list[dict[str, object]] | None = None,
     tools: Sequence[ToolSpec] = REVIEWED_TOOLS,
 ) -> dict[str, object]:
-    definitions = _tool_definitions(tools, allow_actions=provider.allow_actions)
+    definitions = _tool_definitions(
+        tools,
+        allow_actions=provider.allow_actions,
+        action_instruction_profile=provider.action_instruction_profile,
+    )
     instructions = _instructions(
         allow_actions=provider.allow_actions,
         memory_context_used=memory_context_used,
+        action_instruction_profile=provider.action_instruction_profile,
     )
     return {
         "response_id": response_id,
@@ -439,6 +448,58 @@ def test_stateless_replay_preflight_and_request_share_restricted_tool_scope(
         "ui_snapshot"
     ]
     assert "previous_response_id" not in scripted.calls[0]
+
+
+def test_public_web_word_profile_survives_restore_and_stateless_replay(
+    tmp_path: Path,
+) -> None:
+    scripted = ScriptedResponses([_response("response_2", text="done")])
+    provider = OpenAIResponsesProvider(
+        model="test-model",
+        responses=scripted,
+        allow_actions=True,
+        action_instruction_profile=ActionInstructionProfile.PUBLIC_WEB_WORD,
+    )
+    envelope, provider_state = _completed_replay_envelope(tmp_path, provider)
+
+    mismatched = OpenAIResponsesProvider(
+        model="test-model",
+        responses=ScriptedResponses([]),
+        allow_actions=True,
+    )
+    with pytest.raises(OpenAIProviderError, match="OPENAI_REQUEST_CONTRACT_MISMATCH"):
+        mismatched.restore_continuation("run_replay", provider_state)
+
+    provider.restore_continuation("run_replay", provider_state)
+    provider.prepare_stateless_replay("run_replay", envelope)
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_replay",
+            turn_id="turn_2",
+            task="must not replace exact initial input",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request = scripted.calls[0]
+    assert request["instructions"] == PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS
+    assert [tool["name"] for tool in request["tools"]] == [
+        "ui_snapshot",
+        "find",
+        "list_windows",
+        "screenshot",
+        "capture_region",
+        "ocr",
+        "document_text",
+        "activate_window",
+        "click",
+        "scroll",
+        "drag",
+        "type",
+        "key",
+    ]
+    assert "previous_response_id" not in request
 
 
 def test_stateless_replay_preserves_exact_screenshot_function_output(
@@ -1195,6 +1256,44 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
         "click",
         "scroll",
         "drag",
+        "key",
+    ]
+
+
+def test_public_web_word_profile_advertises_runner_filtered_ocr_and_type() -> None:
+    scripted = ScriptedResponses([_response("response_1", text="done")])
+    provider = OpenAIResponsesProvider(
+        model="test-model",
+        responses=scripted,
+        allow_actions=True,
+        action_instruction_profile=ActionInstructionProfile.PUBLIC_WEB_WORD,
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_public_web_word",
+            turn_id="turn_1",
+            task="Create the disposable source brief",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    request = scripted.calls[0]
+    assert request["instructions"] == PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS
+    assert [tool["name"] for tool in request["tools"]] == [
+        "ui_snapshot",
+        "find",
+        "list_windows",
+        "screenshot",
+        "capture_region",
+        "ocr",
+        "document_text",
+        "activate_window",
+        "click",
+        "scroll",
+        "drag",
+        "type",
         "key",
     ]
 

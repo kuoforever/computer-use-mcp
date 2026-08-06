@@ -12,7 +12,7 @@ The three configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
-| `config init --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid read-only profile with an installed sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config init --profile PROFILE --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
 | `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact thirteen schemas |
 
@@ -27,6 +27,20 @@ windows, capture the screen, read desktop content, or perform an input action.
 It does start the configured MCP child to discover its public schemas. Normal
 server startup constructs the Windows driver, can create the configured audit
 directory, and starts emergency-stop key polling until the child is closed.
+
+`--profile desktop-ask` is the default and generates the existing read-only,
+continuation-enabled Notepad profile. `--profile public-web-word` generates the
+fixed workflow's `approved_actions` profile, allows only `chrome.exe` and
+`winword.exe`, disables continuation, enables the local Decision Card, and sets
+bounded budgets of 28 model turns, 24 tool calls, and 7 side effects. See the
+[workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md). Its allowlist is closed:
+`config init --profile public-web-word` rejects `--allowlist`, and the runtime
+rejects a hand-edited value instead of failing later during Chrome or Word use.
+
+`[provider].request_timeout_seconds` defaults to `120` and accepts integers from
+`1` through `600`. The public-web-word generated profile uses `90`. Expiry
+terminalizes that provider turn as fixed `PROVIDER_TIMEOUT` before any proposed
+desktop call from the timed-out turn can be dispatched.
 
 ## Control modes
 

@@ -117,11 +117,12 @@ must not create a second native-action path.
 | --- | --- | --- | --- |
 | Desktop MCP server | `guarded-desktop-mcp` | Expose thirteen Windows GUI tools over stdio | Implemented Windows runtime |
 | Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
-| Agent config creation | `config init` | Create a non-overwriting installed-first-run read-only profile | Implemented; no credential read or process start |
+| Agent config creation | `config init` | Create a non-overwriting Desktop Ask or public-web-word installed profile | Implemented; no credential read or process start |
 | Installed readiness | `config doctor` | Check provider setup and verify the configured MCP child's exact thirteen-tool discovery contract | Implemented; real child handshake, no provider request or MCP tool call |
 | Agent config validation | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
 | Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; one exact-candidate OpenAI/Windows/Notepad [result](DESKTOP_ASK_EVIDENCE.md) is retained |
+| Public Web to Word | `workflow public-web-word` | Let a real model inspect the fixed public source, author a bounded brief, save a new DOCX, then close/reopen/read it back | Implemented and functionally fake-verified; exact-candidate provider/Chrome/Word evidence is the current gate |
 | Evaluation | `eval` | Run deterministic frozen E1/E2 cases | Implemented offline |
 | Release preflight | `release preflight` | Run clean-candidate offline gates and build smoke | Implemented; not release approval |
 | Inspection | `trace`, `report`, `recovery` | Read validated redacted state and classify recovery | Implemented, no implicit execution |
@@ -378,8 +379,9 @@ In priority order:
 2. Retain one on-device UIA/document-text semantic item through the new bounded
    runtime; review the OCR Host safety baseline separately and add another
    source only on a demonstrated gap.
-3. Deliver the installed model-driven public-browser-to-disposable-Word
-   workflow with a non-prewritten brief and durable document verification.
+3. Retain one exact-candidate installed public-browser-to-disposable-Word run
+   with a non-prewritten brief, durable reopen/readback, render QA, and exact
+   fixture cleanup.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host

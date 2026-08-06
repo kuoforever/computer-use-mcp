@@ -6,6 +6,7 @@ import pytest
 
 from computer_use_agent.disposable_process import (
     DisposableProcess,
+    ProcessWindowSnapshot,
     cleanup_disposable_processes,
 )
 
@@ -50,7 +51,7 @@ class Process:
 class Windows:
     def __init__(
         self,
-        states: dict[int, list[int]],
+        states: dict[int, list[int | ProcessWindowSnapshot]],
         *,
         fail_pid: int | None = None,
     ) -> None:
@@ -58,29 +59,34 @@ class Windows:
         self.fail_pid = fail_pid
         self.closed: list[int] = []
 
-    def visible_count(self, pid: int) -> int:
+    def snapshot(self, pid: int) -> ProcessWindowSnapshot:
         if pid == self.fail_pid:
             raise OSError("synthetic observation failure")
         values = self.states[pid]
         if len(values) > 1:
-            return values.pop(0)
-        return values[0]
+            value = values.pop(0)
+        else:
+            value = values[0]
+        if isinstance(value, int):
+            return ProcessWindowSnapshot(value, value, 0)
+        return value
 
     def request_close(self, pid: int) -> int:
         self.closed.append(pid)
         return 1
 
 
-def test_visible_windows_are_the_completion_boundary_not_process_exit() -> None:
+def test_stably_absent_windows_are_the_completion_boundary_not_process_exit() -> None:
     process = Process(101)
 
     cleanup = cleanup_disposable_processes(
         (DisposableProcess("Word", process),),
-        windows=Windows({101: [1, 0]}),
+        windows=Windows({101: [1, 0, 0, 0]}),
         sleep=lambda _seconds: None,
     )
 
     assert cleanup[0].disposition == "windows_closed"
+    assert cleanup[0].window_cleanup_verified is True
     assert cleanup[0].process_running is True
     assert cleanup[0].close_requests == 1
     assert process.terminated == 0
@@ -99,6 +105,7 @@ def test_remaining_window_uses_bounded_terminate_then_kill_fallback() -> None:
     )
 
     assert cleanup[0].disposition == "killed_after_close_timeout"
+    assert cleanup[0].window_cleanup_verified is True
     assert cleanup[0].process_running is False
     assert process.terminated == 1
     assert process.killed == 1
@@ -113,6 +120,42 @@ def test_unavailable_window_observation_fails_to_explicit_handoff() -> None:
     )
 
     assert cleanup[0].disposition == "handoff_required"
+    assert cleanup[0].window_cleanup_verified is False
+    assert cleanup[0].process_running is True
+    assert process.terminated == 0
+    assert process.killed == 0
+
+
+def test_zero_window_stability_resets_when_a_window_reappears() -> None:
+    process = Process(101)
+
+    cleanup = cleanup_disposable_processes(
+        (DisposableProcess("Word", process),),
+        windows=Windows({101: [1, 0, 1, 0, 0, 0]}),
+        wait_seconds=1.0,
+        poll_interval_seconds=0.1,
+        sleep=lambda _seconds: None,
+    )
+
+    assert cleanup[0].disposition == "windows_closed"
+    assert cleanup[0].window_cleanup_verified is True
+    assert process.terminated == 0
+
+
+def test_owned_dialog_requires_handoff_instead_of_force_termination() -> None:
+    process = Process(101)
+    dialog = ProcessWindowSnapshot(2, 1, 1)
+
+    cleanup = cleanup_disposable_processes(
+        (DisposableProcess("Word", process),),
+        windows=Windows({101: [1, dialog]}),
+        wait_seconds=0.1,
+        poll_interval_seconds=0.1,
+        sleep=lambda _seconds: None,
+    )
+
+    assert cleanup[0].disposition == "handoff_required"
+    assert cleanup[0].window_cleanup_verified is False
     assert cleanup[0].process_running is True
     assert process.terminated == 0
     assert process.killed == 0

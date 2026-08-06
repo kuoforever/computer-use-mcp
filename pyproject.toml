@@ -49,6 +49,9 @@ computer-use-agent = "computer_use_agent.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+computer_use_agent = ["assets/*.docx"]
+
 [tool.ruff]
 line-length = 100
 

@@ -276,6 +276,130 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
     assert capsys.readouterr().err.strip() == "error: CONFIG_OUTPUT_EXISTS"
 
 
+def test_config_init_creates_the_public_web_word_product_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+
+    local_app_data = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    mcp_executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
+    mcp_executable.parent.mkdir()
+    mcp_executable.write_bytes(b"")
+    output = tmp_path / "workflow.toml"
+
+    assert (
+        main(
+            [
+                "config",
+                "init",
+                "--profile",
+                "public-web-word",
+                "--provider",
+                "openai",
+                "--model",
+                "reviewed-model",
+                "--mcp-executable",
+                str(mcp_executable),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+
+    result = json.loads(capsys.readouterr().out)
+    config = load_agent_config(output)
+    assert result["profile"] == "public-web-word"
+    assert result["policy_mode"] == "approved_actions"
+    assert config.policy_version == "public-web-word-v1"
+    assert config.provider.request_timeout_seconds == 90
+    assert config.policy.mode == "approved_actions"
+    assert config.policy.max_model_turns == 28
+    assert config.policy.max_tool_calls == 24
+    assert config.policy.max_side_effects == 7
+    assert config.continuation.enabled is False
+    assert config.operator.decision_cards_enabled is True
+    assert config.mcp.environment["CUMCP_ALLOWLIST"] == "chrome.exe,winword.exe"
+
+
+def test_public_web_word_cli_routes_only_explicit_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "workflow.toml"
+    output = tmp_path / "brief.docx"
+    chrome = tmp_path / "chrome.exe"
+    word = tmp_path / "winword.exe"
+    captured: list[tuple[Path, Path, Path | None, Path | None]] = []
+
+    def fake_run(
+        path: Path,
+        artifact: Path,
+        chrome_executable: Path | None,
+        word_executable: Path | None,
+    ) -> int:
+        captured.append((path, artifact, chrome_executable, word_executable))
+        return 0
+
+    monkeypatch.setattr(agent_cli, "_run_public_web_word", fake_run)
+
+    assert (
+        main(
+            [
+                "workflow",
+                "public-web-word",
+                "--config",
+                str(config),
+                "--output",
+                str(output),
+                "--chrome-executable",
+                str(chrome),
+                "--word-executable",
+                str(word),
+            ]
+        )
+        == 0
+    )
+    assert captured == [(config, output, chrome, word)]
+
+
+def test_public_web_word_profile_rejects_allowlist_override(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mcp_executable = tmp_path / "guarded-desktop-mcp.exe"
+    mcp_executable.write_bytes(b"")
+    output = tmp_path / "workflow.toml"
+
+    assert (
+        main(
+            [
+                "config",
+                "init",
+                "--profile",
+                "public-web-word",
+                "--provider",
+                "openai",
+                "--model",
+                "reviewed-model",
+                "--output",
+                str(output),
+                "--mcp-executable",
+                str(mcp_executable),
+                "--allowlist",
+                "notepad.exe",
+            ]
+        )
+        == 2
+    )
+
+    assert not output.exists()
+    assert "PUBLIC_WEB_WORD_ALLOWLIST_FIXED" in capsys.readouterr().err
+
+
 def test_plan_run_requires_wal_before_loading_provider_or_desktop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

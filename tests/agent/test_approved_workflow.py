@@ -72,6 +72,22 @@ class DynamicApprovalPort:
         )
 
 
+class NeverReturningProvider(FakeModelProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = 0
+        self.cancelled = 0
+
+    async def create_turn(self, **_kwargs: object) -> ModelTurn:
+        self.started += 1
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled += 1
+            raise
+        raise AssertionError("unreachable")
+
+
 def _config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -81,13 +97,18 @@ def _config(
     max_tool_calls: int = 6,
     max_context_events: int = 128,
     max_input_tokens: int = 1_000_000,
+    provider_request_timeout_seconds: int = 120,
 ) -> AgentConfig:
     local = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local))
     return AgentConfig(
         state_dir=local / "computer-use-agent" / "approved-test",
         policy_version="approved-v1",
-        provider=ProviderConfig("openai", "fake"),
+        provider=ProviderConfig(
+            "openai",
+            "fake",
+            request_timeout_seconds=provider_request_timeout_seconds,
+        ),
         mcp=MCPLaunchConfig(
             executable=tmp_path / "mcp.exe",
             args=(),
@@ -104,6 +125,42 @@ def _config(
         ),
         continuation=ContinuationConfig(enabled=continuation_enabled),
     )
+
+
+def test_provider_request_timeout_fails_before_any_desktop_tool_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_provider_timeout"
+    provider = NeverReturningProvider()
+    desktop = FakeDesktopMCP()
+    approvals = DynamicApprovalPort()
+    config = _config(
+        tmp_path,
+        monkeypatch,
+        provider_request_timeout_seconds=1,
+    )
+
+    with pytest.raises(RunFailure, match="^PROVIDER_TIMEOUT$") as raised:
+        asyncio.run(
+            AgentRunner(config, RunnerPorts(provider, desktop, approvals)).run(
+                "Wait for a bounded provider response",
+                run_id=run_id,
+            )
+        )
+
+    assert provider.started == 1
+    assert provider.cancelled == 1
+    assert desktop.discovery_calls == 1
+    assert desktop.tool_calls == []
+    assert desktop.close_calls == 1
+    assert approvals.requests == []
+    assert raised.value.state.budgets.model_turns_used == 0
+    assert raised.value.state.budgets.tool_calls_used == 0
+    assert raised.value.state.budgets.side_effects_used == 0
+    record = read_run_record(config.state_dir, run_id)
+    assert record["state"]["phase"] == "FAILED"
+    assert record["state"]["failure_code"] == "PROVIDER_TIMEOUT"
+    assert [event["kind"] for event in record["events"]] == ["user_task"]
 
 
 def _turn(
