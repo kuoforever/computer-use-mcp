@@ -1,6 +1,6 @@
 # Project status
 
-> **Mode: core Runtime development is explicitly reopened by the user.
+> **Mode: Experimental Windows Agent MVP productization is explicitly active.
 > `GDA-CORE-001` and `GDA-CORE-002` are merged through PR #230;
 > `GDA-CORE-003` is merged through PR #232; `GDA-CORE-004` is merged through
 > PR #233; `GDA-CORE-005` is merged through PR #234; `GDA-CORE-006` is merged
@@ -17,19 +17,58 @@
 > PR #255; `GDA-CORE-022` is merged through PR #257; `GDA-CORE-023` is merged
 > through PR #259; `GDA-CORE-024` is merged through PR #261;
 > `GDA-CORE-025` is merged through PR #262; `GDA-CORE-026` is merged through
-> PR #263; `GDA-CORE-027` is merged through PR #264; `GDA-CORE-028` is complete
-> locally; and `GDA-CORE-029` is the exact future core Runtime resume point.
+> PR #263; `GDA-CORE-027` is merged through PR #264; and `GDA-CORE-028` is
+> merged through PR #265. `GDA-PRODUCT-001` is complete locally and awaiting
+> publication: it delivers the installed-first-run, document-aware Desktop Ask
+> vertical slice. `GDA-PRODUCT-002` is the exact post-merge next item.
+> `GDA-CORE-029` remains preserved and is grouped into the later product
+> readiness batch instead of becoming another standalone micro-PR.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
-> below; the user reaffirmed that core Runtime development stays ahead of all
-> Demo work. The Full Cycle Runtime baseline remains frozen at
+> below. The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
 > remains paused.**
 > Updated: 2026-08-06.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
-## Objective
+## Active product objective
+
+Ship an **Experimental Windows Agent MVP** for a single supervised foreground
+desktop and primary display. The first releasable product boundary must let a
+new Windows user:
+
+1. install a wheel without a source checkout;
+2. generate and validate a read-only configuration without manually discovering
+   the MCP executable or state paths;
+3. ask a natural-language question about the foreground desktop and receive one
+   direct answer through the existing Planner, Runner, MCP, and final-response
+   boundaries;
+4. retain one current-candidate real read-only application result and one
+   model-driven public-browser-to-disposable-document workflow; and
+5. install a versioned GitHub release artifact with a recorded digest, exact
+   limitations, and matching release evidence.
+
+The MVP does not claim background execution, universal GUI coverage, a complete
+campaign product, Google Docs or WeChat acceptance, multi-monitor or non-Windows
+support, hierarchical control, continual learning, or Multi-Agent operation.
+Those are post-MVP programs, not blockers for the first honest release.
+
+## Productization delivery map
+
+| Product batch | State | Product outcome | Acceptance |
+| --- | --- | --- | --- |
+| `GDA-PRODUCT-001` | Complete locally; publish pending | Installed-first-run Desktop Ask: `config init`, public `ask`, semantic `document_text` planning, EN/ZH quick start, and clean-wheel entry smoke | Generated config immediately validates; `ask` and `plan run` share one Runner path; one existing functional test proves Planner -> `document_text` -> final answer; focused and complete offline gates pass |
+| `GDA-PRODUCT-002` | Exact next after merge | Readiness and error UX: `config doctor`, actionable provider/setup failures, truthful Driver `scroll`/`drag` capability metadata, and a stronger clean-wheel first-run contract | Missing SDK/key/path has one short actionable failure; installed MCP discovery reports the exact 13 tools; no provider call or desktop action; Windows CI passes |
+| `GDA-PRODUCT-003` | Queued | One exact-candidate real Windows/provider document-aware Desktop Ask result, with functional hardening only for defects actually observed | Fresh environment reaches a correct bounded answer from semantic document text; run/plan/tool evidence is retained without claiming broader application coverage |
+| `GDA-PRODUCT-004` | Queued | Model-driven public-browser-to-disposable-Word workflow through product surfaces; selectively port required work from draft PR #231 rather than merging its stale 41-file snapshot wholesale | Fresh observations produce a non-prewritten 2-4 bullet brief, durable DOCX verification passes, and disposable fixtures clean up without manual content correction |
+| `GDA-PRODUCT-005` | Queued | Exact-candidate integration and release: current-wheel E3/E4, clean preflight, version/changelog/package metadata, GitHub release wheel and SHA-256 | Same commit and wheel hash pass CI, reviewed provider/desktop gates, release review, clean install, version check, and rollback/uninstall instructions |
+
+After `GDA-PRODUCT-005`, campaign `status`/single-step `advance`, bounded BOSS
+semantic batches, broader Wave 1 applications, and richer operator surfaces are
+prioritized by product evidence. They are not silently pulled into this MVP.
+
+## Preserved Full Cycle integration objective
 
 Freeze `guarded-desktop-agent` as the reliable Windows execution environment
 for the Multimodal LLM Full Cycle project. Finish only the smallest stable
@@ -357,7 +396,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1837 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-028` closure revalidation |
+| Offline baseline | `1840 passed, 8 skipped` in the 2026-08-06 `GDA-PRODUCT-001` closure revalidation; Ruff, mypy over 122 source files, docs consistency, diff check, and an isolated wheel install/init/validate/dry-run smoke also passed |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -399,6 +438,11 @@ delivery work.
 
 | ID | Status | Deliverable | Completion evidence |
 | --- | --- | --- | --- |
+| `GDA-PRODUCT-001` | Complete locally; publish pending | Installed-first-run, document-aware Desktop Ask vertical slice | `config init` creates one non-overwriting, immediately valid read-only profile with automatic sibling MCP discovery and no stored credential; `ask` shares the bounded Planner/Runner path with `plan run`, prints direct text by default, and adds semantic `document_text`; EN/ZH quick starts and canonical wheel smoke are current. Complete gate: `1840 passed, 8 skipped`, Ruff, mypy over 122 source files, docs consistency, diff check, isolated Python 3.13 wheel install/init/validate/dry-run smoke, shared text/JSON routing tests, and independent functional review on 2026-08-06; no live provider, desktop, application, or release claim is made |
+| `GDA-PRODUCT-002` | Exact next after merge | Runtime doctor, actionable setup errors, truthful capability metadata, and installed-wheel first-run contract | Exact 13-tool discovery without a provider or desktop action; fixed missing-extra/key/path results; Windows wheel smoke |
+| `GDA-PRODUCT-003` | Queued | Current-candidate real document-aware Desktop Ask evidence | One fresh Windows/provider run with retained semantic-document answer and exact bounded evidence |
+| `GDA-PRODUCT-004` | Queued | Model-driven public-browser-to-disposable-Word product workflow | Non-prewritten brief, durable document verification, exact cleanup, and retained current-main evidence |
+| `GDA-PRODUCT-005` | Queued | Exact-candidate integration and first GitHub release | Current-wheel E3/E4, clean preflight, release review, tagged wheel/digest, clean install and rollback result |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |
@@ -437,8 +481,8 @@ delivery work.
 | `GDA-CORE-025` | Complete; merged | Make Windows `find()` search the full bounded traversal before applying its result cap | Commit `d7ac3b8`, merged through PR #262 as `0b43442`; shared bounded traversal filters matches before visual de-duplication, the 200-result cap, exact matching-only truncation, and native-cache insertion. One 201-control deterministic Windows fake proves the ordinary snapshot remains `200 + truncated=1`, the unique position-201 target is found with cache only for that match, 201 matching controls remain capped, and cap-omitted named duplicates count once. Complete gate: `1834 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and every public boundary remains unchanged |
 | `GDA-CORE-026` | Complete; merged | Report partial Windows document-range clipping instead of claiming complete text | Commit `47532dd`, merged through PR #263 as `95bd16a`; one real-Windows-Driver fake distinguishes exact 20,000-character and 20,001-character ranges with a bounded 40,002-UTF-16-unit probe. Overflow retains only the first 20,000 Python characters and its digest but returns `complete=false`, `truncated=true`, `omitted_blocks=0`; exact-cap and legitimate-empty controls remain complete, while UIA exception/non-string reads are explicitly incomplete. Complete gate: `1835 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no public boundary changed |
 | `GDA-CORE-027` | Complete; merged | Give Chromium `find()` the existing lazy-UIA warmup used by `ui_snapshot()` | Commit `25e0049`, merged through PR #264 as `ee4aebf`; one private Session helper gives both final reads the existing optional disposable `get_tree` plus bounded delay. A first-empty/second-ready functional regression proves warmup uses `get_tree`, the final result still comes from `find("Ready")`, and only that result is ingested; zero-delay retains one read. Complete gate: `1836 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent functional review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no public boundary changed |
-| `GDA-CORE-028` | Complete locally; final PR before requested stop | Relocate a stale explicit-window ref through the full matching traversal instead of the ordinary snapshot cap | `_relocate()` now queries `driver.find()` in the original explicit scope with empty-name role fallback, `control_types=(role,)`, and the existing browser warmup before retaining exact role/name, nearest bbox, collision, rebind, and one semantic retry. One real WindowsDriver/Session test places an unnamed Button after 200 name-matching Edit decoys and proves old/fresh native ids are each invoked once. Complete gate: `1837 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent functional review passed on 2026-08-06; no new safety matrix and no Driver/API/schema, match-only cache, dynamic-scope, Runner/provider, Demo/HUD, or Full Cycle change |
-| `GDA-CORE-029` | Queued; exact future resume point; do not auto-start | Advertise implemented Windows `scroll` and `drag` features through Driver capability discovery | A deterministic `WindowsDriver.__new__` probe confirms both methods exist while both names are absent from `capabilities()["features"]`. Add only the two implemented names, one focused capability metadata test, and the owning contract/status update. Do not add a safety matrix, change tools or schemas, or broaden Driver/API, Runner/provider, Demo/HUD, or Full Cycle behavior. Start only after an explicit user resume request |
+| `GDA-CORE-028` | Complete; merged | Relocate a stale explicit-window ref through the full matching traversal instead of the ordinary snapshot cap | Commit `db5d537`, merged through PR #265 as `9a0ae0e`; `_relocate()` queries `driver.find()` in the original explicit scope with empty-name role fallback, `control_types=(role,)`, and the existing browser warmup before retaining exact role/name, nearest bbox, collision, rebind, and one semantic retry. One real WindowsDriver/Session test places an unnamed Button after 200 name-matching Edit decoys and proves old/fresh native ids are each invoked once. Complete gate: `1837 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent functional review, and all four GitHub checks passed on 2026-08-06; both feature-branch copies were removed |
+| `GDA-CORE-029` | Preserved; grouped into `GDA-PRODUCT-002` | Advertise implemented Windows `scroll` and `drag` features through Driver capability discovery | The existing deterministic probe and focused metadata scope remain valid, but this correction will ship with product readiness/doctor work rather than as a standalone micro-PR. No safety matrix, tool/schema change, or action implementation change is planned |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -458,8 +502,9 @@ as `1c5b2a0`.
 `GDA-CORE-024` is merged through PR #261 as `b9a7fbe`. `GDA-CORE-025` is
 merged through PR #262 as `0b43442`. `GDA-CORE-026` is merged through PR #263
 as `95bd16a`. `GDA-CORE-027` is merged through PR #264 as `ee4aebf`.
-`GDA-CORE-028` is complete locally, and `GDA-CORE-029` is the exact future core
-Runtime resume point; do not start it automatically after the final PR.
+`GDA-CORE-028` is merged through PR #265 as `9a0ae0e`. `GDA-CORE-029` is
+preserved inside `GDA-PRODUCT-002`; `GDA-PRODUCT-001` is complete locally and
+`GDA-PRODUCT-002` is the exact item to start after the first product PR merges.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -1079,7 +1124,7 @@ release evidence.
 Commit `9edc585` merged through PR #259 as `1c5b2a0` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact future resume task: `GDA-CORE-029`
+## Preserved product-readiness item: `GDA-CORE-029`
 
 Correct Windows Driver capability discovery so it advertises the already
 implemented `scroll` and `drag` primitives. The deterministic current probe is:
@@ -1093,15 +1138,10 @@ callable(driver.drag)                    -> true
 
 Add only `scroll` and `drag` to the Windows feature list, then add one focused
 capability metadata regression that pins the implemented feature names without
-instantiating native desktop state. Update the owning Driver contract and this
-tracker in the same slice. Do not add tools, change schemas or contract
-versions, or touch action implementations, Runner/provider, Demo/HUD, Full
-Cycle Lane A/B, hierarchical control, campaign/Executor, or Multi-Agent scope.
-Do not add a safety test matrix.
-
-The user explicitly requested a stop after the `GDA-CORE-028` PR. This section
-is a safe future resume point only; do not create a branch or begin
-`GDA-CORE-029` until the user explicitly resumes core Runtime work.
+instantiating native desktop state. This work is now grouped into
+`GDA-PRODUCT-002` with installed-runtime readiness and capability discovery; it
+must not become another standalone micro-PR. Do not add tools, change schemas or
+contract versions, touch action implementations, or add a safety test matrix.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -1289,3 +1329,7 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-06 | `GDA-CORE-028` is complete locally: explicit-window relocation now uses a role-bounded full matching traversal and existing browser warmup, so an unnamed position-201 target can bind and invoke its fresh native id while every existing exact-match/rebind rule remains fixed. |
 | 2026-08-06 | A bounded functional audit selected `GDA-CORE-029` as the future resume point: Windows capability discovery must advertise the already implemented `scroll` and `drag` primitives with one metadata regression and no safety matrix. |
 | 2026-08-06 | The user requested a stop after the `GDA-CORE-028` PR. Publish, merge, and clean that final slice, then do not start `GDA-CORE-029` without a new explicit resume request. |
+| 2026-08-06 | The user changed the governing objective from micro-audit CORE throughput to productization: prioritize user-visible functions, keep new safety-test work out of the current program, publish coherent product PRs, merge only when clear, and continue automatically. |
+| 2026-08-06 | The first release boundary is an Experimental Windows Agent MVP, not a universal-GUI claim. Five product batches cover Desktop Ask first-run, readiness/error UX, one current-candidate real document-aware result, a model-driven public-browser-to-disposable-Word workflow, and exact-candidate GitHub release evidence. |
+| 2026-08-06 | `GDA-PRODUCT-001` is the single active item. `GDA-CORE-029` remains preserved inside `GDA-PRODUCT-002` so truthful `scroll`/`drag` capability discovery ships with product readiness rather than as a standalone micro-PR. |
+| 2026-08-06 | `GDA-PRODUCT-001` is complete locally: a clean wheel now reaches generated valid configuration and dry-run through the canonical CLI, while public `ask` adds a direct-answer document-aware path through existing Planner/Runner/MCP boundaries. `GDA-PRODUCT-002` is the exact post-merge next batch. |

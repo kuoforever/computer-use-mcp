@@ -1,6 +1,6 @@
 # Capability status and evidence dashboard
 
-> **Status: current review dashboard, verified 2026-07-25.** This page is the
+> **Status: current review dashboard, verified 2026-08-06.** This page is the
 > shortest path to the project's actual boundary. It separates design,
 > implementation, offline evidence, provider evidence, desktop evidence, and
 > application evidence. A design or offline test is never promoted to a live
@@ -25,7 +25,7 @@ test was attempted and failed unless a linked evidence record says so.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | MCP Server | `YES` | `YES` — thirteen-tool Windows stdio server, including bounded OCR, region capture, UIA document text, scroll, and drag | `YES` | `N/A` | `PARTIAL` — [the five-case Windows activation regression](E4_EVIDENCE.md) and bounded [document-text result](DOCUMENT_TEXT_EVIDENCE.md) passed on-device; scroll and drag are offline-verified only | `PARTIAL` — bounded BOSS [home](BOSS_EVIDENCE.md) and [interested-jobs OCR](BOSS_OCR_EVIDENCE.md) observations plus a real UIA [document-text](DOCUMENT_TEXT_EVIDENCE.md) channel passed; no multi-item application workflow has passed | Retain on-device scroll and drag evidence, then a bounded multi-item read-only BOSS campaign with restart evidence |
 | Agent Host | `YES` | `PARTIAL` — dual-provider read-only loop, private signed/redacted Claude reasoning-block continuation, and locally approved actions | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) both bounded fake-MCP E3 cases with reviewed model IDs; Sonnet 5 compatibility is revalidated on the exact repair commit | `YES` — [both reviewed providers passed](E4_EVIDENCE.md) read-only and one approved action with post-action verification | `NO` | Proceed to bounded application evidence without widening action authority |
-| Planner / Executor | `YES` | `PARTIAL` — `plan run` composes one provider plan, 1-4 observations through the sole Runner boundary, and one tool-free final response; side effects remain unavailable | `YES` | `YES` — [OpenAI and Claude passed](E3_EVIDENCE.md) the exact bounded CLI path with reviewed model IDs | `NO` | `NO` | Retain isolated E4 evidence; any side-effect expansion remains a separate review |
+| Planner / Executor | `YES` | `PARTIAL` — product-facing `ask` and metadata-oriented `plan run` compose one provider plan, 1-4 observations including bounded semantic `document_text` through the sole Runner boundary, and one tool-free final response; side effects remain unavailable | `YES` | `YES` for the earlier Planner scope — [OpenAI and Claude passed](E3_EVIDENCE.md) with reviewed model IDs; the expanded document-aware scope has not been rerun | `NO` | `NO` | Retain one exact-candidate document-aware Desktop Ask result; any side-effect expansion remains a separate review |
 | Campaign | `YES` | `PARTIAL` — one manifest-routed runtime composes fifteen reviewed identity/observation/navigation/verification/approval capabilities into validated scenario specs; A1-A19 are built-in examples, while another spec can be registered without changing Runner or campaign control. Explicit stable-item preparation, one-item provider execution, strict semantic result validation, digest commit, handoff, fresh-run resume, exhausted-manifest completion, terminal handoff, and exact heartbeat retirement share the existing boundaries. Composable `link_url`/`control_name` discovery adapters bound to a campaign kind now derive stable item keys from one bounded foreground observation, and the campaigns they create enter the same start/run/resume path; only BOSS keeps a separate fixed discovery contract with retained on-device evidence, plus three fixed offline semantic CLIs that open one-item/five-call/zero-side-effect batches, accept only strict provider JSON under a fixed no-preference policy, and commit canonical result digests | `YES` — all built-in examples plus a custom composition route through shared control; capability/tool derivation, provider result substitution, claimed-but-unexecuted evidence, registry refusal, exact-plan commit/handoff, fresh transfer/resume, idempotent terminalization, and adapter extraction/bounds/pass-ledger invariants fail closed in tests | `NO` — the new generic provider worker has no retained live-provider result | `PARTIAL` — the earlier fixed [synthetic path](SYNTHETIC_CAMPAIGN_EVIDENCE.md), BOSS [two-pass discovery](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md), the historical [three-item diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md), and the clean [three-item restart sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) passed on-device; generic examples and adapters remain offline-only | `PARTIAL` — the clean gate retained twelve identities and three consecutive fresh-run identity-only commits with zero correction, provider calls, tokens, retryable items, or uncertain items; semantic extraction, provider rotation, and the 100-item gate remain open | Retain one on-device BOSS semantic item and one clean A1 semantic campaign, then promote scenarios individually; no universal capability claim before evidence |
 | Observation | `YES` | `PARTIAL` — UIA, full primary-display screenshot, bounded region OCR, bounded region image capture, bounded UIA document text, bounded Agent image handling, and a pure BOSS per-item ladder reducer exist; delta observations do not | `YES` — OCR, capture, and document-text limits, schemas, redaction, timeout, and result projection are tested | `NO` | `PARTIAL` — [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) recovered a missing static tab and matched one job card to UIA; bounded [document text](DOCUMENT_TEXT_EVIDENCE.md) and a synthetic [region capture](CAPTURE_REGION_EVIDENCE.md) passed on-device | `PARTIAL` — one real page and card plus synthetic image/text slices, not application acceptance | Exercise the observation ladder across bounded multi-item and restart cases |
 | Operator UI | `YES` | `PARTIAL` — console approval, an opt-in four-choice focus-taking Decision Card with configurable corner placement, normal drag/resize/minimize/maximize behavior, non-topmost stacking, responsive buttons, scrollable digest evidence, same-run re-observe, durable non-resumable defer, passive progress with explicit token-coverage, screenshot, and checkpoint-elapsed facts, and opt-in fail-silent ordinary-run, bounded-plan, read-only recovery, and fixed MCP-backed campaign execution progress/presence lifecycles exist; zero-port campaign control remains window-free, while public status, notifications, and general process resume do not | `YES` — [re-observe/defer evidence](DECISION_CARD_RECOVERY_EVIDENCE.md) covers zero-dispatch decisions, stale-turn abandonment, fresh-observation gating, `PAUSED` persistence/recovery projection, and the sole Runner dispatch boundary; progress/presence tests cover redaction, legacy unknowns, metric integrity, lifecycle isolation, durable bounded-plan/recovery/campaign projection, phase-free campaign progress wake, authority-loss teardown, and final cleanup | `NO` | `YES` — native [four-option Decision Card focus/resize/scroll/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md), ordinary progress [lifecycle evidence](PROGRESS_LIFECYCLE_EVIDENCE.md), provider-free bounded-plan [progress](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md) and [presence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md) evidence, persisted read-only [recovery progress evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md), fixed synthetic [campaign progress evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md), and ordinary-run native presence evidence are retained; recovery and BOSS campaign presence plus BOSS campaign progress remain offline-only | `NO` | Retain a human-operated four-choice cross-application UX result without widening action authority |
@@ -65,16 +65,20 @@ or fills application or release gates. The separate
 
 ## Active priorities
 
-1. **Bounded application evidence:** the repaired `activate_window` path, both
+1. **Desktop Ask product vertical:** the installed-first-run configuration,
+   public `ask` command, reviewed Planner scope, and semantic document-text
+   flow are implemented/offline verified. Next retain one exact-candidate real
+   Windows plus provider document-aware answer before calling the path live.
+2. **Bounded application evidence:** the repaired `activate_window` path, both
    reviewed providers, the [BOSS home observation](BOSS_EVIDENCE.md), and the
    separate [interested-jobs OCR result](BOSS_OCR_EVIDENCE.md) have retained
    evidence. This remains narrower than BOSS campaign acceptance and does not
    widen action authority.
-2. **Observation vertical slice:** [the retained OCR result](BOSS_OCR_EVIDENCE.md)
+3. **Observation vertical slice:** [the retained OCR result](BOSS_OCR_EVIDENCE.md)
    recovered a static BOSS tab omitted by UIA, used a fresh OCR target check,
    entered the interested-jobs page, and measured one UIA/OCR card comparison.
    Next reuse that ladder across bounded multi-item and restart cases.
-3. **Runtime connection:** the fixed campaign seam now reuses the Agent
+4. **Runtime connection:** the fixed campaign seam now reuses the Agent
    authority boundary through correlated `OBSERVED`, extracts only a bounded
    non-sensitive window count, commits its verified canonical digest, closes the
    batch with measured usage, writes deterministic handoff, and transfers a
@@ -101,10 +105,10 @@ or fills application or release gates. The separate
    correction. The strict semantic runtime and fresh-run transfer are now
    offline verified; next retain one on-device UIA/document-text semantic item
    before the 100-item gate.
-4. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
+5. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
    and WeChat draft-only cases and retain success, token, retry, recovery, and
    takeover measurements.
-5. **Operator and learning layers:** project real checkpoint/campaign facts into
+6. **Operator and learning layers:** project real checkpoint/campaign facts into
    the operator UI; begin continual learning with L0 evidence, not automatic
    promotion or model training.
 

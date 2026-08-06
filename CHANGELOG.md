@@ -20,6 +20,16 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Desktop Ask first-run vertical.** Added `config init` to generate a
+  non-overwriting, user-local, read-only configuration for an installed MCP
+  sibling, and added product-facing `ask` over the existing bounded
+  Planner/Executor path. `ask` prints the final answer by default and preserves
+  run/plan/usage metadata behind `--json`. The Planner scope now includes the
+  existing bounded semantic `document_text` observation, so document questions
+  can traverse Planner -> Runner -> MCP -> tool-free final response without a
+  new dispatch path. English and Chinese quick starts plus the clean-wheel smoke
+  exercise the canonical product commands. This expanded scope is offline
+  verified and still requires exact-candidate live evidence.
 - **Guarded Desktop Agent project identity.** Renamed the repository,
   distribution, product, and MCP service to distinguish the project-local
   runtime from platform Computer Use plugins. Added canonical

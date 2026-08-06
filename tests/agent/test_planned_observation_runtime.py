@@ -122,7 +122,8 @@ def test_bounded_plan_runs_observations_through_runner_then_finalizes(
             [
                 '{"version":1,"steps":['
                 '{"action":"tool","tool":"list_windows","arguments":{}},'
-                '{"action":"tool","tool":"ui_snapshot","arguments":{}},'
+                '{"action":"tool","tool":"document_text",'
+                '"arguments":{"scope":"foreground"}},'
                 '{"action":"final_response"}]}'
             ]
         )
@@ -159,8 +160,10 @@ def test_bounded_plan_runs_observations_through_runner_then_finalizes(
     assert tuple(tool.name for tool in planner.calls[0].tools) == OBSERVATION_PLAN_TOOLS
     assert [call.name for call in desktop.tool_calls] == [
         "list_windows",
-        "ui_snapshot",
+        "document_text",
     ]
+    assert final.calls[0].observations[1].tool_name == "document_text"
+    assert final.calls[0].observations[1].sanitized_text == "observed:document_text"
     assert len(final.calls) == 1
     assert ordinary_provider.calls == []
     assert approvals.requests == []

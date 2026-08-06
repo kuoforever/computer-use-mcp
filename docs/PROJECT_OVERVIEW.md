@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-07-18.** This page explains the complete project shape without promoting
+> 2026-08-06.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -13,7 +13,7 @@ model-agnostic Windows desktop MCP server
 into a locally governed universal GUI Agent system. The project currently has
 four distinct maturity layers:
 
-1. **Windows desktop MCP runtime — implemented:** eight stdio tools combine
+1. **Windows desktop MCP runtime — implemented:** thirteen stdio tools combine
    UI Automation, primary-display screenshots, native input/window control,
    safety gates, audit logging, and an emergency stop.
 2. **Agent Host — experimental and partially integrated:** a CLI can run bounded
@@ -115,10 +115,11 @@ must not create a second native-action path.
 
 | Surface | Entry point | Current purpose | Boundary |
 | --- | --- | --- | --- |
-| Desktop MCP server | `guarded-desktop-mcp` | Expose eleven Windows GUI tools over stdio | Implemented Windows runtime |
+| Desktop MCP server | `guarded-desktop-mcp` | Expose thirteen Windows GUI tools over stdio | Implemented Windows runtime |
 | Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
 | Agent config | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
+| Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; expanded document-aware scope still needs live evidence |
 | Evaluation | `eval` | Run deterministic frozen E1/E2 cases | Implemented offline |
 | Release preflight | `release preflight` | Run clean-candidate offline gates and build smoke | Implemented; not release approval |
 | Inspection | `trace`, `report`, `recovery` | Read validated redacted state and classify recovery | Implemented, no implicit execution |
@@ -126,8 +127,9 @@ must not create a second native-action path.
 | Explicit memory | `remember add/list/delete` | Manage confirmed local preferences/procedures | Implemented opt-in baseline |
 | Fixed synthetic campaign | `campaign prepare-synthetic`, `run-claimed-synthetic`, `resume-synthetic` | Prepare one exact claimed item, execute `list_windows` through Runner handoff, and enter durable fresh-run resume | Implemented/offline verified; no general selector, provider turn, side effect, or application worker |
 
-Planner/Executor still has no supported CLI surface. The three campaign commands
-are deliberately fixed evidence seams, not a general campaign API.
+Planner/Executor is exposed through product-facing `ask` and metadata-oriented
+`plan run`. Campaign commands remain deliberately bounded control/evidence
+surfaces rather than one automatic general-product loop.
 
 ## Feature inventory
 
@@ -198,7 +200,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | Observation reconciliation | Implemented/internal | Repairs only the exact missed plan CAS after a known completed result; never redispatches | [Planning](PLANNING.md) |
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
 | Final-response reconciliation | Preflight implemented/internal | Pure reconstruction of exact completed evidence; applying CAS/cleanup and CLI exposure remain next | [Planning](PLANNING.md) |
-| Complete Planner/Executor CLI | Not implemented | No supported end-to-end planned workflow or side-effect execution path | [Capability status](CAPABILITY_STATUS.md) |
+| Bounded Planner/Executor CLI | Implemented/read-only | `ask` and `plan run` compose one Planner call, one to four reviewed observations through Runner, and one tool-free final answer; side effects remain unavailable | [Capability status](CAPABILITY_STATUS.md) |
 | Hierarchical task and behavior trees | Planned | Post-linear goals, typed conditions, bounded fallbacks, reusable reviewed behavior templates, and durable node state; no runtime support | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) |
 
 ### Long-running campaigns
@@ -223,9 +225,9 @@ are deliberately fixed evidence seams, not a general campaign API.
 
 | Feature family | State | Intended implementation | Primary owner |
 | --- | --- | --- | --- |
-| Multi-source observation | Partial | UIA, full-screen PNG, and bounded region OCR exist; add document text, standalone cropped image, complete source envelopes, and deltas | [Observation contract](OBSERVATION_CONTRACT.md), [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
+| Multi-source observation | Partial | UIA, full-screen PNG, bounded region OCR, standalone cropped images, and bounded document text exist; complete cross-source envelopes and delta observations remain | [Observation contract](OBSERVATION_CONTRACT.md), [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
 | Token-efficient observation | Contract/planned experiments | Escalate from structured/cheap sources to pixels; retain item-local context and measured cost | [Token efficiency](TOKEN_EFFICIENCY.md) |
-| Presence and progress UI | Partial | Passive progress is implemented and follows durable ordinary `run`/`resume`, bounded `plan run`, explicit read-only recovery phases, and validated state during fixed MCP-backed campaign execution; zero-port campaign control remains window-free. The fixed synthetic campaign lifecycle is [desktop verified](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); one persisted read-only observation has separate [recovery progress evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md); and one fixed provider-free plan has separate [plan progress](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md) and [presence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md) lifecycle evidence. An opt-in bounded primary-display halo is also [desktop verified](PRESENCE_WINDOW_EVIDENCE.md) and follows ordinary `run`/`resume`, bounded `plan run`, explicit read-only recovery, and fixed MCP-backed campaign phases through a fail-silent Host coordinator. Integrated BOSS-campaign progress/presence evidence and recovery presence desktop evidence remain planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Progress viewer](PROGRESS_VIEWER.md) |
+| Presence and progress UI | Partial | Passive progress is implemented and follows durable ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery phases, and validated state during fixed MCP-backed campaign execution; zero-port campaign control remains window-free. The fixed synthetic campaign lifecycle is [desktop verified](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); one persisted read-only observation has separate [recovery progress evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md); and one fixed provider-free plan has separate [plan progress](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md) and [presence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md) lifecycle evidence. An opt-in bounded primary-display halo is also [desktop verified](PRESENCE_WINDOW_EVIDENCE.md) and follows ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery, and fixed MCP-backed campaign phases through a fail-silent Host coordinator. Integrated BOSS-campaign progress/presence evidence and recovery presence desktop evidence remain planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Progress viewer](PROGRESS_VIEWER.md) |
 | Decision Cards | Partial / opt-in Windows | Pure cards compile 2-4 bounded options; an opt-in focus-taking four-choice Win32 adapter yields authority and returns exact-effect approval, re-observe, durable defer, or denial through the existing ApprovalPort. Expandable inspection exposes digest-only evidence; re-observe/defer semantics are offline verified, while four-choice desktop and cross-application evidence remain planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Approved actions](APPROVALS.md) |
 | Mobile notifications | Host capability; internal repository projection implemented | Future host surface may poll validated terminal/attention state; no MCP-log completion inference or repository delivery bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
 | Wave 1 applications | Planned acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, then cross-application handoff | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
@@ -242,7 +244,7 @@ are deliberately fixed evidence seams, not a general campaign API.
 | --- | --- |
 | `src/computer_use_mcp/contract.py` | Platform-free driver types and interface |
 | `src/computer_use_mcp/core.py` | Session refs, snapshots, serialization, stale relocation |
-| `src/computer_use_mcp/server.py` | Eight FastMCP tools and server-side guard orchestration |
+| `src/computer_use_mcp/server.py` | Thirteen FastMCP tools and server-side guard orchestration |
 | `src/computer_use_mcp/drivers/windows.py` | UIA, Win32, capture, activation, input, process identity |
 | `src/computer_use_mcp/gate.py`, `human_activity.py`, `safety.py`, `audit.py` | Local action boundary and evidence |
 | `src/computer_use_agent/types.py`, `tool_registry.py`, `policy.py`, `grounding.py` | Canonical host data, reviewed capabilities, policy, and action freshness |
@@ -374,8 +376,8 @@ In priority order:
 2. Retain one on-device UIA/document-text semantic item through the new bounded
    runtime; review the OCR Host safety baseline separately and add another
    source only on a demonstrated gap.
-3. Apply completed-final reconciliation and expose the smallest observation-only
-   Planner/Executor CLI path.
+3. Retain one exact-candidate document-aware Desktop Ask result, then harden the
+   installed first-run and product error experience around that public path.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host

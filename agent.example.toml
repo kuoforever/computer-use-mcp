@@ -1,4 +1,6 @@
 # Experimental OpenAI read-only Agent example. This file contains no API keys.
+# For the product-facing Desktop Ask path, prefer `guarded-desktop-agent config
+# init`, which resolves installed paths and enables the required bounded WAL.
 # Provider adapters read credentials from their own process environment and never
 # pass them to the local MCP child.
 

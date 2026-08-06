@@ -4,7 +4,7 @@
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
 > a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
-> Claude adapters are implemented. `plan run` composes one host-scoped Planner
+> Claude adapters are implemented. `ask` and `plan run` compose one host-scoped Planner
 > request, one to four Runner-dispatched observations, and one stateless
 > tool-free final response. Side-effect plans remain unavailable.
 
@@ -388,10 +388,11 @@ authority.
 
 ## Bounded observation-only CLI composition
 
-`planned_observation_runtime.py` and `plan run --config PATH --task TEXT`
-provide the only Planner/Executor CLI path. The host generates run/plan
-identities and discloses exactly `ui_snapshot`, `find`, `list_windows`, and
-`screenshot` to one configured-provider Planner call. The compiled candidate
+`planned_observation_runtime.py`, `ask --config PATH --task TEXT`, and the
+metadata-oriented `plan run --config PATH --task TEXT` command share the only
+Planner/Executor CLI path. The host generates run/plan identities and discloses
+exactly `ui_snapshot`, `find`, `list_windows`, `screenshot`, `capture_region`,
+`ocr`, and `document_text` to one configured-provider Planner call. The compiled candidate
 must contain one to four observations followed by one `final_response`, and it
 must fit the configured tool/model budgets before the desktop is opened.
 
@@ -401,8 +402,9 @@ tool-free final adapter once. The ordinary provider continuation port is a
 fail-closed sentinel and is never called. There is no tool selector, action,
 approval, memory, recovery, resume, campaign, or alternate MCP option. Offline
 fakes prove exact tool scope, call order, budget/WAL preflight, zero ordinary
-provider calls, zero approval requests, and no direct dispatch site. Provider,
-desktop, and application evidence remain unretained.
+provider calls, zero approval requests, and no direct dispatch site. The
+document-aware scope is offline verified; provider, desktop, and application
+evidence for that expanded scope remain unretained.
 
 ## Planned post-linear planning
 

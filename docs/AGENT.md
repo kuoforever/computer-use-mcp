@@ -3,8 +3,9 @@
 > **Status: experimental Agent vertical slice.** The provider-neutral
 > contract, local stdio bridge, bounded runner, OpenAI Responses adapter, and
 > Claude Messages adapter are
-> implemented. The CLI can inspect desktop text and bounded screenshots through four observation
-> tools. Opt-in locally approved actions are implemented and have scoped
+> implemented. The CLI can inspect desktop structure, semantic document text,
+> bounded OCR, and bounded images through reviewed observation tools. Opt-in
+> locally approved actions are implemented and have scoped
 > [isolated E4 evidence](E4_EVIDENCE.md); unbounded recovery remains unavailable.
 > Opt-in recovery can chain up to four reviewed read-only boundaries under one lock.
 
@@ -37,6 +38,12 @@ allowlist, human-activity check, confirmation, e-stop, or audit behavior.
 The `guarded-desktop-agent` entry point and `python -m computer_use_agent` expose
 the following commands:
 
+- `config init --provider NAME --model ID --output PATH` creates one
+  non-overwriting, immediately valid `read_only` Desktop Ask configuration. It
+  locates the installed sibling MCP executable, creates the user-local state and
+  child working directory, and enables the bounded continuation WAL required by
+  the planned observation/final-response path. It reads no credentials and
+  starts no provider, MCP, or desktop port.
 - `config validate --config PATH` parses and validates TOML without creating
   state directories, reading provider credentials, or starting another process.
 - `run --config PATH --task TEXT --dry-run` acquires the local run lock, creates
@@ -52,15 +59,20 @@ the following commands:
 - `run ... --memory-scope SCOPE` explicitly includes up to eight active,
   revalidated, user-confirmed memories from that exact scope in the provider's
   initial turn. Omitting it reads no memory; it is rejected with `--dry-run`.
+- `ask --config PATH --task TEXT` is the product-facing read-only Desktop Ask
+  command. It prints only the final answer by default; `--json` adds run, plan,
+  observation-count, and usage metadata. It delegates to the same bounded path
+  as `plan run` and adds no execution authority or dispatch site.
 - `plan run --config PATH --task TEXT` makes exactly one configured-provider
   Planner request over the fixed `ui_snapshot`, `find`, `list_windows`,
-  `screenshot`, `capture_region`, and `ocr` schemas, accepts only one to four
+  `screenshot`, `capture_region`, `ocr`, and `document_text` schemas, accepts only one to four
   observation steps plus the
   required final step, executes observations through the sole Runner boundary,
   and makes one stateless tool-free final-response request. It exposes no tool
   selector, action, approval, memory, recovery, or ordinary provider-loop
   option. Continuation WAL is required. [OpenAI and Claude provider evidence is retained](E3_EVIDENCE.md)
-  for one reviewed model per provider. The separate [E4 record](E4_EVIDENCE.md)
+  for the earlier bounded scope and one reviewed model per provider; the new
+  document-aware scope still needs an exact-candidate rerun. The separate [E4 record](E4_EVIDENCE.md)
   covers the reviewed Agent Host desktop path, not a separate Planner pass.
 - `eval --cases PATH [--report PATH]` runs versioned E1/E2 JSON fixtures with
   deterministic fake ports, compares exact canonical traces and dispatched
@@ -194,8 +206,8 @@ evidence plus the matching plan transition. Unknown outcomes must remain
 dispatch; see [Task planning](PLANNING.md).
 
 `executor_runtime.py` adds the first plan-connected runtime, but only for
-observation and tool-free final-response steps. `planned_observation_runtime.py`
-and `plan run` now compose that API without adding a dispatch site. Opening requires continuation
+observation and tool-free final-response steps. `planned_observation_runtime.py`,
+`ask`, and `plan run` now compose that API without adding a dispatch site. Opening requires continuation
 WAL, creates one new plan/run under the application RunLock, verifies exact MCP
 discovery, and retains one recorder, continuation, grounding state, and MCP
 generation across bounded steps. Before any call reaches the shared Runner
@@ -808,7 +820,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | CLI offline commands | Help/config validation need no key or state write; dry-run emits safe metadata only | implemented foundation test |
 | Runner preparation is inert | Preparing state calls no provider, MCP, or approval fake | implemented foundation test |
 | One local run owns the desktop application root | OS-held lock spans state subdirectories, rejects concurrent/unknown owners, and verifies its token before writing a released marker | implemented foundation test |
-| Desktop child authority is fixed | Real stdio fixture starts an absolute executable/argv/cwd without a shell, excludes provider/cloud secrets, and must exactly match all eight schemas | implemented bridge test |
+| Desktop child authority is fixed | Real stdio fixture starts an absolute executable/argv/cwd without a shell, excludes provider/cloud secrets, and must exactly match all thirteen schemas | implemented bridge test |
 | Invalid bridge calls never dispatch | Requested/non-authorized status, unknown tools, and malformed arguments return reviewed rejections with zero session calls | implemented bridge test |
 | MCP failure certainty is preserved | Startup timeout is not-dispatched; timeout, EOF, exception, or cancellation after `call_tool` entry is unknown and invalidates the generation without replay | implemented bridge test |
 | Child restart is explicit | A broken generation rejects further calls until full discovery succeeds on a new incremented generation | implemented bridge test |
@@ -838,9 +850,9 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
-| Planner output remains untrusted data | The one-shot port receives only a bounded task and the four fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port, offline fake-client dual-provider adapter tests, bounded CLI composition, and [retained dual-provider E3 evidence](E3_EVIDENCE.md) for one reviewed model per provider; the Agent Host E4 record is not a separate Planner desktop pass |
-| Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; runtime not connected |
-| Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented non-executing lock/session contract; runtime not connected |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port, offline fake-client dual-provider adapter tests, and bounded CLI composition; [retained dual-provider E3 evidence](E3_EVIDENCE.md) for one reviewed model per provider predates the document-aware scope, and the Agent Host E4 record is not a separate Planner desktop pass |
+| Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; consumed by the bounded observation runtime |
+| Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented bounded contract used by the runtime wrapper |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
 | Pre-dispatch tool-WAL failure retains certainty | A `prepare_tool` or `dispatch_tool` continuation failure is caught only before the sole MCP call, recorded as a correlated `REJECTED/not_dispatched` result, and terminalized as fixed `FAILED/CONTINUATION_WRITE_FAILED` from the latest ledger. It is not retried or treated as unknown; post-dispatch `complete_tool` failures remain outside this mapping | implemented observation/action x prepared/intent failure matrix plus unchanged success, unknown-outcome, and cancellation controls |
 | Side effects reserve mandatory verification capacity | After the action request is recorded and ordinary authority checks pass, the Runner projects the approved action result and requires model, input-token, reducible-context, and tool-call capacity for one post-action observation before constructing approval or action continuation state. Fixed-priority insufficiency is rejected without dispatch and preserves the prior verified observation; the exact one-lane boundary is not over-reserved for final response | implemented approved-workflow budget, ledger, checkpoint, continuation, and recovery tests |
@@ -848,7 +860,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Advertised tool scope is Host authority | Every live returned provider turn is checked atomically against the final caller/privacy/safety-baseline/continuation-compatible tool set before response consumption or continuation completion, and v6 preserves that set for narrowing across recovery. Continuation-enabled runs omit raw-text-incompatible `type`; an unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow and continuation-compatibility tests |
 | Returned tool schemas are whole-turn atomic | After advertised-name validation, every returned call's reviewed schema and canonical arguments are preflighted before response consumption or continuation completion. One malformed sibling has fixed `SCHEMA_MISMATCH`, zero approval/MCP calls, zero model/tool/side-effect budget consumption, and cannot execute a valid observation or action prefix; valid observation-only multi-call ordering remains sequential | implemented common-Runner and approved-action workflow tests |
 | Side-effect provider turns are single-call | After reviewed-schema preflight, action/action, observation/action, and action/observation returns fail whole-turn with fixed `PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` before privacy, model/tool budget, provider completion, policy, approval, action continuation, or MCP. The prior verified observation remains ready, and a provider sibling cannot strand an already-dispatched action without its reserved verification turn | implemented provider-neutral continuation-ordering, approved-workflow state-preservation, pure-observation, and single-action verification tests |
-| Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Side effects and CLI paths remain absent | implemented internal fake-MCP observation runtime; broader Executor unavailable |
+| Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Product-facing `ask` and metadata-oriented `plan run` expose only this observation/final-response composition; side effects remain absent | implemented offline runtime and public CLI composition; live document-aware evidence remains open |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 | Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; compilation itself grants no authority | implemented pure request contract consumed only by the internal final runtime and isolated adapters |
 | Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters and bounded CLI selection; no retained real-provider evidence |
@@ -856,6 +868,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Completed final-response reconciliation is local-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence and reconstructs the original request and canonical terminal state. A separate same-lock writer rereads those pins, idempotently CAS-completes the final plan step, writes or reuses one terminal event and `SUCCESS` checkpoint, retains final WAL, and deletes only the ordinary continuation. Prepared/intent state, drift, malformed evidence, and commit failure fail closed without provider/MCP/approval/recovery paths | implemented offline preflight, application, retry, no-mutation, and real runtime-failure artifact tests; no automatic CLI recovery |
 | Host completion projection is evidence-only | The internal read-only projection validates durable campaign control state under the run lock; running continues, waiting/stale/malformed states request attention, uncertainty forbids replay, and only digest-identified validated terminal state can complete once across host restart | implemented and offline fake-host verified; the public status tool, notification bridge, mobile adapter, and general worker remain unimplemented |
 
-The remaining work connects a bounded Executor through the existing host boundaries, adds broader post-provider resumable state, semantic
-context compression, broader isolated regression, and release review. The current
-slice is experimental and must not be presented as the complete safety MVP.
+The remaining work hardens the installed product path, retains exact-candidate
+provider/desktop/application evidence, adds broader post-provider resumable
+state and semantic context compression where product evidence requires them,
+and completes release review. The current slice is experimental and must not be
+presented as a complete product.
