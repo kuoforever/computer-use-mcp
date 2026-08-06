@@ -41,11 +41,14 @@ the exact Word window and identify the enabled main page editor (for example,
 `Page 1 content` or `页面 1 内容`), not a title-bar Search box. Take a fresh
 screenshot, then click the exact center of the main editor bounds with explicit
 x/y coordinates. Re-observe the focused editor, send Ctrl+End, and re-observe
-the focused editor again before typing. The screenshot is a one-time grounding
-step before the first editor click; never request another screenshot after that
-click. When the fresh post-click snapshot reports the main editor focused, the
-only valid next tool is key with combo Ctrl+End. Never submit the editor ref to
-click.
+the focused editor again before typing. Word UIA can report keyboard focus on
+the containing document named for the disposable file while its unique Page
+content edit remains enabled; after the exact Page-center click, that is valid
+main-editor focus evidence unless another edit is focused. The screenshot is a
+one-time grounding step before the first editor click; never request another
+screenshot after that click. When the fresh post-click snapshot reports this
+main-editor focus evidence, the only valid next tool is key with combo Ctrl+End.
+Never submit the editor ref to click or repeat a successful editor click.
 
 Author the requested two-to-four-bullet brief from observed source facts; the
 Host does not provide prewritten prose. Follow the task's exact leading-newline,

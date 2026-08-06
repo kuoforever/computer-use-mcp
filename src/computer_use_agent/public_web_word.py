@@ -99,7 +99,14 @@ _NOTE_STOP_WORDS = frozenset(
 )
 _WORD_EDIT_LINE = re.compile(
     r'^(ref_[1-9][0-9]*) \| edit "([^"]*)" \| '
-    r'\((-?[0-9]+),(-?[0-9]+),([1-9][0-9]*),([1-9][0-9]*)\) \| ([^\r\n]+)$',
+    r'\((-?[0-9]+),(-?[0-9]+),([1-9][0-9]*),([1-9][0-9]*)\) \| '
+    r'([^|\r\n]+)(?: \| [^\r\n]*)?$',
+    re.MULTILINE,
+)
+_WORD_DOCUMENT_LINE = re.compile(
+    r'^(ref_[1-9][0-9]*) \| document "([^"]*)" \| '
+    r'\((-?[0-9]+),(-?[0-9]+),([1-9][0-9]*),([1-9][0-9]*)\) \| '
+    r'([^|\r\n]+)(?: \| [^\r\n]*)?$',
     re.MULTILINE,
 )
 _WORD_EDITOR_NAME = re.compile(
@@ -112,6 +119,13 @@ _PROPOSAL_CORRECTION_HINTS = {
         "snapshot, before the first editor click. After a successful editor click "
         "and fresh snapshot reporting the main editor focused, request only key "
         "with combo Ctrl+End; do not request another screenshot."
+    ),
+    "PUBLIC_WEB_WORD_EDITOR_COORDINATE_INVALID": (
+        "A successful main-editor click must not be repeated. Re-observe the exact "
+        "Word window; Word may report keyboard focus on the containing document "
+        "named for the disposable file while the Page content edit remains enabled. "
+        "When that fresh focus evidence is present, request only key with combo "
+        "Ctrl+End; do not click again."
     ),
 }
 
@@ -244,6 +258,7 @@ def _latest_word_editor(
     ledger: Sequence[LedgerEvent],
     *,
     word_window_id: str,
+    word_title_fragment: str,
 ) -> tuple[int, tuple[int, int], bool] | None:
     for index, result, call_event in reversed(_successful_results(ledger)):
         if (
@@ -280,10 +295,31 @@ def _latest_word_editor(
             ):
                 return None
             selected = by_area[0]
-        _name, x, y, width, height, focused = selected
-        x += width // 2
-        y += height // 2
-        return index, (x, y), focused
+        _name, x, y, width, height, selected_focused = selected
+        center = (x + width // 2, y + height // 2)
+        other_editor_focused = any(item != selected and item[5] for item in editors)
+        containing_documents: list[str] = []
+        for match in _WORD_DOCUMENT_LINE.finditer(result.sanitized_text):
+            states = {value.strip() for value in match.group(7).split(",")}
+            if (
+                "enabled" not in states
+                or "focused" not in states
+                or "offscreen" in states
+                or word_title_fragment.casefold() not in match.group(2).casefold()
+            ):
+                continue
+            document_x, document_y, document_width, document_height = (
+                int(match.group(value)) for value in range(3, 7)
+            )
+            if (
+                document_x <= center[0] < document_x + document_width
+                and document_y <= center[1] < document_y + document_height
+            ):
+                containing_documents.append(match.group(1))
+        focused = (
+            selected_focused or len(containing_documents) == 1
+        ) and not other_editor_focused
+        return index, center, focused
     return None
 
 
@@ -686,7 +722,11 @@ class ModelDrivenPublicWebWordProvider:
                 raise PublicWebWordError("PUBLIC_WEB_WORD_CHROME_NOT_GROUNDED")
             return
         if name == "screenshot":
-            editor = _latest_word_editor(ledger, word_window_id=word_id)
+            editor = _latest_word_editor(
+                ledger,
+                word_window_id=word_id,
+                word_title_fragment=self.word_title_fragment,
+            )
             activation = _latest_activation(ledger)
             if (
                 arguments
@@ -699,7 +739,11 @@ class ModelDrivenPublicWebWordProvider:
                 raise PublicWebWordError("PUBLIC_WEB_WORD_SCREENSHOT_OUT_OF_SCOPE")
             return
         if name == "click":
-            editor = _latest_word_editor(ledger, word_window_id=word_id)
+            editor = _latest_word_editor(
+                ledger,
+                word_window_id=word_id,
+                word_title_fragment=self.word_title_fragment,
+            )
             activation = _latest_activation(ledger)
             screenshots = [
                 index
@@ -723,7 +767,11 @@ class ModelDrivenPublicWebWordProvider:
             return
         if name == "type":
             text = arguments.get("text")
-            editor = _latest_word_editor(ledger, word_window_id=word_id)
+            editor = _latest_word_editor(
+                ledger,
+                word_window_id=word_id,
+                word_title_fragment=self.word_title_fragment,
+            )
             ctrl_end = _successful_key_indexes(ledger, "Ctrl+End")
             if (
                 set(arguments) != {"text"}
@@ -752,7 +800,11 @@ class ModelDrivenPublicWebWordProvider:
                     for index, result, _event in _successful_results(ledger)
                     if result.tool_name == "click"
                 ]
-                editor = _latest_word_editor(ledger, word_window_id=word_id)
+                editor = _latest_word_editor(
+                    ledger,
+                    word_window_id=word_id,
+                    word_title_fragment=self.word_title_fragment,
+                )
                 if (
                     not clicks
                     or editor is None

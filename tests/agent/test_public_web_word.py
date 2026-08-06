@@ -258,14 +258,17 @@ class WorkflowDesktop:
                 "(1,2,1200,800) | enabled"
             )
         elif call.name == "ui_snapshot":
-            states = (
+            document_states = (
                 "enabled,focused"
                 if any(item.name == "click" for item in self.tool_calls)
                 else "enabled"
             )
             text = (
-                'ref_6 | edit "Search" | (560,20,180,30) | enabled\n'
-                f'ref_7 | edit "Page 1 content" | (1,2,800,600) | {states}'
+                f'ref_5 | document "{self.document.name} [Compatibility Mode]" | '
+                f'(0,0,1200,800) | {document_states}\n'
+                'ref_6 | edit "Search" | (560,20,180,30) | enabled '
+                '| value="Search"\n'
+                'ref_7 | edit "Page 1 content" | (1,2,800,600) | enabled'
             )
         elif call.name == "document_text" and call.arguments["scope"] == "101":
             text = _document_envelope(SOURCE_TEXT, "101")
@@ -580,4 +583,22 @@ def test_redundant_screenshot_feedback_names_the_exact_next_step() -> None:
 
     assert event.tool_result is not None
     assert "do not request another screenshot" in event.tool_result.sanitized_text
+    assert "combo Ctrl+End" in event.tool_result.sanitized_text
+
+
+def test_repeated_editor_click_feedback_names_the_exact_next_step() -> None:
+    call = _call(RUN_ID, "turn_13", "click", {"x": 401, "y": 302})
+    rejection = PublicWebWordProposalRejection(
+        attempt=1,
+        max_attempts=2,
+        code="PUBLIC_WEB_WORD_EDITOR_COORDINATE_INVALID",
+        tool_names=("click",),
+    )
+
+    event = ModelDrivenPublicWebWordProvider._proposal_feedback_events(
+        (call,), rejection
+    )[0]
+
+    assert event.tool_result is not None
+    assert "do not click again" in event.tool_result.sanitized_text
     assert "combo Ctrl+End" in event.tool_result.sanitized_text
