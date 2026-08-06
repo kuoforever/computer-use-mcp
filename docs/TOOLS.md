@@ -37,8 +37,9 @@ at most 200 blocks and 20,000 characters with explicit truncation metadata, and
 its offsets do not imply clickable coordinates.
 
 Snapshots are capped at 200 qualifying controls. If controls were omitted, the
-text result explicitly reports a truncation count. Chromium-family windows get
-a best-effort UIA warm-up; the result can still report that browser content is
+text result explicitly reports a truncation count. `ui_snapshot` and `find`
+both give Chromium-family window scopes a best-effort disposable UIA warm-up
+before their final read; a snapshot can still report that browser content is
 incomplete.
 
 `find` searches the full bounded Windows UIA traversal before applying the same

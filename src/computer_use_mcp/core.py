@@ -41,24 +41,32 @@ class Session:
     # --- perception ----------------------------------------------------------
 
     def ui_snapshot(self, scope: str = "foreground", max_nodes: int = 200) -> str:
-        # Browser accessibility trees may be populated lazily by the first UIA
-        # walk. Drivers that know this applies can request a best-effort warmup
-        # without widening the frozen Driver contract.
-        warmup_delay = getattr(self.driver, "snapshot_warmup_delay", lambda _scope: 0.0)(scope)
-        if warmup_delay > 0:
-            try:
-                self.driver.get_tree(PruneOpts(scope=scope, max_nodes=max_nodes))
-            except DriverError:
-                pass
-            time.sleep(warmup_delay)
-        tree = self.driver.get_tree(PruneOpts(scope=scope, max_nodes=max_nodes))
+        opts = PruneOpts(scope=scope, max_nodes=max_nodes)
+        self._warm_up_browser_tree(opts)
+        tree = self.driver.get_tree(opts)
         incomplete_reason = getattr(
             self.driver, "snapshot_incomplete_reason", lambda _scope, _tree: None
         )(scope, tree)
         return self._ingest(tree, scope, footer=incomplete_reason)
 
+    def _warm_up_browser_tree(self, opts: PruneOpts) -> None:
+        # Browser accessibility trees may be populated lazily by the first UIA
+        # walk. Drivers that know this applies can request a best-effort warmup
+        # without widening the frozen Driver contract.
+        warmup_delay = getattr(
+            self.driver, "snapshot_warmup_delay", lambda _scope: 0.0
+        )(opts.scope)
+        if warmup_delay > 0:
+            try:
+                self.driver.get_tree(opts)
+            except DriverError:
+                pass
+            time.sleep(warmup_delay)
+
     def find(self, query: str, scope: str = "foreground", max_nodes: int = 200) -> str:
-        tree = self.driver.find(PruneOpts(scope=scope, max_nodes=max_nodes), query)
+        opts = PruneOpts(scope=scope, max_nodes=max_nodes)
+        self._warm_up_browser_tree(opts)
+        tree = self.driver.find(opts, query)
         return self._ingest(tree, scope, header=f"find {query!r}")
 
     def screenshot(self, region: Rect | None = None) -> Image:
