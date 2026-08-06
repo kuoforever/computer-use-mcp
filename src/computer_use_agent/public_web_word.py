@@ -427,6 +427,20 @@ def _document_text_contains_required(observed: str, required: str) -> bool:
     return content is not None and _contains_required_text(content, required)
 
 
+def _document_text_semantically_contains_required(
+    observed: str,
+    required: str,
+) -> bool:
+    """Match reopened Word text while ignoring UIA-only whitespace shape."""
+
+    content = _document_text_content(observed, require_complete=True)
+    if content is None:
+        return False
+    normalized_content = " ".join(content.split())
+    normalized_required = " ".join(required.split())
+    return normalized_required in normalized_content
+
+
 def _post_save_verified(
     ledger: Sequence[LedgerEvent],
     *,

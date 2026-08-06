@@ -43,7 +43,7 @@ from .public_web_word import (
     PUBLIC_WEB_WORD_SOURCE_URL,
     PublicWebWordError,
     _contains_required_text,
-    _document_text_contains_required,
+    _document_text_semantically_contains_required,
     _successful_results,
     _unique_window_id,
     public_web_word_task,
@@ -563,7 +563,7 @@ class _ReopenVerifierProvider:
             matches = (
                 bool(results)
                 and results[-1][1].tool_name == "document_text"
-                and _document_text_contains_required(
+                and _document_text_semantically_contains_required(
                     results[-1][1].sanitized_text, self.accepted_note
                 )
             )

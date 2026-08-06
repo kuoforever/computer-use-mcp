@@ -27,6 +27,7 @@ from computer_use_agent.public_web_word import (
     PUBLIC_WEB_WORD_SOURCE_URL,
     PublicWebWordError,
     PublicWebWordProposalRejection,
+    _document_text_semantically_contains_required,
 )
 from computer_use_agent.public_web_word_runtime import (
     PublicWebWordRequest,
@@ -295,6 +296,8 @@ class WorkflowDesktop:
                 or self.pending_note is not None
                 else ""
             )
+            if self.reopen and visible:
+                visible = visible.replace("\n", " ")
             text = _document_envelope(visible, str(call.arguments["scope"]))
         else:
             text = ""
@@ -549,6 +552,17 @@ def test_reopen_verifier_fails_after_one_fresh_text_retry(
 
     assert reopened.reopen_document_text_calls == 2
     assert original.close_calls == reopened.close_calls == 1
+
+
+def test_reopen_semantic_match_changes_only_whitespace() -> None:
+    flattened = NOTE.replace("\n", " ")
+    observed = _document_envelope(flattened, "303")
+
+    assert _document_text_semantically_contains_required(observed, NOTE)
+    assert not _document_text_semantically_contains_required(
+        observed.replace("collaborators", "contributors"),
+        NOTE,
+    )
 
 
 @dataclass

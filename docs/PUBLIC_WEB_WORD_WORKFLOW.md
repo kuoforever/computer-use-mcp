@@ -87,7 +87,10 @@ Success requires all of these states in one run:
 7. the same DOCX is reopened in a new exact Word process and read back through
    a second bounded `AgentRunner` / MCP observation; if the first complete
    semantic read does not yet match, the verifier permits one fresh read before
-   failing closed;
+   failing closed. This reopen-only comparison collapses whitespace because
+   Word TextPattern can expose saved paragraph breaks as spaces; every
+   non-whitespace character must remain in order, while the later OOXML check
+   still requires the exact ephemeral brief and paragraph structure;
 8. the verifier window also closes cleanly.
 
 The command prints bounded JSON metadata: provider/model, run ID, source
