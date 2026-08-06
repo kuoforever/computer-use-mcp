@@ -19,12 +19,54 @@ from computer_use_mcp.document_text import (
     DocumentTextError,
     serialize_document_text,
 )
+from computer_use_mcp.drivers.windows import WindowsDriver
 from computer_use_mcp.server import build_server
 
 
 def _tool_text(result: object) -> str:
     content = result[0] if isinstance(result, tuple) else result
     return "\n".join(getattr(item, "text", "") for item in content)
+
+
+class _TextRange:
+    def __init__(self, text: str | BaseException) -> None:
+        self.text = text
+        self.requests: list[int] = []
+
+    def GetText(self, max_length: int) -> str:
+        self.requests.append(max_length)
+        if isinstance(self.text, BaseException):
+            raise self.text
+        encoded = self.text.encode("utf-16-le")
+        return encoded[: max_length * 2].decode("utf-16-le", errors="ignore")
+
+
+class _TextPattern:
+    def __init__(self, text: str | BaseException) -> None:
+        self.DocumentRange = _TextRange(text)
+
+
+class _TextControl:
+    IsPassword = False
+
+    def __init__(self, text: str | BaseException) -> None:
+        self.pattern = _TextPattern(text)
+
+    def GetPattern(self, _pattern_id: object) -> _TextPattern:
+        return self.pattern
+
+
+def _windows_document_result(
+    monkeypatch: pytest.MonkeyPatch,
+    text: str | BaseException,
+) -> tuple[DocumentTextResult, _TextRange]:
+    control = _TextControl(text)
+    driver = WindowsDriver.__new__(WindowsDriver)
+    monkeypatch.setattr(driver, "_root_for_scope", lambda _opts: control)
+    monkeypatch.setattr(driver, "_rect_of", lambda _ctrl: Rect(0, 0, 1, 1))
+    monkeypatch.setattr(driver, "_children", lambda _ctrl: [])
+    result = driver.get_document_text(PruneOpts())
+    return result, control.pattern.DocumentRange
 
 
 def test_envelope_reports_blocks_and_digests_the_kept_text() -> None:
@@ -94,6 +136,39 @@ def test_driver_side_truncation_carries_into_the_envelope() -> None:
     assert payload["omitted_blocks"] == 3
     assert payload["truncated"] is True
     assert payload["complete"] is False
+
+
+def test_windows_document_text_detects_utf16_range_overflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exact_text = "😀" * 10_000 + "x" * 10_000
+    exact, exact_range = _windows_document_result(monkeypatch, exact_text)
+    overflow, overflow_range = _windows_document_result(monkeypatch, exact_text + "y")
+    failed, failed_range = _windows_document_result(
+        monkeypatch, OSError("UIA text read failed")
+    )
+
+    assert exact_range.requests == [2 * (MAX_DOCUMENT_CHARS + 1)]
+    assert exact.blocks[0].text == exact_text
+    assert exact.complete is True
+    assert exact.truncated_blocks == 0
+
+    overflow_payload = json.loads(serialize_document_text(overflow, "foreground"))
+
+    assert overflow_range.requests == [2 * (MAX_DOCUMENT_CHARS + 1)]
+    assert overflow.blocks[0].text == exact_text
+    assert overflow.complete is False
+    assert overflow.truncated_blocks == 0
+    assert overflow_payload["complete"] is False
+    assert overflow_payload["truncated"] is True
+    assert overflow_payload["omitted_blocks"] == 0
+    assert overflow_payload["content_digest"] == hashlib.sha256(
+        exact_text.encode("utf-8")
+    ).hexdigest()
+    assert failed_range.requests == [2 * (MAX_DOCUMENT_CHARS + 1)]
+    assert failed.blocks == []
+    assert failed.complete is False
+    assert json.loads(serialize_document_text(failed, "foreground"))["truncated"] is True
 
 
 def test_serialize_rejects_a_non_result() -> None:

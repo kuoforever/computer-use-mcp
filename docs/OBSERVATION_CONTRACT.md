@@ -81,6 +81,13 @@ dump. Password subtrees are skipped, the result is bounded to 200 blocks and
 20,000 characters with explicit truncation metadata, and a backend without a
 semantic text channel fails closed instead of falling back to the tree.
 
+The Windows backend uses a bounded UTF-16 lookahead sufficient to distinguish
+an exact 20,000-character Python string from a longer range. If one range is
+partially clipped, the envelope keeps the 20,000-character prefix and reports
+`complete=false` plus `truncated=true`. `omitted_blocks` remains zero for that
+case because it counts only whole source blocks omitted by a block or aggregate
+character cap.
+
 ### OCR
 
 Bounded text runs with box, confidence, reading order, language hint, and image

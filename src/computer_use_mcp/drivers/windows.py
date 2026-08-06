@@ -60,6 +60,9 @@ _MAX_DEPTH = 40
 _MAX_DOC_VISIT = 4000
 _MAX_DOC_BLOCKS = 200
 _DOC_RANGE_CHARS = 20_000
+# One Python character can occupy two Windows UTF-16 code units. Probe one
+# Python character beyond the output cap without requesting an unbounded range.
+_DOC_RANGE_PROBE_UNITS = 2 * (_DOC_RANGE_CHARS + 1)
 
 # Patterns probed per node (the ones the action model actually uses in v0.1+).
 _PATTERN_PROBES = (
@@ -641,6 +644,7 @@ class WindowsDriver(Driver):
         truncated = 0
         complete = True
         visited = 0
+        text_read_failed = object()
         stack: list[object] = [root]
         while stack:
             ctrl = stack.pop()
@@ -655,15 +659,22 @@ class WindowsDriver(Driver):
             )
             if pattern is not None:
                 text = self._safe(
-                    lambda: pattern.DocumentRange.GetText(_DOC_RANGE_CHARS), ""
+                    lambda: pattern.DocumentRange.GetText(_DOC_RANGE_PROBE_UNITS),
+                    text_read_failed,
                 )
-                if isinstance(text, str) and text.strip():
+                if not isinstance(text, str):
+                    complete = False
+                    continue
+                if len(text) > _DOC_RANGE_CHARS:
+                    complete = False
+                text = text[:_DOC_RANGE_CHARS]
+                if text.strip():
                     if len(blocks) >= _MAX_DOC_BLOCKS:
                         truncated += 1
                     else:
                         blocks.append(
                             DocumentTextBlock(
-                                text=text[:_DOC_RANGE_CHARS],
+                                text=text,
                                 bbox=self._rect_of(ctrl),
                                 order=len(blocks),
                             )
