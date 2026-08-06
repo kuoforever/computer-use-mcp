@@ -558,18 +558,30 @@ class _ReopenVerifierProvider:
                 {"scope": self._word_window_id},
             )
             text = ""
-        elif self._step == 2:
+        elif self._step in {2, 3}:
             results = _successful_results(ledger)
-            if (
-                not results
-                or results[-1][1].tool_name != "document_text"
-                or not _document_text_contains_required(
+            matches = (
+                bool(results)
+                and results[-1][1].tool_name == "document_text"
+                and _document_text_contains_required(
                     results[-1][1].sanitized_text, self.accepted_note
                 )
-            ):
+            )
+            if not matches and self._step == 2:
+                if self._word_window_id is None:
+                    raise PublicWebWordError("PUBLIC_WEB_WORD_REOPEN_PROVIDER_INVALID")
+                call = self._call(
+                    run_id,
+                    turn_id,
+                    "document_text",
+                    {"scope": self._word_window_id},
+                )
+                text = ""
+            elif not matches:
                 raise PublicWebWordError("PUBLIC_WEB_WORD_REOPEN_TEXT_MISMATCH")
-            call = None
-            text = "PUBLIC_WEB_WORD_REOPEN_VERIFIED"
+            else:
+                call = None
+                text = "PUBLIC_WEB_WORD_REOPEN_VERIFIED"
         else:
             raise PublicWebWordError("PUBLIC_WEB_WORD_REOPEN_PROVIDER_INVALID")
         if call is not None and call.name not in advertised:
@@ -606,8 +618,8 @@ def _reopen_config(config: AgentConfig, run_id: str) -> AgentConfig:
         state_dir=state_dir,
         policy_version="public-web-word-reopen-v1",
         policy=PolicyConfig(
-            max_model_turns=3,
-            max_tool_calls=2,
+            max_model_turns=4,
+            max_tool_calls=3,
             max_side_effects=0,
         ),
         continuation=ContinuationConfig(enabled=False),

@@ -230,6 +230,7 @@ def _append_note(document: Path, note: str) -> None:
 class WorkflowDesktop:
     document: Path
     reopen: bool = False
+    reopen_text_mismatches: int = 0
     generation: int = 1
     satisfied_safety_baselines: frozenset[str] = frozenset(
         {"title_matched_image_redaction", "typed_text_audit_redaction"}
@@ -238,6 +239,7 @@ class WorkflowDesktop:
     close_calls: int = 0
     pending_note: str | None = None
     persisted: bool = False
+    reopen_document_text_calls: int = 0
 
     async def discover_tools(self):
         return reviewed_mcp_descriptors()
@@ -273,7 +275,17 @@ class WorkflowDesktop:
         elif call.name == "document_text" and call.arguments["scope"] == "101":
             text = _document_envelope(SOURCE_TEXT, "101")
         elif call.name == "document_text":
-            visible = NOTE if self.reopen or self.pending_note is not None else ""
+            if self.reopen:
+                self.reopen_document_text_calls += 1
+            visible = (
+                NOTE
+                if (
+                    self.reopen
+                    and self.reopen_document_text_calls > self.reopen_text_mismatches
+                )
+                or self.pending_note is not None
+                else ""
+            )
             text = _document_envelope(visible, str(call.arguments["scope"]))
         else:
             text = ""
@@ -454,7 +466,7 @@ def test_installed_workflow_authors_saves_reopens_and_reports_bounded_metadata(
     chrome.write_bytes(b"fixture")
     word.write_bytes(b"fixture")
     original = WorkflowDesktop(output)
-    reopened = WorkflowDesktop(output, reopen=True)
+    reopened = WorkflowDesktop(output, reopen=True, reopen_text_mismatches=1)
     desktops = iter((original, reopened))
     processes = iter((Process(202), Process(101), Process(303)))
     windows = Windows()
@@ -476,7 +488,7 @@ def test_installed_workflow_authors_saves_reopens_and_reports_bounded_metadata(
     payload = result.as_json()
     serialized = json.dumps(payload, sort_keys=True)
     assert NOTE not in serialized
-    assert result.tool_calls == 21
+    assert result.tool_calls == 22
     assert result.side_effects == 7
     assert result.bullet_count == 3
     assert result.post_save_verified is True
@@ -484,6 +496,45 @@ def test_installed_workflow_authors_saves_reopens_and_reports_bounded_metadata(
     assert all(item.window_cleanup_verified for item in result.fixture_cleanup)
     assert all(item.window_cleanup_verified for item in result.verifier_cleanup)
     assert verify_public_web_word_document(output, NOTE) == result.artifact_sha256
+    assert original.close_calls == reopened.close_calls == 1
+    assert reopened.reopen_document_text_calls == 2
+
+
+def test_reopen_verifier_fails_after_one_fresh_text_retry(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    output = (tmp_path / "result.docx").resolve()
+    chrome = (tmp_path / "chrome.exe").resolve()
+    word = (tmp_path / "winword.exe").resolve()
+    chrome.write_bytes(b"fixture")
+    word.write_bytes(b"fixture")
+    original = WorkflowDesktop(output)
+    reopened = WorkflowDesktop(output, reopen=True, reopen_text_mismatches=2)
+    desktops = iter((original, reopened))
+    processes = iter((Process(202), Process(101), Process(303)))
+    windows = Windows()
+
+    with pytest.raises(
+        PublicWebWordError,
+        match="PUBLIC_WEB_WORD_REOPEN_TEXT_MISMATCH",
+    ):
+        asyncio.run(
+            run_public_web_word_workflow(
+                config,
+                PublicWebWordRequest(output, chrome, word),
+                provider=WorkflowModel(output.name),
+                desktop_factory=lambda _config: next(desktops),
+                approvals=AllowWorkflowActions(),
+                launcher=lambda _arguments: next(processes),
+                windows=windows,
+                sleep=lambda _seconds: None,
+                run_id=RUN_ID,
+            )
+        )
+
+    assert reopened.reopen_document_text_calls == 2
     assert original.close_calls == reopened.close_calls == 1
 
 

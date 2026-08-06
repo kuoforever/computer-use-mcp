@@ -82,7 +82,9 @@ Success requires all of these states in one run:
 5. the OOXML package on disk contains the exact ephemeral brief;
 6. the original fixture windows close cleanly;
 7. the same DOCX is reopened in a new exact Word process and read back through
-   a second bounded `AgentRunner` / MCP observation;
+   a second bounded `AgentRunner` / MCP observation; if the first complete
+   semantic read does not yet match, the verifier permits one fresh read before
+   failing closed;
 8. the verifier window also closes cleanly.
 
 The command prints bounded JSON metadata: provider/model, run ID, source
@@ -102,6 +104,11 @@ model proposals may be corrected twice before any desktop dispatch. An
 ambiguous fixture, stale window list, out-of-scope tool, invalid brief, missing
 disk content, failed reopen, or unresolved exact-process cleanup returns a
 fixed non-zero error.
+
+The reopen verifier performs at most two read-only `document_text` calls. The
+second call handles the bounded gap between a visible Word window and stable
+semantic document content; another mismatch is terminal and never triggers a
+write, application relaunch, or unbounded retry.
 
 The output is exclusive and is never silently replaced. A failed attempt may
 leave its partial DOCX for inspection; retry with a new output path after the
