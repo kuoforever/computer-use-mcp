@@ -41,6 +41,10 @@ text result explicitly reports a truncation count. Chromium-family windows get
 a best-effort UIA warm-up; the result can still report that browser content is
 incomplete.
 
+`find` searches the full bounded Windows UIA traversal before applying the same
+200-result cap. Its truncation count therefore reports additional matching
+controls, not unrelated controls omitted from a broad snapshot.
+
 ## Action tools
 
 | Tool | Parameters | Behavior |

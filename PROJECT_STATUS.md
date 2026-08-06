@@ -15,8 +15,9 @@
 > `GDA-CORE-019` is merged through PR #251;
 > `GDA-CORE-020` is merged through PR #253; `GDA-CORE-021` is merged through
 > PR #255; `GDA-CORE-022` is merged through PR #257; `GDA-CORE-023` is merged
-> through PR #259; `GDA-CORE-024` is complete locally; and `GDA-CORE-025` is
-> the exact next core Runtime item.
+> through PR #259; `GDA-CORE-024` is merged through PR #261;
+> `GDA-CORE-025` is complete locally; and `GDA-CORE-026` is the exact next core
+> Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -295,13 +296,23 @@ tests drive a spaced second title through screenshot, OCR, and cropped capture;
 one shared compact/spaced/default control plus the existing Gate tests retain
 the allowlist semantics without duplicating a safety matrix.
 
-The next bounded functional audit selected `GDA-CORE-025`. The Windows Driver's
-`find()` currently calls the ordinary capped `get_tree()` and filters only its
-first 200 returned nodes. A real UIA target at position 201 or later therefore
-cannot be found even though `ui_snapshot` tells callers to narrow with `find()`.
-The next slice must filter during the bounded Windows tree traversal, then apply
-the existing result cap, truncation count, de-duplication, and native cache only
-to matches. Ordinary snapshots and the public Driver/tool contracts stay fixed.
+`GDA-CORE-025` closes that find-order gap. Windows `get_tree()` and `find()` now
+share one bounded traversal; an optional case-insensitive name/role query is
+applied after Node construction but before visual de-duplication, the 200-result
+cap, truncation accounting, and native-cache insertion. Nonmatches consume no
+result capacity and receive no ref authority. Named UIA duplicates omitted
+after the cap count once, while nameless controls retain their prior per-node
+semantics. Ordinary snapshot node selection, cap, cache, and all public
+contracts remain fixed.
+
+The next bounded functional audit selected `GDA-CORE-026`. Windows
+`document_text` requests exactly 20,000 UIA text units, so it cannot distinguish
+an exact-cap range from a longer one. A deterministic 20,001-character range is
+silently clipped to 20,000 while both Driver and envelope claim complete and
+untruncated. The next slice must use a bounded lookahead that accounts for UIA's
+Windows string units, retain at most 20,000 Python characters, and report a
+partially clipped block as `complete=false`, `truncated=true`, with
+`omitted_blocks=0` because no whole source block was omitted.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -321,7 +332,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1833 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-024` closure revalidation |
+| Offline baseline | `1834 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-025` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -397,8 +408,9 @@ delivery work.
 | `GDA-CORE-021` | Complete; merged | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Commit `0e83c6e`, merged through PR #255 as `5d605e7`; full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its model/input or tool budget, executor and locked persistence recheck before authority, and prepared singleton observations reuse their charged call. Digest-valid mismatches, exhausted dimensions, forged verification calls, and uncertain multi-observation boundaries have zero external work; valid recovery and side-effect no-replay remain intact. Complete gate: `1780 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no provider, real-desktop, application, or release claim is made |
 | `GDA-CORE-022` | Complete; merged | Preserve mandatory verification and terminal certainty across completed-provider recovery finalization | Commit `dc59252`, merged through PR #257 as `5c0ab09`; complete-ledger folding, exact checkpoint binding, monotonic locked persistence, and a non-`ready` trace-finalization guard preserve verification, Host-only stricter state, terminal unknown, and synthetic stop. OpenAI/Anthropic crash windows, result variants, non-serial histories, abandoned calls, counter/status swaps, mandatory success/failure, Host-only unknown, byte-stable refusal, valid finalization, current-tail blocking, and pure-observation controls pass. Complete gate: `1813 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, two independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no provider, real-desktop, application, or release claim is made |
 | `GDA-CORE-023` | Complete; merged | Bind `activate_window` to the owner identity observed for its target window | Commit `9edc585`, merged through PR #259 as `1c5b2a0`; the MCP atomically binds unique valid ids to exact direct-owner `(pid, name)` evidence from successful `list_windows`, captures one generation before waits, rechecks owner before each mutation and after Driver return, and never lets internal enumeration or an old in-flight call bind/follow/delete a replacement. Stable, missing, invalid, duplicate, disappeared, PID-only/name-only drift, pre-first/intermediate/final-attempt drift, probe failure, full-control, foreground-exception, failed/empty/internal list, fresh rebind, concurrent rebind, guard-order, audit, and fixed-certainty cases pass. Complete gate: `1832 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, two independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed, Driver Contract `1.0.0` and every public/schema/Full Cycle boundary remain unchanged, and no real-desktop claim is made |
-| `GDA-CORE-024` | Complete locally | Normalize configured comma-list entries before matching | `_env_list` now trims each non-empty item exactly once while preserving blank defaults and all other parsing/matching semantics. Shared compact/spaced/default parsing plus existing Gate controls and three real-`build_server` spaced-title paths prove screenshot, capture-region, and OCR blackout without a redundant safety matrix. Complete gate: `1833 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent code/test/contract review passed on 2026-08-06; no default-list, Driver/API/tool/baseline/schema, Runner/provider/continuation/export/E2, Demo/HUD, or Full Cycle change is made |
-| `GDA-CORE-025` | Queued; exact next | Make Windows `find()` search the full bounded traversal before applying its result cap | A deterministic 201-control UIA fake must keep ordinary `get_tree(max_nodes=200)` at 200 results plus one truncation while `find("Needle")` returns the unique target at position 201. Matching results themselves remain capped with exact truncation, and only returned matches enter the native cache. No Driver/API/tool/schema/version, Runner/provider, Demo/HUD, or Full Cycle change |
+| `GDA-CORE-024` | Complete; merged | Normalize configured comma-list entries before matching | Commit `9e59361`, merged through PR #261 as `b9a7fbe`; `_env_list` trims each non-empty item exactly once while preserving blank defaults and all other parsing/matching semantics. Shared compact/spaced/default parsing plus existing Gate controls and three real-`build_server` spaced-title paths prove screenshot, capture-region, and OCR blackout without a redundant safety matrix. Complete gate: `1833 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no public/runtime boundary changed |
+| `GDA-CORE-025` | Complete locally | Make Windows `find()` search the full bounded traversal before applying its result cap | Shared bounded traversal now filters matches before visual de-duplication, the 200-result cap, exact matching-only truncation, and native-cache insertion. One 201-control deterministic Windows fake proves the ordinary snapshot remains `200 + truncated=1`, the unique position-201 target is found with cache only for that match, 201 matching controls remain capped, and cap-omitted named duplicates count once. Complete gate: `1834 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent final reviews passed on 2026-08-06; Driver/API/tool/schema/version, Runner/provider, Demo/HUD, and Full Cycle remain unchanged |
+| `GDA-CORE-026` | Queued; exact next | Report partial Windows document-range clipping instead of claiming complete text | A deterministic real-Windows-Driver fake must distinguish exact 20,000-character and 20,001-character ranges with bounded UTF-16-aware lookahead. The latter retains only the first 20,000 Python characters and their digest but returns `complete=false`, `truncated=true`, `omitted_blocks=0`; the exact-cap control remains complete. No Driver/API/tool/schema/version, OCR/image, Runner/provider, Demo/HUD, or Full Cycle change |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -415,8 +427,8 @@ delivery work.
 `GDA-CORE-021` is merged through PR #255 as `5d605e7`. `GDA-CORE-022` is
 merged through PR #257 as `5c0ab09`. `GDA-CORE-023` is merged through PR #259
 as `1c5b2a0`.
-`GDA-CORE-024` is complete locally. `GDA-CORE-025` is the exact next core
-Runtime item.
+`GDA-CORE-024` is merged through PR #261 as `b9a7fbe`. `GDA-CORE-025` is
+complete locally. `GDA-CORE-026` is the exact next core Runtime item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -1036,34 +1048,38 @@ release evidence.
 Commit `9edc585` merged through PR #259 as `1c5b2a0` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-025`
+## Exact next task: `GDA-CORE-026`
 
-Make Windows `find()` search its full bounded UIA traversal before applying the
-200-result cap. The current read-only reproduction uses 200 ordinary Buttons
-followed by one Button named `Needle`:
+Make Windows `document_text` report partial range clipping instead of silently
+claiming complete text. The current deterministic reproduction supplies one
+20,001-character UIA TextPattern range:
 
 ```text
-get_tree(max_nodes=200) -> 200 nodes, truncated=1
-find("Needle", max_nodes=200) -> 0 nodes, truncated=1
+GetText request        -> 20000
+Driver returned chars  -> 20000
+Driver metadata        -> complete=true, truncated_blocks=0
+Envelope metadata      -> complete=true, truncated=false, omitted_blocks=0
 ```
 
-`WindowsDriver.find()` currently calls `get_tree(opts)` first and filters the
-already-truncated prefix. This defeats the tool's stated purpose of narrowing a
-large snapshot and can make a real, UIA-visible control unreachable through
-`find()` solely because it appears after the snapshot cap.
+The UIA `GetText(maxLength)` call may itself truncate at `maxLength`, so asking
+for exactly the output cap cannot reveal overflow. Windows strings use UTF-16
+units while the serializer's `MAX_DOCUMENT_CHARS` uses Python string length;
+the bounded probe must account for that difference rather than claiming an
+ASCII-only fix covers every string.
 
-Start with one deterministic Windows-Driver fake regression. It must prove the
-ordinary snapshot remains exactly `200 + truncated=1`, the unique position-201
-target is returned by `find("Needle")` with no truncation, and a traversal with
-more than 200 matching nodes still returns 200 with an exact truncation count.
-Then make the smallest shared traversal refactor so query matching happens after
-Node construction but before de-duplication, result capping, and native-cache
-insertion. Preserve case-insensitive name/role substring matching, traversal
-bounds, ref behavior, and ordinary `get_tree()` output. Update the owning tools
-or design contract plus this tracker.
+Start with one deterministic `WindowsDriver.__new__` TextPattern fake test that
+contains both exact-20,000 and 20,001-character cases. It must record the bounded
+lookahead requested from UIA, prove the exact-cap range remains complete, and
+prove overflow retains only the first 20,000 Python characters plus their exact
+digest while returning `complete=false`, `truncated=true`, and
+`omitted_blocks=0`. Partial clipping must not increment `truncated_blocks`,
+whose contract counts wholly omitted source blocks; aggregate serializer caps
+must not double-count the same range. Then make the smallest Driver lookahead
+and serializer metadata fix and update `docs/OBSERVATION_CONTRACT.md` plus this
+tracker. Do not rewrite dated evidence.
 
-Do not raise global caps, cache nonmatches, change Driver/API/public tool/schema
-versions, add tools or platform drivers, or touch Runner/provider/continuation,
+Do not use unbounded `GetText`, change the 20,000-character/200-block caps,
+Driver/API/public tool/schema versions, or touch OCR/image, Runner/provider,
 Demo/HUD, Full Cycle Lane A/B, hierarchical control, campaign/Executor, or
 Multi-Agent scope.
 
@@ -1084,7 +1100,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-025`.
+  must not displace `GDA-CORE-026`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -1240,3 +1256,6 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-06 | `GDA-CORE-023` merged through PR #259 as `1c5b2a0`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-024` is the exact next core Runtime item. |
 | 2026-08-06 | `GDA-CORE-024` is complete locally and independently reviewed: one shared parser trim fixes ordinary spaced comma-list syntax across screenshot, cropped capture, OCR, and allowlist configuration while preserving defaults and every public/runtime boundary. |
 | 2026-08-06 | A bounded functional audit selected `GDA-CORE-025` next: Windows `find()` must filter during the full bounded UIA traversal so targets after the ordinary 200-node snapshot cap remain discoverable, while matching results retain their own cap and truncation count. |
+| 2026-08-06 | `GDA-CORE-024` merged through PR #261 as `b9a7fbe`; all four GitHub checks passed, both feature-branch copies were removed, and work continued directly into `GDA-CORE-025`. |
+| 2026-08-06 | `GDA-CORE-025` is complete locally and independently reviewed: Windows `find()` now filters the full bounded UIA traversal before matching-only de-duplication, cap, truncation, and cache insertion, so a position-201 target is discoverable without widening any public contract. |
+| 2026-08-06 | A bounded functional audit selected `GDA-CORE-026` next: Windows `document_text` must use bounded UTF-16-aware lookahead and mark a partially clipped TextPattern range incomplete and truncated without falsely counting a whole omitted block. |
