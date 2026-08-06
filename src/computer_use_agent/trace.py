@@ -767,6 +767,8 @@ def finalize_recovery_success(
         raise TraceError("CHECKPOINT_READ_FAILED") from exc
     if current_phase is not RunPhase.PLANNING:
         raise TraceError("RECOVERY_SUCCESS_PHASE_INVALID")
+    if checkpoint.get("recovery_status") != "ready":
+        raise TraceError("RECOVERY_SUCCESS_STATE_INVALID")
     validate_transition(current_phase, RunPhase.SUCCESS)
     updated = dict(checkpoint)
     updated.update(

@@ -36,7 +36,13 @@ from computer_use_agent.recovery import (
 from computer_use_agent.reconstruction import OperationResult, ReconstructionAction
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
-from computer_use_agent.trace import RunPhase, RunRecorder, read_run_checkpoint
+from computer_use_agent.trace import (
+    RunPhase,
+    RunRecorder,
+    TraceError,
+    finalize_recovery_success,
+    read_run_checkpoint,
+)
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -101,11 +107,25 @@ def _recorder(
 
 
 def _checkpoint(state: RunState, sequence: int) -> dict[str, object]:
+    budget = state.budgets
     return {
         "run_id": state.run_id,
         "policy_version": state.policy_version,
         "task_length": len(state.task),
         "checkpoint_sequence": sequence,
+        "recovery_status": state.recovery_status.value,
+        "observation_epoch": state.observation_epoch,
+        "verified_observation_epoch": state.verified_observation_epoch,
+        "budgets": {
+            "max_model_turns": budget.max_model_turns,
+            "max_tool_calls": budget.max_tool_calls,
+            "max_side_effects": budget.max_side_effects,
+            "max_input_tokens": budget.max_input_tokens,
+            "model_turns_used": budget.model_turns_used,
+            "tool_calls_used": budget.tool_calls_used,
+            "side_effects_used": budget.side_effects_used,
+            "input_tokens_used": budget.input_tokens_used,
+        },
     }
 
 
@@ -247,6 +267,562 @@ def _completed_side_effect(
     return tool_state, envelope, result
 
 
+def _provider_state_for_turn(
+    provider_name: str,
+    state: RunState,
+    response_id: str,
+    *,
+    text: str,
+    calls: tuple[ToolCall, ...],
+    prior_state: Mapping[str, JSONValue] | None = None,
+    prior_result: ToolResult | None = None,
+    prior_results: tuple[ToolResult, ...] | None = None,
+) -> Mapping[str, JSONValue]:
+    if provider_name == "openai":
+        prior_batches = [] if prior_state is None else prior_state.get("output_batches", [])
+        assert isinstance(prior_batches, list)
+        items: list[JSONValue] = [
+            {
+                "type": "function_call",
+                "name": call.name,
+                "call_id": call.identity.call_id,
+                "arguments": json.dumps(
+                    dict(call.arguments),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            }
+            for call in calls
+        ]
+        return {
+            "response_id": response_id,
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [
+                *prior_batches,
+                {"response_id": response_id, "items": items},
+            ],
+        }
+    prior_messages = [] if prior_state is None else prior_state.get("messages", [])
+    assert isinstance(prior_messages, list)
+    messages: list[JSONValue] = (
+        [{"role": "user", "content": state.task}] if not prior_messages else list(prior_messages)
+    )
+    if prior_result is not None and prior_results is not None:
+        raise AssertionError("pass either prior_result or prior_results")
+    results = prior_results or (() if prior_result is None else (prior_result,))
+    if results:
+        content: list[JSONValue] = []
+        for result in results:
+            result_payload: dict[str, JSONValue] = {
+                "ok": result.ok,
+                "status": result.status.value,
+            }
+            if result.code is not None:
+                result_payload["code"] = result.code
+            if result.sanitized_text:
+                result_payload["content"] = result.sanitized_text
+            content.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": result.identity.call_id,
+                    "content": json.dumps(
+                        result_payload,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    "is_error": not result.ok,
+                }
+            )
+        messages.append(
+            {
+                "role": "user",
+                "content": content,
+            }
+        )
+    content: list[JSONValue] = []
+    if text:
+        content.append({"type": "text", "text": text})
+    content.extend(
+        {
+            "type": "tool_use",
+            "id": call.identity.call_id,
+            "name": call.name,
+            "input": dict(call.arguments),
+        }
+        for call in calls
+    )
+    messages.append({"role": "assistant", "content": content})
+    return {"messages": messages}
+
+
+def _completed_final_after_side_effect(
+    config: AgentConfig,
+    state: RunState,
+    *,
+    status: ToolResultStatus = ToolResultStatus.SUCCESS,
+    dispatch: DispatchCertainty = DispatchCertainty.DISPATCHED,
+    code: str | None = None,
+    verify_after: bool = False,
+    complete_final: bool = True,
+    stop_with_verification_pending: bool = False,
+) -> tuple[RunState, ContinuationEnvelope, int]:
+    provider_name = config.provider.name
+    recorder = _recorder(config, state, provider_name=provider_name)
+    observation_call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_1",
+        text="",
+        calls=(observation_call,),
+    )
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (observation_call,)),
+        provider_state=provider_state,
+        checkpoint_sequence=3,
+    )
+    observed = replace(
+        state,
+        observation_epoch=1,
+        verified_observation_epoch=1,
+        budgets=replace(state.budgets, tool_calls_used=1),
+    )
+    recorder.prepare_tool(
+        observed,
+        observation_call,
+        effect=ToolEffect.OBSERVATION,
+        checkpoint_sequence=4,
+    )
+    recorder.dispatch_tool(observed, checkpoint_sequence=5)
+    observation_result = ToolResult(
+        observation_call.identity,
+        observation_call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="verified desktop state",
+    )
+    recorder.complete_tool(
+        observed,
+        observation_result,
+        checkpoint_sequence=6,
+    )
+
+    action_call = ToolCall(
+        CallIdentity(state.run_id, "turn_2", "call_2"),
+        "click",
+        {"ref": "ref_1"},
+    )
+    action_turn_state = replace(
+        observed,
+        budgets=replace(observed.budgets, model_turns_used=2),
+    )
+    recorder.prepare_provider(action_turn_state, "turn_2", checkpoint_sequence=7)
+    recorder.dispatch_provider(action_turn_state, checkpoint_sequence=8)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_2",
+        text="",
+        calls=(action_call,),
+        prior_state=provider_state,
+        prior_result=observation_result,
+    )
+    recorder.complete_provider(
+        action_turn_state,
+        ModelTurn(state.run_id, "turn_2", "response_2", "", (action_call,)),
+        provider_state=provider_state,
+        checkpoint_sequence=9,
+    )
+    recovery_status = (
+        RecoveryStatus.UNKNOWN_OUTCOME
+        if status is ToolResultStatus.UNKNOWN_OUTCOME
+        else RecoveryStatus.REQUIRES_REOBSERVATION
+        if dispatch is not DispatchCertainty.NOT_DISPATCHED
+        or code in {"HUMAN_ACTIVE", "DENIED_BY_GATE"}
+        else RecoveryStatus.READY
+    )
+    action_state = replace(
+        action_turn_state,
+        verified_observation_epoch=(1 if recovery_status is RecoveryStatus.READY else None),
+        budgets=replace(
+            action_turn_state.budgets,
+            tool_calls_used=2,
+            side_effects_used=1,
+        ),
+        recovery_status=recovery_status,
+    )
+    recorder.prepare_tool(
+        action_state,
+        action_call,
+        effect=ToolEffect.SIDE_EFFECT,
+        checkpoint_sequence=10,
+    )
+    recorder.dispatch_tool(action_state, checkpoint_sequence=11)
+    action_result = ToolResult(
+        action_call.identity,
+        action_call.name,
+        status,
+        dispatch,
+        code=code,
+    )
+    action_envelope = recorder.complete_tool(
+        action_state,
+        action_result,
+        checkpoint_sequence=12,
+    )
+    if not complete_final and not stop_with_verification_pending:
+        return action_state, action_envelope, 12
+
+    sequence = 12
+    final_state = action_state
+    latest_result = action_result
+    next_turn = 3
+    if verify_after or stop_with_verification_pending:
+        verification_call = ToolCall(
+            CallIdentity(state.run_id, "turn_3", "call_3"),
+            "ui_snapshot",
+            {},
+        )
+        verification_turn_state = replace(
+            action_state,
+            budgets=replace(action_state.budgets, model_turns_used=3),
+        )
+        recorder.prepare_provider(
+            verification_turn_state,
+            "turn_3",
+            checkpoint_sequence=13,
+        )
+        recorder.dispatch_provider(verification_turn_state, checkpoint_sequence=14)
+        provider_state = _provider_state_for_turn(
+            provider_name,
+            state,
+            "response_3",
+            text="",
+            calls=(verification_call,),
+            prior_state=provider_state,
+            prior_result=action_result,
+        )
+        verification_envelope = recorder.complete_provider(
+            verification_turn_state,
+            ModelTurn(state.run_id, "turn_3", "response_3", "", (verification_call,)),
+            provider_state=provider_state,
+            checkpoint_sequence=15,
+        )
+        if stop_with_verification_pending:
+            return verification_turn_state, verification_envelope, 15
+        final_state = replace(
+            verification_turn_state,
+            observation_epoch=2,
+            verified_observation_epoch=2,
+            budgets=replace(verification_turn_state.budgets, tool_calls_used=3),
+            recovery_status=RecoveryStatus.READY,
+        )
+        recorder.prepare_tool(
+            final_state,
+            verification_call,
+            effect=ToolEffect.OBSERVATION,
+            checkpoint_sequence=16,
+        )
+        recorder.dispatch_tool(final_state, checkpoint_sequence=17)
+        verification_result = ToolResult(
+            verification_call.identity,
+            verification_call.name,
+            ToolResultStatus.SUCCESS,
+            DispatchCertainty.DISPATCHED,
+            sanitized_text="verified desktop state",
+        )
+        recorder.complete_tool(
+            final_state,
+            verification_result,
+            checkpoint_sequence=18,
+        )
+        latest_result = verification_result
+        sequence = 18
+        next_turn = 4
+
+    final_state = replace(
+        final_state,
+        budgets=replace(final_state.budgets, model_turns_used=next_turn),
+    )
+    final_response = f"response_{next_turn}"
+    recorder.prepare_provider(
+        final_state,
+        f"turn_{next_turn}",
+        checkpoint_sequence=sequence + 1,
+    )
+    recorder.dispatch_provider(final_state, checkpoint_sequence=sequence + 2)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        final_response,
+        text="done",
+        calls=(),
+        prior_state=provider_state,
+        prior_result=latest_result,
+    )
+    envelope = recorder.complete_provider(
+        final_state,
+        ModelTurn(
+            state.run_id,
+            f"turn_{next_turn}",
+            final_response,
+            "done",
+        ),
+        provider_state=provider_state,
+        checkpoint_sequence=sequence + 3,
+    )
+    return final_state, envelope, sequence + 3
+
+
+def _completed_final_after_nonserial_turn(
+    config: AgentConfig,
+    state: RunState,
+    *,
+    call_names: tuple[str, str],
+) -> tuple[RunState, ContinuationEnvelope, int]:
+    provider_name = config.provider.name
+    recorder = _recorder(config, state, provider_name=provider_name)
+    observation_call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_1",
+        text="",
+        calls=(observation_call,),
+    )
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (observation_call,)),
+        provider_state=provider_state,
+        checkpoint_sequence=3,
+    )
+    current = replace(
+        state,
+        observation_epoch=1,
+        verified_observation_epoch=1,
+        budgets=replace(state.budgets, tool_calls_used=1),
+    )
+    recorder.prepare_tool(
+        current,
+        observation_call,
+        effect=ToolEffect.OBSERVATION,
+        checkpoint_sequence=4,
+    )
+    recorder.dispatch_tool(current, checkpoint_sequence=5)
+    observation_result = ToolResult(
+        observation_call.identity,
+        observation_call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="verified desktop state",
+    )
+    recorder.complete_tool(current, observation_result, checkpoint_sequence=6)
+
+    calls = tuple(
+        ToolCall(
+            CallIdentity(state.run_id, "turn_2", f"call_{index}"),
+            name,
+            {} if name == "ui_snapshot" else {"ref": f"ref_{index}"},
+        )
+        for index, name in enumerate(call_names, start=2)
+    )
+    current = replace(current, budgets=replace(current.budgets, model_turns_used=2))
+    recorder.prepare_provider(current, "turn_2", checkpoint_sequence=7)
+    recorder.dispatch_provider(current, checkpoint_sequence=8)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_2",
+        text="",
+        calls=calls,
+        prior_state=provider_state,
+        prior_result=observation_result,
+    )
+    recorder.complete_provider(
+        current,
+        ModelTurn(state.run_id, "turn_2", "response_2", "", calls),
+        provider_state=provider_state,
+        checkpoint_sequence=9,
+    )
+
+    sequence = 9
+    results: list[ToolResult] = []
+    for call in calls:
+        effect = (
+            ToolEffect.OBSERVATION if call.name == "ui_snapshot" else ToolEffect.SIDE_EFFECT
+        )
+        budgets = replace(
+            current.budgets,
+            tool_calls_used=current.budgets.tool_calls_used + 1,
+            side_effects_used=current.budgets.side_effects_used
+            + int(effect is ToolEffect.SIDE_EFFECT),
+        )
+        if effect is ToolEffect.OBSERVATION:
+            current = replace(
+                current,
+                observation_epoch=current.observation_epoch + 1,
+                verified_observation_epoch=current.observation_epoch + 1,
+                budgets=budgets,
+                recovery_status=RecoveryStatus.READY,
+            )
+            sanitized_text = "verified desktop state"
+        else:
+            current = replace(
+                current,
+                verified_observation_epoch=None,
+                budgets=budgets,
+                recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+            )
+            sanitized_text = ""
+        recorder.prepare_tool(
+            current,
+            call,
+            effect=effect,
+            checkpoint_sequence=sequence + 1,
+        )
+        recorder.dispatch_tool(current, checkpoint_sequence=sequence + 2)
+        result = ToolResult(
+            call.identity,
+            call.name,
+            ToolResultStatus.SUCCESS,
+            DispatchCertainty.DISPATCHED,
+            sanitized_text=sanitized_text,
+        )
+        recorder.complete_tool(current, result, checkpoint_sequence=sequence + 3)
+        results.append(result)
+        sequence += 3
+
+    current = replace(current, budgets=replace(current.budgets, model_turns_used=3))
+    recorder.prepare_provider(current, "turn_3", checkpoint_sequence=sequence + 1)
+    recorder.dispatch_provider(current, checkpoint_sequence=sequence + 2)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_3",
+        text="done",
+        calls=(),
+        prior_state=provider_state,
+        prior_results=tuple(results),
+    )
+    envelope = recorder.complete_provider(
+        current,
+        ModelTurn(state.run_id, "turn_3", "response_3", "done"),
+        provider_state=provider_state,
+        checkpoint_sequence=sequence + 3,
+    )
+    return current, envelope, sequence + 3
+
+
+def _completed_final_after_abandoned_call(
+    config: AgentConfig,
+    state: RunState,
+    *,
+    abandoned_name: str,
+) -> tuple[RunState, ContinuationEnvelope, int]:
+    provider_name = config.provider.name
+    recorder = _recorder(config, state, provider_name=provider_name)
+    observation_call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_1",
+        text="",
+        calls=(observation_call,),
+    )
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (observation_call,)),
+        provider_state=provider_state,
+        checkpoint_sequence=3,
+    )
+    current = replace(
+        state,
+        observation_epoch=1,
+        verified_observation_epoch=1,
+        budgets=replace(state.budgets, tool_calls_used=1),
+    )
+    recorder.prepare_tool(
+        current,
+        observation_call,
+        effect=ToolEffect.OBSERVATION,
+        checkpoint_sequence=4,
+    )
+    recorder.dispatch_tool(current, checkpoint_sequence=5)
+    observation_result = ToolResult(
+        observation_call.identity,
+        observation_call.name,
+        ToolResultStatus.SUCCESS,
+        DispatchCertainty.DISPATCHED,
+        sanitized_text="verified desktop state",
+    )
+    recorder.complete_tool(current, observation_result, checkpoint_sequence=6)
+
+    abandoned_call = ToolCall(
+        CallIdentity(state.run_id, "turn_2", "call_2"),
+        abandoned_name,
+        {} if abandoned_name == "ui_snapshot" else {"ref": "ref_1"},
+    )
+    current = replace(current, budgets=replace(current.budgets, model_turns_used=2))
+    recorder.prepare_provider(current, "turn_2", checkpoint_sequence=7)
+    recorder.dispatch_provider(current, checkpoint_sequence=8)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_2",
+        text="",
+        calls=(abandoned_call,),
+        prior_state=provider_state,
+        prior_result=observation_result,
+    )
+    recorder.complete_provider(
+        current,
+        ModelTurn(state.run_id, "turn_2", "response_2", "", (abandoned_call,)),
+        provider_state=provider_state,
+        checkpoint_sequence=9,
+    )
+
+    current = replace(current, budgets=replace(current.budgets, model_turns_used=3))
+    recorder.prepare_provider(current, "turn_3", checkpoint_sequence=10)
+    recorder.dispatch_provider(current, checkpoint_sequence=11)
+    provider_state = _provider_state_for_turn(
+        provider_name,
+        state,
+        "response_3",
+        text="done",
+        calls=(),
+        prior_state=provider_state,
+    )
+    envelope = recorder.complete_provider(
+        current,
+        ModelTurn(state.run_id, "turn_3", "response_3", "done"),
+        provider_state=provider_state,
+        checkpoint_sequence=12,
+    )
+    return current, envelope, 12
+
+
 @pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
 def test_completed_authority_yield_requires_observation_without_action_replay(
     tmp_path: Path,
@@ -254,19 +830,13 @@ def test_completed_authority_yield_requires_observation_without_action_replay(
     authority_yield_code: str,
 ) -> None:
     config = _config(tmp_path, monkeypatch)
-    initial = replace(
-        _state(),
-        observation_epoch=1,
-        verified_observation_epoch=None,
-        recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
-    )
-    state, envelope, result = _completed_side_effect(
+    state, envelope, sequence = _completed_final_after_side_effect(
         config,
-        initial,
-        unknown=False,
+        _state(),
         status=ToolResultStatus.REJECTED,
         dispatch=DispatchCertainty.NOT_DISPATCHED,
         code=authority_yield_code,
+        complete_final=False,
     )
 
     assert envelope.payload["observation"] == {
@@ -277,7 +847,7 @@ def test_completed_authority_yield_requires_observation_without_action_replay(
     assert envelope.payload["boundary"] == {
         "operation_kind": "tool",
         "stage": "completed",
-        "operation_id": f"{state.run_id}:turn_1:call_1",
+        "operation_id": f"{state.run_id}:turn_2:call_2",
         "effect": "side_effect",
         "dispatch": "dispatched",
         "next_step": "mandatory_reobserve",
@@ -287,12 +857,9 @@ def test_completed_authority_yield_requires_observation_without_action_replay(
     assert completed_result["data"]["status"] == "rejected"
     assert completed_result["data"]["dispatch"] == "not_dispatched"
     assert completed_result["data"]["code"] == authority_yield_code
-    assert result.status is ToolResultStatus.REJECTED
-    assert result.dispatch is DispatchCertainty.NOT_DISPATCHED
-    assert result.code == authority_yield_code
 
     plan = plan_read_only_recovery(
-        _checkpoint(state, 6),
+        _checkpoint(state, sequence),
         envelope,
         config,
         task=state.task,
@@ -302,7 +869,7 @@ def test_completed_authority_yield_requires_observation_without_action_replay(
     assert plan.decision.reason == "SIDE_EFFECT_COMPLETED"
     assert plan.call is not None
     assert plan.call.name == "ui_snapshot"
-    assert plan.call.identity != result.identity
+    assert plan.call.identity != CallIdentity(state.run_id, "turn_2", "call_2")
 
 
 @pytest.mark.parametrize(
@@ -672,6 +1239,729 @@ def test_completed_claude_final_turn_also_plans_local_success(
 
     assert plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS
     assert plan.final_text == "done"
+
+
+@pytest.mark.parametrize("provider_name", ["openai", "anthropic"])
+@pytest.mark.parametrize(
+    ("status", "dispatch", "code"),
+    [
+        (ToolResultStatus.SUCCESS, DispatchCertainty.DISPATCHED, None),
+        (
+            ToolResultStatus.ACTION_ERROR,
+            DispatchCertainty.DISPATCHED,
+            "DRIVER_ERROR",
+        ),
+        (
+            ToolResultStatus.REJECTED,
+            DispatchCertainty.NOT_DISPATCHED,
+            "HUMAN_ACTIVE",
+        ),
+        (
+            ToolResultStatus.REJECTED,
+            DispatchCertainty.NOT_DISPATCHED,
+            "DENIED_BY_GATE",
+        ),
+    ],
+)
+def test_completed_provider_final_preserves_required_verification(
+    tmp_path: Path,
+    monkeypatch: object,
+    provider_name: str,
+    status: ToolResultStatus,
+    dispatch: DispatchCertainty,
+    code: str | None,
+) -> None:
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig(provider_name, "model-v1"),
+    )
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+        status=status,
+        dispatch=dispatch,
+        code=code,
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    checkpoint_file = RunRecorder(config.state_dir, state.run_id).checkpoint_path
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = checkpoint_file.read_bytes()
+    provider = FakeModelProvider()
+    desktop = FakeDesktopMCP()
+    commits: list[object] = []
+
+    plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+
+    assert plan.decision.action is ReconstructionAction.START_NEW_RUN
+    assert plan.decision.reason == "VERIFICATION_REQUIRED"
+    assert plan.final_text is None
+    with pytest.raises(RecoveryExecutionError, match="^RECOVERY_PLAN_NOT_EXECUTABLE$"):
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=desktop,
+                commit_intent=lambda *args: commits.append(args),
+            )
+        )
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        with pytest.raises(
+            RecoveryExecutionError,
+            match="^RECOVERY_SUCCESS_NOT_APPLICABLE$",
+        ):
+            persistence.finalize_success(sequence)
+        with pytest.raises(TraceError, match="^RECOVERY_SUCCESS_STATE_INVALID$"):
+            finalize_recovery_success(
+                config.state_dir,
+                state.run_id,
+                expected_sequence=sequence,
+                final_text_length=len("done"),
+            )
+    finally:
+        lock.release()
+
+    assert provider.calls == []
+    assert provider.continuation_state == {}
+    assert provider.restored_tools == {}
+    assert desktop.tool_calls == []
+    assert commits == []
+    assert continuation_file.read_bytes() == before_continuation
+    assert checkpoint_file.read_bytes() == before_checkpoint
+
+
+@pytest.mark.parametrize("provider_name", ["openai", "anthropic"])
+def test_successful_verification_allows_completed_provider_finalization(
+    tmp_path: Path,
+    monkeypatch: object,
+    provider_name: str,
+) -> None:
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig(provider_name, "model-v1"),
+    )
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+        verify_after=True,
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+
+    plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+
+    assert plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS
+    assert plan.final_text == "done"
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        text, completed = persistence.finalize_success(sequence)
+    finally:
+        lock.release()
+
+    assert text == "done"
+    assert completed["phase"] == RunPhase.SUCCESS.value
+    assert completed["recovery_status"] == RecoveryStatus.READY.value
+    assert completed["observation_epoch"] == 2
+    assert completed["verified_observation_epoch"] == 2
+    assert not continuation_path(config.state_dir, state.run_id).exists()
+
+
+@pytest.mark.parametrize("provider_name", ["openai", "anthropic"])
+@pytest.mark.parametrize(
+    "call_names",
+    [
+        ("click", "ui_snapshot"),
+        ("ui_snapshot", "click"),
+        ("click", "click"),
+    ],
+    ids=["action-observation", "observation-action", "action-action"],
+)
+def test_complete_ledger_rejects_historical_nonserial_side_effect_turn(
+    tmp_path: Path,
+    monkeypatch: object,
+    provider_name: str,
+    call_names: tuple[str, str],
+) -> None:
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig(provider_name, "model-v1"),
+    )
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_nonserial_turn(
+        config,
+        state,
+        call_names=call_names,
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    checkpoint_file = RunRecorder(config.state_dir, state.run_id).checkpoint_path
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = checkpoint_file.read_bytes()
+    provider = FakeModelProvider()
+    desktop = FakeDesktopMCP()
+    commits: list[object] = []
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=desktop,
+                commit_intent=lambda *args: commits.append(args),
+            )
+        )
+
+    assert provider.calls == []
+    assert provider.continuation_state == {}
+    assert provider.restored_tools == {}
+    assert desktop.tool_calls == []
+    assert commits == []
+    assert continuation_file.read_bytes() == before_continuation
+    assert checkpoint_file.read_bytes() == before_checkpoint
+
+
+@pytest.mark.parametrize("provider_name", ["openai", "anthropic"])
+@pytest.mark.parametrize("abandoned_name", ["click", "ui_snapshot"])
+def test_complete_ledger_rejects_abandoned_provider_call_before_later_turn(
+    tmp_path: Path,
+    monkeypatch: object,
+    provider_name: str,
+    abandoned_name: str,
+) -> None:
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig(provider_name, "model-v1"),
+    )
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_abandoned_call(
+        config,
+        state,
+        abandoned_name=abandoned_name,
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    checkpoint_file = RunRecorder(config.state_dir, state.run_id).checkpoint_path
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = checkpoint_file.read_bytes()
+    provider = FakeModelProvider()
+    desktop = FakeDesktopMCP()
+    commits: list[object] = []
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=desktop,
+                commit_intent=lambda *args: commits.append(args),
+            )
+        )
+
+    assert provider.calls == []
+    assert provider.continuation_state == {}
+    assert provider.restored_tools == {}
+    assert desktop.tool_calls == []
+    assert commits == []
+    assert continuation_file.read_bytes() == before_continuation
+    assert checkpoint_file.read_bytes() == before_checkpoint
+
+
+@pytest.mark.parametrize("provider_name", ["openai", "anthropic"])
+def test_known_not_dispatched_transport_result_does_not_create_verification_debt(
+    tmp_path: Path,
+    monkeypatch: object,
+    provider_name: str,
+) -> None:
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig(provider_name, "model-v1"),
+    )
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+        status=ToolResultStatus.TRANSPORT_ERROR,
+        dispatch=DispatchCertainty.NOT_DISPATCHED,
+        code="MCP_TIMEOUT_BEFORE_DISPATCH",
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+
+    plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+
+    assert plan.decision.action is ReconstructionAction.FINALIZE_SUCCESS
+    assert plan.final_text == "done"
+
+
+@pytest.mark.parametrize(
+    ("status", "dispatch", "code", "expected_epoch", "expected_verified_epoch"),
+    [
+        (ToolResultStatus.SUCCESS, DispatchCertainty.DISPATCHED, None, 2, 2),
+        (
+            ToolResultStatus.ACTION_ERROR,
+            DispatchCertainty.DISPATCHED,
+            "DRIVER_ERROR",
+            1,
+            None,
+        ),
+        (
+            ToolResultStatus.TRANSPORT_ERROR,
+            DispatchCertainty.NOT_DISPATCHED,
+            "MCP_TIMEOUT_BEFORE_DISPATCH",
+            1,
+            None,
+        ),
+    ],
+    ids=["success", "dispatched-failure", "known-not-dispatched-failure"],
+)
+def test_recovery_mandatory_intent_establishes_debt_after_known_not_dispatched_action(
+    tmp_path: Path,
+    monkeypatch: object,
+    status: ToolResultStatus,
+    dispatch: DispatchCertainty,
+    code: str | None,
+    expected_epoch: int,
+    expected_verified_epoch: int | None,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+        status=ToolResultStatus.TRANSPORT_ERROR,
+        dispatch=DispatchCertainty.NOT_DISPATCHED,
+        code="MCP_TIMEOUT_BEFORE_DISPATCH",
+        complete_final=False,
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+    plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+    assert plan.decision.action is ReconstructionAction.MANDATORY_REOBSERVE
+    assert plan.call is not None
+    result = ToolResult(
+        plan.call.identity,
+        plan.call.name,
+        status,
+        dispatch,
+        code=code,
+        sanitized_text="verified desktop state" if status is ToolResultStatus.SUCCESS else "",
+    )
+    statuses: list[str] = []
+
+    def observe_phase(_phase: RunPhase) -> None:
+        statuses.append(str(read_run_checkpoint(config.state_dir, state.run_id)["recovery_status"]))
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+            phase_observer=observe_phase,
+        )
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=None,
+                desktop=FakeDesktopMCP(results=deque([result])),
+                commit_intent=persistence.commit_intent,
+                commit_completion=persistence.commit_completion,
+            )
+        )
+    finally:
+        lock.release()
+
+    completed_checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    completed_envelope = read_continuation(config.state_dir, state.run_id)
+    completed_plan = plan_read_only_recovery(
+        completed_checkpoint,
+        completed_envelope,
+        config,
+        task=state.task,
+    )
+    assert statuses == [
+        RecoveryStatus.REQUIRES_REOBSERVATION.value,
+        RecoveryStatus.STOPPED.value,
+    ]
+    assert completed_envelope.payload["observation"]["epoch"] == expected_epoch
+    assert (
+        completed_envelope.payload["observation"]["verified_epoch"]
+        == expected_verified_epoch
+    )
+    assert completed_checkpoint["recovery_status"] == RecoveryStatus.STOPPED.value
+    assert completed_plan.decision.action is ReconstructionAction.START_NEW_RUN
+    assert completed_plan.decision.reason == "RECOVERY_STEP_COMPLETED"
+
+
+def test_host_only_verification_clear_survives_unknown_recovered_observation(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    first_call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "ui_snapshot",
+        {},
+    )
+    observed_state, envelope, _result = _completed_observation(
+        config,
+        state,
+        call=first_call,
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
+    )
+    host_state = replace(
+        observed_state,
+        verified_observation_epoch=None,
+        recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+    )
+    payload = json.loads(json.dumps(envelope.payload))
+    payload.pop("payload_digest")
+    payload["observation"]["verified_epoch"] = None
+    envelope = write_continuation(config.state_dir, payload)
+    checkpoint = _safe_checkpoint(config, host_state, 6)
+    initial_plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+    assert initial_plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER
+
+    pending_call = ToolCall(
+        CallIdentity(state.run_id, "turn_2", "call_2"),
+        "ui_snapshot",
+        {},
+    )
+    provider = FakeModelProvider(
+        turns=deque(
+            [ModelTurn(state.run_id, "turn_2", "response_2", "", (pending_call,))]
+        )
+    )
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        continued = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=FakeDesktopMCP(),
+                commit_intent=continued.commit_intent,
+                commit_completion=continued.commit_completion,
+            )
+        )
+        pending_checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+        pending_envelope = read_continuation(config.state_dir, state.run_id)
+        pending_plan = plan_read_only_recovery(
+            pending_checkpoint,
+            pending_envelope,
+            config,
+            task=state.task,
+        )
+        assert pending_plan.decision.action is ReconstructionAction.DISPATCH_OBSERVATION
+        assert pending_plan.call == pending_call
+
+        unknown_result = ToolResult(
+            pending_call.identity,
+            pending_call.name,
+            ToolResultStatus.UNKNOWN_OUTCOME,
+            DispatchCertainty.UNKNOWN,
+            code="MCP_PROTOCOL_ERROR",
+        )
+        observed = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=pending_checkpoint,
+            envelope=pending_envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+        )
+        asyncio.run(
+            execute_read_only_recovery_step(
+                pending_checkpoint,
+                pending_envelope,
+                config,
+                task=state.task,
+                provider=None,
+                desktop=FakeDesktopMCP(results=deque([unknown_result])),
+                commit_intent=observed.commit_intent,
+                commit_completion=observed.commit_completion,
+            )
+        )
+    finally:
+        lock.release()
+
+    final_checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    final_envelope = read_continuation(config.state_dir, state.run_id)
+    final_plan = plan_read_only_recovery(
+        final_checkpoint,
+        final_envelope,
+        config,
+        task=state.task,
+    )
+    assert final_checkpoint["recovery_status"] == RecoveryStatus.UNKNOWN_OUTCOME.value
+    assert final_checkpoint["observation_epoch"] == 1
+    assert final_checkpoint["verified_observation_epoch"] is None
+    assert final_envelope.payload["observation"]["verified_epoch"] is None
+    assert final_plan.decision.action is ReconstructionAction.HUMAN_REOBSERVE
+    assert final_plan.decision.reason == "UNKNOWN_OUTCOME"
+
+
+def test_unknown_result_is_terminal_across_later_provider_events(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+        status=ToolResultStatus.UNKNOWN_OUTCOME,
+        dispatch=DispatchCertainty.UNKNOWN,
+        code="MCP_PROTOCOL_ERROR",
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    checkpoint_file = RunRecorder(config.state_dir, state.run_id).checkpoint_path
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = checkpoint_file.read_bytes()
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+
+    assert continuation_file.read_bytes() == before_continuation
+    assert checkpoint_file.read_bytes() == before_checkpoint
+
+
+@pytest.mark.parametrize(
+    "forgery",
+    [
+        "recovery_status",
+        "observation_epoch",
+        "verified_observation_epoch",
+        "budget",
+    ],
+)
+def test_checkpoint_certainty_and_counter_swaps_cannot_widen_finalization(
+    tmp_path: Path,
+    monkeypatch: object,
+    forgery: str,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+    )
+    canonical = _safe_checkpoint(config, checkpoint_state, sequence)
+    checkpoint = json.loads(json.dumps(canonical))
+    if forgery == "recovery_status":
+        checkpoint["recovery_status"] = RecoveryStatus.READY.value
+    elif forgery == "observation_epoch":
+        checkpoint["observation_epoch"] = 0
+    elif forgery == "verified_observation_epoch":
+        checkpoint["verified_observation_epoch"] = 1
+    else:
+        checkpoint["budgets"]["tool_calls_used"] = 1
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    checkpoint_file = RunRecorder(config.state_dir, state.run_id).checkpoint_path
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = checkpoint_file.read_bytes()
+
+    plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+
+    assert plan.decision.action is ReconstructionAction.START_NEW_RUN
+    assert plan.decision.reason == "CHECKPOINT_MISMATCH"
+    assert plan.final_text is None
+    assert continuation_file.read_bytes() == before_continuation
+    assert checkpoint_file.read_bytes() == before_checkpoint
+
+
+def test_colluding_ready_counters_cannot_override_ledger_verification_debt(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+    )
+    payload = json.loads(json.dumps(envelope.payload))
+    payload.pop("payload_digest")
+    payload["observation"]["verified_epoch"] = 1
+    forged = write_continuation(config.state_dir, payload)
+    forged_state = replace(
+        checkpoint_state,
+        recovery_status=RecoveryStatus.READY,
+        verified_observation_epoch=1,
+    )
+    checkpoint = _safe_checkpoint(config, forged_state, sequence)
+    continuation_file = continuation_path(config.state_dir, state.run_id)
+    checkpoint_file = RunRecorder(config.state_dir, state.run_id).checkpoint_path
+    before_continuation = continuation_file.read_bytes()
+    before_checkpoint = checkpoint_file.read_bytes()
+
+    with pytest.raises(RecoveryPlanError, match="^CONTINUATION_LEDGER_INVALID$"):
+        plan_read_only_recovery(checkpoint, forged, config, task=state.task)
+
+    assert continuation_file.read_bytes() == before_continuation
+    assert checkpoint_file.read_bytes() == before_checkpoint
+
+
+def test_failed_recovered_observation_and_provider_final_preserve_verification_debt(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    state = _state()
+    checkpoint_state, envelope, sequence = _completed_final_after_side_effect(
+        config,
+        state,
+        complete_final=False,
+        stop_with_verification_pending=True,
+    )
+    checkpoint = _safe_checkpoint(config, checkpoint_state, sequence)
+    initial_plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+    assert initial_plan.decision.action is ReconstructionAction.DISPATCH_OBSERVATION
+    assert initial_plan.call is not None
+    failed_observation = ToolResult(
+        initial_plan.call.identity,
+        initial_plan.call.name,
+        ToolResultStatus.ACTION_ERROR,
+        DispatchCertainty.DISPATCHED,
+        code="DRIVER_ERROR",
+    )
+    persisted_statuses: list[str] = []
+
+    def observe_phase(_phase: RunPhase) -> None:
+        persisted_statuses.append(
+            str(read_run_checkpoint(config.state_dir, state.run_id)["recovery_status"])
+        )
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        persistence = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=checkpoint,
+            envelope=envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+            phase_observer=observe_phase,
+        )
+        asyncio.run(
+            execute_read_only_recovery_step(
+                checkpoint,
+                envelope,
+                config,
+                task=state.task,
+                provider=None,
+                desktop=FakeDesktopMCP(results=deque([failed_observation])),
+                commit_intent=persistence.commit_intent,
+                commit_completion=persistence.commit_completion,
+            )
+        )
+
+        failed_checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+        failed_envelope = read_continuation(config.state_dir, state.run_id)
+        continue_plan = plan_read_only_recovery(
+            failed_checkpoint,
+            failed_envelope,
+            config,
+            task=state.task,
+        )
+        assert continue_plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER
+        provider = FakeModelProvider(
+            turns=deque([ModelTurn(state.run_id, "turn_4", "response_4", "done")])
+        )
+        continued = LockedRecoveryPersistence(
+            state_dir=config.state_dir,
+            checkpoint=failed_checkpoint,
+            envelope=failed_envelope,
+            config=config,
+            task=state.task,
+            lock=lock,
+            phase_observer=observe_phase,
+        )
+        asyncio.run(
+            execute_read_only_recovery_step(
+                failed_checkpoint,
+                failed_envelope,
+                config,
+                task=state.task,
+                provider=provider,
+                desktop=None,
+                commit_intent=continued.commit_intent,
+                commit_completion=continued.commit_completion,
+            )
+        )
+    finally:
+        lock.release()
+
+    final_checkpoint = read_run_checkpoint(config.state_dir, state.run_id)
+    final_envelope = read_continuation(config.state_dir, state.run_id)
+    final_plan = plan_read_only_recovery(
+        final_checkpoint,
+        final_envelope,
+        config,
+        task=state.task,
+    )
+    assert persisted_statuses == [
+        RecoveryStatus.REQUIRES_REOBSERVATION.value,
+        RecoveryStatus.REQUIRES_REOBSERVATION.value,
+        RecoveryStatus.REQUIRES_REOBSERVATION.value,
+        RecoveryStatus.REQUIRES_REOBSERVATION.value,
+    ]
+    assert final_checkpoint["recovery_status"] == RecoveryStatus.REQUIRES_REOBSERVATION.value
+    assert final_plan.decision.action is ReconstructionAction.START_NEW_RUN
+    assert final_plan.decision.reason == "VERIFICATION_REQUIRED"
+    assert final_plan.final_text is None
 
 
 def test_completed_provider_multiple_action_requests_are_blocked_as_one_terminal_step(
@@ -1739,6 +3029,7 @@ def test_mandatory_reobservation_cannot_widen_original_tool_scope(
             tool_calls_used=1,
             side_effects_used=1,
         ),
+        recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
     )
     result = ToolResult(
         action.identity,

@@ -14,14 +14,15 @@
 > `GDA-CORE-018` is merged through PR #249;
 > `GDA-CORE-019` is merged through PR #251;
 > `GDA-CORE-020` is merged through PR #253; `GDA-CORE-021` is merged through
-> PR #255; and `GDA-CORE-022` is the exact next core Runtime item.
+> PR #255; `GDA-CORE-022` is complete locally and independently reviewed; and
+> `GDA-CORE-023` is the exact next core Runtime item.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
 > Demo work. The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
 > remains paused.**
-> Updated: 2026-08-05.
+> Updated: 2026-08-06.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
@@ -264,14 +265,25 @@ forged topology fails before intent or external work, while uncertain
 multi-observation state remains human-reviewed with zero replay. The v6 shape is
 unchanged.
 
-The next bounded audit selected `GDA-CORE-022`. A real crash window can leave a
-completed side effect in `REQUIRES_REOBSERVATION`, followed by a completed final
-provider response just before the ordinary Runner rejects the missing mandatory
-verification. Recovery currently inspects only the tail operation, so it can
-finalize that run as success, clear the recovery obligation, and delete the
-continuation. The next slice must fold the complete ledger and checkpoint so a
-mandatory verification or terminal unknown certainty is monotonic across
-completed-provider recovery finalization.
+`GDA-CORE-022` closes that recovery-certainty gap. Recovery now folds the
+complete canonical ledger before trusting the tail boundary, binds exact budgets
+and observation counters to that fold, and permits the checkpoint only to retain
+or tighten certainty. Provider completion, persistence intent, and failed
+observation cannot erase verification debt; unknown and synthetic-stop outcomes
+remain terminal; only a correlated successful ordinary observation restores
+`ready`. Historical non-serial side-effect turns, abandoned provider calls, and
+later events after terminal evidence fail before persistence or external work.
+The locked writer preserves Host-only stricter state, and the trace finalizer
+independently refuses every non-`ready` checkpoint.
+
+The next bounded audit selected `GDA-CORE-023`. `activate_window` currently
+grounds only the reusable `window_id`. If the observed window disappears and the
+same native id is reused by a different owner during approval or pacing, the MCP
+and Windows Driver can activate the replacement and report success. The next
+slice must bind activation to the owner identity observed by `list_windows` and
+revalidate it at the final MCP/native boundary. Drift before the first mutation
+is known not dispatched; drift after any native attempt is unknown/dispatched;
+only a fresh model-visible window observation may bind the replacement.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -291,7 +303,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1780 passed, 8 skipped` in the 2026-08-05 `GDA-CORE-021` closure revalidation |
+| Offline baseline | `1813 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-022` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -365,7 +377,8 @@ delivery work.
 | `GDA-CORE-019` | Complete; merged | Invalidate prior observation and grounding when a side-effect action is denied by the live gate | Commit `bf0cbec`, merged through PR #251 as `dfc5f9e`; the exact side-effect `REJECTED / NOT_DISPATCHED / DENIED_BY_GATE` tuple now clears the verified observation, requires re-observation, and invalidates Host grounding before continuation completion. Old refs and screenshot coordinates cannot revive through unrelated observations, fresh snapshot grounding restores action authority, observation-shaped gate denial and every other certainty tuple remain unchanged, and recovery plans only a new observation with zero action replay. Complete gate: `1733 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-020` | Complete; merged | Preserve terminal unknown certainty when a native mutation reports failure after a dispatch attempt | Commit `257c42d`, merged through PR #253 as `b53bbe2`; the server-owned call scope now promotes every failed Windows action or ordinary exception after one or more native attempts to fixed redacted `NATIVE_OUTCOME_UNKNOWN`. The Agent maps it to terminal `UNKNOWN_OUTCOME / DISPATCHED`, invalidates the MCP generation, and preserves exact continuation/no-replay certainty. Full action-family, actual Windows UIA/SendInput stitch, zero-attempt, bounded-unwind, redaction, lifecycle, Runner, continuation, and recovery regressions pass. Complete gate: `1763 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/test/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no real-desktop claim is made |
 | `GDA-CORE-021` | Complete; merged | Bind continuation recovery actions to their actual budget dimensions before external dispatch | Commit `0e83c6e`, merged through PR #255 as `5d605e7`; full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its model/input or tool budget, executor and locked persistence recheck before authority, and prepared singleton observations reuse their charged call. Digest-valid mismatches, exhausted dimensions, forged verification calls, and uncertain multi-observation boundaries have zero external work; valid recovery and side-effect no-replay remain intact. Complete gate: `1780 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent code/certainty/contract review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-05; no provider, real-desktop, application, or release claim is made |
-| `GDA-CORE-022` | Queued; exact next | Preserve mandatory verification and terminal certainty across completed-provider recovery finalization | Fold the complete continuation ledger and checkpoint before any local success finalization or external work. A completed final provider tail must not erase an outstanding post-side-effect verification obligation or any earlier terminal unknown certainty. Canonical crash-window and digest-valid corruption cases must fail closed with byte-identical durable files and zero provider/MCP work, while normal final success, completed observations, mandatory re-observation, and side-effect no-replay remain intact |
+| `GDA-CORE-022` | Complete locally; independently reviewed | Preserve mandatory verification and terminal certainty across completed-provider recovery finalization | Complete-ledger folding, exact checkpoint binding, monotonic locked persistence, and a non-`ready` trace-finalization guard preserve verification, Host-only stricter state, terminal unknown, and synthetic stop. OpenAI/Anthropic crash windows, result variants, non-serial histories, abandoned calls, counter/status swaps, mandatory success/failure, Host-only unknown, byte-stable refusal, valid finalization, current-tail blocking, and pure-observation controls pass. Complete gate: `1813 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and two independent final reviews passed on 2026-08-06; no provider, real-desktop, application, or release claim is made |
+| `GDA-CORE-023` | Queued; exact next | Bind `activate_window` to the owner identity observed for its target window | MCP-owned activation identity must require a successful `list_windows` binding, retain the intentional foreground exception, reject missing/disappeared/owner-drifted targets before the first native mutation as `NATIVE_AUTHORITY_LOST / REJECTED / NOT_DISPATCHED`, preserve `UNKNOWN_OUTCOME / DISPATCHED` after any native attempt, and require a fresh model-visible list to bind a replacement. Deterministic fake-native tests own the evidence; no Driver API, continuation/export schema, frozen E2, Demo, HUD, or Full Cycle lane changes |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -379,8 +392,9 @@ delivery work.
 `GDA-CORE-018` is merged through PR #249 as `1adce11`.
 `GDA-CORE-019` is merged through PR #251 as `dfc5f9e`.
 `GDA-CORE-020` is merged through PR #253 as `b53bbe2`.
-`GDA-CORE-021` is merged through PR #255 as `5d605e7`. `GDA-CORE-022` is the
-exact next core Runtime item.
+`GDA-CORE-021` is merged through PR #255 as `5d605e7`. `GDA-CORE-022` is
+complete locally and awaits its validated publish/merge workflow.
+`GDA-CORE-023` is the exact next core Runtime item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -921,44 +935,73 @@ changed.
 Commit `0e83c6e` merged through PR #255 as `5d605e7` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-022`
+## Completed slice: `GDA-CORE-022`
 
-Preserve mandatory verification and terminal certainty across
-completed-provider recovery finalization. The ordinary Runner durably completes
-a provider turn before checking that a prior side effect still requires
-verification. A crash between those operations can therefore leave canonical
-continuation v6 with a completed final provider tail while the checkpoint remains
-`requires_reobservation` with no verified observation. Recovery currently sees
-only the tail, returns `FINALIZE_SUCCESS`, and can rewrite the checkpoint to
-`SUCCESS/ready` while deleting the continuation. An impossible history with an
-earlier `UNKNOWN_OUTCOME` followed by a final provider turn has the same
-tail-only weakness.
+Recovery now validates every canonical model turn, issued call, correlated
+result, and terminal transition across the complete continuation ledger. The
+fold reconstructs exact budgets, observation epoch, verified epoch, and recovery
+status; the checkpoint must match those counters and may only retain or tighten
+the folded certainty. A completed final provider response therefore succeeds
+locally only when both sources are `ready`. Outstanding debt returns fixed
+`START_NEW_RUN/VERIFICATION_REQUIRED`, terminal unknown returns
+`HUMAN_REOBSERVE/UNKNOWN_OUTCOME`, and synthetic recovery completion retains its
+existing stopped/new-run boundary.
 
-Fold the complete continuation ledger into monotonic observation/recovery
-certainty, then bind that fold to the checkpoint before planning or local
-finalization. A completed provider turn without calls may finalize only when
-both sources prove `ready`. A still-required post-side-effect observation must
-produce fixed `START_NEW_RUN/VERIFICATION_REQUIRED`; an event after terminal
-unknown must fail `CONTINUATION_LEDGER_INVALID`; the current tail-unknown control
-must remain `HUMAN_REOBSERVE/UNKNOWN_OUTCOME`.
+The fold also replays the Runner's provider-turn invariants. Advertised calls
+cannot be abandoned before a later turn, and a historical multi-call turn that
+contains a side effect is invalid before a sibling observation can clear debt.
+The exact current completed-provider tail remains an untrusted input record and
+still terminalizes one or more action requests together with zero dispatch;
+complete pure-observation histories remain valid. A Host-synthesized mandatory
+intent immediately establishes debt, while checkpoint-backed Host-only
+verified-epoch clears remain conservative through later unknown or stopped
+outcomes.
 
-Acceptance covers successful, action-error, `HUMAN_ACTIVE`, and
-`DENIED_BY_GATE` side-effect outcomes that still require verification; digest-
-valid checkpoint/counter swaps; earlier unknown certainty; OpenAI and Anthropic
-parity; formal locked-persistence refusal with byte-identical files and zero
-provider/MCP work; and the ordinary no-crash Runner's existing
-`VERIFICATION_REQUIRED` behavior. Valid initial final success, final success
-after a successful verifying observation, one pending observation dispatch,
-completed-side-effect mandatory re-observation, and unrelated known-not-
-dispatched denials must remain unchanged.
+`LockedRecoveryPersistence` preserves the current status and observation facts
+through intent and completion, changing them only for the reviewed ordinary
+success, mandatory, unknown, and stopped transitions. The trace success
+finalizer independently requires `recovery_status=ready` before writing
+`SUCCESS` or deleting continuation state. Continuation remains v6 and no public
+field, enum, serialization shape, provider adapter, dispatch path, tool, Driver
+Contract `1.0.0`, frozen E2 fixture, Demo/HUD, or Full Cycle lane changed.
 
-Update `docs/CONTINUATION.md`, `docs/AGENT.md`, and this tracker. Keep
-continuation v6 and every trace/checkpoint/Agent/Driver/Full Cycle schema version;
-reuse recovery reason `VERIFICATION_REQUIRED`. Do not move the Runner dispatch
-site, replay any side effect, or change ordinary approval/budget/grounding,
-provider adapters, MCP/Driver/public tools, Driver Contract `1.0.0`, Demo, HUD,
-Full Cycle Lane A/B, campaign/Executor, another platform, hierarchical control,
-or Multi-Agent scope.
+The final offline gate passed with `1813 passed, 8 skipped`, Ruff, mypy over 121
+source files, docs consistency for all 13 reviewed tools, and diff check. Two
+independent final reviews found no remaining P1/P2/P3. This is offline
+state-machine and persistence evidence only; it does not promote provider,
+real-desktop, application, or release evidence.
+
+## Exact next task: `GDA-CORE-023`
+
+Bind `activate_window` to the owner identity observed for its target at the
+final MCP/native boundary. A deterministic fake currently proves the gap:
+`list_windows` reports native id `42` owned by `notepad.exe` / PID 100; the fake
+then reuses id `42` for `secrets.exe` / PID 200; the existing server still
+returns success and records one activation. Host grounding and approval bind
+only the reusable `window_id`, MCP does not retain the structured listed owner,
+and the Driver checks `IsWindow` plus final foreground identity without checking
+that owner.
+
+The MCP must own a set-on-observation target binding derived only from a
+successful model-visible `list_windows`. Activation without that binding, a
+disappeared target, or owner drift before the first native mutation must return
+fixed redacted `NATIVE_AUTHORITY_LOST` and map to
+`REJECTED / NOT_DISPATCHED` with zero mutation. Stable identity must retain the
+intentional `activate_window` foreground-gate exception and one successful
+dispatch. Drift after any recorded native attempt must retain
+`UNKNOWN_OUTCOME / DISPATCHED`, stop later mutation, and never replay. A fresh
+successful `list_windows` is required before the replacement identity can be
+activated.
+
+Start with the deterministic matrix in `tests/test_safety_audit.py`, then make
+the smallest MCP-owned change in `src/computer_use_mcp/server.py`. Update the
+owning activation/authority sections in `docs/DESIGN.md`,
+`docs/CONFIGURATION.md`, `docs/TOOLS.md`, `docs/APPROVALS.md`, accepted ADR 009
+only if its target-identity wording needs clarification, and this tracker. Do
+not change Driver method signatures or contract version, trace/checkpoint/
+continuation/export schemas, the frozen E2 manifest, provider/Runner authority,
+public tools, Demo/HUD, Full Cycle Lane A/B, another platform, hierarchical
+control, campaign/Executor, or Multi-Agent scope.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -977,7 +1020,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-022`.
+  must not displace `GDA-CORE-023`.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -1125,3 +1168,5 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-05 | `GDA-CORE-021` is complete locally and independently reviewed: full topology validation makes `next_step` non-authoritative, the final reconstructed action owns its budget, and executor plus locked persistence recheck before intent or external work while valid prepared observations are not double charged. |
 | 2026-08-05 | A bounded formal-persistence audit selected `GDA-CORE-022` next: completed-provider recovery finalization must preserve a prior mandatory-verification obligation and terminal unknown certainty by folding the complete ledger and binding it to the checkpoint. |
 | 2026-08-05 | `GDA-CORE-021` merged through PR #255 as `5d605e7`; all four GitHub checks passed, both feature-branch copies were cleaned up, and `GDA-CORE-022` is the exact next core Runtime item. |
+| 2026-08-06 | `GDA-CORE-022` is complete locally and independently reviewed: complete-ledger folding plus checkpoint, locked-persistence, and trace-finalizer gates preserve verification debt, Host-only stricter state, unknown certainty, and stopped recovery without changing continuation v6 or any public contract. |
+| 2026-08-06 | A bounded MCP/native authority audit selected `GDA-CORE-023` next: `activate_window` must bind its reusable native id to the owner identity from a successful model-visible `list_windows`, fail known-not-dispatched on pre-attempt drift, and retain unknown/dispatched certainty after any native attempt. |

@@ -8,7 +8,9 @@
 > strict planner, atomic sequence-checked intent/completion commits under the
 > run lock, and an explicit CLI entry point exist for three completed
 > read-only external recovery boundaries plus local final-response
-> terminalization. The CLI may chain up to four individually
+> terminalization. Complete-ledger certainty folding prevents a tail provider
+> response from erasing an earlier verification or unknown-outcome obligation.
+> The CLI may chain up to four individually
 > committed steps under one run lock and never replays uncertain dispatches or
 > pending side effects.
 
@@ -34,6 +36,10 @@ The implementation must preserve these rules:
    and no later side effect is allowed until fresh grounding is verified.
 5. Recovery never switches provider or model, relaxes budgets, changes the tool
    registry, or treats persisted content as policy or approval.
+6. Verification and terminal certainty are monotonic across the complete
+   ledger. Provider completion, recovery intent, and failed observation cannot
+   clear them; only a correlated successful ordinary observation can restore
+   `ready`.
 
 ## Storage model
 
@@ -122,7 +128,10 @@ Required validation is exact and fail-closed:
   ledger sequence that cannot construct `RunState`;
 - require every tool result to match exactly one earlier call by
   `(run_id, turn_id, call_id, tool_name)` and stable call digest;
-- require budgets and observation epochs to equal a fresh fold of the ledger;
+- require budget counters and the observation epoch to equal a fresh fold of
+  the ledger. A verified epoch may only equal the folded value or be cleared by
+  a checkpoint-backed stricter Host state; it can never be advanced beyond
+  ledger evidence;
 - treat the recomputable payload digest as corruption evidence, never
   authority;
 - require non-authoritative `boundary.next_step` to match the complete operation
@@ -243,6 +252,50 @@ applies this rule before opening a provider or MCP connection; the executor
 repeats it before the first port call, and locked persistence replans the current
 sequence before writing intent.
 
+Recovery certainty is likewise derived from the complete canonical ledger, not
+the tail boundary. Sequential provider turns advertise the only calls that may
+later appear as ordinary tool records; each result must correlate to one issued,
+unfinished call. Every advertised call must either remain in the current
+completed-provider tail or receive its ordered call/result pair before a later
+provider turn. An unissued request, unfinished issued call, completed final
+provider response, terminal unknown result, or completed Host-synthesized
+recovery observation cannot be followed by another durable event.
+
+Each folded provider turn also reapplies the live Runner's whole-turn
+seriality rule. A turn with more than one call and any side effect may exist
+only as the current completed-provider tail, where its requests remain
+untrusted input and are terminalized together as `RECOVERED_ACTION_REQUESTED`
+with zero dispatch. Any later durable event or non-current boundary makes that
+turn invalid. Pure observation multi-call turns remain valid. This prevents a
+historical sibling observation from counting as verification and clearing an
+action's recovery debt.
+
+The certainty fold mirrors the live Runner. A dispatched side effect and the
+exact `REJECTED/not_dispatched/HUMAN_ACTIVE|DENIED_BY_GATE` tuples clear the
+verified epoch and establish `requires_reobservation`. Provider completion,
+ordinary dispatch intent, and a failed ordinary observation preserve the
+current state. A Host-synthesized mandatory-observation intent establishes or
+retains `requires_reobservation` and clears the verified epoch; a correlated
+successful ordinary observation is the only ordinary transition back to
+`ready`. `UNKNOWN_OUTCOME` is absorbing. A known completion of the exact
+Host-synthesized mandatory recovery observation remains `stopped`, preserving
+the existing new-run boundary.
+
+The checkpoint must match continuation budgets and observation counters and may
+be only as permissive as this fold. Host-only evidence may make it stricter, but
+a checkpoint cannot claim `ready` while the ledger still requires verification.
+A stricter non-`ready` checkpoint may keep the verified epoch cleared as its
+status progresses to `unknown_outcome` or `stopped`; the ledger's older verified
+epoch cannot force that Host-only debt back to `ready`.
+A completed final provider response is locally terminalizable only when both
+the folded ledger and checkpoint are `ready`. An outstanding
+`requires_reobservation` state returns fixed
+`START_NEW_RUN/VERIFICATION_REQUIRED`; stricter terminal unknown or stopped
+evidence retains its own human/new-run outcome. None returns final text, calls a
+provider/MCP port, or mutates state. Locked recovery writes preserve the current
+obligation through intent, provider completion, and failed observation, while
+the trace finalizer independently refuses any checkpoint not already `ready`.
+
 ## Write-ahead operation protocol
 
 Every external operation has a unique `operation_id` and three possible durable
@@ -313,7 +366,7 @@ The conservative reconstruction matrix is:
 | --- | --- |
 | `prepared`, provider request | Do not send it; start a new run. |
 | `dispatch_intent`, provider request, no completion | `UNKNOWN_OUTCOME`; do not resend. |
-| `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A provider-requested side effect is validated as an input record, terminalized as a fixed failure, and never dispatched. |
+| `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A provider-requested side effect is validated as an input record, terminalized as a fixed failure, and never dispatched. Final text succeeds only when the complete ledger and checkpoint are `ready`; an earlier unmet verification obligation returns `VERIFICATION_REQUIRED`. |
 | `prepared`, tool call | A provider-correlated observation may be dispatched once only if no dispatch intent exists and its current required MCP safety baselines are satisfied. It advances the already charged call without another ledger entry or tool-budget increment. A forged/non-provider prepared call fails closed; a pending side effect requires a new run. |
 | `dispatch_intent`, any tool call, no completion | `UNKNOWN_OUTCOME`; do not call the tool again. |
 | `completed`, observation result | Consume the result and issue only the next new provider continuation with the original v6 scope narrowed to current-safe observations. |
@@ -400,6 +453,27 @@ A digest-valid non-provider observation appended after a completed side effect
 is rejected before intent or MCP; only the exact Host-synthesized mandatory
 identity can represent that verification lineage.
 
+Complete-ledger certainty tests construct the ordinary Runner crash window in
+which a correlated side effect is durable, a final provider response is also
+durable, and the process dies before the live `VERIFICATION_REQUIRED` check.
+OpenAI and Claude plus success, dispatched failure, human-yield, and live-gate
+result variants all stop locally with zero provider/MCP calls and byte-identical
+artifacts. Separate controls prove successful verification restores finalization,
+ordinary known-not-dispatched transport failure does not create debt, unknown
+certainty is absorbing, counter/status swaps cannot widen the checkpoint, and
+recovery intent, failed observation, and later provider completion preserve the
+obligation. A provider-neutral historical-turn matrix additionally covers
+action/observation, observation/action, and action/action ordering; every
+side-effect-bearing multi-call turn fails as `CONTINUATION_LEDGER_INVALID`
+before persistence or external I/O and leaves both artifacts byte-identical.
+A separate current-tail multi-action control retains fixed
+`RECOVERED_ACTION_REQUESTED` terminalization with zero dispatch. These tests
+also reject an abandoned action or observation before a later provider turn,
+while a complete pure-observation multi-call history remains finalizable. A
+locked Host-only-debt chain proves an unknown recovered observation retains
+`UNKNOWN_OUTCOME` with its verified epoch cleared. These tests use continuation
+v6 without changing the frozen E2 fixture or schema version.
+
 The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
 digest-bound replay artifacts. Its manifest freezes successful text and
 screenshot compilation, unknown/missing/mismatched/reordered items,
@@ -455,6 +529,11 @@ and retains JUnit evidence without enabling provider or desktop integration.
    persistence boundaries. Digest-valid semantic swaps and canonical exhausted
    budgets stop before intent or external I/O; a prepared observation reuses its
    already charged call.
-10. Keep uncertain dispatches, pending side-effects, drift, corruption, and
+10. **Implemented:** fold complete-ledger recovery certainty and bind it to the
+    checkpoint before final-provider success. Verification debt survives every
+    intent, provider completion, and failed observation write; unknown and
+    synthetic-stop states are terminal, and only a correlated successful
+    ordinary observation restores `ready`.
+11. Keep uncertain dispatches, pending side-effects, drift, corruption, and
    expired records permanently fail-closed unless a later design is separately
    reviewed.

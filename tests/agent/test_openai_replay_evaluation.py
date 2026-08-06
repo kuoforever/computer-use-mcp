@@ -5,7 +5,7 @@ import base64
 import copy
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
@@ -45,6 +45,7 @@ from computer_use_agent.types import (
     ImageContent,
     ModelTurn,
     ModelUsage,
+    RecoveryStatus,
     RunBudget,
     RunState,
     ToolCall,
@@ -198,12 +199,34 @@ def _artifact(
         if mutation == "side_effect_history"
         else ToolEffect.OBSERVATION
     )
-    recorder.prepare_tool(state, call, effect=effect, checkpoint_sequence=4)
-    recorder.dispatch_tool(state, checkpoint_sequence=5)
-    recorder.complete_tool(state, result, checkpoint_sequence=6)
+    prepared_state = replace(
+        state,
+        budgets=replace(
+            state.budgets,
+            side_effects_used=int(effect is ToolEffect.SIDE_EFFECT),
+        ),
+    )
+    completed_state = replace(
+        prepared_state,
+        observation_epoch=int(effect is ToolEffect.OBSERVATION),
+        verified_observation_epoch=(1 if effect is ToolEffect.OBSERVATION else None),
+        recovery_status=(
+            RecoveryStatus.REQUIRES_REOBSERVATION
+            if effect is ToolEffect.SIDE_EFFECT
+            else RecoveryStatus.READY
+        ),
+    )
+    recorder.prepare_tool(
+        prepared_state,
+        call,
+        effect=effect,
+        checkpoint_sequence=4,
+    )
+    recorder.dispatch_tool(prepared_state, checkpoint_sequence=5)
+    recorder.complete_tool(completed_state, result, checkpoint_sequence=6)
     envelope = read_continuation(root, run_id)
     if mutation == "none" or mutation in {"over_budget", "provider_failure"}:
-        return envelope, provider_state, state
+        return envelope, provider_state, completed_state
 
     payload = copy.deepcopy(envelope.payload)
     ledger = payload["ledger"]
@@ -244,7 +267,7 @@ def _artifact(
     else:
         raise AssertionError("unsupported replay evaluation mutation")
     mutated = write_continuation(root / mutation, payload)
-    return mutated, copy.deepcopy(payload["provider_state"]), state
+    return mutated, copy.deepcopy(payload["provider_state"]), completed_state
 
 
 def _cases() -> list[dict[str, object]]:
@@ -383,11 +406,25 @@ def test_recovery_executor_switches_only_after_replay_preflight(
     )
     desktop = FakeDesktopMCP()
     commits: list[tuple[int, str, ReconstructionAction]] = []
+    budget = state.budgets
     checkpoint = {
         "run_id": state.run_id,
         "policy_version": state.policy_version,
         "task_length": len(state.task),
         "checkpoint_sequence": 6,
+        "recovery_status": state.recovery_status.value,
+        "observation_epoch": state.observation_epoch,
+        "verified_observation_epoch": state.verified_observation_epoch,
+        "budgets": {
+            "max_model_turns": budget.max_model_turns,
+            "max_tool_calls": budget.max_tool_calls,
+            "max_side_effects": budget.max_side_effects,
+            "max_input_tokens": budget.max_input_tokens,
+            "model_turns_used": budget.model_turns_used,
+            "tool_calls_used": budget.tool_calls_used,
+            "side_effects_used": budget.side_effects_used,
+            "input_tokens_used": budget.input_tokens_used,
+        },
     }
     plan = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
     assert plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER
