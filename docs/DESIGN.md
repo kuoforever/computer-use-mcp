@@ -53,6 +53,8 @@ UIA-based refs without changing the core tool semantics.
 - `screenshot()` gives vision-capable clients a primary-display PNG.
 - `ui_snapshot()` provides a flat UIA control list for text-first clients.
 - `find(query)` narrows a snapshot to reduce context cost.
+- `list_windows()` reports top-level window ids and direct owners. A completely
+  successful call atomically replaces the MCP instance's activation bindings.
 
 The current MCP screenshot surface is deliberately narrower than the internal
 driver contract: it has no region argument and captures only the primary
@@ -102,10 +104,13 @@ request
   -> final e-stop check
   -> final single-observation foreground allowlist check
   -> final non-waiting human-idle and input-capture comparison
+  -> for activation, recheck the listed target's direct owner identity
   -> open one call-scoped native-action boundary
   -> Session and native driver action
        -> before each driver-controlled native mutation:
-            recheck e-stop, applicable foreground, and safe-local human input
+            recheck e-stop, applicable foreground, safe-local human input,
+            and the activation target identity when applicable
+  -> after activation returns, recheck its target identity before success
   -> audit record
   -> result
 ~~~
@@ -127,6 +132,26 @@ native-input event, one exact input tick is permitted only inside that call so
 the next checkpoint does not yield to the driver's own event. Physical input in
 the small window between native return and that capture can still be
 misattributed; no source-tagging or global input hook is claimed.
+
+`activate_window` captures an instance-local binding at call entry and never
+follows a later concurrent binding. Only the MCP `list_windows` tool can replace
+that table, using the same complete structured window list that produced its
+successful text result; screenshot, OCR, and region-redaction enumerations do
+not. The identity is the exact direct-owner `(pid, executable name)` paired with
+the window id. Title, geometry, foreground state, and process ancestry are not
+identity. Missing, invalid, duplicate, disappeared, or owner-drifted targets
+fail closed and invalidate only the still-current captured binding, so a fresh
+successful `list_windows` is required before a replacement can be activated.
+
+The target probe runs outside the foreground/human mode exception, immediately
+before every activation mutation, and once after the Driver returns. Inside a
+mutation checkpoint, target enumeration runs first; the non-waiting e-stop and
+applicable human/foreground checks follow, keeping volatile human authority
+closest to the native attempt. This is a bounded TOCTOU check, not an atomic
+Windows identity lease: the current Driver contract has no process-creation
+token and cannot distinguish an extreme reuse of the same window id, PID, and
+executable name. Stronger native identity evidence remains outside contract
+`1.0.0`.
 
 Authority loss before the first native attempt stays rejected/not-dispatched.
 Loss after an attempt stops target progress and becomes fixed
@@ -158,9 +183,11 @@ batches with a checkpoint between scalars. The old library-specific brace/chord
 grammar is intentionally excluded; reviewed chords use `key`.
 `activate_window` is e-stop/human-activity guarded and audited, but
 intentionally skips both foreground allowlist checks because it is the
-operation that makes a listed window foreground. `full_control_local` bypasses
-the human and allowlist checks while retaining both e-stop checks and audit. See
-[Configuration and safety](CONFIGURATION.md) for exact runtime behavior.
+operation that makes a listed window foreground. Its observed-owner binding and
+target probes apply in both control modes. `full_control_local` bypasses the
+human and allowlist checks while retaining e-stop, activation identity, and
+audit. See [Configuration and safety](CONFIGURATION.md) for exact runtime
+behavior.
 
 ## Human coexistence and background work
 

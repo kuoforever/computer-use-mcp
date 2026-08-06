@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | `ui_snapshot` | `scope="foreground"` | Returns a flat list of interactive UIA controls with refs, bounding boxes, states, and safe value summaries. Scope is `"foreground"`, a window id from `list_windows()`, or `"all"`. |
 | `find` | `query, scope="foreground"` | Returns a matching subset using the same snapshot/ref model. Use this to reduce context for large windows. |
-| `list_windows` | none | Lists visible top-level windows, including owned dialogs. Each row includes a window id, owner executable, title, and foreground marker. |
+| `list_windows` | none | Lists visible top-level windows, including owned dialogs. Each row includes a window id, owner executable, title, and foreground marker. A successful call atomically replaces this MCP instance's window-id/direct-owner activation bindings. |
 | `screenshot` | none | Returns a PNG of the primary display. It does not accept a region parameter and does not provide a virtual-desktop capture. |
 | `capture_region` | `x, y, w, h` | Captures exactly one primary-display region and returns a grounding envelope followed by the cropped PNG. The region is limited to 4,000,000 pixels and the encoding to 4 MiB. |
 | `ocr` | `x, y, w, h` | Captures exactly one primary-display region and returns bounded Windows OCR text runs with crop-local and screen-relative boxes. The region is limited to 4,000,000 pixels. |
@@ -45,7 +45,7 @@ incomplete.
 
 | Tool | Parameters | Behavior |
 | --- | --- | --- |
-| `activate_window` | `window_id` | Attempts to restore and activate a listed window. It returns success only after the driver verifies the target is foreground. In safe mode it is e-stop/human-activity guarded and audited, but not foreground-allowlist gated. |
+| `activate_window` | `window_id` | Attempts to restore and activate a window whose id and direct-owner PID/executable were bound by a successful `list_windows`. The owner is rechecked before each native mutation and after the Driver returns; a missing, disappeared, ambiguous, or changed target requires a fresh list. Success also requires the Driver to verify the target is foreground. In safe mode activation is e-stop/human-activity guarded and audited, but not foreground-allowlist gated. |
 | `click` | `ref` **or** `x, y` | Invokes an accessible control by ref, or clicks a primary-display coordinate. Supply one form only. |
 | `scroll` | `x, y, delta_x=0, delta_y=0` | Sends bounded horizontal or vertical wheel movement at a screenshot-grounded primary-display coordinate. At least one delta must be non-zero. |
 | `drag` | `x, y, to_x, to_y, duration_ms=250` | Holds the left mouse button along one bounded path between two screenshot-grounded primary-display coordinates. Both endpoints must differ and remain in the current screenshot. |
@@ -118,10 +118,11 @@ specific reason where available, for example:
 | `NATIVE_AUTHORITY_LOST` | Authority changed or the native boundary was unavailable. Before any native attempt this is rejected/not-dispatched; after a partial attempt it is unknown-outcome/dispatched, stops the Runner, and is never replayed. |
 | `NATIVE_OUTCOME_UNKNOWN` | A Windows native action reported failure after at least one native dispatch attempt, so its effect may already have occurred. The server replaces the failure detail with this fixed redacted code; the Agent treats it as unknown-outcome/dispatched, stops, and never replays it. |
 
-Until the planned activation-specific error codes are implemented, stale
-window IDs, Windows foreground-lock denial, and a failed foreground
-postcondition may all appear as `DRIVER_ERROR`. Re-list windows and diagnose the
-failure; do not retry an activation indefinitely.
+An activation id that was not successfully listed, disappeared, or changed
+direct owner returns fixed `NATIVE_AUTHORITY_LOST`; a fresh `list_windows` is
+required before activating a replacement. A zero-attempt platform failure can
+still appear as `DRIVER_ERROR`, while failure after a native attempt becomes
+`NATIVE_OUTCOME_UNKNOWN`. Do not retry an activation indefinitely.
 
 The driver may also report `NOT_INVOKABLE` or `PERMISSION_DENIED`. Treat
 errors as information for the next observation step, not as a reason to repeat

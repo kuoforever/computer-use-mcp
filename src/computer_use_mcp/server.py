@@ -30,6 +30,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Callable
+from dataclasses import dataclass
+from threading import Lock
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
@@ -38,7 +41,7 @@ from . import MCP_SERVER_NAME, SAFETY_BASELINE_ATTESTATION_V1
 from .audit import AuditLog
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
-from .contract import DRIVER_ERROR, DriverError, PruneOpts, Result
+from .contract import DRIVER_ERROR, DriverError, PruneOpts, Result, Window
 from .document_text import DocumentTextError, serialize_document_text
 from .core import Session
 from .dpi import enable_dpi_awareness
@@ -71,6 +74,15 @@ DEFAULT_ALLOWLIST = ("notepad.exe",)
 DEFAULT_REDACT_TITLES = ("1Password", "Bitwarden", "KeePass", "Authenticator")
 SAFE_LOCAL = "safe_local"
 FULL_CONTROL_LOCAL = "full_control_local"
+_ACTIVATION_TARGET_AUTHORITY_LOST = (
+    "NATIVE_AUTHORITY_LOST: activation target identity unavailable"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _ObservedWindowOwner:
+    pid: int
+    name: str
 
 
 def _env_list(name: str, default) -> list[str]:
@@ -163,6 +175,8 @@ def build_server(
             except Exception:
                 native_boundary_ready = False
     session = Session(driver)
+    activation_bindings: dict[str, _ObservedWindowOwner] = {}
+    activation_bindings_lock = Lock()
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
     activity = human_activity or HumanActivity(
         driver,
@@ -207,6 +221,84 @@ def build_server(
 
     def _audit_args(args: dict) -> dict:
         return {**args, "control_mode": mode}
+
+    def _window_bindings(windows: list[Window]) -> dict[str, _ObservedWindowOwner]:
+        bindings: dict[str, _ObservedWindowOwner] = {}
+        seen_ids: set[str] = set()
+        duplicate_ids: set[str] = set()
+        for window in windows:
+            if not isinstance(window.id, str) or not window.id:
+                continue
+            if window.id in seen_ids:
+                duplicate_ids.add(window.id)
+                continue
+            seen_ids.add(window.id)
+            owner = _observed_window_owner(window)
+            if owner is not None:
+                bindings[window.id] = owner
+        for window_id in duplicate_ids:
+            bindings.pop(window_id, None)
+        return bindings
+
+    def _observed_window_owner(window: Window) -> _ObservedWindowOwner | None:
+        try:
+            pid = window.owner.pid
+            name = window.owner.name
+        except Exception:
+            return None
+        if type(pid) is not int or pid <= 0 or not isinstance(name, str) or not name:
+            return None
+        return _ObservedWindowOwner(pid=pid, name=name)
+
+    def _replace_activation_bindings(
+        bindings: dict[str, _ObservedWindowOwner],
+    ) -> None:
+        with activation_bindings_lock:
+            activation_bindings.clear()
+            activation_bindings.update(bindings)
+
+    def _capture_activation_binding(window_id: str) -> _ObservedWindowOwner | None:
+        with activation_bindings_lock:
+            return activation_bindings.get(window_id)
+
+    def _activation_target_probe(
+        window_id: str,
+        expected: _ObservedWindowOwner,
+    ) -> tuple[bool, str]:
+        with activation_bindings_lock:
+            if activation_bindings.get(window_id) is not expected:
+                return False, _ACTIVATION_TARGET_AUTHORITY_LOST
+
+        try:
+            matches = [
+                window
+                for window in session.driver.list_windows()
+                if window.id == window_id
+            ]
+        except Exception:
+            matches = []
+
+        current = _observed_window_owner(matches[0]) if len(matches) == 1 else None
+        allowed = current == expected
+        with activation_bindings_lock:
+            if activation_bindings.get(window_id) is not expected:
+                allowed = False
+            if not allowed and activation_bindings.get(window_id) is expected:
+                activation_bindings.pop(window_id, None)
+        return (
+            (True, "")
+            if allowed
+            else (False, _ACTIVATION_TARGET_AUTHORITY_LOST)
+        )
+
+    def _activation_target_denied(args: dict) -> str:
+        audit.record(
+            "activate_window",
+            _audit_args(args),
+            "authority_lost",
+            "activation target identity unavailable",
+        )
+        return _ACTIVATION_TARGET_AUTHORITY_LOST
 
     def _estop_guard(
         tool: str,
@@ -340,6 +432,7 @@ def build_server(
         require_foreground: bool = True,
         allowed_confirmation: HumanInputCapture | None = None,
         native_input_on_success: bool = False,
+        target_revalidate: Callable[[], tuple[bool, str]] | None = None,
     ) -> str:
         """Run one Session action inside the sole call-scoped native boundary."""
 
@@ -356,6 +449,10 @@ def build_server(
 
         def _revalidate() -> tuple[bool, str]:
             nonlocal call_allowed_input
+            if target_revalidate is not None:
+                target_allowed, target_rejection = target_revalidate()
+                if not target_allowed:
+                    return target_allowed, target_rejection
             allowed_input = call_allowed_input
             call_allowed_input = None
             return _final_authority_guard(
@@ -380,6 +477,20 @@ def build_server(
         try:
             with native_boundary.call_scope(_revalidate, _capture_native_input):
                 result = operation()
+                if target_revalidate is not None:
+                    target_allowed, target_rejection = target_revalidate()
+                    if not target_allowed:
+                        try:
+                            native_boundary.complete_action(succeeded=False)
+                        except NativeOutcomeUnknown as exc:
+                            raise NativeAuthorityLost(
+                                dispatch_attempts=exc.dispatch_attempts,
+                                rejection=target_rejection,
+                            ) from None
+                        raise NativeAuthorityLost(
+                            dispatch_attempts=0,
+                            rejection=target_rejection,
+                        )
                 native_boundary.complete_action(succeeded=result.ok)
         except NativeOutcomeUnknown:
             audit.record(
@@ -404,6 +515,8 @@ def build_server(
                     "ERROR NATIVE_AUTHORITY_LOST: "
                     "native action authority changed after dispatch"
                 )
+            if exc.rejection == _ACTIVATION_TARGET_AUTHORITY_LOST:
+                return _activation_target_denied(args)
             if exc.rejection.startswith(("ABORTED:", "HUMAN_ACTIVE:", "DENIED by gate:")):
                 decision = (
                     "estop"
@@ -441,11 +554,15 @@ def build_server(
 
     @mcp.tool(description="List visible top-level windows: id, owner process, title, * if foreground.")
     def list_windows() -> str:
+        windows = session.driver.list_windows()
         lines = [
             f'{"*" if w.is_foreground else " "} {w.id} | {w.owner.name} | "{w.title}"'
-            for w in session.driver.list_windows()
+            for w in windows
         ]
-        return "\n".join(lines) or "(no windows)"
+        bindings = _window_bindings(windows)
+        result = "\n".join(lines) or "(no windows)"
+        _replace_activation_bindings(bindings)
+        return result
 
     @mcp.tool(description="PNG screenshot of the primary screen, for vision models. "
                           "Windows whose title matches the redaction list are blacked out.")
@@ -539,6 +656,7 @@ def build_server(
     @mcp.tool(description="Bring a window (id from list_windows) to the foreground.")
     def activate_window(window_id: str) -> str:
         args = {"window_id": window_id}
+        target_binding = _capture_activation_binding(window_id)
         ok, msg, readiness = _guard(
             "activate_window", args, require_foreground=False
         )
@@ -552,12 +670,21 @@ def build_server(
         )
         if not ok:
             return msg
+        if target_binding is None:
+            return _activation_target_denied(args)
+        target_allowed, _ = _activation_target_probe(window_id, target_binding)
+        if not target_allowed:
+            return _activation_target_denied(args)
         return _run_native_action(
             "activate_window",
             args,
             lambda: session.activate(window_id),
             readiness=readiness,
             require_foreground=False,
+            target_revalidate=lambda: _activation_target_probe(
+                window_id,
+                target_binding,
+            ),
         )
 
     @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "

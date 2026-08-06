@@ -122,7 +122,8 @@ unknown otherwise. There is no production bypass.
 At each checkpoint the controller:
 
 1. asks the server closure to recheck e-stop, applicable foreground authority,
-   and safe-local human authority without waiting;
+   safe-local human authority, and applicable activation-target identity without
+   waiting;
 2. rejects immediately when that authority is absent; or
 3. conservatively records a native dispatch attempt and returns immediately
    before the native API call, with no intervening feedback, sleep, or work.
@@ -172,9 +173,35 @@ only to its exact call-local input capture; a different tick is not excused.
 - In `safe_local`, every checkpoint rechecks e-stop, applicable foreground, and
   human-input authority.
 - `activate_window` retains its foreground-gate exception at every checkpoint,
-  but it still checks e-stop and safe-local human authority.
+  but it still checks e-stop, safe-local human authority, and the target's
+  observed direct-owner identity.
 - `full_control_local` retains its explicit foreground and human-yield bypass,
-  but every checkpoint still checks e-stop.
+  but every checkpoint still checks e-stop and applicable activation-target
+  identity.
+
+### Activation target identity clarification
+
+For `activate_window`, a successful MCP `list_windows` result atomically binds
+each unambiguous window id to the exact direct-owner PID and executable name in
+that same structured observation. An activation captures one binding at call
+entry and cannot follow a concurrent replacement. The server checks that the
+captured binding is still current and matches exactly one live target before
+each native attempt, then checks again after the Driver returns so drift during
+the last attempt cannot become success. A missing, invalid, duplicate,
+disappeared, or owner-drifted target invalidates the still-current binding; only
+a fresh successful model-visible `list_windows` can bind a replacement.
+
+Within each activation mutation checkpoint, target enumeration runs first and
+the existing non-waiting e-stop plus applicable human/foreground probe runs
+last. A slower read-only enumeration therefore cannot age human authority before
+the native attempt.
+
+These probes also apply in `full_control_local` and do not add a foreground
+allowlist requirement. Internal window lists used by screenshot, OCR, capture,
+or redaction do not bind authority. The comparison is a bounded server-owned
+TOCTOU check over the existing window id plus direct-owner `(pid, name)`, not an
+atomic OS lease or process-creation identity; Driver contract `1.0.0` remains
+unchanged.
 
 ### Partial dispatch and bounded unwind
 
@@ -262,7 +289,10 @@ claim equivalent coverage for an unimplemented platform driver.
   text in feedback, audit, or error envelopes; non-BMP surrogate order,
   newline/control literals, and partial-loss stopping are covered.
 - Activation retains its foreground exception and detaches every successfully
-  attached input queue on partial loss.
+  attached input queue on partial loss. Its observed-owner binding rejects
+  missing, replaced, and pre-attempt drifted targets with zero mutation; drift
+  after an intermediate or final attempt remains unknown/dispatched, and only a
+  fresh model-visible list binds a replacement.
 - Dangerous-confirmation, full-control, e-stop, and successful agent-input
   attribution behaviors remain explicitly covered.
 - Effect-then-raise and partial-return tests cover semantic UIA, coordinate,
