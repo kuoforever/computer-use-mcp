@@ -111,7 +111,7 @@ same-desktop background control safe or parallel.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CUMCP_ALLOWLIST` | `notepad.exe` | Comma-separated executable names allowed for safe-mode foreground actions. A match anywhere in the foreground process ancestry is accepted. |
+| `CUMCP_ALLOWLIST` | `notepad.exe` | Comma-separated executable names allowed for safe-mode foreground actions. Surrounding whitespace on each non-empty item is ignored. Matching is case-insensitive and exact per executable name; a match anywhere in the foreground process ancestry is accepted. |
 | `CUMCP_MODE` | `safe_local` | Either `safe_local` or `full_control_local`. No `isolated_worker` mode is currently accepted. |
 | `CUMCP_HUMAN_IDLE_SECONDS` | `2.5` | Seconds after local mouse/keyboard input during which safe-mode actions yield. |
 | `CUMCP_HUMAN_STABLE_SAMPLES` | `1` | Consecutive healthy idle samples required inside one MCP action call. The bounded Demo uses `3`; a timeout rejects before dispatch and is never replayed. |
@@ -123,9 +123,12 @@ same-desktop background control safe or parallel.
 | `CUMCP_DANGEROUS_CONFIRM` | on in safe mode; off in full-control mode | Enables confirmation for dangerous `click(ref=...)` targets. |
 | `CUMCP_ESTOP` | `ctrl+alt+q` | Global hotkey that latches all actions off until the server restarts. |
 | `CUMCP_AUDIT` | `audit/actions.jsonl` | JSONL audit-log path. |
-| `CUMCP_REDACT_TITLES` | `1Password,Bitwarden,KeePass,Authenticator` | Comma-separated title substrings for screenshot blackouts. |
+| `CUMCP_REDACT_TITLES` | `1Password,Bitwarden,KeePass,Authenticator` | Comma-separated title substrings for screenshot, OCR, and cropped-capture blackouts. Surrounding whitespace on each non-empty item is ignored, and matching is case-insensitive. |
 | `CUMCP_VMRUN` | unset | Optional path to VMware `vmrun.exe` for the host-side helper. |
 | `CUMCP_WORKER_VMX` | unset | Existing VMware `.vmx` path for the host-side helper. |
+
+For both comma-list variables, compact and spaced forms are equivalent. An
+unset, empty, or whitespace-only value retains the documented default.
 
 Examples:
 

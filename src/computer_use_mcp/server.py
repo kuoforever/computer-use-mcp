@@ -87,7 +87,7 @@ class _ObservedWindowOwner:
 
 def _env_list(name: str, default) -> list[str]:
     raw = os.environ.get(name, "")
-    return [x for x in raw.split(",") if x.strip()] if raw.strip() else list(default)
+    return [x.strip() for x in raw.split(",") if x.strip()] if raw.strip() else list(default)
 
 
 def _env_float(name: str, default: float) -> float:

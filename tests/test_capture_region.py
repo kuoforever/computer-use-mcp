@@ -125,12 +125,14 @@ def test_capture_envelope_rejects_an_oversized_encoding() -> None:
         serialize_capture(_image(region), region, b"x" * (MAX_CAPTURE_PNG_BYTES + 1))
 
 
-def test_server_capture_region_returns_an_envelope_and_the_redacted_crop(tmp_path) -> None:
+def test_server_capture_region_returns_an_envelope_and_the_redacted_crop(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("CUMCP_REDACT_TITLES", "KeePass, Vault")
     driver = RegionDriver(windows=[_vault_window()])
     server = build_server(
         driver=driver,
         start_estop=False,
-        redact_titles=["Vault"],
         audit_path=tmp_path / "audit.jsonl",
     )
 

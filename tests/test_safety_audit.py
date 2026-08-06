@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import io
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -1229,6 +1230,19 @@ def _activation_server(
         audit_path=str(tmp_path / "actions.jsonl"),
         control_mode=control_mode,
     )
+
+
+def test_screenshot_uses_normalized_environment_redaction_titles(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CUMCP_REDACT_TITLES", "KeePass, Reusable")
+    server = _activation_server(tmp_path, ActivationOwnerReuseDriver())
+
+    result = asyncio.run(server.call_tool("screenshot", {}))
+    content = result[0] if isinstance(result, tuple) else result
+    screenshot = Image.open(io.BytesIO(base64.b64decode(content[0].data))).convert("RGB")
+
+    assert screenshot.getpixel((0, 0)) == (0, 0, 0)
 
 
 def test_activate_window_requires_a_model_visible_window_binding(tmp_path: Path) -> None:

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from computer_use_mcp.contract import ProcRef
 from computer_use_mcp.gate import Gate
+from computer_use_mcp.server import _env_list
 
 
 class FakeDriver:
@@ -14,8 +15,18 @@ class FakeDriver:
         return [ProcRef(pid=index, name=name) for index, name in enumerate(next(self.chains), start=1)]
 
 
-def test_gate_allows_an_authorized_ancestor_process() -> None:
-    gate = Gate(["weixin.exe"], FakeDriver([["WechatAppEx.exe", "Weixin.exe"]]), retries=0)
+def test_gate_allows_an_authorized_ancestor_process(monkeypatch) -> None:
+    monkeypatch.setenv("CUMCP_ALLOWLIST", "calc.exe, Weixin.exe")
+    spaced = _env_list("CUMCP_ALLOWLIST", ("notepad.exe",))
+    monkeypatch.setenv("CUMCP_ALLOWLIST", "calc.exe,Weixin.exe")
+    compact = _env_list("CUMCP_ALLOWLIST", ("notepad.exe",))
+    monkeypatch.setenv("CUMCP_ALLOWLIST", "   ")
+    defaulted = _env_list("CUMCP_ALLOWLIST", ("notepad.exe",))
+
+    assert spaced == compact == ["calc.exe", "Weixin.exe"]
+    assert defaulted == ["notepad.exe"]
+
+    gate = Gate(spaced, FakeDriver([["WechatAppEx.exe", "Weixin.exe"]]), retries=0)
 
     allowed, reason = gate.foreground_allowed()
 

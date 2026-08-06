@@ -90,13 +90,15 @@ class RegionDriver:
         return [Window("1", "Vault", Rect(105, 205, 2, 2), owner, [owner], False)]
 
 
-def test_server_ocr_captures_only_the_region_and_redacts_before_recognition(tmp_path) -> None:
+def test_server_ocr_captures_only_the_region_and_redacts_before_recognition(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("CUMCP_REDACT_TITLES", "KeePass, Vault")
     driver = RegionDriver()
     reader = RecordingReader()
     server = build_server(
         driver=driver,
         start_estop=False,
-        redact_titles=["Vault"],
         ocr_reader=reader,
         audit_path=tmp_path / "audit.jsonl",
     )
