@@ -12,8 +12,11 @@ import zipfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from importlib.resources import files
+from io import BytesIO
 from pathlib import Path
 from xml.etree import ElementTree
+
+from PIL import Image as PILImage
 
 from .config import (
     APPROVED_ACTIONS_MODE,
@@ -52,18 +55,23 @@ from .types import (
     ApprovalPort,
     CallIdentity,
     DesktopMCPPort,
+    ImageContent,
     LedgerEvent,
+    MCPToolDescriptor,
     MemoryContextItem,
     ModelProviderPort,
     ModelTurn,
     ProviderContinuationStrategy,
     ToolCall,
+    ToolResult,
 )
 
 _WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEMPLATE_RESOURCE = "assets/public-web-word.docx"
 _FIXED_ALLOWLIST = "chrome.exe,winword.exe"
 _FIXED_HUMAN_STABLE_SAMPLES = "3"
+_VISION_PREVIEW_SIZE = (160, 120)
+_VISION_PREVIEW_MAX_BYTES = 64 * 1024
 
 
 @dataclass(frozen=True)
@@ -150,6 +158,62 @@ class PublicWebWordResult:
 
 ProcessLauncher = Callable[[Sequence[str]], ProcessHandle]
 DesktopFactory = Callable[[AgentConfig], DesktopMCPPort]
+
+
+def _bounded_vision_preview(image: ImageContent) -> ImageContent:
+    """Pixelate one redacted screenshot while retaining screen coordinates."""
+
+    try:
+        with PILImage.open(BytesIO(image.data)) as source:
+            original_size = source.size
+            samples = source.convert("L")
+            samples.thumbnail(_VISION_PREVIEW_SIZE, PILImage.Resampling.LANCZOS)
+            preview = samples.resize(original_size, PILImage.Resampling.NEAREST)
+            output = BytesIO()
+            preview.save(output, format="PNG", optimize=True)
+    except (OSError, ValueError) as exc:
+        raise PublicWebWordError("PUBLIC_WEB_WORD_SCREENSHOT_INVALID") from exc
+    encoded = output.getvalue()
+    if len(encoded) > _VISION_PREVIEW_MAX_BYTES:
+        raise PublicWebWordError("PUBLIC_WEB_WORD_SCREENSHOT_INVALID")
+    return ImageContent(
+        "image/png",
+        encoded,
+        image.width,
+        image.height,
+    )
+
+
+class _PublicWebWordVisionDesktop:
+    """Keep PRODUCT004 vision evidence inside its provider request window."""
+
+    def __init__(self, inner: DesktopMCPPort) -> None:
+        self._inner = inner
+
+    @property
+    def generation(self) -> int:
+        return self._inner.generation
+
+    @property
+    def satisfied_safety_baselines(self) -> frozenset[str]:
+        return self._inner.satisfied_safety_baselines
+
+    async def discover_tools(self) -> tuple[MCPToolDescriptor, ...]:
+        return await self._inner.discover_tools()
+
+    async def call_tool(self, call: ToolCall) -> ToolResult:
+        result = await self._inner.call_tool(call)
+        if call.name != "screenshot" or not result.ok:
+            return result
+        if len(result.images) != 1:
+            raise PublicWebWordError("PUBLIC_WEB_WORD_SCREENSHOT_INVALID")
+        return replace(
+            result,
+            images=(_bounded_vision_preview(result.images[0]),),
+        )
+
+    async def close(self) -> None:
+        await self._inner.close()
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -633,7 +697,7 @@ async def run_public_web_word_workflow(
             config,
             RunnerPorts(
                 provider=wrapper,
-                desktop=desktop_factory(config),
+                desktop=_PublicWebWordVisionDesktop(desktop_factory(config)),
                 approvals=approvals,
             ),
         ).run(

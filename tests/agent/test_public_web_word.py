@@ -132,6 +132,17 @@ class WorkflowModel:
     ) -> ModelTurn:
         if self.step == 0:
             assert json.dumps(self.expected_word_title) in task
+        if self.step == 11:
+            screenshot = next(
+                event.tool_result
+                for event in reversed(ledger)
+                if event.tool_result is not None
+                and event.tool_result.tool_name == "screenshot"
+            )
+            assert len(screenshot.images) == 1
+            assert screenshot.images[0].width == 800
+            assert screenshot.images[0].height == 600
+            assert len(screenshot.images[0].data) < 64 * 1024
         del ledger, tools, memories
         sequence: tuple[tuple[str, Mapping[str, JSONValue]], ...] = (
             ("list_windows", {}),

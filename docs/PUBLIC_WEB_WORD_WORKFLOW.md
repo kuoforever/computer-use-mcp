@@ -72,9 +72,11 @@ Success requires all of these states in one run:
 
 1. the model observes the unique Chrome and Word fixtures;
 2. fresh Chrome evidence grounds the model-authored brief;
-3. a fresh exact-window UIA observation identifies one enabled Word editor, a
-   screenshot grounds its bounds, and the model proposes the explicit center
-   coordinate; no ref silently degrades to coordinates;
+3. a fresh exact-window UIA observation identifies one enabled Word editor; a
+   screen-sized grayscale preview derived from at most `160×120` samples keeps
+   the original coordinate space while visually grounding the screen, and the
+   model proposes the explicit editor-center coordinate; no ref silently
+   degrades to coordinates;
 4. the full brief is observed before `Ctrl+S` and again afterward;
 5. the OOXML package on disk contains the exact ephemeral brief;
 6. the original fixture windows close cleanly;
