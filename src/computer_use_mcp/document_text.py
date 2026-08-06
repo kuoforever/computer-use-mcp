@@ -64,7 +64,7 @@ def serialize_document_text(result: DocumentTextResult, scope: str) -> str:
         "coordinate_space": "primary_display_physical_pixels",
         "semantic_source": result.source,
         "complete": complete,
-        "truncated": omitted > 0,
+        "truncated": not complete,
         "omitted_blocks": omitted,
         "content_digest": digest,
         "blocks": blocks,
