@@ -30,10 +30,13 @@ surface:
 
 The Host does not contain the bullet findings. It constrains only the required
 heading/source/URL shape, two-to-four-bullet bound, exact fixture windows,
-the selected main Word editor bounds, and save-verification sequence. Invoking the CLI
-also authorizes the fixed fixture launch and exact-process close lifecycle;
-those trusted orchestration steps are not model calls. Model prose is not a
-completion signal.
+the selected main Word editor bounds, and save-verification sequence. Once a
+validated `type` succeeds, the Host accepts only the next fixed stage:
+pre-save `document_text`, `Ctrl+S`, post-save `document_text`, then no tool
+call. An out-of-stage proposal is corrected before desktop dispatch; it cannot
+add authority or skip verification. Invoking the CLI also authorizes the fixed
+fixture launch and exact-process close lifecycle; those trusted orchestration
+steps are not model calls. Model prose is not a completion signal.
 
 Each bullet uses a literal `• ` prefix. That preserves the exact authored text
 through Word instead of triggering hyphen-based AutoFormat list conversion.

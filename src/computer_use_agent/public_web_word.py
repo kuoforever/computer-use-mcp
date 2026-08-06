@@ -127,6 +127,22 @@ _PROPOSAL_CORRECTION_HINTS = {
         "When that fresh focus evidence is present, request only key with combo "
         "Ctrl+End; do not click again."
     ),
+    "PUBLIC_WEB_WORD_PRE_SAVE_TEXT_REQUIRED": (
+        "The brief was typed successfully. Request only document_text for the "
+        "exact Word window to verify the complete brief before saving."
+    ),
+    "PUBLIC_WEB_WORD_SAVE_REQUIRED": (
+        "The first complete pre-save document_text already verified the brief. "
+        "Request only key with combo Ctrl+S now; do not observe again first."
+    ),
+    "PUBLIC_WEB_WORD_POST_SAVE_TEXT_REQUIRED": (
+        "Ctrl+S succeeded. Request only document_text for the exact Word window "
+        "to verify the complete brief after saving."
+    ),
+    "PUBLIC_WEB_WORD_FINISH_REQUIRED": (
+        "The post-save document_text already verified the brief. Finish now with "
+        "no tool call."
+    ),
 }
 
 
@@ -429,6 +445,29 @@ def _post_save_verified(
     )
 
 
+def _pre_save_verified(
+    ledger: Sequence[LedgerEvent],
+    *,
+    word_window_id: str,
+    required_text: str,
+) -> bool:
+    typed = [
+        index
+        for index, result, _call_event in _successful_results(ledger)
+        if result.tool_name == "type"
+    ]
+    saves = _successful_key_indexes(ledger, "Ctrl+S")
+    if not typed or saves:
+        return False
+    return any(
+        index > typed[-1]
+        and result.tool_name == "document_text"
+        and _summary_values(call_event).get("scope") == word_window_id
+        and _document_text_contains_required(result.sanitized_text, required_text)
+        for index, result, call_event in _successful_results(ledger)
+    )
+
+
 def _ocr_content(text: str) -> str | None:
     try:
         payload = json.loads(text)
@@ -686,6 +725,36 @@ class ModelDrivenPublicWebWordProvider:
         if windows is None:
             raise PublicWebWordError("PUBLIC_WEB_WORD_FIXTURES_NOT_OBSERVED")
         chrome_id, word_id = windows
+
+        accepted = self._accepted_notes.get(call.identity.run_id)
+        typed = any(
+            result.tool_name == "type"
+            for _index, result, _call_event in _successful_results(ledger)
+        )
+        if accepted is not None and typed:
+            saves = _successful_key_indexes(ledger, "Ctrl+S")
+            post_save_verified = _post_save_verified(
+                ledger,
+                word_window_id=word_id,
+                required_text=accepted,
+            )
+            pre_save_verified = _pre_save_verified(
+                ledger,
+                word_window_id=word_id,
+                required_text=accepted,
+            )
+            if post_save_verified:
+                raise PublicWebWordError("PUBLIC_WEB_WORD_FINISH_REQUIRED")
+            if saves:
+                if name != "document_text" or arguments != {"scope": word_id}:
+                    raise PublicWebWordError(
+                        "PUBLIC_WEB_WORD_POST_SAVE_TEXT_REQUIRED"
+                    )
+            elif pre_save_verified:
+                if name != "key" or arguments != {"combo": "Ctrl+S"}:
+                    raise PublicWebWordError("PUBLIC_WEB_WORD_SAVE_REQUIRED")
+            elif name != "document_text" or arguments != {"scope": word_id}:
+                raise PublicWebWordError("PUBLIC_WEB_WORD_PRE_SAVE_TEXT_REQUIRED")
 
         if name == "activate_window":
             target = arguments.get("window_id")

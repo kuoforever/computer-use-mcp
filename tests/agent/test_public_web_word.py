@@ -115,6 +115,7 @@ def _call(run_id: str, turn_id: str, name: str, arguments: Mapping[str, JSONValu
 @dataclass
 class WorkflowModel:
     expected_word_title: str
+    repeat_pre_save_observation: bool = False
     name: str = "functional-model"
     continuation_strategy: ProviderContinuationStrategy = (
         ProviderContinuationStrategy.STATELESS_REPLAY
@@ -145,6 +146,13 @@ class WorkflowModel:
             assert screenshot.images[0].height == 600
             assert len(screenshot.images[0].data) < 64 * 1024
         del ledger, tools, memories
+        repeated_pre_save: tuple[
+            tuple[str, Mapping[str, JSONValue]], ...
+        ] = (
+            (("document_text", {"scope": "202"}),)
+            if self.repeat_pre_save_observation
+            else ()
+        )
         sequence: tuple[tuple[str, Mapping[str, JSONValue]], ...] = (
             ("list_windows", {}),
             ("activate_window", {"window_id": "101"}),
@@ -163,6 +171,7 @@ class WorkflowModel:
             ("ui_snapshot", {"scope": "202"}),
             ("type", {"text": NOTE}),
             ("document_text", {"scope": "202"}),
+            *repeated_pre_save,
             ("key", {"combo": "Ctrl+S"}),
             ("document_text", {"scope": "202"}),
         )
@@ -475,7 +484,10 @@ def test_installed_workflow_authors_saves_reopens_and_reports_bounded_metadata(
         run_public_web_word_workflow(
             config,
             PublicWebWordRequest(output, chrome, word),
-            provider=WorkflowModel(output.name),
+            provider=WorkflowModel(
+                output.name,
+                repeat_pre_save_observation=True,
+            ),
             desktop_factory=lambda _config: next(desktops),
             approvals=AllowWorkflowActions(),
             launcher=lambda _arguments: next(processes),
@@ -491,6 +503,7 @@ def test_installed_workflow_authors_saves_reopens_and_reports_bounded_metadata(
     assert result.tool_calls == 22
     assert result.side_effects == 7
     assert result.bullet_count == 3
+    assert result.proposal_corrections == 1
     assert result.post_save_verified is True
     assert result.reopen_verified is True
     assert all(item.window_cleanup_verified for item in result.fixture_cleanup)
@@ -653,3 +666,21 @@ def test_repeated_editor_click_feedback_names_the_exact_next_step() -> None:
     assert event.tool_result is not None
     assert "do not click again" in event.tool_result.sanitized_text
     assert "combo Ctrl+End" in event.tool_result.sanitized_text
+
+
+def test_redundant_pre_save_read_feedback_requires_save() -> None:
+    call = _call(RUN_ID, "turn_18", "document_text", {"scope": "202"})
+    rejection = PublicWebWordProposalRejection(
+        attempt=1,
+        max_attempts=2,
+        code="PUBLIC_WEB_WORD_SAVE_REQUIRED",
+        tool_names=("document_text",),
+    )
+
+    event = ModelDrivenPublicWebWordProvider._proposal_feedback_events(
+        (call,), rejection
+    )[0]
+
+    assert event.tool_result is not None
+    assert "combo Ctrl+S now" in event.tool_result.sanitized_text
+    assert "do not observe again" in event.tool_result.sanitized_text
