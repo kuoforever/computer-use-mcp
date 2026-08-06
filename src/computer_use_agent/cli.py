@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Sequence
 from uuid import uuid4
 
-from .config import APPROVED_ACTIONS_MODE, AgentConfig, ConfigError, load_agent_config
+from .config import (
+    APPROVED_ACTIONS_MODE,
+    SUPPORTED_PROVIDERS,
+    AgentConfig,
+    ConfigError,
+    load_agent_config,
+)
 from .discovery_adapters import DEFAULT_DISCOVERY_ADAPTERS
 from .presence_lifecycle import (
     FailSilentLifecycle,
@@ -165,6 +171,14 @@ def build_parser() -> argparse.ArgumentParser:
         "validate", help="Validate TOML without starting anything."
     )
     validate.add_argument("--config", required=True, type=Path)
+    initialize = config_commands.add_parser(
+        "init", help="Create a read-only Desktop Ask configuration."
+    )
+    initialize.add_argument("--provider", required=True, choices=sorted(SUPPORTED_PROVIDERS))
+    initialize.add_argument("--model", required=True)
+    initialize.add_argument("--output", required=True, type=Path)
+    initialize.add_argument("--allowlist", default="notepad.exe")
+    initialize.add_argument("--mcp-executable", type=Path)
 
     run = commands.add_parser("run", help="Run the bounded Agent workflow.")
     run.add_argument("--config", required=True, type=Path)
@@ -177,6 +191,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Build and print safe initial-state metadata without calling any external port.",
+    )
+
+    ask = commands.add_parser(
+        "ask", help="Answer one question about the foreground desktop."
+    )
+    ask.add_argument("--config", required=True, type=Path)
+    ask.add_argument("--task", required=True)
+    ask.add_argument(
+        "--json",
+        action="store_true",
+        help="Print run, plan, and usage metadata with the answer as JSON.",
     )
 
     plan = commands.add_parser(
@@ -453,6 +478,26 @@ def _validate_config(path: Path) -> int:
     return 0
 
 
+def _initialize_config(
+    provider: str,
+    model: str,
+    output: Path,
+    allowlist: str,
+    mcp_executable: Path | None,
+) -> int:
+    from .config_init import initialize_desktop_ask_config
+
+    initialized = initialize_desktop_ask_config(
+        provider=provider,
+        model=model,
+        output=output,
+        allowlist=allowlist,
+        mcp_executable=mcp_executable,
+    )
+    _print_json(initialized.as_json())
+    return 0
+
+
 def _run_dry(path: Path, task: str) -> int:
     config = load_agent_config(path)
     runner = AgentRunner(config)
@@ -558,7 +603,9 @@ def _run_live(path: Path, task: str, memory_scope: str | None = None) -> int:
     return asyncio.run(_run_live_async(path, task, memory_scope))
 
 
-async def _run_planned_observation_async(path: Path, task: str) -> int:
+async def _run_planned_observation_async(
+    path: Path, task: str, *, json_output: bool = True
+) -> int:
     from .approvals import ReadOnlyApprovalPort
     from .desktop_mcp import StdioDesktopMCP
     from .planned_observation_runtime import run_planned_observation
@@ -623,25 +670,31 @@ async def _run_planned_observation_async(path: Path, task: str) -> int:
         plan_id=f"plan_{uuid4().hex}",
     )
     state = outcome.final.state
-    _print_json(
-        {
-            "run_id": state.run_id,
-            "plan_id": outcome.plan_id,
-            "observation_steps": outcome.observation_steps,
-            "text": outcome.final.text,
-            "usage": {
-                "planner_calls": 1,
-                "final_model_turns": state.budgets.model_turns_used,
-                "tool_calls": state.budgets.tool_calls_used,
-                "final_input_tokens": state.budgets.input_tokens_used,
-            },
-        }
-    )
+    payload = {
+        "run_id": state.run_id,
+        "plan_id": outcome.plan_id,
+        "observation_steps": outcome.observation_steps,
+        "text": outcome.final.text,
+        "usage": {
+            "planner_calls": 1,
+            "final_model_turns": state.budgets.model_turns_used,
+            "tool_calls": state.budgets.tool_calls_used,
+            "final_input_tokens": state.budgets.input_tokens_used,
+        },
+    }
+    if json_output:
+        _print_json(payload)
+    else:
+        print(outcome.final.text)
     return 0
 
 
-def _run_planned_observation(path: Path, task: str) -> int:
-    return asyncio.run(_run_planned_observation_async(path, task))
+def _run_planned_observation(
+    path: Path, task: str, *, json_output: bool = True
+) -> int:
+    return asyncio.run(
+        _run_planned_observation_async(path, task, json_output=json_output)
+    )
 
 
 def _resume_live(path: Path, run_id: str, task: str) -> int:
@@ -1722,6 +1775,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     try:
+        if args.command == "config" and args.config_command == "init":
+            return _initialize_config(
+                args.provider,
+                args.model,
+                args.output,
+                args.allowlist,
+                args.mcp_executable,
+            )
         if args.command == "config" and args.config_command == "validate":
             return _validate_config(args.config)
         if args.command == "run":
@@ -1730,8 +1791,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ValueError("DRY_RUN_MEMORY_CONTEXT_UNAVAILABLE")
                 return _run_dry(args.config, args.task)
             return _run_live(args.config, args.task, args.memory_scope)
+        if args.command == "ask":
+            return _run_planned_observation(
+                args.config, args.task, json_output=args.json
+            )
         if args.command == "plan" and args.plan_command == "run":
-            return _run_planned_observation(args.config, args.task)
+            return _run_planned_observation(args.config, args.task, json_output=True)
         if args.command == "eval":
             return _run_eval(args.cases, args.report, args.manifest, args.write_manifest)
         if args.command == "release" and args.release_command == "preflight":

@@ -25,6 +25,7 @@ OBSERVATION_PLAN_TOOLS = (
     "screenshot",
     "capture_region",
     "ocr",
+    "document_text",
 )
 MAX_PLANNED_OBSERVATIONS = 4
 

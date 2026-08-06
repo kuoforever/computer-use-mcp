@@ -21,7 +21,7 @@ Cross-surface evidence promotion and the next executable gate belong in
 | Area | Current implementation | Evidence / limitation |
 | --- | --- | --- |
 | Canonical contract | Implemented | Provider-neutral calls, results, usage, approval records, ledger events, budgets, recovery status, and MCP descriptors live in `types.py`. This is a data contract, not a persisted execution state machine. |
-| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, completed-final local reconciliation, and bounded observation-only CLI composition implemented; action execution not connected | `plan run` permits only the fixed six observation schemas, rejects plans outside one to four observations before opening MCP, dispatches every observation through the sole Runner boundary, and uses one stateless tool-free final port. The ordinary provider continuation port is fail-closed and no tool/action selector is exposed. Final WAL and reconciliation semantics remain unchanged. The path is offline fake-verified and [dual-provider E3 is retained](E3_EVIDENCE.md); the Agent Host E4 result is not a separate Planner / Executor desktop pass. |
+| Task planning | Contract, private persistence, dual-provider Planner, preflight/session, observation runtime/reconciliation, final compiler/adapters/WAL, completed-final local reconciliation, and bounded observation-only CLI composition implemented; action execution not connected | Product-facing `ask` and metadata-oriented `plan run` share one path that permits only the fixed seven observation schemas, including bounded semantic `document_text`; rejects plans outside one to four observations before opening MCP; dispatches every observation through the sole Runner boundary; and uses one stateless tool-free final port. The ordinary provider continuation port is fail-closed and no tool/action selector is exposed. Final WAL and reconciliation semantics remain unchanged. The expanded path is offline fake-verified; retained [dual-provider E3](E3_EVIDENCE.md) predates the document-aware scope, and the Agent Host E4 result is not a separate Planner / Executor desktop pass. |
 | Reviewed desktop tools | Implemented | All thirteen tools have fixed host/MCP schemas, argument validation, discovery mismatch checks, result validation, sensitivity metadata, and tests. |
 | Existing server safety baseline | Implemented | Typed-text audit records retain length/presence metadata rather than raw text; regression tests cover success and failure paths. Existing gate, human-activity, confirmation, E-stop, and audit architecture remains unchanged. |
 | Configuration and CLI | Implemented experimental slice | Strict validation, safe child environment, user-local paths, run lock, offline commands, dual-provider runs, explicit memory, trace inspection, and opt-in console-approved actions are wired. |
@@ -140,7 +140,7 @@ The following rules are non-negotiable for the MVP:
    is required before the next action.
 5. A timeout, crash, or provider failure after dispatch is an
    `unknown_outcome`; the host must not replay the action automatically.
-6. The tool registry is a fixed, reviewed allowlist of the current eight MCP
+6. The tool registry is a fixed, reviewed allowlist of the current thirteen MCP
    tools. Unknown tools, invalid schemas, malformed arguments, and server tool
    set mismatches fail closed.
 7. The MCP child gets a fixed executable, argv, cwd, and constrained

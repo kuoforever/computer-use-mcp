@@ -108,7 +108,7 @@ not a line-by-line mirror of every reference page.
 | Local privacy boundary | One disabled-by-default package for run-scoped PII tokens, local screenshot redaction, non-restorable secrets, local resolution sinks, and deferred non-text visual backends |
 | Continual learning | Planned four-layer memory, verified workflow promotion, cost-aware strategy selection, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
-| Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `plan run` composition |
+| Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `ask` / `plan run` composition |
 | Hierarchical task and behavior trees | Planned post-linear task hierarchy, reviewed behavior templates, typed conditions, fail-closed propagation, persistence, and delivery order |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, deterministic cross-session handoff, and the planned host-terminal polling contract |
 | Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |

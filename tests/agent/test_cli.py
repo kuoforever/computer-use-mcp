@@ -106,6 +106,7 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
     [
         ["--help"],
         ["run", "--help"],
+        ["ask", "--help"],
         ["plan", "--help"],
         ["plan", "run", "--help"],
         ["eval", "--help"],
@@ -138,6 +139,7 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
         ["config", "validate", "--help"],
+        ["config", "init", "--help"],
     ],
 )
 def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> None:
@@ -195,21 +197,82 @@ def test_application_campaign_prepare_cli_persists_only_explicit_stable_items(
     }
 
 
-def test_plan_run_cli_routes_only_config_and_task(
+def test_plan_run_and_ask_route_to_one_runtime_with_distinct_output_modes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config_path = tmp_path / "agent.toml"
-    captured: list[tuple[Path, str]] = []
+    captured: list[tuple[Path, str, bool]] = []
 
-    def fake_run(path: Path, task: str) -> int:
-        captured.append((path, task))
+    def fake_run(path: Path, task: str, *, json_output: bool = True) -> int:
+        captured.append((path, task, json_output))
         return 0
 
     monkeypatch.setattr(agent_cli, "_run_planned_observation", fake_run)
 
     assert main(["plan", "run", "--config", str(config_path), "--task", "Inspect"]) == 0
-    assert captured == [(config_path, "Inspect")]
+    assert main(["ask", "--config", str(config_path), "--task", "Summarize"]) == 0
+    assert (
+        main(
+            [
+                "ask",
+                "--config",
+                str(config_path),
+                "--task",
+                "Inspect",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    assert captured == [
+        (config_path, "Inspect", True),
+        (config_path, "Summarize", False),
+        (config_path, "Inspect", True),
+    ]
+
+
+def test_config_init_creates_an_immediately_valid_desktop_ask_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+
+    local_app_data = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    mcp_executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
+    mcp_executable.parent.mkdir()
+    mcp_executable.write_bytes(b"")
+    output = tmp_path / "agent.toml"
+    arguments = [
+        "config",
+        "init",
+        "--provider",
+        "openai",
+        "--model",
+        "reviewed-model",
+        "--mcp-executable",
+        str(mcp_executable),
+        "--output",
+        str(output),
+    ]
+
+    assert main(arguments) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    config = load_agent_config(output)
+    assert result["config_valid"] is True
+    assert config.provider.name == "openai"
+    assert config.provider.model == "reviewed-model"
+    assert config.policy.mode == "read_only"
+    assert config.continuation.enabled is True
+    assert config.mcp.executable == mcp_executable.resolve()
+    assert config.mcp.cwd == config.state_dir
+    assert config.state_dir.is_dir()
+
+    assert main(arguments) == 2
+    assert capsys.readouterr().err.strip() == "error: CONFIG_OUTPUT_EXISTS"
 
 
 def test_plan_run_requires_wal_before_loading_provider_or_desktop(

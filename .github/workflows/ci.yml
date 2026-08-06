@@ -92,8 +92,11 @@ jobs:
         run: |
           python -m venv .wheel-venv
           .\.wheel-venv\Scripts\python.exe -m pip install --disable-pip-version-check (Get-ChildItem dist\*.whl).FullName
-          .\.wheel-venv\Scripts\computer-use-agent.exe --help
-          .\.wheel-venv\Scripts\computer-use-agent.exe eval --cases evals\cases --manifest evals\e5-case-manifest.json --report out\wheel-e1-e2-report.json
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe --help
+          $agentConfig = Join-Path $env:RUNNER_TEMP "guarded-desktop-agent-wheel-smoke.toml"
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config init --provider openai --model wheel-smoke --output $agentConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config validate --config $agentConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe eval --cases evals\cases --manifest evals\e5-case-manifest.json --report out\wheel-e1-e2-report.json
       - name: Upload wheel and smoke report
         uses: actions/upload-artifact@v6
         with:

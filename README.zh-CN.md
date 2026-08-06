@@ -53,10 +53,42 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 `full_control_local` 会明确绕过前台白名单和人类输入让路机制；虽然仍保留
 审计和急停，但只应在操作员明确授权接管本机桌面时使用。
 
-## 安装与启动
+## Desktop Ask 首次使用
 
 ~~~powershell
-py -3 -m venv .venv
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
+
+.\.venv\Scripts\guarded-desktop-agent.exe config init `
+  --provider openai `
+  --model <已审核的模型 ID> `
+  --output agent.toml
+
+$env:OPENAI_API_KEY = "<provider credential>"
+~~~
+
+打开一个不敏感的 Notepad、Word 或浏览器测试文档并保持在前台，然后执行：
+
+~~~powershell
+.\.venv\Scripts\guarded-desktop-agent.exe ask `
+  --config agent.toml `
+  --task "把前台文档总结成三个要点"
+~~~
+
+`ask` 默认直接输出答案；加 `--json` 会同时输出 run ID、plan ID、观察次数和
+usage。它只允许一到四次已审核的只读观察，包括有界的 UIA
+`document_text`，不能规划桌面副作用。生成的配置不写入凭据，使用用户本地状态
+目录，并启用这条观察/最终回答路径所需的短期 continuation WAL。
+
+如使用 Claude，将安装 extra、provider 名和环境变量分别替换为
+`agent-anthropic`、`anthropic` 和 `ANTHROPIC_API_KEY`。当前 expanded
+document-aware 路径只有 offline evidence，尚未完成 exact-candidate 的
+provider、desktop、application 或 release 验证。
+
+## 原始 MCP server 启动
+
+~~~powershell
+py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 
 $env:CUMCP_ALLOWLIST = "notepad.exe"

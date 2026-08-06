@@ -197,15 +197,15 @@ removes `type` from the live provider's final tool schemas and persisted
 `advertised_tool_names`, even when the MCP reports its typed-text audit baseline.
 With continuation disabled, the ordinary baseline, policy, approval, grounding,
 and verification gates continue to govern `type`.
-The bounded `agent plan run` path also requires continuation persistence before
-it makes its one Planner request, because every observation and final-response
+The bounded `agent ask` / `plan run` path also requires continuation persistence
+before it makes its one Planner request, because every observation and final-response
 dispatch must retain the existing crash boundary. It remains disabled when
 `enabled = false`.
 
 ## Passive operator presence
 
 The ordinary Agent `run` and `resume` paths, bounded observation-only
-`plan run`, explicit `recover --execute-read-only`, and the three fixed
+`ask` / `plan run`, explicit `recover --execute-read-only`, and the three fixed
 MCP-backed campaign execution commands can show the primary-display
 computer-use halo with an explicit local opt-in:
 
@@ -233,7 +233,7 @@ remains primary-display-only.
 
 ## Passive progress lifecycle
 
-The Agent `run`, `resume`, bounded observation-only `plan run`, and explicit
+The Agent `run`, `resume`, bounded observation-only `ask` / `plan run`, and explicit
 `recover --execute-read-only` paths can also own the read-only progress window
 for the duration of one CLI process:
 
@@ -252,7 +252,7 @@ run cleanup close it and join the UI thread. Construction, polling, rendering,
 and native-window failures are fail-silent and cannot fail or advance the run.
 Recovery notifications occur only after the existing checkpoint/continuation
 CAS has completed and cannot authorize or replay work. This lifecycle currently
-covers ordinary `run`/`resume`, `plan run`, explicit read-only recovery, and
+covers ordinary `run`/`resume`, `ask` / `plan run`, explicit read-only recovery, and
 the fixed MCP-backed `run-claimed-synthetic`, `observe-boss-page`, and
 `run-claimed-boss` campaign commands. Campaign progress is read from validated
 campaign state by the existing poller; the zero-port prepare/start/resume

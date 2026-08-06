@@ -142,12 +142,49 @@ over the local desktop.
 Read [Configuration and safety](docs/CONFIGURATION.md) before enabling action
 tools.
 
-## Quick start
+## Desktop Ask quick start
+
+Use Python 3.11, 3.12, or 3.13. The example below installs the OpenAI adapter;
+use `agent-anthropic`, `anthropic`, and `ANTHROPIC_API_KEY` for Claude.
+
+~~~powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
+
+.\.venv\Scripts\guarded-desktop-agent.exe config init `
+  --provider openai `
+  --model <reviewed-model-id> `
+  --output agent.toml
+
+$env:OPENAI_API_KEY = "<provider credential>"
+~~~
+
+Open a non-sensitive test document in Notepad, Word, or a browser and leave it
+in the foreground. Ask one read-only question:
+
+~~~powershell
+.\.venv\Scripts\guarded-desktop-agent.exe ask `
+  --config agent.toml `
+  --task "Summarize the foreground document in three bullets."
+~~~
+
+`ask` prints the answer directly. Add `--json` to retain the run ID, plan ID,
+observation count, and usage metadata. It can plan one to four reviewed
+observations, including bounded UIA `document_text`; it cannot plan a desktop
+side effect. The generated configuration stores no credential, uses the
+user-local state directory, and enables the short-lived continuation WAL that
+the observation/final-response path requires.
+
+This path is offline verified. The expanded document-aware scope has not yet
+been rerun as exact-candidate provider, desktop, application, or release
+evidence.
+
+## Raw MCP server quick start
 
 Create a virtual environment and install the package:
 
 ~~~powershell
-py -3 -m venv .venv
+py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 ~~~
 
@@ -204,8 +241,11 @@ aliases for existing integrations. New configurations should use
 | `screenshot()` | Returns a PNG of the primary display; it has no MCP region parameter. |
 | `capture_region(x, y, w, h)` | Returns a grounding envelope plus a PNG of one explicit primary-display region. |
 | `ocr(x, y, w, h)` | Recognizes bounded text runs in one explicit primary-display region. |
+| `document_text(scope="foreground")` | Reads bounded ordered semantic text through UIA TextPattern. |
 | `activate_window(window_id)` | Attempts to restore and activate a listed window; success requires the driver to verify that it became foreground. |
 | `click(ref=...)` / `click(x=..., y=...)` | Invokes an accessible control or performs a coordinate click. |
+| `scroll(x, y, delta_x=0, delta_y=0)` | Scrolls at one screenshot-grounded point. |
+| `drag(x, y, to_x, to_y, duration_ms=250)` | Drags between two screenshot-grounded points. |
 | `type(text, ref=None)` | Sets an accessible value when a ref is supplied, otherwise types into focus. |
 | `key(combo)` | Sends a key chord to the foreground window. |
 

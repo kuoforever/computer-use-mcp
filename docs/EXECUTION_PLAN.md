@@ -18,6 +18,19 @@
 | P7 — full-control local mode | Implemented | `safe_local` and `full_control_local` are supported modes. |
 | P8 — VMware host helper | Experimental | The helper checks/starts an existing VM and can wait for VMware Tools. |
 
+## Active productization direction
+
+The current release target is an Experimental Windows Agent MVP: installed
+first-run configuration, one public read-only Desktop Ask path, current-candidate
+real document-aware evidence, one model-driven public-browser-to-disposable-Word
+workflow, and a versioned GitHub release artifact. The exact active batch and
+ordered PR map live only in [Project status](../PROJECT_STATUS.md).
+
+The first MVP does not wait for the 100-item BOSS gate, complete Google Docs or
+WeChat Wave 1 coverage, the universal-GUI showcase, additional platforms,
+hierarchical control, continual learning, or Multi-Agent work. Those remain
+post-MVP product programs and retain the gates below.
+
 ## Next validation priorities
 
 ### P0 - validate repaired foreground activation
@@ -212,7 +225,7 @@ click-through computer-use presence surface is also implemented and
 [desktop verified](PRESENCE_WINDOW_EVIDENCE.md), including capture affinity,
 DPI geometry, reduced motion, and release/E-stop teardown. A fail-silent,
 default-off Host presence coordinator now projects atomically persisted phases
-for ordinary `run`/`resume`, bounded observation-only `plan run`, and explicit
+for ordinary `run`/`resume`, bounded observation-only `ask` / `plan run`, and explicit
 read-only recovery lifecycles and latches off on MCP E-stop, human activity,
 terminal state, or cleanup. Recovery notifications occur only after the
 existing durable CAS. The
@@ -221,7 +234,7 @@ ordinary foreground-safe transition, one-HWND reuse, terminal teardown, and a
 synthetic MCP E-stop boundary. One fixed provider-free bounded plan now has
 separate [native presence lifecycle evidence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md).
 A separate default-off progress coordinator now
-follows ordinary `run`/`resume`, bounded observation-only `plan run`, and
+follows ordinary `run`/`resume`, bounded observation-only `ask` / `plan run`, and
 explicit read-only recovery; recovery wakes occur only after the existing
 durable CAS. The three fixed MCP-backed campaign execution commands start the
 same poller and project their durable run phases through opt-in presence,
@@ -286,9 +299,9 @@ release notes and cannot be inferred complete from offline CI:
 | Release approval | Offline preflight is implemented and must pass on a clean candidate; human gates remain | Completed [release evidence](RELEASE_EVIDENCE.md), license review, version/changelog, CI, and human approval |
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. A completed final provider response can be terminalized locally with zero external calls. Provider-requested actions are correlation-checked, terminalized as a fixed failure, and deleted without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, correlated OpenAI recovery token-state restoration, Claude-only oldest-complete-group packing, canonical OpenAI request-contract v3 digest binding, exact initial-input and ordered provider-output persistence, explicit portable encrypted-reasoning requests, and an explicit digest-bound OpenAI stateless-replay compiler for read-only recovery | Tokenizer-specific calibration, safe semantic compression, and broader replay/compaction policy beyond the explicit recovery boundary |
-| Operator experience | The console remains default; passive progress/presence are retained; opt-in fail-silent presence follows durable ordinary `run`/`resume`, bounded `plan run`, explicit read-only recovery, and fixed MCP-backed campaign execution phases, while the separate progress coordinator covers the same paths on a dedicated UI thread. Both remain observational and close on E-stop/final cleanup without gaining execution authority. Recovery notifications follow the existing durable CAS. Zero-port campaign control remains window-free. Progress checkpoints preserve creation time and distinguish complete provider-usage reports and successful screenshots from generic image results, while legacy missing facts remain unavailable. An opt-in focus-taking Win32 Decision Card yields Agent authority and presents exact-effect approval, re-observe, durable defer, and denial plus expandable digest-only evidence through the existing ApprovalPort. Re-observe abandons remaining calls from the stale turn and gates progress on fresh observation; defer persists non-resumable `PAUSED`/`stopped`; every non-allow choice has zero side-effect dispatch and Runner/MCP dispatch remains singular | Retain a human-operated four-choice cross-application result, recovery and BOSS campaign presence desktop evidence, and general post-provider same-run process resume |
+| Operator experience | The console remains default; passive progress/presence are retained; opt-in fail-silent presence follows durable ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery, and fixed MCP-backed campaign execution phases, while the separate progress coordinator covers the same paths on a dedicated UI thread. Both remain observational and close on E-stop/final cleanup without gaining execution authority. Recovery notifications follow the existing durable CAS. Zero-port campaign control remains window-free. Progress checkpoints preserve creation time and distinguish complete provider-usage reports and successful screenshots from generic image results, while legacy missing facts remain unavailable. An opt-in focus-taking Win32 Decision Card yields Agent authority and presents exact-effect approval, re-observe, durable defer, and denial plus expandable digest-only evidence through the existing ApprovalPort. Re-observe abandons remaining calls from the stale turn and gates progress on fresh observation; defer persists non-resumable `PAUSED`/`stopped`; every non-allow choice has zero side-effect dispatch and Runner/MCP dispatch remains singular | Retain a human-operated four-choice cross-application result, recovery and BOSS campaign presence desktop evidence, and general post-provider same-run process resume |
 | Host completion notification | Internal bounded projection and fake-host decisions are offline verified: running keeps polling, attention/uncertain states never complete, validated terminal events deduplicate across restart, and repeated polling is read-only. No public status tool, generic worker, notification bridge, or mobile adapter exists | Retain application evidence before reviewing any public status surface; keep mobile delivery host-owned and provider/MCP/desktop calls absent from polling |
-| Planner-Executor | Strict TaskPlan compilation/persistence, dual-provider Planner and final adapters, fresh-call preflight/session, observation runtime/reconciliation, final WAL, and completed-final local reconciliation are implemented. `plan run` now composes exactly one host-scoped plan request, one to four observations through the sole Runner boundary, and one stateless tool-free final response. It exposes no tool selector, side effect, ordinary provider continuation, approval option, or alternate MCP path. The complete path is offline fake-verified, and [dual-provider E3 is retained](E3_EVIDENCE.md); the Agent Host E4 record does not constitute a separate Planner / Executor desktop pass | Retain a separately scoped desktop result only when warranted; keep dispatch intent non-replayable, output untrusted, the four-step cap, and unchanged action boundaries. Side-effect plan execution remains a separate review |
+| Planner-Executor | Strict TaskPlan compilation/persistence, dual-provider Planner and final adapters, fresh-call preflight/session, observation runtime/reconciliation, final WAL, and completed-final local reconciliation are implemented. Product-facing `ask` and metadata-oriented `plan run` compose exactly one host-scoped plan request, one to four observations including bounded semantic document text through the sole Runner boundary, and one stateless tool-free final response. They expose no tool selector, side effect, ordinary provider continuation, approval option, or alternate MCP path. The expanded path is offline fake-verified; [dual-provider E3](E3_EVIDENCE.md) predates the document-aware scope, and the Agent Host E4 record does not constitute a separate Planner / Executor desktop pass | Retain one exact-candidate document-aware Desktop Ask result; keep dispatch intent non-replayable, output untrusted, the four-step cap, and unchanged action boundaries. Side-effect plan execution remains a separate review |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its
 release notes must say `E3 NOT RUN` and/or `E4 NOT RUN`; it must not be called a
