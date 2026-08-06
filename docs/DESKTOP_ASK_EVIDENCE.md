@@ -1,6 +1,6 @@
 # Desktop Ask exact-candidate evidence
 
-> **Status: ATTEMPT 1 FAILED; RETEST NOT RUN.** This is the reviewed execution plan for
+> **Status: PASS.** This is the reviewed execution plan and retained result for
 > `GDA-PRODUCT-003`. Do not promote the result until every required field below
 > is filled from one fresh installed-wheel run. A failed attempt remains a
 > failure record until the observed functional defect is fixed and a new
@@ -8,7 +8,7 @@
 
 ## Acceptance boundary
 
-- Runtime source candidate: `d94d5f9a7d70b43d6824190135f3f66547a8242f`.
+- Runtime source candidate: `8bf139f2de5b12f22df7ef66d5840ec29a3225b7`.
 - Platform: Windows, Python 3.13, foreground primary display.
 - Provider: OpenAI Responses API with reviewed model `gpt-5.6-terra`.
 - Product surface: installed `guarded-desktop-agent ask --json`, not an
@@ -86,11 +86,47 @@ Desktop Ask capability claim.
 The observed functional fix narrows the Host scope schema to exact
 `foreground | all | positive decimal window id`, validates its pattern during
 plan compilation, and instructs both provider Planners to copy literal schema
-values. A new commit, wheel, and fresh state are required before Attempt 2.
+values. Attempt 2 froze that repair in a new commit, wheel, and fresh state.
+
+### Attempt 2 — `PASS`
+
+| Field | Observed |
+| --- | --- |
+| Runtime source | `8bf139f2de5b12f22df7ef66d5840ec29a3225b7`; runtime/package diff count `0` |
+| Wheel | `guarded_desktop_agent-0.1.0-py3-none-any.whl` |
+| Wheel SHA-256 | `54ec7077f984b34f84093a18a6c70b69594da8f88e1d5c727195a55ae651a7a3` |
+| Platform | Windows 11 Home build `26200`; Python `3.13.7` |
+| Provider / model | OpenAI / `gpt-5.6-terra` |
+| Doctor | `ready=true`; exact 13 installed sibling-MCP tools |
+| Registry / config | `3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb` / `316b367eeda3e43db53a1fc99c08d1ab67386800869309307c27ed80507e56f7` |
+| Fixture SHA-256 | `1f6e854180a04ae06abb32d4a6d938a8d6d7d56e042ed54be15b04c3c6a6d517` |
+| Target selection | Computer Use listed zero Notepad windows before launch and exactly one `desktop_ask_product003.txt - Notepad` window afterwards. Its combined rehydrate/activate/state operation returned plugin error `node_repl exec context not found`, so no Computer Use input was retried. The installed product then completed `document_text(scope="foreground")` and returned all fixture-only facts, which is the retained foreground-content proof. |
+| Run / plan | `2699db750c314b178e1f2fb400e233bf` / `plan_e8d703452032419ca43fa7ed35e7bdc3` |
+| Plan | Sequence `4`; completed `document_text({"scope":"foreground"})`, then completed `final_response`; terminal digest `cb23f6a29fcbcc94bf715f9293e59a14d1a1c116b19aeb9f725ec47731be8911` |
+| Trace / checkpoint | Successful `tool_call -> tool_result -> observation -> model_turn`; `SUCCESS`, 5 events, verified observation epoch `1`, 1 tool call, 0 failures |
+| Usage | 1 Planner call; 1 final model turn; 1,065 final-input tokens; 41 output tokens |
+| Answer projection | Length `113`; SHA-256 `7d0cb5022db5557bfa38b02e83b5a804db5ba225c1ea9e78724ee1e14b46a2e9`; codename, `37 + 58 = 95`, and `GO` predicates all `true` |
+| Side effects / retries | 0 / 0 |
+| Redacted export | Version `1`; manifest digest `sha256:63cbc89cae5ae980954f45cb2fd998575c3cdc40ede84a8d36bc12e27a3ef872`; artifact SHA-256 `cbb9addb684c356ebbc5563bb87741bbcfa28ab3e65502536e49b710565b77da` |
+
+The task text omitted the codename, both region values, their sum, and the
+decision. The safe trace proves that the sole observation was the installed
+MCP's semantic `document_text` call, while the answer projection proves that
+the final model recovered all predeclared fixture facts without manual
+correction. The checkpoint and redacted Full Cycle export agree on one
+successful tool call, one verified observation, one final model call, zero
+side effects, zero retries, and zero tool failures.
+
+The completed final-response WAL binds the pre-final snapshot digest
+`95e16760cbaf20844242d8dbc4b9277ac98aa5aa0e80e44311acf77247b18ab1`;
+the stored terminal plan digest above includes the later completed
+`final_response` transition and is therefore intentionally different. Raw task,
+document text, final text, and provider response identity remain only in the
+ignored local evidence state and are not committed.
 
 ## Supported claim
 
-When complete, this record supports one model-scoped, application-scoped,
+This record supports one model-scoped, application-scoped,
 foreground read-only Desktop Ask result through Planner -> Runner -> installed
 MCP `document_text` -> final response. It does not establish credential or
 model portability, every-provider compatibility, broad Notepad support, a
