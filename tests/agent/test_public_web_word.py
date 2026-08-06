@@ -351,7 +351,10 @@ def _config(tmp_path: Path, monkeypatch) -> AgentConfig:
             executable=(tmp_path / "guarded-desktop-mcp.exe").resolve(),
             args=(),
             cwd=tmp_path.resolve(),
-            environment={"CUMCP_ALLOWLIST": "chrome.exe,winword.exe"},
+            environment={
+                "CUMCP_ALLOWLIST": "chrome.exe,winword.exe",
+                "CUMCP_HUMAN_STABLE_SAMPLES": "3",
+            },
         ),
         policy=PolicyConfig(
             mode=APPROVED_ACTIONS_MODE,
@@ -379,6 +382,37 @@ def test_runtime_rejects_a_hand_edited_product_allowlist(
     with pytest.raises(
         PublicWebWordError,
         match="PUBLIC_WEB_WORD_ALLOWLIST_MUST_BE_FIXED",
+    ):
+        asyncio.run(
+            run_public_web_word_workflow(
+                config,
+                PublicWebWordRequest(output),
+                provider=WorkflowModel(output.name),
+                approvals=AllowWorkflowActions(),
+                run_id=RUN_ID,
+            )
+        )
+
+    assert not output.exists()
+
+
+def test_runtime_requires_the_approval_idle_settling_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    config = replace(
+        config,
+        mcp=replace(
+            config.mcp,
+            environment={"CUMCP_ALLOWLIST": "chrome.exe,winword.exe"},
+        ),
+    )
+    output = (tmp_path / "must-not-exist.docx").resolve()
+
+    with pytest.raises(
+        PublicWebWordError,
+        match="PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED",
     ):
         asyncio.run(
             run_public_web_word_workflow(

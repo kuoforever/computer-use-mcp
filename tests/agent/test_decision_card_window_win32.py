@@ -17,6 +17,7 @@ from computer_use_agent.decision_card_window_win32 import (
     _corner_origin,
     _header_rects,
     _layout_rects,
+    _restore_if_minimized,
     _scaled_client_size,
     _toggle_label,
     measure_tier_text_width,
@@ -62,6 +63,27 @@ def test_native_window_defaults_to_bottom_right_and_rejects_unknown_corner() -> 
     assert Win32DecisionCardWindowApi().corner == "bottom_right"
     with pytest.raises(ValueError, match="corner is invalid"):
         Win32DecisionCardWindowApi(corner="center")  # type: ignore[arg-type]
+
+
+def test_foreground_restore_preserves_non_minimized_window_placement() -> None:
+    class User32:
+        def __init__(self, *, minimized: bool) -> None:
+            self.minimized = minimized
+            self.show_calls: list[tuple[object, int]] = []
+
+        def IsIconic(self, _hwnd: object) -> bool:
+            return self.minimized
+
+        def ShowWindow(self, hwnd: object, command: int) -> None:
+            self.show_calls.append((hwnd, command))
+
+    maximized = User32(minimized=False)
+    _restore_if_minimized(maximized, "user-chrome")
+    assert maximized.show_calls == []
+
+    minimized = User32(minimized=True)
+    _restore_if_minimized(minimized, "user-chrome")
+    assert minimized.show_calls == [("user-chrome", 9)]
 
 
 @pytest.mark.parametrize("dpi", [96, 120, 144])

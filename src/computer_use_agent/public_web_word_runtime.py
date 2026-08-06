@@ -63,6 +63,7 @@ from .types import (
 _WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEMPLATE_RESOURCE = "assets/public-web-word.docx"
 _FIXED_ALLOWLIST = "chrome.exe,winword.exe"
+_FIXED_HUMAN_STABLE_SAMPLES = "3"
 
 
 @dataclass(frozen=True)
@@ -588,6 +589,11 @@ async def run_public_web_word_workflow(
         raise PublicWebWordError("PUBLIC_WEB_WORD_CONTINUATION_MUST_BE_DISABLED")
     if config.mcp.environment.get("CUMCP_ALLOWLIST") != _FIXED_ALLOWLIST:
         raise PublicWebWordError("PUBLIC_WEB_WORD_ALLOWLIST_MUST_BE_FIXED")
+    if (
+        config.mcp.environment.get("CUMCP_HUMAN_STABLE_SAMPLES")
+        != _FIXED_HUMAN_STABLE_SAMPLES
+    ):
+        raise PublicWebWordError("PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED")
     if (
         config.policy.max_model_turns < 20
         or config.policy.max_side_effects < 7
