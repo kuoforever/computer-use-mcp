@@ -50,10 +50,17 @@ read-only repository permissions. It performs:
 5. the OpenAI stateless-replay E2 module with retained JUnit evidence;
 6. deterministic `agent eval` with a retained JSON report;
 7. wheel build; and
-8. clean wheel installation, CLI help, and E1/E2 smoke.
+8. clean wheel installation with both provider extras, CLI help, OpenAI and
+   Claude `config init` / `config doctor` / `config validate`, exact
+   thirteen-tool installed-MCP discovery, and E1/E2 smoke.
 
-No CI job receives provider credentials, launches the real MCP executable, or
-controls a desktop. E3 and E4 must never be silently added to the default job.
+The wheel job sets explicit dummy strings only to exercise documented
+credential-presence checks. It launches the real installed MCP executable for
+one `initialize` / `list_tools` handshake per provider, so normal MCP startup
+may initialize its audit directory and emergency-stop polling. It sends no
+provider request, invokes no MCP tool, reads no desktop content, and performs no
+desktop action. No CI job receives a valid provider credential or runs E3/E4;
+those gates must never be silently added to the default job.
 
 ## Human release gates
 

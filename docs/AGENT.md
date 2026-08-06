@@ -46,6 +46,13 @@ the following commands:
   starts no provider, MCP, or desktop port.
 - `config validate --config PATH` parses and validates TOML without creating
   state directories, reading provider credentials, or starting another process.
+- `config doctor --config PATH` performs the installed first-run checks in
+  fixed fail-fast order: configuration, provider extra, documented credential
+  environment variable, MCP executable, MCP working directory, and exact
+  thirteen-tool discovery. It makes no provider request and invokes no MCP
+  tool, but it starts and closes the real configured MCP child for
+  `initialize` / `list_tools`; normal child startup may initialize audit and
+  emergency-stop polling components.
 - `run --config PATH --task TEXT --dry-run` acquires the local run lock, creates
   a bounded initial `RunState`, prints task length and other safe metadata, and
   releases the lock. It calls no provider, MCP, approval, or desktop port.
@@ -528,6 +535,7 @@ Install and run the experimental slice with:
 ~~~powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
 $env:OPENAI_API_KEY = "..."
+.\.venv\Scripts\guarded-desktop-agent.exe config doctor --config agent.toml
 .\.venv\Scripts\guarded-desktop-agent.exe config validate --config agent.toml
 .\.venv\Scripts\guarded-desktop-agent.exe run --config agent.toml --task "List the open windows"
 ~~~

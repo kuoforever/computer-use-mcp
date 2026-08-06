@@ -6,6 +6,28 @@
 Desktop actions have visible side effects. Keep the allowlist narrow and use
 `safe_local` unless an operator has explicitly approved local takeover.
 
+## First-run readiness
+
+The three configuration commands answer different questions:
+
+| Command | Purpose | External activity |
+| --- | --- | --- |
+| `config init --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid read-only profile with an installed sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
+| `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact thirteen schemas |
+
+For OpenAI, doctor requires the `agent-openai` extra and a non-empty
+`OPENAI_API_KEY`; for Claude it requires `agent-anthropic` and a non-empty
+`ANTHROPIC_API_KEY`. Credential values are neither printed nor passed to the MCP
+child. The command returns fixed JSON, exits `0` when `ready` is `true`, and
+exits `2` with one `{code, action}` failure when setup is incomplete.
+
+Doctor sends no provider request and invokes no MCP tool, so it does not list
+windows, capture the screen, read desktop content, or perform an input action.
+It does start the configured MCP child to discover its public schemas. Normal
+server startup constructs the Windows driver, can create the configured audit
+directory, and starts emergency-stop key polling until the child is closed.
+
 ## Control modes
 
 ### `safe_local` (default)

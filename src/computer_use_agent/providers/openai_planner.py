@@ -18,6 +18,7 @@ from ..planner_wire import (
     compile_planner_wire_candidate,
     planner_output_schema,
 )
+from ..provider_setup import openai_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
@@ -135,11 +136,7 @@ class OpenAIPlanner:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "OpenAIPlanner":
-        try:
-            from openai import AsyncOpenAI
-        except ImportError as exc:
-            raise OpenAIPlannerError("OPENAI_SDK_NOT_INSTALLED") from exc
-        client = AsyncOpenAI()
+        client = openai_client_from_environment()
         return cls(
             model=model,
             responses=client.responses,

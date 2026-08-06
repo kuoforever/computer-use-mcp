@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Mapping, Protocol, Sequence
 
+from ..provider_setup import anthropic_client_from_environment
 from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..token_window import exceeds_token_window
 from ..types import (
@@ -378,11 +379,7 @@ class AnthropicMessagesProvider:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "AnthropicMessagesProvider":
-        try:
-            from anthropic import AsyncAnthropic
-        except ImportError as exc:
-            raise AnthropicProviderError("ANTHROPIC_SDK_NOT_INSTALLED") from exc
-        client = AsyncAnthropic()
+        client = anthropic_client_from_environment()
         return cls(
             model=model,
             messages=client.messages,

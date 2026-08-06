@@ -13,6 +13,7 @@ from ..final_response_wire import (
     compile_final_response_wire,
     validate_final_response_text,
 )
+from ..provider_setup import openai_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
@@ -147,13 +148,10 @@ class OpenAIFinalResponseAdapter:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "OpenAIFinalResponseAdapter":
-        try:
-            from openai import AsyncOpenAI
-        except ImportError as exc:
-            raise OpenAIFinalResponseError("OPENAI_SDK_NOT_INSTALLED") from exc
+        client = openai_client_from_environment()
         return cls(
             model=model,
-            responses=AsyncOpenAI().responses,
+            responses=client.responses,
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,

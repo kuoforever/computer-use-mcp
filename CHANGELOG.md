@@ -20,6 +20,15 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Installed Runtime doctor and actionable setup UX.** Added `config doctor`
+  to verify the selected provider extra and documented credential presence,
+  installed MCP executable/cwd, and the exact thirteen names and schemas
+  returned by the real sibling MCP handshake. It makes no provider request and
+  no MCP tool call. Provider client construction now turns missing extras,
+  missing credentials, and initialization failures into one-line corrective
+  CLI errors. Clean-wheel CI exercises both provider extras and the real
+  installed discovery path. Windows Driver capability metadata now truthfully
+  includes its existing `scroll` and `drag` primitives.
 - **Desktop Ask first-run vertical.** Added `config init` to generate a
   non-overwriting, user-local, read-only configuration for an installed MCP
   sibling, and added product-facing `ask` over the existing bounded
