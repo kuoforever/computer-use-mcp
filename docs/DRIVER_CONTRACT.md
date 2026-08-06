@@ -97,10 +97,13 @@ returned as plaintext.
 | `foreground_owner_chain()` | Returns the foreground process and its ancestors. |
 | `get_tree(opts)` | Returns a pruned accessibility-control list. |
 | `find(opts, query)` | Returns a pruned matching control list. |
+| `get_document_text(opts)` | Returns bounded semantic document text when the backend has a real channel. |
 | `invoke(native_id)` | Invokes an accessible control. |
 | `set_value(native_id, text)` | Sets an accessible value. |
 | `select(native_id)` | Selects an accessible item. |
 | `click(x, y, button="left", modifiers=None)` | Performs a coordinate click. |
+| `scroll(x, y, delta_x, delta_y)` | Injects bounded horizontal and vertical wheel movement at one point. |
+| `drag(x, y, to_x, to_y, duration_ms=250)` | Performs one bounded left-button drag between two points. |
 | `key(combo)` | Sends a key chord. |
 | `type(text)` | Types literal Unicode text into the focused native control. |
 | `activate_window(window_id)` | Attempts to restore and activate a window. Success means the driver verified that the target is the foreground window before returning. |
@@ -216,10 +219,11 @@ primitive mapping differs in kind from the desktop platforms:
 Two consequences are specific to a device target and are gated behind a
 **contract v1.1** minor bump, not assumed here:
 
-- **A `swipe` / `long_press` primitive does not exist in v1.0.** `click` is a
-  same-point press/release, so scrolling a mobile list is not expressible today.
-  Adding these is an additive, backward-compatible v1.1 change that every driver
-  then declares through `capabilities()`.
+- **A touch `swipe` / `long_press` primitive does not exist in v1.0.** The
+  existing `scroll` contract is desktop wheel movement and `drag` is a
+  left-button pointer action; neither silently defines ADB touch semantics.
+  Adding explicit device gestures is an additive, backward-compatible v1.1
+  change that every driver then declares through `capabilities()`.
 - **A device is a second coordinate domain.** The section below states that the
   supported space is the primary display; a phone's own resolution is a distinct
   domain. Extending the coordinate model to cover it must be a deliberate,
@@ -245,7 +249,7 @@ behavior; driver authors should not rely on the core to negotiate versions yet.
   deliberate second-coordinate-domain model, prerequisites for the planned
   Android driver ([ADR-008](adr/008-android-device-driver-behind-driver-contract.md)).
   No v1.0 signature changes; drivers declare support through `capabilities()`.
-- **1.0.0** — Defines the shared data model, the twelve desktop primitives,
+- **1.0.0** — Defines the shared data model, the fifteen desktop primitives,
   `capabilities()`, and the `activate_window(window_id)` action. The Windows
   implementation later reproduced an unresolved Windows foreground-activation
   defect; see [operator session notes](OPERATOR_SESSION_NOTES.md).

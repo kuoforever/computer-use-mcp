@@ -91,11 +91,22 @@ jobs:
         shell: pwsh
         run: |
           python -m venv .wheel-venv
-          .\.wheel-venv\Scripts\python.exe -m pip install --disable-pip-version-check (Get-ChildItem dist\*.whl).FullName
+          $wheelPath = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          $wheelSpec = '{0}[agent-openai,agent-anthropic]' -f $wheelPath
+          .\.wheel-venv\Scripts\python.exe -m pip install --disable-pip-version-check $wheelSpec
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe --help
-          $agentConfig = Join-Path $env:RUNNER_TEMP "guarded-desktop-agent-wheel-smoke.toml"
-          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config init --provider openai --model wheel-smoke --output $agentConfig
-          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config validate --config $agentConfig
+          $env:OPENAI_API_KEY = "doctor-only-placeholder"
+          $env:ANTHROPIC_API_KEY = "doctor-only-placeholder"
+          $openAIConfig = Join-Path $env:RUNNER_TEMP "guarded-desktop-agent-openai.toml"
+          $anthropicConfig = Join-Path $env:RUNNER_TEMP "guarded-desktop-agent-anthropic.toml"
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config init --provider openai --model wheel-smoke --output $openAIConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config doctor --config $openAIConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config validate --config $openAIConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config init --provider anthropic --model wheel-smoke --output $anthropicConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config doctor --config $anthropicConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe config validate --config $anthropicConfig
+          Remove-Item Env:OPENAI_API_KEY
+          Remove-Item Env:ANTHROPIC_API_KEY
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe eval --cases evals\cases --manifest evals\e5-case-manifest.json --report out\wheel-e1-e2-report.json
       - name: Upload wheel and smoke report
         uses: actions/upload-artifact@v6

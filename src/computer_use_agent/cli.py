@@ -179,6 +179,10 @@ def build_parser() -> argparse.ArgumentParser:
     initialize.add_argument("--output", required=True, type=Path)
     initialize.add_argument("--allowlist", default="notepad.exe")
     initialize.add_argument("--mcp-executable", type=Path)
+    doctor = config_commands.add_parser(
+        "doctor", help="Check provider setup and exact installed MCP discovery."
+    )
+    doctor.add_argument("--config", required=True, type=Path)
 
     run = commands.add_parser("run", help="Run the bounded Agent workflow.")
     run.add_argument("--config", required=True, type=Path)
@@ -496,6 +500,18 @@ def _initialize_config(
     )
     _print_json(initialized.as_json())
     return 0
+
+
+async def _doctor_config_async(path: Path) -> int:
+    from .doctor import diagnose_config
+
+    report = await diagnose_config(path)
+    _print_json(report.as_json())
+    return 0 if report.ready else 2
+
+
+def _doctor_config(path: Path) -> int:
+    return asyncio.run(_doctor_config_async(path))
 
 
 def _run_dry(path: Path, task: str) -> int:
@@ -1785,6 +1801,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "config" and args.config_command == "validate":
             return _validate_config(args.config)
+        if args.command == "config" and args.config_command == "doctor":
+            return _doctor_config(args.config)
         if args.command == "run":
             if args.dry_run:
                 if args.memory_scope is not None:

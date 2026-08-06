@@ -383,6 +383,8 @@ class WindowsDriver(Driver):
                 "type",
                 "key",
                 "click",
+                "scroll",
+                "drag",
                 "activate_window",
             ],
             "dpi_mode": self.dpi_mode,

@@ -65,6 +65,9 @@ py -3.13 -m venv .venv
   --output agent.toml
 
 $env:OPENAI_API_KEY = "<provider credential>"
+
+.\.venv\Scripts\guarded-desktop-agent.exe config doctor `
+  --config agent.toml
 ~~~
 
 打开一个不敏感的 Notepad、Word 或浏览器测试文档并保持在前台，然后执行：
@@ -79,6 +82,13 @@ $env:OPENAI_API_KEY = "<provider credential>"
 usage。它只允许一到四次已审核的只读观察，包括有界的 UIA
 `document_text`，不能规划桌面副作用。生成的配置不写入凭据，使用用户本地状态
 目录，并启用这条观察/最终回答路径所需的短期 continuation WAL。
+
+`config doctor` 是安装后 readiness 检查：它依次验证配置、provider extra、
+文档约定的凭据环境变量、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP
+子进程，通过 `initialize` / `list_tools` 核对完整的 13-tool 契约。它输出固定
+JSON；全部通过时退出码为 `0`，遇到一个可操作故障时为 `2`。它不会请求
+provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP 启动期间仍可能
+创建配置的 audit 目录并启动急停按键轮询，随后子进程会被关闭。
 
 如使用 Claude，将安装 extra、provider 名和环境变量分别替换为
 `agent-anthropic`、`anthropic` 和 `ANTHROPIC_API_KEY`。当前 expanded

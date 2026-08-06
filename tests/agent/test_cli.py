@@ -140,6 +140,7 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["remember", "delete", "--help"],
         ["config", "validate", "--help"],
         ["config", "init", "--help"],
+        ["config", "doctor", "--help"],
     ],
 )
 def test_cli_help_needs_no_config_provider_or_desktop(arguments: list[str]) -> None:

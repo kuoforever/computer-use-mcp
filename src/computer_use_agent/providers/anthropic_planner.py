@@ -12,6 +12,7 @@ from ..planner_wire import (
     compile_planner_wire_candidate,
     planner_output_schema,
 )
+from ..provider_setup import anthropic_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
@@ -114,11 +115,7 @@ class AnthropicPlanner:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "AnthropicPlanner":
-        try:
-            from anthropic import AsyncAnthropic
-        except ImportError as exc:
-            raise AnthropicPlannerError("ANTHROPIC_SDK_NOT_INSTALLED") from exc
-        client = AsyncAnthropic()
+        client = anthropic_client_from_environment()
         return cls(
             model=model,
             messages=client.messages,

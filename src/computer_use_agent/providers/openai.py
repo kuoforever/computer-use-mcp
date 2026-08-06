@@ -11,6 +11,7 @@ from re import fullmatch
 from typing import Mapping, Protocol, Sequence
 
 from ..continuation import ContinuationEnvelope, ContinuationError
+from ..provider_setup import openai_client_from_environment
 from ..tool_registry import REVIEWED_TOOLS, ToolSpec, validate_tool_arguments
 from ..token_window import exceeds_token_window
 from ..types import (
@@ -543,11 +544,7 @@ class OpenAIResponsesProvider:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "OpenAIResponsesProvider":
-        try:
-            from openai import AsyncOpenAI
-        except ImportError as exc:
-            raise OpenAIProviderError("OPENAI_SDK_NOT_INSTALLED") from exc
-        client = AsyncOpenAI()
+        client = openai_client_from_environment()
         return cls(
             model=model,
             responses=client.responses,

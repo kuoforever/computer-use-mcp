@@ -157,6 +157,9 @@ py -3.13 -m venv .venv
   --output agent.toml
 
 $env:OPENAI_API_KEY = "<provider credential>"
+
+.\.venv\Scripts\guarded-desktop-agent.exe config doctor `
+  --config agent.toml
 ~~~
 
 Open a non-sensitive test document in Notepad, Word, or a browser and leave it
@@ -174,6 +177,16 @@ observations, including bounded UIA `document_text`; it cannot plan a desktop
 side effect. The generated configuration stores no credential, uses the
 user-local state directory, and enables the short-lived continuation WAL that
 the observation/final-response path requires.
+
+`config doctor` is the installed-runtime readiness check. It validates the
+configuration, provider extra and documented credential variable, MCP
+executable and working directory, then starts the installed MCP child long
+enough to verify the exact thirteen-tool `initialize` / `list_tools` contract.
+It prints fixed JSON and exits `0` only when every check passes (`2` for one
+actionable failure). It sends no provider request, invokes no MCP tool, reads no
+desktop content, and performs no desktop action. MCP startup can still create
+its configured audit directory and start its emergency-stop key polling before
+the child is closed.
 
 This path is offline verified. The expanded document-aware scope has not yet
 been rerun as exact-candidate provider, desktop, application, or release

@@ -13,6 +13,7 @@ from ..final_response_wire import (
     compile_final_response_wire,
     validate_final_response_text,
 )
+from ..provider_setup import anthropic_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
@@ -135,13 +136,10 @@ class AnthropicFinalResponseAdapter:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
     ) -> "AnthropicFinalResponseAdapter":
-        try:
-            from anthropic import AsyncAnthropic
-        except ImportError as exc:
-            raise AnthropicFinalResponseError("ANTHROPIC_SDK_NOT_INSTALLED") from exc
+        client = anthropic_client_from_environment()
         return cls(
             model=model,
-            messages=AsyncAnthropic().messages,
+            messages=client.messages,
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
