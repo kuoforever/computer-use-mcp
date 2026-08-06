@@ -17,8 +17,8 @@
 > PR #255; `GDA-CORE-022` is merged through PR #257; `GDA-CORE-023` is merged
 > through PR #259; `GDA-CORE-024` is merged through PR #261;
 > `GDA-CORE-025` is merged through PR #262; `GDA-CORE-026` is merged through
-> PR #263; `GDA-CORE-027` is complete locally; and `GDA-CORE-028` is the exact
-> next core Runtime item.
+> PR #263; `GDA-CORE-027` is merged through PR #264; `GDA-CORE-028` is complete
+> locally; and `GDA-CORE-029` is the exact future core Runtime resume point.
 > `GDA-DEMO-006` is paused at checkpoint
 > `d74201f` in draft PR #231 with its exact live-acceptance resume point retained
 > below; the user reaffirmed that core Runtime development stays ahead of all
@@ -322,14 +322,22 @@ find still uses the original query and `driver.find()`, so only its matching
 nodes enter the ref table and Driver cache. Missing-hook and zero-delay Drivers
 retain one final read with no sleep.
 
-The next bounded functional audit selected `GDA-CORE-028`. Explicit-window
-stale-ref relocation still calls ordinary `get_tree()`, whose 200-node result
-cap is applied before target selection. A control first discovered by the
-CORE-025 full-traversal `find()` at position 201 therefore cannot relocate after
-its native id changes, even though a direct find immediately returns the fresh
-control. The next slice must use the existing Driver find path for the bounded
-role/name candidate query while retaining exact role/name selection,
-nearest-bbox tie-break, collision refusal, and bijective rebind.
+`GDA-CORE-028` closes that deep-target relocation gap. Explicit-window stale-ref
+relocation now uses the original scope, an empty-name fallback to the control's
+role, a role-only control-type bound, the existing Chromium warmup, and the
+Driver's full matching traversal. Exact role/name selection, nearest-bbox
+tie-break, reverse-owner collision refusal, bijective rebind, and one semantic
+retry remain unchanged. A single WindowsDriver/Session regression proves an
+unnamed Button after 200 name-matching Edit decoys binds and invokes its fresh
+native id.
+
+The next bounded functional audit selected `GDA-CORE-029`. Windows implements
+both `scroll()` and `drag()` and exposes them through the reviewed MCP tools, but
+`WindowsDriver.capabilities()["features"]` omits both names. Capability
+discovery therefore understates the real Driver surface. The future slice must
+add only those two implemented features and one focused metadata regression.
+Per the user's instruction, do not begin that slice automatically after the
+`GDA-CORE-028` PR; this section is only its safe resume point.
 
 This scope change does not alter Full Cycle state. Lane A manifest/export v1,
 the consumer fixture, and the Runtime freeze remain complete. Lane B remains
@@ -349,7 +357,7 @@ exact resume point is that external review; no rich capture work starts here.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | `1836 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-027` closure revalidation |
+| Offline baseline | `1837 passed, 8 skipped` in the 2026-08-06 `GDA-CORE-028` closure revalidation |
 | Worktree at start | Existing user/peer changes in `AGENTS.md` and `CLAUDE.md` were preserved and excluded from this slice |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
@@ -428,8 +436,9 @@ delivery work.
 | `GDA-CORE-024` | Complete; merged | Normalize configured comma-list entries before matching | Commit `9e59361`, merged through PR #261 as `b9a7fbe`; `_env_list` trims each non-empty item exactly once while preserving blank defaults and all other parsing/matching semantics. Shared compact/spaced/default parsing plus existing Gate controls and three real-`build_server` spaced-title paths prove screenshot, capture-region, and OCR blackout without a redundant safety matrix. Complete gate: `1833 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no public/runtime boundary changed |
 | `GDA-CORE-025` | Complete; merged | Make Windows `find()` search the full bounded traversal before applying its result cap | Commit `d7ac3b8`, merged through PR #262 as `0b43442`; shared bounded traversal filters matches before visual de-duplication, the 200-result cap, exact matching-only truncation, and native-cache insertion. One 201-control deterministic Windows fake proves the ordinary snapshot remains `200 + truncated=1`, the unique position-201 target is found with cache only for that match, 201 matching controls remain capped, and cap-omitted named duplicates count once. Complete gate: `1834 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and every public boundary remains unchanged |
 | `GDA-CORE-026` | Complete; merged | Report partial Windows document-range clipping instead of claiming complete text | Commit `47532dd`, merged through PR #263 as `95bd16a`; one real-Windows-Driver fake distinguishes exact 20,000-character and 20,001-character ranges with a bounded 40,002-UTF-16-unit probe. Overflow retains only the first 20,000 Python characters and its digest but returns `complete=false`, `truncated=true`, `omitted_blocks=0`; exact-cap and legitimate-empty controls remain complete, while UIA exception/non-string reads are explicitly incomplete. Complete gate: `1835 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent final reviews, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no public boundary changed |
-| `GDA-CORE-027` | Complete locally | Give Chromium `find()` the existing lazy-UIA warmup used by `ui_snapshot()` | One private Session helper now gives both final reads the existing optional disposable `get_tree` plus bounded delay. A single first-empty/second-ready functional regression proves warmup uses `get_tree`, the final result still comes from `find("Ready")`, and only that final result is ingested; existing zero-delay coverage retains one read with no sleep. Complete gate: `1836 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent functional review passed on 2026-08-06; no Driver/API/tool/schema, query, cache/ref, Runner/provider, Demo/HUD, or Full Cycle boundary changed |
-| `GDA-CORE-028` | Queued; exact next | Relocate a stale explicit-window ref through the full matching traversal instead of the ordinary snapshot cap | A real WindowsDriver/Session reproduction mints a position-201 `Needle` ref through `find`, changes only its native id, then returns `STALE_ELEMENT` because `_relocate()` uses the 200-node `get_tree`; direct `driver.find(..., "Needle")` returns the fresh id. Query candidates through Driver `find` with the original explicit scope and role/name, then retain exact role/name, nearest bbox, collision, rebind, and semantic-action behavior. Add one focused functional regression without changing match-only cache, dynamic-scope refusal, Driver/API/schema, Runner/provider, Demo/HUD, or Full Cycle behavior |
+| `GDA-CORE-027` | Complete; merged | Give Chromium `find()` the existing lazy-UIA warmup used by `ui_snapshot()` | Commit `25e0049`, merged through PR #264 as `ee4aebf`; one private Session helper gives both final reads the existing optional disposable `get_tree` plus bounded delay. A first-empty/second-ready functional regression proves warmup uses `get_tree`, the final result still comes from `find("Ready")`, and only that result is ingested; zero-delay retains one read. Complete gate: `1836 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, independent functional review, and the GitHub Python 3.11-3.13 plus wheel matrix passed on 2026-08-06; both feature-branch copies were removed and no public boundary changed |
+| `GDA-CORE-028` | Complete locally; final PR before requested stop | Relocate a stale explicit-window ref through the full matching traversal instead of the ordinary snapshot cap | `_relocate()` now queries `driver.find()` in the original explicit scope with empty-name role fallback, `control_types=(role,)`, and the existing browser warmup before retaining exact role/name, nearest bbox, collision, rebind, and one semantic retry. One real WindowsDriver/Session test places an unnamed Button after 200 name-matching Edit decoys and proves old/fresh native ids are each invoked once. Complete gate: `1837 passed, 8 skipped`, Ruff, mypy over 121 source files, docs consistency, diff check, and independent functional review passed on 2026-08-06; no new safety matrix and no Driver/API/schema, match-only cache, dynamic-scope, Runner/provider, Demo/HUD, or Full Cycle change |
+| `GDA-CORE-029` | Queued; exact future resume point; do not auto-start | Advertise implemented Windows `scroll` and `drag` features through Driver capability discovery | A deterministic `WindowsDriver.__new__` probe confirms both methods exist while both names are absent from `capabilities()["features"]`. Add only the two implemented names, one focused capability metadata test, and the owning contract/status update. Do not add a safety matrix, change tools or schemas, or broaden Driver/API, Runner/provider, Demo/HUD, or Full Cycle behavior. Start only after an explicit user resume request |
 
 `GDA-CORE-009` is merged through PR #238 as `5f9c9de`.
 `GDA-CORE-010` is merged through PR #239 as `0b58044`.
@@ -448,8 +457,9 @@ merged through PR #257 as `5c0ab09`. `GDA-CORE-023` is merged through PR #259
 as `1c5b2a0`.
 `GDA-CORE-024` is merged through PR #261 as `b9a7fbe`. `GDA-CORE-025` is
 merged through PR #262 as `0b43442`. `GDA-CORE-026` is merged through PR #263
-as `95bd16a`. `GDA-CORE-027` is complete locally, and `GDA-CORE-028` is the
-exact next core Runtime item.
+as `95bd16a`. `GDA-CORE-027` is merged through PR #264 as `ee4aebf`.
+`GDA-CORE-028` is complete locally, and `GDA-CORE-029` is the exact future core
+Runtime resume point; do not start it automatically after the final PR.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
@@ -1069,35 +1079,29 @@ release evidence.
 Commit `9edc585` merged through PR #259 as `1c5b2a0` after the GitHub Python
 3.11-3.13 and wheel matrix passed. Both feature-branch copies were removed.
 
-## Exact next task: `GDA-CORE-028`
+## Exact future resume task: `GDA-CORE-029`
 
-Relocate a stale ref from an explicit window scope through the full bounded
-matching traversal rather than the ordinary snapshot result cap. The
-deterministic real WindowsDriver/Session reproduction has 200 ordinary Buttons
-followed by one `Needle`:
+Correct Windows Driver capability discovery so it advertises the already
+implemented `scroll` and `drag` primitives. The deterministic current probe is:
 
 ```text
-find("Needle")                 -> ref_1 for native id node-200
-same Needle gets fresh id      -> needle-new
-click(ref_1) relocation        -> STALE_ELEMENT, only old id attempted
-driver.find(..., "Needle")     -> needle-new is present
+callable(driver.scroll)                  -> true
+callable(driver.drag)                    -> true
+"scroll" in capabilities()["features"] -> false
+"drag" in capabilities()["features"]   -> false
 ```
 
-Change only `Session._relocate()`: call `driver.find()` with the ref's original
-explicit scope, its role as the control-type bound, and its name (or role when
-unnamed). Keep the existing exact role/name filter after the Driver returns,
-then keep the current nearest-center tie-break, reverse-owner collision refusal,
-bijective rebind, and one semantic retry. Dynamic `foreground`/`all` refs must
-still fail before relocation.
+Add only `scroll` and `drag` to the Windows feature list, then add one focused
+capability metadata regression that pins the implemented feature names without
+instantiating native desktop state. Update the owning Driver contract and this
+tracker in the same slice. Do not add tools, change schemas or contract
+versions, or touch action implementations, Runner/provider, Demo/HUD, Full
+Cycle Lane A/B, hierarchical control, campaign/Executor, or Multi-Agent scope.
+Do not add a safety test matrix.
 
-Add one focused functional regression using the real WindowsDriver traversal
-and Session ref lifecycle: mint the position-201 ref through find, change its
-native id, and prove the fresh semantic id is invoked. Preserve CORE-025's
-matching-only Driver cache; never cache or mint a ref for a new nonmatch. Update
-`docs/TOOLS.md` and this tracker. Keep every Driver/API/tool/schema version,
-warmup, cap, Runner/provider, Demo/HUD, Full Cycle Lane A/B, hierarchical
-control, campaign/Executor, and Multi-Agent boundary fixed. Do not add a safety
-test matrix.
+The user explicitly requested a stop after the `GDA-CORE-028` PR. This section
+is a safe future resume point only; do not create a branch or begin
+`GDA-CORE-029` until the user explicitly resumes core Runtime work.
 
 ## Paused resume point: `GDA-DEMO-006`
 
@@ -1116,7 +1120,7 @@ resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
   post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-028`.
+  must not displace `GDA-CORE-029` after the user explicitly resumes it.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -1281,3 +1285,7 @@ be run on an active or sensitive desktop without an explicit evidence plan.
 | 2026-08-06 | `GDA-CORE-026` merged through PR #263 as `95bd16a`; all four GitHub checks passed, both feature-branch copies were removed, and work continued directly into `GDA-CORE-027`. |
 | 2026-08-06 | `GDA-CORE-027` is complete locally and independently reviewed: Chromium snapshot and find now share the existing optional disposable UIA warmup while the final query, matching-only cache, refs, and zero-delay one-read behavior remain unchanged. |
 | 2026-08-06 | A bounded functional audit selected `GDA-CORE-028` next: explicit-window stale-ref relocation must use the full bounded matching traversal so a target originally found after the ordinary 200-node snapshot cap can bind its fresh native id. |
+| 2026-08-06 | `GDA-CORE-027` merged through PR #264 as `ee4aebf`; all four GitHub checks passed, both feature-branch copies were removed, and work continued directly into `GDA-CORE-028`. |
+| 2026-08-06 | `GDA-CORE-028` is complete locally: explicit-window relocation now uses a role-bounded full matching traversal and existing browser warmup, so an unnamed position-201 target can bind and invoke its fresh native id while every existing exact-match/rebind rule remains fixed. |
+| 2026-08-06 | A bounded functional audit selected `GDA-CORE-029` as the future resume point: Windows capability discovery must advertise the already implemented `scroll` and `drag` primitives with one metadata regression and no safety matrix. |
+| 2026-08-06 | The user requested a stop after the `GDA-CORE-028` PR. Publish, merge, and clean that final slice, then do not start `GDA-CORE-029` without a new explicit resume request. |
