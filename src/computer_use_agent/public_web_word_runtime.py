@@ -70,6 +70,7 @@ _WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEMPLATE_RESOURCE = "assets/public-web-word.docx"
 _FIXED_ALLOWLIST = "chrome.exe,winword.exe"
 _FIXED_HUMAN_STABLE_SAMPLES = "3"
+_FIXED_HUMAN_MAX_WAIT_SECONDS = "15"
 _VISION_PREVIEW_SIZES = (
     (160, 120),
     (128, 96),
@@ -671,6 +672,8 @@ async def run_public_web_word_workflow(
     if (
         config.mcp.environment.get("CUMCP_HUMAN_STABLE_SAMPLES")
         != _FIXED_HUMAN_STABLE_SAMPLES
+        or config.mcp.environment.get("CUMCP_HUMAN_MAX_WAIT_SECONDS")
+        != _FIXED_HUMAN_MAX_WAIT_SECONDS
     ):
         raise PublicWebWordError("PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED")
     if (

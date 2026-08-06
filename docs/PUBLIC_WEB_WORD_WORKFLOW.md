@@ -23,7 +23,8 @@ surface:
   existing local approval surface still authorizes each proposed side effect;
 - shared-desktop coexistence: after a Decision Card click, the action waits for
   three stable human-idle samples inside that single MCP call; continued user
-  input keeps control with the user and a bounded timeout fails the action;
+  input keeps control with the user, and the profile's 15-second bound returns
+  before the 30-second MCP bridge timeout;
 - persistence: continuation is disabled because typed content remains
   ephemeral and does not enter the continuation record.
 

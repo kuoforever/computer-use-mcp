@@ -211,6 +211,7 @@ def initialize_public_web_word_config(
                 "CUMCP_ALLOWLIST": "chrome.exe,winword.exe",
                 # A Decision Card click is human input. Keep the action inside
                 # its single MCP call until the operator has released control.
+                "CUMCP_HUMAN_MAX_WAIT_SECONDS": "15",
                 "CUMCP_HUMAN_STABLE_SAMPLES": "3",
             },
         ),

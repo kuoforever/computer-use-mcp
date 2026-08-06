@@ -323,6 +323,7 @@ def test_config_init_creates_the_public_web_word_product_profile(
     assert config.continuation.enabled is False
     assert config.operator.decision_cards_enabled is True
     assert config.mcp.environment["CUMCP_ALLOWLIST"] == "chrome.exe,winword.exe"
+    assert config.mcp.environment["CUMCP_HUMAN_MAX_WAIT_SECONDS"] == "15"
     assert config.mcp.environment["CUMCP_HUMAN_STABLE_SAMPLES"] == "3"
 
 

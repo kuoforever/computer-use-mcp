@@ -365,6 +365,7 @@ def _config(tmp_path: Path, monkeypatch) -> AgentConfig:
             cwd=tmp_path.resolve(),
             environment={
                 "CUMCP_ALLOWLIST": "chrome.exe,winword.exe",
+                "CUMCP_HUMAN_MAX_WAIT_SECONDS": "15",
                 "CUMCP_HUMAN_STABLE_SAMPLES": "3",
             },
         ),
