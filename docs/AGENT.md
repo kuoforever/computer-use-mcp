@@ -114,6 +114,23 @@ the following commands:
   without a duplicate ledger entry or second tool-budget increment; a
   non-provider verification call must match the fixed Host-synthesized
   mandatory identity, arguments, and sequence.
+  Recovery also folds certainty across the complete canonical ledger and binds
+  it to checkpoint budgets, observation counters, and recovery status. A
+  historical provider turn with more than one call is rejected if any call is
+  a side effect, while the current completed-provider tail still terminalizes
+  such untrusted action requests as one fixed blocked step and pure observation
+  multi-call turns remain valid. No advertised call may be abandoned before a
+  later provider turn. A stricter Host-only verified-epoch clear remains
+  conservative through later unknown/stopped outcomes. A
+  completed final response cannot erase an earlier dispatched action, either
+  exact side-effect `REJECTED/not_dispatched/HUMAN_ACTIVE|DENIED_BY_GATE`
+  tuple, or an unknown outcome. Intent, provider completion, and failed
+  observation preserve the obligation; only a correlated successful ordinary
+  observation restores `ready`. Final text is
+  terminalized only when both ledger and checkpoint are `ready`; an outstanding
+  verification obligation returns fixed `VERIFICATION_REQUIRED`, while stricter
+  unknown or stopped evidence retains its own terminal outcome. Each refusal has
+  zero provider/MCP calls and no state mutation.
 - `campaign resume-synthetic --config PATH --campaign-id ID --run-id ID`
   exposes only the fixed durable restart/resume boundary. It accepts no task,
   item selector, provider, or desktop option; reconstructs the finished
@@ -814,7 +831,8 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Recovered observation authority is current | Before persisting either an observation or mandatory re-observation intent, the executor rechecks the reviewed tool's required safety baselines against the connected MCP generation. Missing evidence has a fixed failure, byte-stable checkpoint/continuation state, and zero MCP dispatch | implemented locked recovery tests |
 | Recovery action owns its budget dimension | Continuation v6 `next_step` must agree with the complete boundary/ledger topology before budget selection. The final reconstructed action selects model-plus-input or new-tool capacity at the planner, executor, and locked-persistence gates; digest-valid semantic swaps, forged non-provider prepared calls, and canonical exhaustion leave bytes unchanged with zero provider/MCP calls, while a provider-correlated prepared observation reuses its already charged call | implemented semantic-binding and formal persistence tests |
 | Recovered provider scope cannot widen | Continuation v6 binds the original final Host names; v1-v5 or malformed scope fails closed. Recovery retains only observations with current baseline evidence, uses one identical tuple for restore/replay/create, and rejects a mixed unadvertised response before completion or any valid-prefix/MCP execution | implemented provider-neutral recovery and real-adapter tests |
-| Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls; hidden call output, drift, and sequence mismatch fail closed | implemented terminal recovery boundary |
+| Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls only when the complete ledger and checkpoint are both `ready`; hidden call output, prior verification debt, terminal unknown certainty, counter/status drift, and sequence mismatch fail closed | implemented complete-ledger terminal recovery boundary |
+| Recovery certainty cannot regress | Complete-ledger folding preserves dispatched-action, exact human/gate-yield, and unknown certainty across intent, failed observation, provider completion, and finalization. Historical side-effect-bearing multi-call turns and abandoned calls before a later turn are invalid; a current completed-provider tail retains fixed blocked terminalization with zero dispatch. Only a correlated successful ordinary observation from a complete serial/pure-observation history restores `ready`, and a stricter Host-only clear survives unknown/stopped outcomes. OpenAI/Claude result matrices, three non-serial call orders, abandoned-call refusal, colluding counter swaps, byte-stable refusal, and locked persistence are covered | implemented monotonic-certainty tests |
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
 | Claude history is packed atomically | Over-window local history drops only oldest complete tool-use/result pairs, retains the task and latest image-capable pair, adds a trusted omission notice, and commits history only after a valid response | implemented packing and mandatory-overflow tests |
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
