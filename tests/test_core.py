@@ -39,6 +39,7 @@ class RefDriver:
         self.trees = list(trees)
         self.stale_native_ids = stale_native_ids
         self.tree_scopes: list[str] = []
+        self.find_requests: list[tuple[str, str, tuple[str, ...]]] = []
         self.invoked: list[str] = []
         self.selected: list[str] = []
         self.coordinate_clicks: list[tuple[int, int, str]] = []
@@ -48,6 +49,10 @@ class RefDriver:
         expected_scope, tree = self.trees.pop(0)
         assert opts.scope == expected_scope
         return tree
+
+    def find(self, opts: PruneOpts, query: str) -> TreeResult:
+        self.find_requests.append((opts.scope, query, opts.resolved_types()))
+        return self.get_tree(opts)
 
     def invoke(self, native_id: str) -> Result:
         self.invoked.append(native_id)
@@ -232,6 +237,7 @@ def test_successful_relocation_rebinds_node_and_native_maps_bijectively() -> Non
     assert refreshed_refs[0] == ref
     assert refreshed_refs[1] != ref
     assert driver.tree_scopes == ["101", "101", "101"]
+    assert driver.find_requests == [("101", "Save", ("Button",))]
     assert driver.invoked == ["old", "new"]
     assert session._by_ref[ref] == relocated
     assert session._native_by_ref == {ref: "new", refreshed_refs[1]: "old"}

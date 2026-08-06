@@ -196,7 +196,12 @@ class Session:
         return action(relocated.native_id, relocated)
 
     def _relocate(self, node: Node, scope: str) -> Node | None:
-        tree = self.driver.get_tree(PruneOpts(scope=scope))
+        query = node.name or node.role
+        if not query:
+            return None
+        opts = PruneOpts(scope=scope, control_types=(node.role,))
+        self._warm_up_browser_tree(opts)
+        tree = self.driver.find(opts, query)
         cands = [n for n in tree.nodes if n.role == node.role and n.name == node.name and n.native_id]
         if not cands:
             return None

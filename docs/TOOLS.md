@@ -68,11 +68,12 @@ Refs are kept across later snapshots when the driver still recognizes the same
 native UIA element. Each ref also retains the exact scope token from the
 snapshot or find call that first minted it; later observations in another scope
 do not change its relocation domain. If that token is an explicit window id and
-the native element becomes stale, the server makes one best-effort role-and-name
-relocation attempt only in that window scope. A candidate already owned by
-another ref is a conflict and fails closed without acting on the candidate.
-Successful relocation updates the ref's node and both native/ref bindings
-together.
+the native element becomes stale, the server makes one best-effort role-bounded
+name query across the full Windows traversal before applying the 200 matching-
+result cap, only in that window scope. It then requires the original exact role
+and name. A candidate already owned by another ref is a conflict and fails
+closed without acting on the candidate. Successful relocation updates the ref's
+node and both native/ref bindings together.
 
 The tokens `foreground` and `all` remain dynamic driver selectors, not frozen
 physical-window identities. A stale ref first observed through either selector
