@@ -4,9 +4,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .config import APPROVED_ACTIONS_MODE, PolicyConfig
+from .config import (
+    APPROVED_ACTIONS_MODE,
+    HIGH_RISK_ONLY_APPROVAL,
+    PolicyConfig,
+)
 from .tool_registry import ToolSpec
-from .types import RunBudget, ToolEffect
+from .types import ActionRiskTier, RunBudget, ToolEffect
 
 
 class PolicyDisposition(str, Enum):
@@ -43,6 +47,7 @@ class HostPolicy:
         tool: ToolSpec,
         *,
         satisfied_safety_baselines: frozenset[str] = frozenset(),
+        action_risk: ActionRiskTier | None = None,
     ) -> PolicyDisposition:
         if not isinstance(satisfied_safety_baselines, frozenset) or not all(
             isinstance(baseline, str) and baseline
@@ -59,4 +64,9 @@ class HostPolicy:
             return PolicyDisposition.ALLOW
         if self.config.mode != APPROVED_ACTIONS_MODE:
             return PolicyDisposition.DENY
+        if self.config.action_approval_policy == HIGH_RISK_ONLY_APPROVAL:
+            if action_risk is ActionRiskTier.LOW:
+                return PolicyDisposition.ALLOW
+            if action_risk is not ActionRiskTier.HIGH:
+                return PolicyDisposition.DENY
         return PolicyDisposition.APPROVAL_REQUIRED

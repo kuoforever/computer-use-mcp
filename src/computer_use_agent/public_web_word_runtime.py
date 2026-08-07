@@ -716,6 +716,7 @@ async def run_public_web_word_workflow(
                 provider=wrapper,
                 desktop=_PublicWebWordVisionDesktop(desktop_factory(config)),
                 approvals=approvals,
+                action_risk_classifier=wrapper,
                 control=cooperative_control,
             ),
         ).run(

@@ -1012,7 +1012,8 @@ def _run_public_web_word(
             return 1
     else:
         _console_output(
-            "Scope acknowledged by --acknowledge-scope; per-action approval remains required."
+            "Scope acknowledged by --acknowledge-scope; reviewed low-risk effects use "
+            "Host policy, while high-risk effects still require exact approval."
         )
     return asyncio.run(
         _run_public_web_word_async(config, request)

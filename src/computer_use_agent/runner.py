@@ -12,7 +12,7 @@ from typing import Mapping
 from uuid import uuid4
 
 from .campaign import CampaignStore
-from .config import AgentConfig
+from .config import AgentConfig, HIGH_RISK_ONLY_APPROVAL
 from .cooperative_control import (
     ControlBoundary,
     ControlOutcome,
@@ -46,6 +46,8 @@ from .types import (
     ApprovalPort,
     ApprovalBinding,
     ApprovalRequest,
+    ActionRiskClassifierPort,
+    ActionRiskTier,
     DesktopMCPPort,
     DispatchCertainty,
     FocusTakingApprovalPort,
@@ -135,6 +137,7 @@ class RunnerPorts:
     provider: ModelProviderPort
     desktop: DesktopMCPPort
     approvals: ApprovalPort
+    action_risk_classifier: ActionRiskClassifierPort | None = None
     image_redactor: PrivacyImageRedactionPort | None = None
     telemetry: TelemetryPort | None = None
     presence: PresenceLifecyclePort | None = None
@@ -522,6 +525,7 @@ class AgentRunner:
                 "version": self.policy.version,
                 "mode": policy.mode,
                 "require_approval_for_actions": policy.require_approval_for_actions,
+                "action_approval_policy": policy.action_approval_policy,
                 "max_model_turns": policy.max_model_turns,
                 "max_tool_calls": policy.max_tool_calls,
                 "max_side_effects": policy.max_side_effects,
@@ -694,14 +698,29 @@ class AgentRunner:
                 effect=spec.effect,
                 recorder=recorder,
             )
-        disposition = self.policy.disposition(spec)
-        if spec.required_safety_baselines:
-            disposition = self.policy.disposition(
-                spec,
-                satisfied_safety_baselines=(
-                    self.ports.desktop.satisfied_safety_baselines
-                ),
-            )
+        action_risk: ActionRiskTier | None = None
+        if (
+            spec.effect is ToolEffect.SIDE_EFFECT
+            and self.config.policy.action_approval_policy
+            == HIGH_RISK_ONLY_APPROVAL
+        ):
+            classifier = self.ports.action_risk_classifier
+            if classifier is not None:
+                try:
+                    candidate_risk = classifier.classify_action(call, state.event_log)
+                except Exception:
+                    candidate_risk = ActionRiskTier.UNKNOWN
+                if isinstance(candidate_risk, ActionRiskTier):
+                    action_risk = candidate_risk
+            if action_risk is None:
+                action_risk = ActionRiskTier.UNKNOWN
+        disposition = self.policy.disposition(
+            spec,
+            satisfied_safety_baselines=(
+                self.ports.desktop.satisfied_safety_baselines
+            ),
+            action_risk=action_risk,
+        )
         if disposition is PolicyDisposition.DENY:
             denied = ToolResult(
                 identity=call.identity,
@@ -712,6 +731,107 @@ class AgentRunner:
             )
             state = self._record_result(state, denied, effect=spec.effect)
             raise RunFailure("POLICY_DENIED", state)
+        if (
+            disposition is PolicyDisposition.ALLOW
+            and spec.effect is ToolEffect.SIDE_EFFECT
+        ):
+            if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure("REOBSERVATION_REQUIRED", state)
+            try:
+                grounding.validate(
+                    call,
+                    spec,
+                    generation=self.ports.desktop.generation,
+                )
+                if state.budgets.side_effects_used >= state.budgets.max_side_effects:
+                    raise RunnerBudgetError("SIDE_EFFECT_BUDGET_EXHAUSTED")
+                self._preflight_post_action_verification_capacity(state, call)
+            except GroundingError as exc:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure(str(exc), state) from exc
+            except (ContextBudgetError, RunnerBudgetError) as exc:
+                denied = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="BUDGET_EXHAUSTED",
+                )
+                state = self._record_result(state, denied, effect=spec.effect)
+                raise RunFailure(str(exc), state) from exc
+            state = self._record_policy_decision(
+                state,
+                PolicyDecision(
+                    request_id=f"host-policy-{uuid4().hex}",
+                    identity=call.identity,
+                    call_digest=call.digest,
+                    kind=PolicyDecisionKind.ALLOW,
+                    reason="host_low_risk_policy",
+                ),
+            )
+            pause = await self._cooperative_pause_boundary(
+                state,
+                grounding,
+                recorder=recorder,
+                presence=safe_presence,
+                control=control,
+                boundary=ControlBoundary.AFTER_AUTHORIZATION,
+            )
+            state = pause.state
+            grounding = pause.grounding
+            if pause.request is not None:
+                return self._paused_call_outcome(
+                    state,
+                    grounding,
+                    call,
+                    pause.request,
+                    effect=spec.effect,
+                    recorder=recorder,
+                )
+            try:
+                grounding.validate(
+                    call,
+                    spec,
+                    generation=self.ports.desktop.generation,
+                )
+            except GroundingError as exc:
+                rejected = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, rejected, effect=spec.effect)
+                raise RunFailure(str(exc), state) from exc
+            if not set(spec.required_safety_baselines).issubset(
+                self.ports.desktop.satisfied_safety_baselines
+            ):
+                rejected = ToolResult(
+                    identity=call.identity,
+                    tool_name=call.name,
+                    status=ToolResultStatus.REJECTED,
+                    dispatch=DispatchCertainty.NOT_DISPATCHED,
+                    code="POLICY_DENIED",
+                )
+                state = self._record_result(state, rejected, effect=spec.effect)
+                raise RunFailure("SAFETY_BASELINE_UNSATISFIED", state)
+            state = self._consume_side_effect(state)
         if disposition is PolicyDisposition.APPROVAL_REQUIRED:
             if state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION:
                 denied = ToolResult(

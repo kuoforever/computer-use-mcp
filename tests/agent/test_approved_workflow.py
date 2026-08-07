@@ -6,13 +6,15 @@ from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence, cast
 
 import pytest
 
 from computer_use_agent import continuation as continuation_module
 from computer_use_agent.config import (
+    ALL_SIDE_EFFECTS_APPROVAL,
     APPROVED_ACTIONS_MODE,
+    HIGH_RISK_ONLY_APPROVAL,
     AgentConfig,
     ContinuationConfig,
     MCPLaunchConfig,
@@ -26,10 +28,12 @@ from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.runner import AgentRunner, RunDeferred, RunFailure, RunnerPorts
 from computer_use_agent.trace import classify_run_recovery, read_run_record
 from computer_use_agent.types import (
+    ActionRiskTier,
     ApprovalRequest,
     CallIdentity,
     DispatchCertainty,
     ImageContent,
+    LedgerEvent,
     LedgerEventKind,
     MCPCallCancelled,
     ModelTurn,
@@ -72,6 +76,40 @@ class DynamicApprovalPort:
         )
 
 
+@dataclass
+class StaticRiskClassifier:
+    tier: ActionRiskTier
+    calls: list[ToolCall] = field(default_factory=list)
+
+    def classify_action(
+        self,
+        call: ToolCall,
+        ledger: Sequence[LedgerEvent],
+    ) -> ActionRiskTier:
+        assert ledger
+        self.calls.append(call)
+        return self.tier
+
+
+@dataclass
+class FaultyRiskClassifier:
+    behavior: str
+    calls: list[ToolCall] = field(default_factory=list)
+
+    def classify_action(
+        self,
+        call: ToolCall,
+        ledger: Sequence[LedgerEvent],
+    ) -> ActionRiskTier:
+        assert ledger
+        self.calls.append(call)
+        if self.behavior == "raises":
+            raise RuntimeError("classifier failure")
+        if self.behavior == "invalid":
+            return cast(ActionRiskTier, "low")
+        raise AssertionError(f"unexpected behavior: {self.behavior}")
+
+
 class NeverReturningProvider(FakeModelProvider):
     def __init__(self) -> None:
         super().__init__()
@@ -98,6 +136,7 @@ def _config(
     max_context_events: int = 128,
     max_input_tokens: int = 1_000_000,
     provider_request_timeout_seconds: int = 120,
+    action_approval_policy: str = ALL_SIDE_EFFECTS_APPROVAL,
 ) -> AgentConfig:
     local = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local))
@@ -117,6 +156,7 @@ def _config(
         ),
         policy=PolicyConfig(
             mode=APPROVED_ACTIONS_MODE,
+            action_approval_policy=action_approval_policy,
             max_model_turns=max_model_turns,
             max_tool_calls=max_tool_calls,
             max_side_effects=2,
@@ -509,6 +549,135 @@ def test_approved_action_requires_grounding_then_reobservation_before_success(
         LedgerEventKind.POLICY_DECISION
     ) == 1
     assert read_run_record(config.state_dir, run_id)["state"]["phase"] == "SUCCESS"
+
+
+@pytest.mark.parametrize(
+    ("risk", "approval_count", "decision_reason"),
+    [
+        (ActionRiskTier.LOW, 0, "host_low_risk_policy"),
+        (ActionRiskTier.HIGH, 1, "test_operator"),
+    ],
+)
+def test_high_risk_policy_skips_only_low_risk_human_approval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    risk: ActionRiskTier,
+    approval_count: int,
+    decision_reason: str,
+) -> None:
+    run_id = f"run_risk_{risk.value}"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    after = _call(run_id, 3, "call_3", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, action),
+                _turn(run_id, 3, after),
+                _turn(run_id, 4, text="verified"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(before, text='ref_1 | button "OK" | (1,1,10,10) | enabled'),
+                _result(action),
+                _result(after, text='ref_2 | text "Done" | (1,1,10,10) | enabled'),
+            ]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    classifier = StaticRiskClassifier(risk)
+    config = _config(
+        tmp_path,
+        monkeypatch,
+        action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
+    )
+
+    outcome = asyncio.run(
+        AgentRunner(
+            config,
+            RunnerPorts(
+                provider,
+                desktop,
+                approvals,
+                action_risk_classifier=classifier,
+            ),
+        ).run("Click OK and verify", run_id=run_id)
+    )
+
+    decisions = [
+        event.policy_decision
+        for event in outcome.state.event_log
+        if event.kind is LedgerEventKind.POLICY_DECISION
+    ]
+    assert outcome.text == "verified"
+    assert outcome.state.budgets.side_effects_used == 1
+    assert outcome.state.verified_observation_epoch == 2
+    assert classifier.calls == [action]
+    assert len(approvals.requests) == approval_count
+    assert len(decisions) == 1
+    assert decisions[0] is not None
+    assert decisions[0].kind is PolicyDecisionKind.ALLOW
+    assert decisions[0].reason == decision_reason
+
+
+@pytest.mark.parametrize("classifier_mode", ["missing", "unknown", "raises", "invalid"])
+def test_unclassified_high_risk_policy_fails_closed_without_approval_or_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    classifier_mode: str,
+) -> None:
+    run_id = f"run_risk_unknown_{classifier_mode}"
+    before = _call(run_id, 1, "call_1", "ui_snapshot", {})
+    action = _call(run_id, 2, "call_2", "click", {"ref": "ref_1"})
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, before), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [_result(before, text='ref_1 | button "OK" | (1,1,10,10) | enabled')]
+        )
+    )
+    approvals = DynamicApprovalPort()
+    classifier: StaticRiskClassifier | FaultyRiskClassifier | None
+    if classifier_mode == "missing":
+        classifier = None
+    elif classifier_mode == "unknown":
+        classifier = StaticRiskClassifier(ActionRiskTier.UNKNOWN)
+    else:
+        classifier = FaultyRiskClassifier(classifier_mode)
+    config = _config(
+        tmp_path,
+        monkeypatch,
+        action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
+    )
+
+    with pytest.raises(RunFailure, match="^POLICY_DENIED$") as raised:
+        asyncio.run(
+            AgentRunner(
+                config,
+                RunnerPorts(
+                    provider,
+                    desktop,
+                    approvals,
+                    action_risk_classifier=classifier,
+                ),
+            ).run("Click OK", run_id=run_id)
+        )
+
+    assert [call.identity for call in desktop.tool_calls] == [before.identity]
+    assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
+    if classifier is not None:
+        assert classifier.calls == [action]
+    assert approvals.requests == []
+    assert raised.value.state.budgets.side_effects_used == 0
+    assert not any(
+        event.kind is LedgerEventKind.POLICY_DECISION
+        for event in raised.value.state.event_log
+    )
 
 
 @pytest.mark.parametrize("authority_yield_code", ["HUMAN_ACTIVE", "DENIED_BY_GATE"])
@@ -1596,6 +1765,46 @@ def test_host_binding_drift_during_card_blocks_dispatch(
         async def choose(self, card, *, timeout_seconds: int):  # noqa: ANN001
             del timeout_seconds
             runner.policy = replace(runner.policy, version="changed-policy")
+            return DecisionSelection(
+                card.decision_id, card.card_digest, "option_approve_exact_effect"
+            )
+
+    approvals = DecisionCardApprovalPort(
+        DriftSurface(), clock=lambda: datetime(2026, 7, 22, tzinfo=UTC)
+    )
+    runner = AgentRunner(
+        _config(tmp_path, monkeypatch), RunnerPorts(provider, desktop, approvals)
+    )
+
+    with pytest.raises(RunFailure, match="APPROVAL_MISMATCH"):
+        asyncio.run(runner.run("Activate", run_id=run_id))
+    assert [call.name for call in desktop.tool_calls] == ["list_windows"]
+
+
+def test_action_approval_policy_drift_during_card_blocks_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_action_approval_policy_drift"
+    observe = _call(run_id, 1, "call_1", "list_windows", {})
+    action = _call(run_id, 2, "call_2", "activate_window", {"window_id": "42"})
+    provider = FakeModelProvider(
+        turns=deque([_turn(run_id, 1, observe), _turn(run_id, 2, action)])
+    )
+    desktop = FakeDesktopMCP(
+        results=deque([_result(observe, text='* 42 | app.exe | "App"')])
+    )
+    runner: AgentRunner
+
+    class DriftSurface:
+        async def choose(self, card, *, timeout_seconds: int):  # noqa: ANN001
+            del timeout_seconds
+            runner.policy = replace(
+                runner.policy,
+                config=replace(
+                    runner.policy.config,
+                    action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
+                ),
+            )
             return DecisionSelection(
                 card.decision_id, card.card_digest, "option_approve_exact_effect"
             )

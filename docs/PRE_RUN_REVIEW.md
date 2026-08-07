@@ -14,7 +14,8 @@ child, Chrome, Word, or a disposable fixture, the operator can answer:
 2. Which applications will it open?
 3. What will it read and modify?
 4. Where will the output be written?
-5. How many exact action approvals can it request?
+5. Which actions can proceed under fixed Host policy, and which require exact
+   approval?
 6. Which conditions stop it?
 7. What partial local state might remain after failure or uncertainty?
 
@@ -26,7 +27,7 @@ guarded-desktop-agent review public-web-word `
   --output C:\absolute\path\collaboration-brief.docx
 ~~~
 
-Add `--json` to receive the same `pre_run_review_version=1` projection. The
+Add `--json` to receive the same `pre_run_review_version=2` projection. The
 review command validates the product profile and output preconditions, but it
 does not create workflow state, start an application, discover an executable,
 read the source page, contact a provider, start MCP, or approve an action.
@@ -59,7 +60,7 @@ reviewed product profile + exact resolved local paths
               -> policy + grounding + one-effect approval + Runner/MCP
 ~~~
 
-The objective, application roles, data-use statements, maximum approval count,
+The objective, application roles, data-use statements, authorization policy,
 stop conditions, residue warning, and acknowledgement consequences are fixed
 Host strings. They are not copied from provider output or a model-authored
 plan. The only local values inserted are the configured state directory,
@@ -73,7 +74,7 @@ after acknowledgement. Output exclusivity and every normal runtime gate are
 still checked when execution begins, so acknowledgement cannot turn a stale or
 conflicting output path into authority.
 
-## Version 1 facts
+## Version 2 facts
 
 The Scope Sheet reports:
 
@@ -86,7 +87,11 @@ The Scope Sheet reports:
 - changes: one exclusive new DOCX, bounded private workflow/profile state, and
   the exact disposable fixture lifecycle;
 - output policy: `CREATE_NEW_ONLY_NEVER_OVERWRITE`;
-- maximum approvals: seven, with one exact effect per ordinary approval;
+- maximum side effects: seven;
+- authorization: exact fixed-workflow low-risk actions proceed under
+  `host_risk_tier_v1` without an action prompt; high-risk actions require one
+  exact approval, with a maximum of zero expected in this reviewed workflow;
+  ambiguous, invalid, or out-of-scope actions are denied;
 - fixed stop families: precondition, operator decision, desktop authority,
   resource bounds, verification, and unknown outcome;
 - possible residue: a partial DOCX, private workflow/profile files, or fixture
@@ -106,11 +111,12 @@ text, credential, approval payload, continuation, or memory.
 The explicit local paths are shown only to the local operator who requested the
 review. They are not added to automatic Full Cycle Lane A. Starting grants only
 permission to enter the existing workflow; each side effect must still pass
-current policy, grounding, live authority, budget, and exact approval checks.
+current Host risk policy, grounding, live authority, budget, and authorization
+checks. A high-risk effect cannot inherit authority from the start gate.
 
 ## Limits and verification
 
-Version 1 covers only `public-web-word`, the repository's installed fixed
+Version 2 covers only `public-web-word`, the repository's installed fixed
 side-effect product path. It does not add Pre-run Review to read-only `ask`,
 arbitrary `run`, campaigns, recovery, or future workflows. It does not estimate
 duration, predict the model's chosen observations, resolve installed

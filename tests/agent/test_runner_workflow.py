@@ -101,7 +101,8 @@ def test_runner_has_one_mcp_dispatch_site_inside_the_shared_call_boundary() -> N
     dispatch = "await self.ports.desktop.call_tool(dispatch_call)"
     assert runner_source.count(dispatch) == 1
     assert boundary_source.count(dispatch) == 1
-    assert "self.policy.disposition(spec)" in boundary_source
+    assert boundary_source.count("self.policy.disposition(") == 1
+    assert "action_risk=action_risk" in boundary_source
     assert "grounding.validate(" in boundary_source
     assert "self._consume_side_effect(state)" in boundary_source
     assert "request_approval(request)" in boundary_source

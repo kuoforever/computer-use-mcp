@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import (
     APPROVED_ACTIONS_MODE,
+    HIGH_RISK_ONLY_APPROVAL,
     AgentConfig,
     ContinuationConfig,
     MCPLaunchConfig,
@@ -127,6 +128,7 @@ environment = {{ {rendered_environment} }}
 [policy]
 mode = {_toml_string(policy.mode)}
 require_approval_for_actions = {str(policy.require_approval_for_actions).lower()}
+action_approval_policy = {_toml_string(policy.action_approval_policy)}
 max_model_turns = {policy.max_model_turns}
 max_tool_calls = {policy.max_tool_calls}
 max_side_effects = {policy.max_side_effects}
@@ -225,7 +227,7 @@ def initialize_public_web_word_config(
     state_dir = (default_state_dir() / "public-web-word").resolve(strict=False)
     config = AgentConfig(
         state_dir=state_dir,
-        policy_version="public-web-word-v1",
+        policy_version="public-web-word-v2",
         provider=ProviderConfig(
             name=provider,
             model=model,
@@ -246,6 +248,7 @@ def initialize_public_web_word_config(
         ),
         policy=PolicyConfig(
             mode=APPROVED_ACTIONS_MODE,
+            action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
             max_model_turns=28,
             max_tool_calls=24,
             max_side_effects=7,

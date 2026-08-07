@@ -69,6 +69,14 @@ class ToolEffect(str, Enum):
     SIDE_EFFECT = "side_effect"
 
 
+class ActionRiskTier(str, Enum):
+    """Host-authored action risk; provider output can never select this tier."""
+
+    LOW = "low"
+    HIGH = "high"
+    UNKNOWN = "unknown"
+
+
 class ToolCallStatus(str, Enum):
     """Host lifecycle state for a normalized requested tool call."""
 
@@ -591,7 +599,7 @@ class ApprovalBinding:
 
 @dataclass(frozen=True)
 class PolicyDecision:
-    """An approval-bound host policy decision; provider text cannot create one."""
+    """A Host policy decision; provider text cannot create or select one."""
 
     request_id: str
     identity: CallIdentity
@@ -860,6 +868,17 @@ class ApprovalPort(Protocol):
     """Local approval boundary; an adapter cannot approve its own action."""
 
     async def request_approval(self, request: ApprovalRequest) -> PolicyDecision: ...
+
+
+@runtime_checkable
+class ActionRiskClassifierPort(Protocol):
+    """Pure Host classifier for one proposed side effect and current ledger."""
+
+    def classify_action(
+        self,
+        call: ToolCall,
+        ledger: Sequence[LedgerEvent],
+    ) -> ActionRiskTier: ...
 
 
 @runtime_checkable
