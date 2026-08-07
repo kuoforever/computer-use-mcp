@@ -10,6 +10,7 @@ from computer_use_agent.decision_card_window_win32 import (
     _scaled_client_size as decision_client_size,
 )
 from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi
+from computer_use_agent.operator_personalization import OperatorTheme
 from computer_use_agent.progress_window_win32 import Win32ProgressWindowApi
 from computer_use_agent.progress_window_win32 import _scaled as scale_progress
 from computer_use_agent.progress_window_win32 import (
@@ -33,6 +34,17 @@ def test_native_operator_surfaces_can_share_one_process_abi() -> None:
     # must still accept their layout-compatible wintypes.MSG structures.
     presence.pump()
     progress.pump()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 operator surfaces")
+def test_native_operator_surfaces_accept_one_shared_light_theme() -> None:
+    decision = Win32DecisionCardWindowApi(theme=OperatorTheme.LIGHT)
+    presence = Win32PresenceWindowApi(theme=OperatorTheme.LIGHT)
+    progress = Win32ProgressWindowApi(theme=OperatorTheme.LIGHT)
+
+    assert decision.theme is OperatorTheme.LIGHT
+    assert presence.theme is OperatorTheme.LIGHT
+    assert progress.theme is OperatorTheme.LIGHT
 
 
 def test_progress_summary_geometry_scales_with_dpi() -> None:

@@ -74,5 +74,7 @@ Decision Card stayed in the bottom-right work-area rail and returned the safe
 `option_deny`. Capture exclusion was accepted. The machine enumerated only one
 monitor, so this is native wiring evidence, not physical cross-monitor evidence.
 
-Personalization, human Narrator/NVDA review, live large-text review, E4, and
-exact release-candidate evidence remain separate later gates.
+The separately implemented
+[operator personalization](OPERATOR_PERSONALIZATION.md) contract does not
+change this geometry. Human Narrator/NVDA review, live large-text review, E4,
+and exact release-candidate evidence remain separate later gates.

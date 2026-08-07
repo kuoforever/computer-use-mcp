@@ -51,10 +51,15 @@ def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
 
     accessibility = _operator_accessibility(config)
     locale = _operator_locale(config)
+    theme = _operator_theme(config)
 
     return RunPresenceCoordinator(
         PassivePresenceWindow(
-            Win32PresenceWindowApi(accessibility=accessibility, locale=locale),
+            Win32PresenceWindowApi(
+                accessibility=accessibility,
+                locale=locale,
+                theme=theme,
+            ),
             title=_operator_text(locale, "presence_window_title"),
         ),
         preferences=PresencePreferences(
@@ -81,6 +86,7 @@ def _progress_lifecycle(config: AgentConfig) -> ProgressLifecyclePort | None:
         api = Win32ProgressWindowApi(
             accessibility=_operator_accessibility(config),
             locale=locale,
+            theme=_operator_theme(config),
         )
         window = PassiveProgressWindow(
             api,
@@ -134,6 +140,7 @@ def _approval_port(
     from .decision_card_window_win32 import Win32DecisionCardWindowApi
 
     locale = _operator_locale(config)
+    theme = _operator_theme(config)
     notifications = None
     if config.operator.approval_notifications_enabled:
         try:
@@ -156,6 +163,7 @@ def _approval_port(
                 corner=config.operator.decision_card_corner,
                 accessibility=_operator_accessibility(config),
                 locale=locale,
+                theme=theme,
             ),
             locale=locale,
         ),
@@ -182,6 +190,14 @@ def _operator_locale(config: AgentConfig):  # noqa: ANN202
     from .operator_localization import resolve_operator_locale
 
     return resolve_operator_locale(config.operator.locale)
+
+
+def _operator_theme(config: AgentConfig):  # noqa: ANN202
+    """Resolve display-only theme once without opening a native surface."""
+
+    from .operator_personalization import resolve_operator_theme
+
+    return resolve_operator_theme(config.operator.theme)
 
 
 def _operator_text(locale, key: str, **values: object) -> str:  # noqa: ANN001

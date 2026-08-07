@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .operator_personalization import OperatorTheme
+
 
 class OperatorVisualError(ValueError):
     """Fixed failure for an invalid shared visual role."""
@@ -196,7 +198,7 @@ OPERATOR_WEIGHT_SEMIBOLD = 600
 #: The canonical HUD chrome. These are the values the workflow Progress HUD
 #: already shipped, so adopting them moves the Decision Card without repainting
 #: a surface that already reads correctly.
-OPERATOR_SURFACE = OperatorSurfaceTokens(
+OPERATOR_SURFACE_DARK = OperatorSurfaceTokens(
     background_rgb=0x13171E,
     # An elevated pane must be legible as its own region, including the system
     # scrollbar drawn inside it. The first value sat too close to the
@@ -206,6 +208,53 @@ OPERATOR_SURFACE = OperatorSurfaceTokens(
     muted_text_rgb=0xB8B8B8,
     hairline_rgb=0x626D7D,
 )
+
+OPERATOR_SURFACE_LIGHT = OperatorSurfaceTokens(
+    background_rgb=0xF7F8FA,
+    surface_rgb=0xFFFFFF,
+    text_rgb=0x1A1D23,
+    muted_text_rgb=0x4B5563,
+    hairline_rgb=0x657080,
+)
+
+# Backward-compatible name for the legacy and absent-key presentation.
+OPERATOR_SURFACE = OPERATOR_SURFACE_DARK
+
+_LIGHT_ACCENTS = {
+    0x828282: 0x56606E,
+    0x2F80ED: 0x1D5FAF,
+    0x9565EC: 0x6B46C1,
+    0x27AE60: 0x1F7A43,
+    0x00A7B5: 0x007784,
+    0xE67E22: 0xA84600,
+    0xF2C94C: 0x7A5A00,
+    0xBDBDBD: 0x56606E,
+    0xEB5757: 0xB42318,
+}
+
+
+def operator_surface(theme: OperatorTheme) -> OperatorSurfaceTokens:
+    if not isinstance(theme, OperatorTheme):
+        raise OperatorVisualError("OPERATOR_THEME_INVALID")
+    return (
+        OPERATOR_SURFACE_LIGHT
+        if theme is OperatorTheme.LIGHT
+        else OPERATOR_SURFACE_DARK
+    )
+
+
+def operator_accent(theme: OperatorTheme, accent_rgb: int) -> int:
+    if not isinstance(theme, OperatorTheme):
+        raise OperatorVisualError("OPERATOR_THEME_INVALID")
+    if (
+        isinstance(accent_rgb, bool)
+        or not isinstance(accent_rgb, int)
+        or not 0 <= accent_rgb <= 0xFFFFFF
+    ):
+        raise OperatorVisualError("OPERATOR_ACCENT_INVALID")
+    if theme is OperatorTheme.LIGHT:
+        return _LIGHT_ACCENTS.get(accent_rgb, 0x1D5FAF)
+    return accent_rgb
 
 
 def contrast_ratio(foreground_rgb: int, background_rgb: int) -> float:
@@ -246,6 +295,8 @@ OPERATOR_TYPE_ACTION = OperatorTypeTier(11, OPERATOR_WEIGHT_SEMIBOLD)
 
 __all__ = [
     "OPERATOR_SURFACE",
+    "OPERATOR_SURFACE_DARK",
+    "OPERATOR_SURFACE_LIGHT",
     "OPERATOR_TYPE_ACTION",
     "OPERATOR_TYPE_META",
     "OPERATOR_TYPE_MICRO_LABEL",
@@ -258,5 +309,7 @@ __all__ = [
     "OperatorVisualRole",
     "OperatorVisualToken",
     "contrast_ratio",
+    "operator_accent",
+    "operator_surface",
     "operator_visual",
 ]

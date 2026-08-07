@@ -38,6 +38,7 @@ from .operator_accessibility import (
     win32_palette,
 )
 from .operator_localization import OperatorLocale, operator_text
+from .operator_personalization import OperatorTheme
 from .progress_window import workflow_accessible_name
 
 _SW_SHOWNOACTIVATE = 4
@@ -259,11 +260,15 @@ class Win32ProgressWindowApi:
         *,
         accessibility: OperatorAccessibilitySettings | None = None,
         locale: OperatorLocale = OperatorLocale.EN_US,
+        theme: OperatorTheme = OperatorTheme.DARK,
     ) -> None:
         if not isinstance(locale, OperatorLocale):
             raise ValueError("progress locale is invalid")
+        if not isinstance(theme, OperatorTheme):
+            raise ValueError("progress theme is invalid")
         enable_dpi_awareness()
         self.locale = locale
+        self.theme = theme
         self.accessibility = accessibility or OperatorAccessibilitySettings()
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("progress accessibility settings are invalid")
@@ -477,6 +482,7 @@ class Win32ProgressWindowApi:
                 user32,
                 high_contrast=self.accessibility.high_contrast,
                 accent_rgb=self._workflow_accents.get(hwnd, _DEFAULT_ACCENT_RGB),
+                theme=self.theme,
             )
             background = gdi32.CreateSolidBrush(palette.background)
             user32.FillRect(hdc, ctypes.byref(rect), background)

@@ -19,6 +19,7 @@ from .operator_accessibility import (
     win32_palette,
 )
 from .operator_localization import OperatorLocale
+from .operator_personalization import OperatorTheme
 from .presence import PresenceView
 from .presence_window import (
     PresenceGeometry,
@@ -97,6 +98,7 @@ class Win32PresenceWindowApi:
         *,
         accessibility: OperatorAccessibilitySettings | None = None,
         locale: OperatorLocale = OperatorLocale.EN_US,
+        theme: OperatorTheme = OperatorTheme.DARK,
     ) -> None:
         enable_dpi_awareness()
         self.accessibility = accessibility or OperatorAccessibilitySettings()
@@ -104,7 +106,10 @@ class Win32PresenceWindowApi:
             raise ValueError("presence accessibility settings are invalid")
         if not isinstance(locale, OperatorLocale):
             raise ValueError("presence locale is invalid")
+        if not isinstance(theme, OperatorTheme):
+            raise ValueError("presence theme is invalid")
         self.locale = locale
+        self.theme = theme
         self._user32 = private_windll("user32")
         self._shcore = private_windll("shcore")
         self._gdi32 = private_windll("gdi32")
@@ -274,19 +279,21 @@ class Win32PresenceWindowApi:
             if state is None:
                 return
             view, geometry = state
-            color_rgb = view.color_rgb
+            palette = win32_palette(
+                self._user32,
+                high_contrast=view.high_contrast,
+                accent_rgb=view.color_rgb,
+                theme=self.theme,
+            )
+            color = palette.accent
             if (
                 not view.high_contrast
                 and view.animation_interval_ms is not None
                 and self._frames.get(hwnd, 0) >= 2
             ):
-                color_rgb = self._dim(color_rgb)
-            palette = win32_palette(
-                self._user32,
-                high_contrast=view.high_contrast,
-                accent_rgb=color_rgb,
-            )
-            color = palette.accent
+                # Uniformly dimming each byte is channel-order independent, so
+                # this works on the resolved Win32 COLORREF in both themes.
+                color = self._dim(color)
             border = self._gdi32.CreateSolidBrush(color)
             full = wintypes.RECT(0, 0, geometry.width, geometry.height)
             for inset in range(geometry.border_px):

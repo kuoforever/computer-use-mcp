@@ -35,7 +35,8 @@ fixed workflow's `approved_actions` profile, allows only `chrome.exe` and
 turns, 24 tool calls, and 7 side effects. Both generated installed product
 profiles explicitly enable all current UI/UX booleans: action feedback,
 presence, progress, reduced motion, high contrast, and Decision Cards. These
-surfaces remain passive or locally interactive under their existing contracts;
+profiles also write the strict presentation-only `theme = "auto"` preference.
+These surfaces remain passive or locally interactive under their existing contracts;
 the settings grant no provider, desktop, approval, replay, or side-effect
 authority. See the
 [workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md). Its allowlist is closed:
@@ -256,13 +257,15 @@ presence_enabled = true
 reduced_motion = true
 high_contrast = true
 locale = "auto"
+theme = "auto"
 ~~~
 
 The three enablement/accessibility values are strict booleans. `locale` accepts
-only `"en-US"`, `"zh-CN"`, or `"auto"`. Newly generated installed product
-profiles write all three booleans as `true` and select `auto`; legacy or
-hand-written configuration that omits them retains disabled booleans and the
-English locale. When disabled, the CLI does not
+only `"en-US"`, `"zh-CN"`, or `"auto"`; `theme` accepts only `"dark"`,
+`"light"`, or `"auto"`. Newly generated installed product profiles write all
+three booleans as `true` and select `auto` for locale and theme; legacy or
+hand-written configuration that omits them retains disabled booleans, the
+English locale, and the dark theme. When disabled, the CLI does not
 construct the native Win32 surface. When enabled, the surface
 receives only fixed phases after their run checkpoints are durably published.
 It receives no task, target, model output, arguments, approval, or execution
@@ -291,6 +294,16 @@ are unavailable or invalid, presentation falls back to the compatible 100%
 defaults without affecting run authority. See
 [Operator accessibility](OPERATOR_ACCESSIBILITY.md).
 
+Theme is resolved before each native surface is constructed. Explicit dark or
+light selects the fixed product palette; `auto` reads the Windows application
+theme and fails silently to legacy dark. Configured or detected High Contrast
+always overrides theme with Windows system colors. Generated profiles force
+High Contrast on, so their `theme = "auto"` becomes visible only when the
+operator explicitly disables that force-on flag and Windows High Contrast is
+also off. Theme changes presentation only and cannot change surface enablement,
+monitor selection, action/capture coordinates, approval, or dispatch. See
+[Operator presentation personalization](OPERATOR_PERSONALIZATION.md).
+
 ## Passive progress lifecycle
 
 The Agent `run`, `resume`, bounded observation-only `ask` / `plan run`, and explicit
@@ -301,6 +314,7 @@ for the duration of one CLI process:
 [operator]
 progress_enabled = true
 locale = "auto"
+theme = "auto"
 ~~~
 
 `progress_enabled` is a strict boolean. Newly generated installed product
@@ -331,6 +345,7 @@ approval_notifications_enabled = true
 decision_timeout_seconds = 300
 decision_card_corner = "bottom_right"
 locale = "auto"
+theme = "auto"
 ~~~
 
 Newly generated installed product profiles write `decision_cards_enabled =

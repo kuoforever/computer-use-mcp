@@ -9,6 +9,7 @@ from computer_use_agent.operator_accessibility import (
     resolve_operator_accessibility,
     win32_palette,
 )
+from computer_use_agent.operator_personalization import OperatorTheme
 
 
 class _SystemColors:
@@ -92,3 +93,34 @@ def test_regular_palette_retains_shared_product_tokens() -> None:
     assert palette.hairline == 0x007D6D62
     assert palette.accent == 0x004CC9F2
     assert palette.accent_text == 0x001E1713
+
+
+def test_light_palette_uses_reviewed_chrome_and_darker_semantic_accent() -> None:
+    palette = win32_palette(
+        _SystemColors(),
+        high_contrast=False,
+        accent_rgb=0xF2C94C,
+        theme=OperatorTheme.LIGHT,
+    )
+
+    assert palette.background == 0x00FAF8F7
+    assert palette.surface == 0x00FFFFFF
+    assert palette.text == 0x00231D1A
+    assert palette.muted_text == 0x0063554B
+    assert palette.hairline == 0x00807065
+    assert palette.accent == 0x00005A7A
+    assert palette.accent_text == 0x00FFFFFF
+
+
+def test_high_contrast_system_palette_overrides_light_theme() -> None:
+    colors = _SystemColors()
+
+    palette = win32_palette(
+        colors,
+        high_contrast=True,
+        accent_rgb=0xF2C94C,
+        theme=OperatorTheme.LIGHT,
+    )
+
+    assert palette.background == colors.values[5]
+    assert palette.accent == colors.values[13]

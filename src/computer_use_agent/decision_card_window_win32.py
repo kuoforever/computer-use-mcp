@@ -37,6 +37,7 @@ from .operator_accessibility import (
     win32_palette,
 )
 from .operator_localization import OperatorLocale, operator_text
+from .operator_personalization import OperatorTheme
 
 from .decision_card_window import DecisionCardButton
 
@@ -576,8 +577,18 @@ def _status_announcement_seconds(timeout_seconds: int) -> tuple[int, ...]:
     )
 
 
+def _immersive_dark_mode(
+    theme: OperatorTheme,
+    *,
+    high_contrast: bool,
+) -> bool:
+    if not isinstance(theme, OperatorTheme) or not isinstance(high_contrast, bool):
+        raise ValueError("DECISION_CARD_THEME_INVALID")
+    return theme is OperatorTheme.DARK and not high_contrast
+
+
 class Win32DecisionCardWindowApi:
-    """Show a timed, fixed-geometry Decision Card in one dark HUD window."""
+    """Show a timed Decision Card in one bounded themed native window."""
 
     def __init__(
         self,
@@ -585,14 +596,18 @@ class Win32DecisionCardWindowApi:
         corner: DecisionCardCorner = "bottom_right",
         accessibility: OperatorAccessibilitySettings | None = None,
         locale: OperatorLocale = OperatorLocale.EN_US,
+        theme: OperatorTheme = OperatorTheme.DARK,
     ) -> None:
         if corner not in _VALID_CORNERS:
             raise ValueError("decision card corner is invalid")
         if not isinstance(locale, OperatorLocale):
             raise ValueError("decision card locale is invalid")
+        if not isinstance(theme, OperatorTheme):
+            raise ValueError("decision card theme is invalid")
         enable_dpi_awareness()
         self.corner = corner
         self.locale = locale
+        self.theme = theme
         self.accessibility = accessibility or OperatorAccessibilitySettings()
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("decision card accessibility settings are invalid")
@@ -1123,6 +1138,7 @@ class Win32DecisionCardWindowApi:
             self._user32,
             high_contrast=self.accessibility.high_contrast,
             accent_rgb=attention.color_rgb,
+            theme=self.theme,
         )
         background_brush = self._gdi32.CreateSolidBrush(palette.background)
         surface_brush = self._gdi32.CreateSolidBrush(palette.surface)
@@ -1425,7 +1441,12 @@ class Win32DecisionCardWindowApi:
             if not hwnd:
                 raise OSError("DECISION_CARD_WINDOW_CREATE_FAILED")
             compact_window_rect[0] = (x, y, width, height)
-            dark_mode = wintypes.BOOL(not self.accessibility.high_contrast)
+            dark_mode = wintypes.BOOL(
+                _immersive_dark_mode(
+                    self.theme,
+                    high_contrast=self.accessibility.high_contrast,
+                )
+            )
             self._dwmapi.DwmSetWindowAttribute(
                 hwnd,
                 _DWMWA_USE_IMMERSIVE_DARK_MODE,
