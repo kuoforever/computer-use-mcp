@@ -19,7 +19,6 @@ from xml.etree import ElementTree
 from PIL import Image as PILImage
 
 from .config import (
-    APPROVED_ACTIONS_MODE,
     AgentConfig,
     ContinuationConfig,
     OperatorConfig,
@@ -46,6 +45,7 @@ from .public_web_word import (
     _document_text_semantically_contains_required,
     _successful_results,
     _unique_window_id,
+    public_web_word_contract_error,
     public_web_word_task,
 )
 from .runner import AgentRunner, RunnerPorts
@@ -68,9 +68,6 @@ from .types import (
 
 _WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEMPLATE_RESOURCE = "assets/public-web-word.docx"
-_FIXED_ALLOWLIST = "chrome.exe,winword.exe"
-_FIXED_HUMAN_STABLE_SAMPLES = "3"
-_FIXED_HUMAN_MAX_WAIT_SECONDS = "15"
 _VISION_PREVIEW_SIZES = (
     (160, 120),
     (128, 96),
@@ -675,25 +672,9 @@ async def run_public_web_word_workflow(
 ) -> PublicWebWordResult:
     """Run, save, close, reopen, and independently re-read one disposable DOCX."""
 
-    if config.policy.mode != APPROVED_ACTIONS_MODE:
-        raise PublicWebWordError("PUBLIC_WEB_WORD_APPROVED_ACTIONS_REQUIRED")
-    if config.continuation.enabled:
-        raise PublicWebWordError("PUBLIC_WEB_WORD_CONTINUATION_MUST_BE_DISABLED")
-    if config.mcp.environment.get("CUMCP_ALLOWLIST") != _FIXED_ALLOWLIST:
-        raise PublicWebWordError("PUBLIC_WEB_WORD_ALLOWLIST_MUST_BE_FIXED")
-    if (
-        config.mcp.environment.get("CUMCP_HUMAN_STABLE_SAMPLES")
-        != _FIXED_HUMAN_STABLE_SAMPLES
-        or config.mcp.environment.get("CUMCP_HUMAN_MAX_WAIT_SECONDS")
-        != _FIXED_HUMAN_MAX_WAIT_SECONDS
-    ):
-        raise PublicWebWordError("PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED")
-    if (
-        config.policy.max_model_turns < 20
-        or config.policy.max_side_effects < 7
-        or config.policy.max_tool_calls < 19
-    ):
-        raise PublicWebWordError("PUBLIC_WEB_WORD_BUDGET_TOO_SMALL")
+    contract_error = public_web_word_contract_error(config)
+    if contract_error is not None:
+        raise PublicWebWordError(contract_error)
     if approvals is None:
         from .approvals import ConsoleApprovalPort
 

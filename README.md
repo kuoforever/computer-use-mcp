@@ -230,10 +230,23 @@ guarded-desktop-agent config init `
 guarded-desktop-agent config doctor `
   --config C:\absolute\path\public-web-word.toml
 
+guarded-desktop-agent review public-web-word `
+  --config C:\absolute\path\public-web-word.toml `
+  --output C:\absolute\path\collaboration-brief.docx
+
 guarded-desktop-agent workflow public-web-word `
   --config C:\absolute\path\public-web-word.toml `
   --output C:\absolute\path\collaboration-brief.docx
 ~~~
+
+The review-only command displays the Host-fixed goal, applications, read/change
+boundary, exact output, maximum seven one-effect approvals, stop conditions,
+and possible partial files without contacting a provider, starting MCP, opening
+an application, or creating workflow state. The workflow command shows the same
+Scope Sheet and requires the exact token `START` before startup. An intentional
+non-interactive caller must add `--acknowledge-scope`; this starts the ordinary
+workflow but does not approve any desktop action. See the
+[Pre-run Review contract](docs/PRE_RUN_REVIEW.md).
 
 The model chooses the reviewed steps and authors two to four bullets from fresh
 Chrome observations; no bullet findings are prewritten in the task or template.

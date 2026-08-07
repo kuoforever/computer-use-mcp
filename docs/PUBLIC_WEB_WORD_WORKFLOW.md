@@ -75,6 +75,16 @@ Chrome and Word are discovered from `PATH` and standard Windows installation
 locations. `--chrome-executable` and `--word-executable` accept absolute paths
 when an installation is elsewhere.
 
+Before any provider, MCP, application, desktop, or fixture startup, the command
+shows the Host-compiled [Pre-run Review Scope Sheet](PRE_RUN_REVIEW.md). It
+requires the exact token `START`; EOF or any other response cancels with zero
+external work. A deliberate non-interactive caller must pass
+`--acknowledge-scope`. That flag acknowledges only the displayed workflow
+scope: all seven possible side effects still require their ordinary exact
+approval, and all policy, grounding, budget, live-authority, verification, and
+no-replay rules remain unchanged. `review public-web-word` displays the same
+text or versioned JSON without starting the workflow.
+
 ## Completion evidence
 
 Success requires all of these states in one run:

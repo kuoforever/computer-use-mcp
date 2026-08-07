@@ -8,7 +8,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 from uuid import uuid4
 
 from .config import (
@@ -32,6 +32,10 @@ from .types import (
     ProviderContinuationStrategy,
     ToolResult,
 )
+
+if TYPE_CHECKING:
+    from .pre_run_review import PreRunReview
+    from .public_web_word_runtime import PublicWebWordRequest
 
 
 def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
@@ -240,6 +244,32 @@ def build_parser() -> argparse.ArgumentParser:
     public_web_word.add_argument("--output", required=True, type=Path)
     public_web_word.add_argument("--chrome-executable", type=Path)
     public_web_word.add_argument("--word-executable", type=Path)
+    public_web_word.add_argument(
+        "--acknowledge-scope",
+        action="store_true",
+        help=(
+            "Non-interactively acknowledge the displayed Host-fixed Scope Sheet; "
+            "this does not approve any action."
+        ),
+    )
+
+    review = commands.add_parser(
+        "review", help="Preview one Host-fixed workflow scope with zero external work."
+    )
+    review_commands = review.add_subparsers(dest="review_command", required=True)
+    review_public_web_word = review_commands.add_parser(
+        "public-web-word",
+        help="Show the public-web-word Pre-run Review without starting it.",
+    )
+    review_public_web_word.add_argument("--config", required=True, type=Path)
+    review_public_web_word.add_argument("--output", required=True, type=Path)
+    review_public_web_word.add_argument("--chrome-executable", type=Path)
+    review_public_web_word.add_argument("--word-executable", type=Path)
+    review_public_web_word.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the same Host-fixed Scope Sheet as versioned JSON.",
+    )
 
     task = commands.add_parser(
         "task", help="Inspect validated local task state without execution authority."
@@ -758,33 +788,72 @@ def _run_planned_observation(
     )
 
 
-async def _run_public_web_word_async(
+def _prepare_public_web_word_review(
     path: Path,
     output: Path,
     chrome_executable: Path | None = None,
     word_executable: Path | None = None,
+) -> tuple[AgentConfig, PublicWebWordRequest, PreRunReview]:
+    from .pre_run_review import compile_public_web_word_review
+    from .public_web_word_runtime import PublicWebWordRequest
+
+    config = load_agent_config(path)
+    request = PublicWebWordRequest(
+        output=output.expanduser().resolve(strict=False),
+        chrome_executable=(
+            None
+            if chrome_executable is None
+            else chrome_executable.expanduser().resolve(strict=False)
+        ),
+        word_executable=(
+            None
+            if word_executable is None
+            else word_executable.expanduser().resolve(strict=False)
+        ),
+    )
+    review = compile_public_web_word_review(
+        config,
+        request.output,
+        chrome_executable=request.chrome_executable,
+        word_executable=request.word_executable,
+    )
+    return config, request, review
+
+
+def _show_public_web_word_review(
+    path: Path,
+    output: Path,
+    chrome_executable: Path | None = None,
+    word_executable: Path | None = None,
+    *,
+    json_output: bool = False,
+) -> int:
+    from .pre_run_review import render_pre_run_review
+
+    _config, _request, review = _prepare_public_web_word_review(
+        path,
+        output,
+        chrome_executable,
+        word_executable,
+    )
+    if json_output:
+        _print_json(review.as_json())
+    else:
+        print(render_pre_run_review(review), end="")
+    return 0
+
+
+async def _run_public_web_word_async(
+    config: AgentConfig,
+    request: PublicWebWordRequest,
 ) -> int:
     from .public_web_word_runtime import (
-        PublicWebWordRequest,
         run_public_web_word_workflow,
     )
 
-    config = load_agent_config(path)
     result = await run_public_web_word_workflow(
         config,
-        PublicWebWordRequest(
-            output=output.expanduser().resolve(strict=False),
-            chrome_executable=(
-                None
-                if chrome_executable is None
-                else chrome_executable.expanduser().resolve(strict=False)
-            ),
-            word_executable=(
-                None
-                if word_executable is None
-                else word_executable.expanduser().resolve(strict=False)
-            ),
-        ),
+        request,
         approvals=_approval_port(config),
     )
     _print_json(result.as_json())
@@ -796,14 +865,37 @@ def _run_public_web_word(
     output: Path,
     chrome_executable: Path | None = None,
     word_executable: Path | None = None,
+    *,
+    acknowledge_scope: bool = False,
 ) -> int:
-    return asyncio.run(
-        _run_public_web_word_async(
-            path,
-            output,
-            chrome_executable,
-            word_executable,
+    from .pre_run_review import render_pre_run_review
+
+    config, request, review = _prepare_public_web_word_review(
+        path,
+        output,
+        chrome_executable,
+        word_executable,
+    )
+    _console_output(render_pre_run_review(review).rstrip("\n"))
+    if not acknowledge_scope:
+        try:
+            answer = _console_input(
+                "Type START to begin this exact scope; anything else cancels: "
+            )
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+        if answer != "START":
+            _console_output(
+                "Cancelled before startup. No provider, MCP, application, or desktop "
+                "connection was opened."
+            )
+            return 1
+    else:
+        _console_output(
+            "Scope acknowledged by --acknowledge-scope; per-action approval remains required."
         )
+    return asyncio.run(
+        _run_public_web_word_async(config, request)
     )
 
 
@@ -1922,6 +2014,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "plan" and args.plan_command == "run":
             return _run_planned_observation(args.config, args.task, json_output=True)
+        if args.command == "review" and args.review_command == "public-web-word":
+            return _show_public_web_word_review(
+                args.config,
+                args.output,
+                args.chrome_executable,
+                args.word_executable,
+                json_output=args.json,
+            )
         if (
             args.command == "workflow"
             and args.workflow_command == "public-web-word"
@@ -1931,6 +2031,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 args.chrome_executable,
                 args.word_executable,
+                acknowledge_scope=args.acknowledge_scope,
             )
         if args.command == "task" and args.task_command == "center":
             return _show_task_center(
