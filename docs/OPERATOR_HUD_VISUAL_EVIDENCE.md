@@ -1,5 +1,11 @@
 # Isolated Operator HUD visual evidence
 
+> **Status: superseded for the Decision Card.** Its presentation was replaced
+> by the rebuild recorded in
+> [the 2026-08-01 matrix](OPERATOR_HUD_VISUAL_EVIDENCE_2026-08-01.md). The
+> observations below are retained unedited as the 2026-07-30 record; do not
+> cite them as the current Decision Card appearance.
+
 Date: 2026-07-30
 
 ## Scope

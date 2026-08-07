@@ -106,11 +106,11 @@ default.
 
 ## Bounded Operator HUD handoff (2026-07-31)
 
-`PROJECT_STATUS.md` remains the only task registry. `GDA-FC-002` closed on
-2026-08-01, so `GDA-FC-004` is now the sole active closure item and exact Full
-Cycle resume point. The notes below
+`PROJECT_STATUS.md` remains the only task registry and the only place that
+names the active item; do not restate an active item here, because this file
+goes stale between sessions. The notes below
 describe only the user-authorized, bounded `GDA-DEMO-003` detour; they do not
-activate broader operator UI or replace the Full Cycle backlog.
+activate broader operator UI or replace the backlog.
 
 `codex/demo-hud-baseline` merged into `main` as `6a21d33` through PR #221 on
 2026-08-01 and was deleted from the remote and the local checkout. There is no

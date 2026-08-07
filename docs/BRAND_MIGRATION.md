@@ -1,5 +1,8 @@
 # Guarded Desktop Agent naming migration
 
+> **Status: reference.** Current canonical names plus the compatibility aliases
+> retained for older configurations.
+
 ## Canonical names
 
 - Product and repository: `Guarded Desktop Agent` / `guarded-desktop-agent`

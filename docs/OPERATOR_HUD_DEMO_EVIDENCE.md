@@ -5,6 +5,10 @@
 > all three are fixed. The halo's own behaviour is verified programmatically
 > against the real window, not by eye; a Demo run with the fixes in place has
 > not yet been performed.
+>
+> The run was authorized by
+> [its live evidence plan](OPERATOR_HUD_LIVE_EVIDENCE_PLAN.md), which records
+> the preconditions, abort criteria, and what the run would not establish.
 
 ## Claim
 
