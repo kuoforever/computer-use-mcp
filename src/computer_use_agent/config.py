@@ -41,6 +41,9 @@ MINIMUM_HUMAN_MAX_WAIT_SECONDS = 1.0
 MAXIMUM_HUMAN_MAX_WAIT_SECONDS = 300.0
 MAXIMUM_HUMAN_STABLE_SAMPLES = 20
 MAXIMUM_TYPE_WAIT_SECONDS = 0.1
+DEFAULT_PROVIDER_TIMEOUT_SECONDS = 120
+MIN_PROVIDER_TIMEOUT_SECONDS = 1
+MAX_PROVIDER_TIMEOUT_SECONDS = 600
 
 # These are the only server configuration inputs the host is willing to pass
 # through. Audit and screenshot-redaction destinations remain server defaults so
@@ -260,6 +263,7 @@ class ProviderConfig:
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
+    request_timeout_seconds: int = DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or self.name not in SUPPORTED_PROVIDERS:
@@ -298,6 +302,17 @@ class ProviderConfig:
             raise ConfigError(
                 "provider output_token_reserve must be positive and smaller than "
                 "context_window_tokens"
+            )
+        if (
+            isinstance(self.request_timeout_seconds, bool)
+            or not isinstance(self.request_timeout_seconds, int)
+            or not MIN_PROVIDER_TIMEOUT_SECONDS
+            <= self.request_timeout_seconds
+            <= MAX_PROVIDER_TIMEOUT_SECONDS
+        ):
+            raise ConfigError(
+                "provider request_timeout_seconds must be between "
+                f"{MIN_PROVIDER_TIMEOUT_SECONDS} and {MAX_PROVIDER_TIMEOUT_SECONDS}"
             )
 
 
@@ -561,6 +576,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "max_request_bytes",
             "context_window_tokens",
             "output_token_reserve",
+            "request_timeout_seconds",
         },
         "provider",
     )
@@ -620,6 +636,9 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         ),
         output_token_reserve=_read_positive_int(
             provider, "output_token_reserve", "provider"
+        ),
+        request_timeout_seconds=provider.get(
+            "request_timeout_seconds", DEFAULT_PROVIDER_TIMEOUT_SECONDS
         ),
     )
 

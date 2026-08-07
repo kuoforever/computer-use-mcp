@@ -12,7 +12,7 @@ The three configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
-| `config init --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid read-only profile with an installed sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config init --profile PROFILE --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
 | `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact thirteen schemas |
 
@@ -27,6 +27,20 @@ windows, capture the screen, read desktop content, or perform an input action.
 It does start the configured MCP child to discover its public schemas. Normal
 server startup constructs the Windows driver, can create the configured audit
 directory, and starts emergency-stop key polling until the child is closed.
+
+`--profile desktop-ask` is the default and generates the existing read-only,
+continuation-enabled Notepad profile. `--profile public-web-word` generates the
+fixed workflow's `approved_actions` profile, allows only `chrome.exe` and
+`winword.exe`, disables continuation, enables the local Decision Card, and sets
+bounded budgets of 28 model turns, 24 tool calls, and 7 side effects. See the
+[workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md). Its allowlist is closed:
+`config init --profile public-web-word` rejects `--allowlist`, and the runtime
+rejects a hand-edited value instead of failing later during Chrome or Word use.
+
+`[provider].request_timeout_seconds` defaults to `120` and accepts integers from
+`1` through `600`. The public-web-word generated profile uses `90`. Expiry
+terminalizes that provider turn as fixed `PROVIDER_TIMEOUT` before any proposed
+desktop call from the timed-out turn can be dispatched.
 
 ## Control modes
 
@@ -136,9 +150,9 @@ same-desktop background control safe or parallel.
 | `CUMCP_ALLOWLIST` | `notepad.exe` | Comma-separated executable names allowed for safe-mode foreground actions. Surrounding whitespace on each non-empty item is ignored. Matching is case-insensitive and exact per executable name; a match anywhere in the foreground process ancestry is accepted. |
 | `CUMCP_MODE` | `safe_local` | Either `safe_local` or `full_control_local`. No `isolated_worker` mode is currently accepted. |
 | `CUMCP_HUMAN_IDLE_SECONDS` | `2.5` | Seconds after local mouse/keyboard input during which safe-mode actions yield. |
-| `CUMCP_HUMAN_STABLE_SAMPLES` | `1` | Consecutive healthy idle samples required inside one MCP action call. The bounded Demo uses `3`; a timeout rejects before dispatch and is never replayed. |
+| `CUMCP_HUMAN_STABLE_SAMPLES` | `1` | Consecutive healthy idle samples required inside one MCP action call. The bounded Demo and installed Public Web to Word workflow use `3`, so a Decision Card click can settle before the approved action continues; a timeout rejects before dispatch and is never replayed. |
 | `CUMCP_HUMAN_POLL_INTERVAL_SECONDS` | `0.25` | Interval between consecutive readiness samples. The Host accepts only `0.05` through `5.0` seconds. |
-| `CUMCP_HUMAN_MAX_WAIT_SECONDS` | `60` | Maximum time one action call may wait for a stable idle streak. The Host accepts only `1` through `300` seconds. |
+| `CUMCP_HUMAN_MAX_WAIT_SECONDS` | `60` | Maximum time one action call may wait for a stable idle streak. The Host accepts only `1` through `300` seconds. The installed Public Web to Word profile fixes this at `15`, below its 30-second MCP bridge timeout, so extended operator activity remains a known pre-dispatch result rather than a transport timeout. |
 | `CUMCP_INTERACTION_SPEED` | unset | Optional Host-owned presentation profile: `fast`, `normal`, or `deliberate`. It changes only bounded pointer motion, pre/post-action dwell, and the default typing delay. Unset preserves native timing. Delay is never authority: every later native mutation still revalidates. The profile never changes observation, approval, readiness, policy, budgets, or verification. |
 | `CUMCP_ACTION_FEEDBACK` | `0` | Shows a passive, click-through, non-activating, capture-excluded mouse halo and content-free `AGENT TYPING` / `AGENT KEY` badge. During visible typing, a pulsing caret, cycling dots, and progress bar follow the foreground editor's native caret using bounded geometry plus length/timing metadata. If no native caret exists, the badge stays at its last safe fallback. It never receives typed text or key values. |
 | `CUMCP_TYPE_WAIT_SECONDS` | profile value or `0` | Optional explicit delay between literal Unicode scalars for the focused-control `type` fallback. Accepted range is `0` to `0.1`; it overrides the selected presentation profile. Braces are literal; chords use `key`. Ref-based ValuePattern writes remain one opaque UIA mutation rather than per-character. |

@@ -86,6 +86,30 @@ def test_provider_request_budget_defaults_and_is_bounded(
             ProviderConfig("openai", "test-model", value)
 
 
+def test_provider_request_timeout_defaults_and_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    default_path = tmp_path / "default-timeout.toml"
+    default_path.write_text(_config_text(tmp_path), encoding="utf-8")
+    configured_path = tmp_path / "configured-timeout.toml"
+    configured_path.write_text(
+        _config_text(tmp_path, provider_extra="request_timeout_seconds = 90"),
+        encoding="utf-8",
+    )
+
+    assert load_agent_config(default_path).provider.request_timeout_seconds == 120
+    assert load_agent_config(configured_path).provider.request_timeout_seconds == 90
+
+    for value in (0, 601, True):
+        with pytest.raises(ConfigError, match="request_timeout_seconds"):
+            ProviderConfig(
+                "openai",
+                "test-model",
+                request_timeout_seconds=value,  # type: ignore[arg-type]
+            )
+
+
 def test_provider_token_window_defaults_and_is_bounded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

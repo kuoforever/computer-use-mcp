@@ -125,6 +125,13 @@ def _colorref(rgb: int) -> int:
     return red | (green << 8) | (blue << 16)
 
 
+def _restore_if_minimized(user32, hwnd: wintypes.HWND) -> None:  # noqa: ANN001
+    """Make a minimized window usable without changing any other placement."""
+
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, _SW_RESTORE)
+
+
 # COLORREF values use BGR byte order, so every shared RGB token is converted
 # once here rather than being restated as a second hand-maintained palette.
 _HUD_BACKGROUND = _colorref(OPERATOR_SURFACE.background_rgb)
@@ -481,6 +488,8 @@ class Win32DecisionCardWindowApi:
         user32.GetDlgCtrlID.restype = ctypes.c_int
         user32.IsWindow.argtypes = [wintypes.HWND]
         user32.IsWindow.restype = wintypes.BOOL
+        user32.IsIconic.argtypes = [wintypes.HWND]
+        user32.IsIconic.restype = wintypes.BOOL
         user32.GetWindowThreadProcessId.argtypes = [
             wintypes.HWND,
             ctypes.POINTER(wintypes.DWORD),
@@ -931,7 +940,7 @@ class Win32DecisionCardWindowApi:
             )
         )
         try:
-            self._user32.ShowWindow(hwnd, _SW_RESTORE)
+            _restore_if_minimized(self._user32, hwnd)
             self._user32.SetWindowPos(
                 hwnd,
                 wintypes.HWND(0),

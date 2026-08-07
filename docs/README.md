@@ -20,6 +20,7 @@ not a line-by-line mirror of every reference page.
 | I need the complete project map: features, implementation, quality attributes, status, evidence, and next gates | [Project overview](PROJECT_OVERVIEW.md) |
 | I need the current product names and compatibility aliases | [Naming migration](BRAND_MIGRATION.md) |
 | I want to install and run the server | [Root README](../README.md) |
+| I want to run the installed fixed public-browser-to-Word product workflow | [Public Web to Word workflow](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | I need the shortest implemented/evidence/next-gate view | [Capability status](CAPABILITY_STATUS.md) |
 | I need environment variables or safety behavior | [Configuration and safety](CONFIGURATION.md) |
 | I need exact MCP tool parameters and behavior | [Tool reference](TOOLS.md) |
@@ -92,6 +93,7 @@ not a line-by-line mirror of every reference page.
 | Full Cycle integration | Runtime/model-factory ownership boundary, safe export schema, rich-capture boundary, and closure gates |
 | Project overview | Cross-system project shape, exhaustive feature-family inventory, implementation map, quality-attribute mapping, and role-based reading paths |
 | Root README | Current product scope, safe quick start, and high-level limitations |
+| Public Web to Word workflow | Fixed source/application boundary, installed command, durable DOCX completion contract, and bounded result metadata |
 | Capability status | Cross-surface implementation state, retained evidence level, and next executable gate |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
 | Tool reference | Public MCP tool surface and result semantics |

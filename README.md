@@ -193,6 +193,33 @@ This path is offline verified and has one exact-candidate
 result does not establish another provider, application, desktop action, or
 release artifact.
 
+## Public Web to Word workflow
+
+Create the dedicated supervised profile, check readiness, then write one new
+DOCX from the fixed public Microsoft Support source:
+
+~~~powershell
+guarded-desktop-agent config init `
+  --profile public-web-word `
+  --provider openai `
+  --model <reviewed-model-id> `
+  --output C:\absolute\path\public-web-word.toml
+
+guarded-desktop-agent config doctor `
+  --config C:\absolute\path\public-web-word.toml
+
+guarded-desktop-agent workflow public-web-word `
+  --config C:\absolute\path\public-web-word.toml `
+  --output C:\absolute\path\collaboration-brief.docx
+~~~
+
+The model chooses the reviewed steps and authors two to four bullets from fresh
+Chrome observations; no bullet findings are prewritten in the task or template.
+The workflow uses the ordinary local approval boundary, saves without
+overwriting, closes the exact fixtures, reopens the same DOCX, and reads it back
+through Runner/MCP before returning bounded JSON metadata. See the full
+[workflow contract](docs/PUBLIC_WEB_WORD_WORKFLOW.md).
+
 ## Raw MCP server quick start
 
 Create a virtual environment and install the package:

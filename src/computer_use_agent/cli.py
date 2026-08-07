@@ -172,12 +172,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate.add_argument("--config", required=True, type=Path)
     initialize = config_commands.add_parser(
-        "init", help="Create a read-only Desktop Ask configuration."
+        "init", help="Create one installed product-profile configuration."
+    )
+    initialize.add_argument(
+        "--profile",
+        choices=("desktop-ask", "public-web-word"),
+        default="desktop-ask",
     )
     initialize.add_argument("--provider", required=True, choices=sorted(SUPPORTED_PROVIDERS))
     initialize.add_argument("--model", required=True)
     initialize.add_argument("--output", required=True, type=Path)
-    initialize.add_argument("--allowlist", default="notepad.exe")
+    initialize.add_argument(
+        "--allowlist",
+        help="Override the Desktop Ask allowlist; public-web-word is fixed.",
+    )
     initialize.add_argument("--mcp-executable", type=Path)
     doctor = config_commands.add_parser(
         "doctor", help="Check provider setup and exact installed MCP discovery."
@@ -217,6 +225,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     plan_run.add_argument("--config", required=True, type=Path)
     plan_run.add_argument("--task", required=True)
+
+    workflow = commands.add_parser(
+        "workflow", help="Run one fixed installed product workflow."
+    )
+    workflow_commands = workflow.add_subparsers(
+        dest="workflow_command", required=True
+    )
+    public_web_word = workflow_commands.add_parser(
+        "public-web-word",
+        help="Read the fixed public source and save a disposable Word brief.",
+    )
+    public_web_word.add_argument("--config", required=True, type=Path)
+    public_web_word.add_argument("--output", required=True, type=Path)
+    public_web_word.add_argument("--chrome-executable", type=Path)
+    public_web_word.add_argument("--word-executable", type=Path)
 
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
@@ -483,15 +506,17 @@ def _validate_config(path: Path) -> int:
 
 
 def _initialize_config(
+    profile: str,
     provider: str,
     model: str,
     output: Path,
-    allowlist: str,
+    allowlist: str | None,
     mcp_executable: Path | None,
 ) -> int:
-    from .config_init import initialize_desktop_ask_config
+    from .config_init import initialize_agent_config
 
-    initialized = initialize_desktop_ask_config(
+    initialized = initialize_agent_config(
+        profile=profile,
         provider=provider,
         model=model,
         output=output,
@@ -710,6 +735,55 @@ def _run_planned_observation(
 ) -> int:
     return asyncio.run(
         _run_planned_observation_async(path, task, json_output=json_output)
+    )
+
+
+async def _run_public_web_word_async(
+    path: Path,
+    output: Path,
+    chrome_executable: Path | None = None,
+    word_executable: Path | None = None,
+) -> int:
+    from .public_web_word_runtime import (
+        PublicWebWordRequest,
+        run_public_web_word_workflow,
+    )
+
+    config = load_agent_config(path)
+    result = await run_public_web_word_workflow(
+        config,
+        PublicWebWordRequest(
+            output=output.expanduser().resolve(strict=False),
+            chrome_executable=(
+                None
+                if chrome_executable is None
+                else chrome_executable.expanduser().resolve(strict=False)
+            ),
+            word_executable=(
+                None
+                if word_executable is None
+                else word_executable.expanduser().resolve(strict=False)
+            ),
+        ),
+        approvals=_approval_port(config),
+    )
+    _print_json(result.as_json())
+    return 0
+
+
+def _run_public_web_word(
+    path: Path,
+    output: Path,
+    chrome_executable: Path | None = None,
+    word_executable: Path | None = None,
+) -> int:
+    return asyncio.run(
+        _run_public_web_word_async(
+            path,
+            output,
+            chrome_executable,
+            word_executable,
+        )
     )
 
 
@@ -1793,6 +1867,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "config" and args.config_command == "init":
             return _initialize_config(
+                args.profile,
                 args.provider,
                 args.model,
                 args.output,
@@ -1815,6 +1890,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "plan" and args.plan_command == "run":
             return _run_planned_observation(args.config, args.task, json_output=True)
+        if (
+            args.command == "workflow"
+            and args.workflow_command == "public-web-word"
+        ):
+            return _run_public_web_word(
+                args.config,
+                args.output,
+                args.chrome_executable,
+                args.word_executable,
+            )
         if args.command == "eval":
             return _run_eval(args.cases, args.report, args.manifest, args.write_manifest)
         if args.command == "release" and args.release_command == "preflight":

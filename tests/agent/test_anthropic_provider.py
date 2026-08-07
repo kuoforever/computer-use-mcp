@@ -8,6 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from computer_use_agent.provider_instructions import (
+    ActionInstructionProfile,
+    PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS,
+)
 from computer_use_agent.providers.anthropic import (
     CONTEXT_PACKING_NOTICE,
     AnthropicMessagesProvider,
@@ -863,6 +867,82 @@ def test_approved_mode_advertises_reviewed_actions_but_not_type() -> None:
     }
     strict_click = next(tool for tool in REVIEWED_TOOLS if tool.name == "click")
     assert "oneOf" in strict_click.input_schema
+
+
+def test_public_web_word_profile_uses_same_tools_for_create_and_restore() -> None:
+    scripted = ScriptedMessages(
+        [
+            _response(
+                "message_fresh",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            ),
+            _response(
+                "message_restored",
+                content=[SimpleNamespace(type="text", text="done")],
+                stop_reason="end_turn",
+            ),
+        ]
+    )
+    provider = AnthropicMessagesProvider(
+        model="test-model",
+        messages=scripted,
+        allow_actions=True,
+        action_instruction_profile=ActionInstructionProfile.PUBLIC_WEB_WORD,
+    )
+
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_public_web_word_fresh",
+            turn_id="turn_1",
+            task="Create the disposable source brief",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+    provider.restore_continuation(
+        "run_public_web_word_restored",
+        {"messages": [{"role": "user", "content": "Persisted workflow task"}]},
+        tools=REVIEWED_TOOLS,
+    )
+    asyncio.run(
+        provider.create_turn(
+            run_id="run_public_web_word_restored",
+            turn_id="turn_2",
+            task="ORIGINAL_TASK_MUST_NOT_BE_SENT",
+            ledger=(),
+            tools=REVIEWED_TOOLS,
+        )
+    )
+
+    expected_names = [
+        "ui_snapshot",
+        "find",
+        "list_windows",
+        "screenshot",
+        "capture_region",
+        "ocr",
+        "document_text",
+        "activate_window",
+        "click",
+        "scroll",
+        "drag",
+        "type",
+        "key",
+    ]
+    assert [request["system"] for request in scripted.calls] == [
+        PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS,
+        PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS,
+    ]
+    assert all(
+        "Never return a text-only response" in request["system"]
+        and "post-Ctrl+S document_text" in request["system"]
+        for request in scripted.calls
+    )
+    assert [
+        [tool["name"] for tool in request["tools"]] for request in scripted.calls
+    ] == [expected_names, expected_names]
+    assert "ORIGINAL_TASK_MUST_NOT_BE_SENT" not in json.dumps(scripted.calls[1])
 
 
 def test_claude_restore_appends_only_new_tool_result_to_exact_history() -> None:

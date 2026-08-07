@@ -12,6 +12,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from computer_use_agent.demo_workflow_progress import DemoWorkflowProgress
+from computer_use_agent.disposable_process import ProcessWindowSnapshot
 from computer_use_agent.fakes import FakeProgressWindowApi
 from computer_use_agent.progress_window import PassiveProgressWindow
 
@@ -160,11 +161,13 @@ class _Windows:
         self.states = {pid: list(values) for pid, values in states.items()}
         self.close_requests: list[int] = []
 
-    def visible_count(self, pid: int) -> int:
+    def snapshot(self, pid: int) -> ProcessWindowSnapshot:
         values = self.states[pid]
         if len(values) > 1:
-            return values.pop(0)
-        return values[0]
+            visible = values.pop(0)
+        else:
+            visible = values[0]
+        return ProcessWindowSnapshot(visible, visible, 0)
 
     def request_close(self, pid: int) -> int:
         self.close_requests.append(pid)
@@ -243,7 +246,7 @@ def test_cleanup_requests_graceful_close_before_any_process_termination() -> Non
     cleanup = demo._cleanup_fixture_processes(
         launched,
         sleep=lambda _seconds: None,
-        windows=_Windows({101: [1, 0]}),
+        windows=_Windows({101: [1, 0, 0, 0]}),
     )
 
     assert cleanup == (
@@ -253,6 +256,7 @@ def test_cleanup_requests_graceful_close_before_any_process_termination() -> Non
             "windows_closed",
             None,
             1,
+            True,
             True,
         ),
     )
@@ -308,6 +312,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
             None,
             1,
             True,
+            True,
         ),
         demo.FixtureCleanup(
             "Microsoft Word",
@@ -315,6 +320,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
             "handoff_required",
             None,
             0,
+            False,
             True,
         ),
     )
@@ -345,6 +351,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
                 "disposition": "windows_closed",
                 "exit_code": None,
                 "pid": 202,
+                "window_cleanup_verified": True,
                 "process_running": True,
             },
             {
@@ -353,6 +360,7 @@ def test_final_state_declares_cleanup_scope_and_explicit_handoff(
                 "disposition": "handoff_required",
                 "exit_code": None,
                 "pid": 101,
+                "window_cleanup_verified": False,
                 "process_running": True,
             },
         ],

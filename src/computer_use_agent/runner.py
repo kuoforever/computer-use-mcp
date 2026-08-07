@@ -1029,14 +1029,20 @@ class AgentRunner:
                     continuation.dispatch_provider(
                         state, checkpoint_sequence=recorder.checkpoint_sequence
                     )
-                turn = await self.ports.provider.create_turn(
-                    run_id=state.run_id,
-                    turn_id=turn_id,
-                    task=state.task,
-                    ledger=provider_ledger,
-                    tools=provider_tools,
-                    memories=memories,
-                )
+                try:
+                    async with asyncio.timeout(
+                        self.config.provider.request_timeout_seconds
+                    ):
+                        turn = await self.ports.provider.create_turn(
+                            run_id=state.run_id,
+                            turn_id=turn_id,
+                            task=state.task,
+                            ledger=provider_ledger,
+                            tools=provider_tools,
+                            memories=memories,
+                        )
+                except TimeoutError as exc:
+                    raise RunFailure("PROVIDER_TIMEOUT", state) from exc
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
                 if any(

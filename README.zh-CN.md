@@ -91,9 +91,35 @@ provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP �
 创建配置的 audit 目录并启动急停按键轮询，随后子进程会被关闭。
 
 如使用 Claude，将安装 extra、provider 名和环境变量分别替换为
-`agent-anthropic`、`anthropic` 和 `ANTHROPIC_API_KEY`。当前 expanded
-document-aware 路径只有 offline evidence，尚未完成 exact-candidate 的
-provider、desktop、application 或 release 验证。
+`agent-anthropic`、`anthropic` 和 `ANTHROPIC_API_KEY`。当前 Desktop Ask
+已有一次 OpenAI/Windows/Notepad exact-candidate 结果；它不证明其他
+provider、application、desktop action 或 release artifact。
+
+## Public Web to Word 工作流
+
+先生成专用的受监督配置并检查 readiness，再从固定的 Microsoft Support
+公开页面生成一个全新的 DOCX：
+
+~~~powershell
+guarded-desktop-agent config init `
+  --profile public-web-word `
+  --provider openai `
+  --model <已审核的模型 ID> `
+  --output C:\absolute\path\public-web-word.toml
+
+guarded-desktop-agent config doctor `
+  --config C:\absolute\path\public-web-word.toml
+
+guarded-desktop-agent workflow public-web-word `
+  --config C:\absolute\path\public-web-word.toml `
+  --output C:\absolute\path\collaboration-brief.docx
+~~~
+
+模型根据新的 Chrome 观察自行选择已审核步骤并撰写 2–4 个要点；task 和模板
+都不预写结论。工作流继续使用现有本地 approval 边界，不覆盖已有输出；保存后
+会关闭精确 fixture、重新打开同一 DOCX，并通过 Runner/MCP 读回验证，最后只
+输出有界元数据。完整边界见
+[Public Web to Word 工作流契约](docs/PUBLIC_WEB_WORD_WORKFLOW.md)。
 
 ## 原始 MCP server 启动
 
