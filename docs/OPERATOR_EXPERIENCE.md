@@ -25,6 +25,9 @@
 > Contrast/reduced-motion preferences, and 200%/400% text reflow are offline
 > verified, with a bounded native UIA smoke. Human Narrator/NVDA review and live
 > large-text visual acceptance remain separate gates.
+> The four native operator surfaces also share the bounded
+> [English/Simplified-Chinese localization contract](OPERATOR_LOCALIZATION.md);
+> machine identifiers and authority remain locale-neutral.
 > Decision Card compilation,
 > choice validation, and a configurable four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
@@ -366,7 +369,8 @@ shown only as labeled short fingerprints. Collapsing restores the saved compact
 geometry and does not create a new decision or selection.
 
 The card's native Text, Edit, and Button controls expose standard Windows UIA
-semantics. The unique safe `Deny` choice receives initial focus. Native dialog
+semantics. The unique safe `option_deny` choice, displayed as `Stop task` in
+English and `停止任务` in Simplified Chinese, receives initial focus. Native dialog
 navigation owns `Tab`, `Shift+Tab`, arrows, and `Space`; `Enter` activates only a
 known focused toggle or choice, while `Esc` remains safe denial. Countdown name
 changes are limited to bounded milestones rather than every timer tick. The

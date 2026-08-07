@@ -16,6 +16,7 @@ from computer_use_agent.approval_inbox import (
     build_approval_inbox,
     render_approval_inbox,
 )
+from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.tool_registry import REVIEWED_TOOLS
 from computer_use_agent.decision_cards import (
     ApplicationClass,
@@ -139,6 +140,28 @@ def test_lifecycle_publishes_read_only_pending_item_and_removes_it(tmp_path: Pat
 
     assert build_approval_inbox(state_dir, now=NOW).items == ()
     assert notifications.withdrawn == [request.request_id]
+
+
+def test_lifecycle_localizes_notice_without_changing_its_authority(tmp_path: Path) -> None:
+    notifications = _Notifications()
+    lifecycle = ApprovalAttentionLifecycle(
+        LocalApprovalInbox(tmp_path.resolve()),
+        notifications=notifications,
+        locale=OperatorLocale.ZH_CN,
+    )
+    request = _request()
+
+    lifecycle.open(request, _card(request), opened_at=NOW)
+
+    notice = notifications.shown[0]
+    assert notice.as_json() == {  # type: ignore[union-attr]
+        "approval_notice_version": 1,
+        "category": "approval_required",
+        "title": "受保护的桌面智能体",
+        "body": "需要审批。请返回已打开的决策窗口。",
+        "interactive": False,
+        "capabilities": {"approve": False, "deny": False, "dispatch": False},
+    }
 
 
 def test_record_and_notice_never_retain_argument_or_task_content(tmp_path: Path) -> None:

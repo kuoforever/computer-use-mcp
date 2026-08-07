@@ -25,6 +25,7 @@ from computer_use_agent.decision_cards import (
     compile_decision_card,
 )
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.workflow_checklist import WorkflowStatus
 
 NOW = datetime(2026, 7, 22, 15, 0, tzinfo=UTC)
@@ -87,9 +88,9 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     ]
     assert [button.label for button in call["buttons"]] == [
         "Approve once",
-        "Re-observe",
-        "Defer",
-        "Deny",
+        "Check screen again",
+        "Pause and inspect",
+        "Stop task",
     ]
     assert "A recommendation is advice, not permission" in call["content"]
     assert "Expected time:" in call["content"]
@@ -110,6 +111,40 @@ def test_controller_renders_fixed_tradeoffs_and_correlates_choice() -> None:
     assert "They grant no authority" in evidence
     assert "completion_outcome" not in evidence
     assert "7" * 64 not in evidence
+
+
+def test_controller_localizes_reviewed_copy_without_localizing_option_ids() -> None:
+    api = Api("option_deny")
+    card = _card()
+
+    selection = asyncio.run(
+        DecisionCardWindow(api, locale=OperatorLocale.ZH_CN).choose(
+            card,
+            timeout_seconds=30,
+        )
+    )
+
+    assert selection is not None
+    assert selection.option_id == "option_deny"
+    call = api.calls[0]
+    assert call["title"] == "需要决策"
+    assert [button.option_id for button in call["buttons"]] == [
+        "option_approve_exact_effect",
+        "option_reobserve",
+        "option_defer",
+        "option_deny",
+    ]
+    assert [button.label for button in call["buttons"]] == [
+        "仅批准这一次",
+        "重新检查屏幕",
+        "暂停并检查",
+        "停止任务",
+    ]
+    assert "决策范围" in call["content"]
+    assert "安全退出" in call["content"]
+    assert "观察" in call["expanded_information"]
+    assert "完成结果" in call["expanded_information"]
+    assert card.card_digest not in call["expanded_information"]
 
 
 def test_controller_renders_compact_locked_step_context() -> None:

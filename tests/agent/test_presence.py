@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.presence import (
     DesktopAuthority,
     PresenceMotion,
@@ -80,6 +81,21 @@ def test_reduced_motion_and_high_contrast_are_explicit_not_color_only() -> None:
     assert view.animation_interval_ms is None
     assert view.high_contrast is True
     assert view.color_rgb == 0xFFFFFF
+
+
+def test_simplified_chinese_presence_keeps_role_and_localizes_visible_cues() -> None:
+    view = project_presence(
+        PresenceSnapshot(
+            PresencePhase.WAITING_APPROVAL,
+            DesktopAuthority.WAITING,
+            preferences=PresencePreferences(locale=OperatorLocale.ZH_CN),
+        )
+    )
+
+    assert view is not None
+    assert view.visual_role == "needs_input"
+    assert view.label == "需要确认"
+    assert view.glyph == "审批"
 
 
 def test_display_model_has_no_identity_content_or_authority_fields() -> None:

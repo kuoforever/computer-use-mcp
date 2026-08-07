@@ -32,6 +32,7 @@ from .operator_accessibility import (
     layout_dpi,
     win32_palette,
 )
+from .operator_localization import OperatorLocale, operator_text
 from .progress_window import workflow_accessible_name
 
 _SW_SHOWNOACTIVATE = 4
@@ -263,8 +264,12 @@ class Win32ProgressWindowApi:
         self,
         *,
         accessibility: OperatorAccessibilitySettings | None = None,
+        locale: OperatorLocale = OperatorLocale.EN_US,
     ) -> None:
+        if not isinstance(locale, OperatorLocale):
+            raise ValueError("progress locale is invalid")
         enable_dpi_awareness()
+        self.locale = locale
         self.accessibility = accessibility or OperatorAccessibilitySettings()
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("progress accessibility settings are invalid")
@@ -332,7 +337,14 @@ class Win32ProgressWindowApi:
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
         self._workflow_accents.pop(int(hwnd), None)
-        self._set_accessible_name(hwnd, f"{self._base_titles[int(hwnd)]}. Progress summary.")
+        title = self._base_titles[int(hwnd)]
+        summary = operator_text(self.locale, "progress_summary")
+        name = (
+            f"{title}。{summary}。"
+            if self.locale is OperatorLocale.ZH_CN
+            else f"{title}. {summary}."
+        )
+        self._set_accessible_name(hwnd, name)
         self._apply_lines(hwnd, rendered)
 
     def set_workflow_lines(
@@ -351,7 +363,7 @@ class Win32ProgressWindowApi:
             len(compact) != 6
             or len(detail) <= 6
             or detail[:6] != compact
-            or detail[6] != "WORKFLOW CHECKLIST"
+            or detail[6] != operator_text(self.locale, "workflow_checklist")
             or not isinstance(expanded, bool)
             or isinstance(accent_rgb, bool)
             or not isinstance(accent_rgb, int)
@@ -362,7 +374,10 @@ class Win32ProgressWindowApi:
         self._workflow_lines[int(hwnd)] = (compact, detail)
         self._toggle_handlers[int(hwnd)] = on_toggle
         self._workflow_accents[int(hwnd)] = accent_rgb
-        self._set_accessible_name(hwnd, workflow_accessible_name(compact))
+        self._set_accessible_name(
+            hwnd,
+            workflow_accessible_name(compact, self.locale),
+        )
         self._show_workflow(hwnd, expanded=expanded)
 
     def lines(self, hwnd: int) -> tuple[str, ...]:
@@ -477,7 +492,7 @@ class Win32ProgressWindowApi:
             user32.FillRect(hdc, ctypes.byref(accent_rect), accent)
             gdi32.DeleteObject(accent)
             lines = self._lines.get(hwnd, ())
-            if lines and lines[0].startswith("COMPUTER USE  ·  "):
+            if int(hwnd) in self._workflow_lines:
                 self._paint_workflow_summary(
                     hdc,
                     lines[:6],
@@ -486,7 +501,7 @@ class Win32ProgressWindowApi:
                     accent_color,
                     palette,
                 )
-                if len(lines) > 6 and lines[6] == "WORKFLOW CHECKLIST":
+                if self._workflow_is_expanded(int(hwnd)):
                     self._paint_workflow_checklist(
                         hdc,
                         lines[6:],
@@ -624,7 +639,13 @@ class Win32ProgressWindowApi:
             hdc,
             _scaled(width - 132, geometry_dpi),
             _scaled(18, geometry_dpi),
-            "HIDE STEPS  ∧" if expanded else "SHOW STEPS  ∨",
+            (
+                operator_text(
+                    self.locale,
+                    "hide_steps" if expanded else "show_steps",
+                )
+                + ("  ∧" if expanded else "  ∨")
+            ),
             points=9,
             weight=_FW_SEMIBOLD,
             color=palette.muted_text,
@@ -673,10 +694,10 @@ class Win32ProgressWindowApi:
 
     def _apply_lines(self, hwnd: int, lines: tuple[str, ...]) -> None:
         self._lines[int(hwnd)] = lines
-        if lines and lines[0].startswith("COMPUTER USE  ·  "):
+        if int(hwnd) in self._workflow_lines:
             self._resize_summary(
                 hwnd,
-                expanded=len(lines) > 6 and lines[6] == "WORKFLOW CHECKLIST",
+                expanded=self._workflow_is_expanded(int(hwnd)),
             )
         # Repaint without activation. The window owns no executable control.
         self._user32.InvalidateRect(wintypes.HWND(hwnd), None, True)
@@ -689,7 +710,8 @@ class Win32ProgressWindowApi:
 
     def _workflow_is_expanded(self, hwnd: int) -> bool:
         lines = self._lines.get(int(hwnd), ())
-        return len(lines) > 6 and lines[6] == "WORKFLOW CHECKLIST"
+        variants = self._workflow_lines.get(int(hwnd))
+        return variants is not None and lines == variants[1]
 
     def _set_accessible_name(self, hwnd: int, name: str) -> None:
         """Publish one bounded status change without activating the window."""

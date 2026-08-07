@@ -301,6 +301,54 @@ def test_decision_cards_are_default_off_and_timeout_is_bounded(
         load_agent_config(path)
 
 
+def test_operator_locale_is_strict_and_absent_key_preserves_english(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(_config_text(tmp_path), encoding="utf-8")
+    assert load_agent_config(path).operator.locale == "en-US"
+
+    path.write_text(
+        _config_text(tmp_path) + '\n[operator]\nlocale = "zh-CN"\n',
+        encoding="utf-8",
+    )
+    assert load_agent_config(path).operator.locale == "zh-CN"
+
+
+@pytest.mark.parametrize("locale", ["en", "zh", "auto ", "fr-FR"])
+def test_operator_locale_rejects_unsupported_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    locale: str,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path) + f'\n[operator]\nlocale = "{locale}"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="operator locale"):
+        load_agent_config(path)
+
+
+def test_operator_locale_rejects_non_string(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path) + "\n[operator]\nlocale = true\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match=r"\[operator\]\.locale must be a string"):
+        load_agent_config(path)
+
+
 @pytest.mark.parametrize(
     "environment",
     [

@@ -27,6 +27,7 @@ from computer_use_agent.decision_card_window_win32 import (
 )
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
 from computer_use_agent.operator_visuals import OPERATOR_TYPE_META
+from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.progress_window_win32 import (
     _HUD_BACKGROUND as _PROGRESS_BACKGROUND,
     _HUD_MUTED as _PROGRESS_MUTED,
@@ -66,6 +67,14 @@ def test_native_window_defaults_to_bottom_right_and_rejects_unknown_corner() -> 
     assert Win32DecisionCardWindowApi().corner == "bottom_right"
     with pytest.raises(ValueError, match="corner is invalid"):
         Win32DecisionCardWindowApi(corner="center")  # type: ignore[arg-type]
+
+
+def test_native_copy_uses_one_locale_for_visible_and_uia_text() -> None:
+    api = Win32DecisionCardWindowApi(locale=OperatorLocale.ZH_CN)
+
+    assert api.locale is OperatorLocale.ZH_CN
+    assert _toggle_label(False, api.locale) == "显示详情"
+    assert _toggle_label(True, api.locale) == "收起详情"
 
 
 def test_foreground_restore_preserves_non_minimized_window_placement() -> None:

@@ -50,15 +50,18 @@ def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
     from .presence_window_win32 import Win32PresenceWindowApi
 
     accessibility = _operator_accessibility(config)
+    locale = _operator_locale(config)
 
     return RunPresenceCoordinator(
         PassivePresenceWindow(
-            Win32PresenceWindowApi(accessibility=accessibility)
+            Win32PresenceWindowApi(accessibility=accessibility, locale=locale),
+            title=_operator_text(locale, "presence_window_title"),
         ),
         preferences=PresencePreferences(
             enabled=True,
             reduced_motion=accessibility.reduced_motion,
             high_contrast=accessibility.high_contrast,
+            locale=locale,
         ),
     )
 
@@ -74,8 +77,16 @@ def _progress_lifecycle(config: AgentConfig) -> ProgressLifecyclePort | None:
         from .progress_window import PassiveProgressWindow
         from .progress_window_win32 import Win32ProgressWindowApi
 
-        api = Win32ProgressWindowApi(accessibility=_operator_accessibility(config))
-        window = PassiveProgressWindow(api)
+        locale = _operator_locale(config)
+        api = Win32ProgressWindowApi(
+            accessibility=_operator_accessibility(config),
+            locale=locale,
+        )
+        window = PassiveProgressWindow(
+            api,
+            title=_operator_text(locale, "product_name"),
+            locale=locale,
+        )
         poller = ProgressPoller(config.state_dir, window)
         return RunProgressCoordinator(poller, pump=api.pump)
     except Exception:
@@ -122,6 +133,7 @@ def _approval_port(
     from .decision_card_window import DecisionCardWindow
     from .decision_card_window_win32 import Win32DecisionCardWindowApi
 
+    locale = _operator_locale(config)
     notifications = None
     if config.operator.approval_notifications_enabled:
         try:
@@ -135,6 +147,7 @@ def _approval_port(
     attention = ApprovalAttentionLifecycle(
         LocalApprovalInbox(config.state_dir),
         notifications=notifications,
+        locale=locale,
     )
 
     return DecisionCardApprovalPort(
@@ -142,7 +155,9 @@ def _approval_port(
             Win32DecisionCardWindowApi(
                 corner=config.operator.decision_card_corner,
                 accessibility=_operator_accessibility(config),
-            )
+                locale=locale,
+            ),
+            locale=locale,
         ),
         timeout_seconds=config.operator.decision_timeout_seconds,
         takeover_enabled=cooperative_takeover,
@@ -159,6 +174,20 @@ def _operator_accessibility(config: AgentConfig):  # noqa: ANN202
         force_high_contrast=config.operator.high_contrast,
         force_reduced_motion=config.operator.reduced_motion,
     )
+
+
+def _operator_locale(config: AgentConfig):  # noqa: ANN202
+    """Resolve display-only locale once without opening a native surface."""
+
+    from .operator_localization import resolve_operator_locale
+
+    return resolve_operator_locale(config.operator.locale)
+
+
+def _operator_text(locale, key: str, **values: object) -> str:  # noqa: ANN001
+    from .operator_localization import operator_text
+
+    return operator_text(locale, key, **values)
 
 
 class _ForbiddenCampaignProvider:

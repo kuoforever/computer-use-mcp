@@ -48,8 +48,8 @@ arbitrary errors, or tool results. They are local to the configured private
 `state_dir`, bounded in count and size, strictly versioned, and fail closed on
 unsafe paths or malformed data.
 
-The Windows notification contains only the fixed title `Guarded Desktop Agent`
-and fixed body `Approval needed. Review the bound local approval surface.` It
+The English Windows notification contains only the fixed title `Guarded Desktop Agent`
+and fixed body `Approval needed. Return to the open decision window.` It
 contains no request ID, run ID, tool name, digest, target, task, model content,
 or action button. It is withdrawn by Host routing identity, but that identity
 is not rendered or serialized into notification content. Notification
@@ -107,7 +107,9 @@ Not yet claimed:
   the complete composed experience;
 - notification-center persistence behavior across Windows versions, a native
   Inbox window, multi-monitor placement, or mobile push; and
-- localization of fixed notification and Inbox wording.
+- localization of Approval Inbox CLI wording; the fixed notification itself is
+  localized in English and Simplified Chinese under the
+  [operator localization contract](OPERATOR_LOCALIZATION.md).
 
 Those gaps belong to the separate accessibility closure slice. They do not
 weaken the current exact approval, expiry, privacy, or dispatch boundaries.

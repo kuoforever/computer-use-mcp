@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .operator_localization import OperatorLocale, localized_visual
 from .operator_visuals import OperatorVisualRole, operator_visual
 from .types import JSONValue
 
@@ -48,12 +49,15 @@ class PresencePreferences:
     enabled: bool = True
     reduced_motion: bool = False
     high_contrast: bool = False
+    locale: OperatorLocale = OperatorLocale.EN_US
 
     def __post_init__(self) -> None:
         if not all(
             isinstance(value, bool)
             for value in (self.enabled, self.reduced_motion, self.high_contrast)
         ):
+            raise PresenceStateError("PRESENCE_PREFERENCES_INVALID")
+        if not isinstance(self.locale, OperatorLocale):
             raise PresenceStateError("PRESENCE_PREFERENCES_INVALID")
 
 
@@ -170,7 +174,10 @@ def project_presence(snapshot: PresenceSnapshot) -> PresenceView | None:
         return None
 
     visual_role, motion = _PRESENTATION[snapshot.phase]
-    token = operator_visual(visual_role)
+    token = localized_visual(
+        snapshot.preferences.locale,
+        operator_visual(visual_role),
+    )
     color = token.color_rgb
     if snapshot.preferences.high_contrast:
         color = 0xFFFFFF

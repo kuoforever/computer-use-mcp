@@ -31,6 +31,7 @@ from .operator_accessibility import (
     layout_dpi,
     win32_palette,
 )
+from .operator_localization import OperatorLocale, operator_text
 
 from .decision_card_window import DecisionCardButton
 
@@ -311,10 +312,13 @@ def _scaled_client_size(
     )
 
 
-def _toggle_label(expanded: bool) -> str:
+def _toggle_label(
+    expanded: bool,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> str:
     """Use one visible/UIA-safe label without symbol-encoding dependence."""
 
-    return "Hide details" if expanded else "Show details"
+    return operator_text(locale, "hide_details" if expanded else "show_details")
 
 
 #: Private handles for the measurement helper. It prototypes GDI calls too, and
@@ -585,11 +589,15 @@ class Win32DecisionCardWindowApi:
         *,
         corner: DecisionCardCorner = "bottom_right",
         accessibility: OperatorAccessibilitySettings | None = None,
+        locale: OperatorLocale = OperatorLocale.EN_US,
     ) -> None:
         if corner not in _VALID_CORNERS:
             raise ValueError("decision card corner is invalid")
+        if not isinstance(locale, OperatorLocale):
+            raise ValueError("decision card locale is invalid")
         enable_dpi_awareness()
         self.corner = corner
+        self.locale = locale
         self.accessibility = accessibility or OperatorAccessibilitySettings()
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("decision card accessibility settings are invalid")
@@ -1137,7 +1145,9 @@ class Win32DecisionCardWindowApi:
         header_lines = tuple(instruction.split("\n"))
         if len(header_lines) != len(_HEADER_TIERS):
             raise ValueError("DECISION_CARD_HEADER_TIERS_INVALID")
-        countdown = [f"Closes in {timeout_seconds}s"]
+        countdown = [
+            operator_text(self.locale, "countdown", seconds=timeout_seconds)
+        ]
         id_to_option = {
             _FIRST_BUTTON_ID + index: button.option_id
             for index, button in enumerate(buttons)
@@ -1288,7 +1298,7 @@ class Win32DecisionCardWindowApi:
                     expanded[0] = not expanded[0]
                     self._user32.SetWindowTextW(
                         controls["toggle"],
-                        _toggle_label(expanded[0]),
+                        _toggle_label(expanded[0], self.locale),
                     )
                     self._user32.ShowWindow(
                         controls["details"],
@@ -1311,7 +1321,11 @@ class Win32DecisionCardWindowApi:
                 return 0
             if message == _WM_TIMER and int(wparam) == _TIMER_ID:
                 remaining = max(0, int(deadline - time.monotonic() + 0.999))
-                next_countdown = f"Closes in {remaining}s"
+                next_countdown = operator_text(
+                    self.locale,
+                    "countdown",
+                    seconds=remaining,
+                )
                 countdown_control = controls.get("countdown")
                 if next_countdown != countdown[0]:
                     countdown[0] = next_countdown
@@ -1553,14 +1567,14 @@ class Win32DecisionCardWindowApi:
             create_control(
                 "toggle",
                 "BUTTON",
-                _toggle_label(False),
+                _toggle_label(False, self.locale),
                 _BS_OWNERDRAW | _WS_TABSTOP,
                 _EVIDENCE_TOGGLE_ID,
             )
             create_control(
                 "details_label",
                 "STATIC",
-                "Decision details",
+                operator_text(self.locale, "decision_details"),
                 _SS_LEFT | _SS_NOPREFIX,
                 _DETAILS_LABEL_ID,
                 visible=False,

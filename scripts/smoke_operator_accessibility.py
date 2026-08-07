@@ -1,9 +1,9 @@
-"""Bounded native accessibility smoke for the three operator surfaces.
+"""Bounded two-locale native accessibility smoke for operator surfaces.
 
 The probe opens no provider, MCP, application, or desktop-action port.  The
 passive surfaces must preserve the foreground window.  The focus-taking
 Decision Card is inspected through UI Automation and resolved with keyboard
-navigation to its safe Deny option.
+navigation to its safe ``option_deny`` choice in English and Simplified Chinese.
 """
 from __future__ import annotations
 
@@ -27,6 +27,12 @@ from computer_use_agent.decision_card_window_win32 import (  # noqa: E402
 from computer_use_agent.operator_accessibility import (  # noqa: E402
     OperatorAccessibilitySettings,
 )
+from computer_use_agent.operator_localization import (  # noqa: E402
+    OperatorLocale,
+    decision_button_label,
+    localize_fixed_text,
+    operator_text,
+)
 from computer_use_agent.presence import (  # noqa: E402
     DesktopAuthority,
     PresencePhase,
@@ -40,9 +46,19 @@ from computer_use_agent.presence_window_win32 import (  # noqa: E402
 from computer_use_agent.progress_window_win32 import (  # noqa: E402
     Win32ProgressWindowApi,
 )
+from computer_use_agent.progress_window import (  # noqa: E402
+    render_workflow_detail_lines,
+    render_workflow_summary_lines,
+    workflow_accessible_name,
+)
+from computer_use_agent.demo_cross_app import DEMO_WORKFLOW  # noqa: E402
+from computer_use_agent.workflow_checklist import (  # noqa: E402
+    WorkflowStatus,
+)
 
 
-_TITLE = "Accessibility smoke decision"
+def _title(locale: OperatorLocale) -> str:
+    return f"{operator_text(locale, 'decision_required')} ({locale.value})"
 
 
 def _foreground() -> int:
@@ -80,25 +96,32 @@ def _control_rows(control, depth: int = 0) -> list[dict[str, object]]:  # noqa: 
 
 def _passive_surface_smoke(
     accessibility: OperatorAccessibilitySettings,
+    locale: OperatorLocale,
 ) -> dict[str, object]:
     before = _foreground()
-    progress = Win32ProgressWindowApi(accessibility=accessibility)
+    progress = Win32ProgressWindowApi(
+        accessibility=accessibility,
+        locale=locale,
+    )
     progress_hwnd = progress.create(
         ex_style=0x08000088,
         style=0x80000000,
-        title="Computer Use",
+        title=operator_text(locale, "product_name"),
     )
-    compact = (
-        "COMPUTER USE  ·  IN PROGRESS",
-        "Public web to Word",
-        "0 completed  ·  6 not started  ·  6 total",
-        "CURRENT STEP 1 OF 6",
-        "Prepare workspace",
-        "Desktop",
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        current_step_id="prepare_workspace",
     )
-    details = compact + ("WORKFLOW CHECKLIST", "○  1  Prepare workspace")
-    presence_api = Win32PresenceWindowApi(accessibility=accessibility)
-    presence = PassivePresenceWindow(presence_api)
+    compact = render_workflow_summary_lines(checklist, locale)
+    details = render_workflow_detail_lines(checklist, locale)
+    presence_api = Win32PresenceWindowApi(
+        accessibility=accessibility,
+        locale=locale,
+    )
+    presence = PassivePresenceWindow(
+        presence_api,
+        title=operator_text(locale, "presence_window_title"),
+    )
     try:
         progress.set_workflow_lines(
             progress_hwnd,
@@ -117,6 +140,7 @@ def _passive_surface_smoke(
                 preferences=PresencePreferences(
                     reduced_motion=accessibility.reduced_motion,
                     high_contrast=accessibility.high_contrast,
+                    locale=locale,
                 ),
             )
         )
@@ -128,9 +152,14 @@ def _passive_surface_smoke(
         presence_name = str(auto.ControlFromHandle(presence.hwnd).Name)
         if before != after:
             raise RuntimeError("passive operator surface changed foreground")
-        if "Current step 1 of 6" not in progress_name:
+        if progress_name != workflow_accessible_name(compact, locale):
             raise RuntimeError("progress accessible summary is incomplete")
-        if presence_name != "Computer Use. Approval. Needs input.":
+        expected_presence_name = (
+            "电脑操作。审批。需要确认。"
+            if locale is OperatorLocale.ZH_CN
+            else "Computer Use. Approval. Needs input."
+        )
+        if presence_name != expected_presence_name:
             raise RuntimeError("presence accessible name is incomplete")
         return {
             "foreground_unchanged": True,
@@ -145,6 +174,7 @@ def _passive_surface_smoke(
 
 def _decision_card_smoke(
     accessibility: OperatorAccessibilitySettings,
+    locale: OperatorLocale,
 ) -> dict[str, object]:
     result: list[str | None] = []
     error: list[BaseException] = []
@@ -152,21 +182,34 @@ def _decision_card_smoke(
     def choose() -> None:
         try:
             result.append(
-                Win32DecisionCardWindowApi(accessibility=accessibility).choose(
-                    title=_TITLE,
+                Win32DecisionCardWindowApi(
+                    accessibility=accessibility,
+                    locale=locale,
+                ).choose(
+                    title=_title(locale),
                     instruction=(
-                        "NEEDS INPUT  ·  APPROVAL LOCKED\n"
-                        "Save the research brief\n"
-                        "APPROVAL 1/1  ·  Microsoft Word\n"
-                        "WORKFLOW 6/6  ·  Save and verify"
+                        f"{localize_fixed_text(locale, 'Needs input').upper()}  ·  "
+                        f"{operator_text(locale, 'approval_locked')}\n"
+                        f"{localize_fixed_text(locale, 'Save the research brief')}\n"
+                        f"{operator_text(locale, 'approval')} 1/1  ·  Microsoft Word\n"
+                        f"{operator_text(locale, 'workflow')} 6/6  ·  "
+                        f"{localize_fixed_text(locale, 'Verify the saved document')}"
                     ),
-                    content="One exact local save requires review.",
-                    expanded_information="Evidence is digest-bound and local.",
+                    content=operator_text(locale, "decision_scope"),
+                    expanded_information=operator_text(locale, "evidence_available"),
                     buttons=(
-                        DecisionCardButton("option_approve_exact_effect", "Approve once"),
-                        DecisionCardButton("option_reobserve", "Check screen again"),
-                        DecisionCardButton("option_defer", "Pause and inspect"),
-                        DecisionCardButton("option_deny", "Deny"),
+                        *(
+                            DecisionCardButton(
+                                option_id,
+                                decision_button_label(locale, option_id, option_id),
+                            )
+                            for option_id in (
+                                "option_approve_exact_effect",
+                                "option_reobserve",
+                                "option_defer",
+                                "option_deny",
+                            )
+                        ),
                     ),
                     timeout_seconds=20,
                 )
@@ -176,35 +219,44 @@ def _decision_card_smoke(
 
     worker = threading.Thread(target=choose, daemon=True)
     worker.start()
-    hwnd = _wait_for_window(_TITLE)
+    hwnd = _wait_for_window(_title(locale))
     user32 = ctypes.windll.user32
     with auto.UIAutomationInitializerInThread():
         rows = _control_rows(auto.ControlFromHandle(hwnd))
         names = {str(row["name"]): str(row["type"]) for row in rows if row["name"]}
-        for expected in (
-            "NEEDS INPUT  ·  APPROVAL LOCKED",
-            "Save the research brief",
-            "APPROVAL 1/1  ·  Microsoft Word",
-            "WORKFLOW 6/6  ·  Save and verify",
-            "Approve once",
-            "Check screen again",
-            "Pause and inspect",
-            "Deny",
-        ):
+        safe_label = decision_button_label(locale, "option_deny", "option_deny")
+        expected_controls = (
+            f"{localize_fixed_text(locale, 'Needs input').upper()}  ·  "
+            f"{operator_text(locale, 'approval_locked')}",
+            localize_fixed_text(locale, "Save the research brief"),
+            f"{operator_text(locale, 'approval')} 1/1  ·  Microsoft Word",
+            f"{operator_text(locale, 'workflow')} 6/6  ·  "
+            f"{localize_fixed_text(locale, 'Verify the saved document')}",
+            *(
+                decision_button_label(locale, option_id, option_id)
+                for option_id in (
+                    "option_approve_exact_effect",
+                    "option_reobserve",
+                    "option_defer",
+                    "option_deny",
+                )
+            ),
+        )
+        for expected in expected_controls:
             if expected not in names:
                 raise RuntimeError(f"missing UIA control: {expected}")
-        if names["Deny"] != "ButtonControl":
+        if names[safe_label] != "ButtonControl":
             raise RuntimeError("deny is not exposed as a UIA Button")
         focused = auto.GetFocusedControl()
         initial_focus = str(focused.Name or "")
-        if initial_focus != "Deny":
+        if initial_focus != safe_label:
             raise RuntimeError(f"safe initial focus missing: {initial_focus}")
 
-        # Deny is the final tab stop. Tab wraps to the first control (details
+        # option_deny is the final tab stop. Tab wraps to the first control (details
         # toggle), then five more Tabs reach Deny after the details pane opens.
         auto.SendKeys("{Tab}", waitTime=0.1)
         toggle_focus = str(auto.GetFocusedControl().Name or "")
-        if toggle_focus != "Show details":
+        if toggle_focus != operator_text(locale, "show_details"):
             raise RuntimeError(f"details toggle name is invalid: {toggle_focus}")
         auto.SendKeys("{Enter}", waitTime=0.1)
         time.sleep(0.3)
@@ -214,7 +266,8 @@ def _decision_card_smoke(
             for row in expanded_rows
             if row["name"]
         }
-        if ("Decision details", "TextControl") not in expanded_name_types:
+        details_label = operator_text(locale, "decision_details")
+        if (details_label, "TextControl") not in expanded_name_types:
             raise RuntimeError("details label is not exposed as UIA Text")
         focus_path: list[dict[str, str]] = []
         for _ in range(5):
@@ -226,12 +279,12 @@ def _decision_card_smoke(
                     "type": str(current.ControlTypeName or ""),
                 }
             )
-        if focus_path[0] != {"name": "Decision details", "type": "EditControl"}:
+        if focus_path[0] != {"name": details_label, "type": "EditControl"}:
             raise RuntimeError(f"details edit is not labelled: {focus_path[0]!r}")
         final_focus = focus_path[-1]["name"]
-        if final_focus != "Deny":
+        if final_focus != safe_label:
             raise RuntimeError(
-                f"tab order did not return to Deny: {focus_path!r}"
+                f"tab order did not return to safe choice: {focus_path!r}"
             )
         auto.SendKeys("{Enter}", waitTime=0.1)
 
@@ -260,9 +313,12 @@ def main() -> int:
         reduced_motion=True,
         text_scale_factor=1.0,
     )
-    with auto.UIAutomationInitializerInThread():
-        passive = _passive_surface_smoke(accessibility)
-    decision = _decision_card_smoke(accessibility)
+    locales: dict[str, object] = {}
+    for locale in OperatorLocale:
+        with auto.UIAutomationInitializerInThread():
+            passive = _passive_surface_smoke(accessibility, locale)
+        decision = _decision_card_smoke(accessibility, locale)
+        locales[locale.value] = {"passive": passive, "decision": decision}
     print(
         json.dumps(
             {
@@ -271,8 +327,7 @@ def main() -> int:
                     "reduced_motion": accessibility.reduced_motion,
                     "text_scale_factor": accessibility.text_scale_factor,
                 },
-                "passive": passive,
-                "decision": decision,
+                "locales": locales,
             },
             ensure_ascii=False,
             sort_keys=True,

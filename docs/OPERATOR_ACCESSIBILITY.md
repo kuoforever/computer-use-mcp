@@ -36,9 +36,10 @@ The Decision Card uses native `STATIC`, read-only `EDIT`, and `BUTTON` controls
 so the standard Windows UI Automation proxies expose Text, Edit, and Button
 semantics. The details edit has the visible label `Decision details`; fixed
 header lines, the details toggle, and all four choices have bounded accessible
-names derived from Host-owned presentation text.
+names derived from Host-owned presentation text in the selected locale.
 
-- Initial focus is the unique safe `Deny` button.
+- Initial focus is the unique safe `option_deny` button, displayed as
+  `Stop task` in English and `停止任务` in Simplified Chinese.
 - `Tab` and `Shift+Tab` traverse the details toggle, optional labelled details
   edit, and all choices in native dialog order, including wraparound.
 - Arrow keys and `Space` retain native button navigation and activation.
@@ -91,6 +92,9 @@ deterministic and excluded plausible user input/focus interference.
 
 This is a UI Automation client smoke, not proof of spoken order, pronunciation,
 verbosity, braille output, or usability with a particular assistive technology.
-Narrator/NVDA human review, live 200%/400% visual review, localization,
-multi-display composition, personalization, E4, and exact release evidence stay
-separate later gates.
+The same bounded probe now exercises English and Simplified Chinese UIA names;
+the localization boundary and fallback rules are recorded in
+[Operator localization](OPERATOR_LOCALIZATION.md). Narrator/NVDA human review,
+live 200%/400% visual review, translation certification, multi-display
+composition, personalization, E4, and exact release evidence stay separate
+later gates.

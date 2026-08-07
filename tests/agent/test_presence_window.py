@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 import pytest
 
+from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.presence import (
     DesktopAuthority,
     PresencePhase,
@@ -116,6 +117,22 @@ def test_presence_accessible_name_is_fixed_and_content_free() -> None:
     )
 
     assert presence_accessible_name(view) == "Computer Use. Approval. Needs input."
+
+    chinese_view = PresenceView(
+        phase=view.phase,
+        visual_role=view.visual_role,
+        label="需要确认",
+        glyph="审批",
+        color_rgb=view.color_rgb,
+        motion=view.motion,
+        motion_enabled=view.motion_enabled,
+        animation_interval_ms=view.animation_interval_ms,
+        high_contrast=view.high_contrast,
+    )
+    assert presence_accessible_name(
+        chinese_view,
+        locale=OperatorLocale.ZH_CN,
+    ) == "电脑操作。审批。需要确认。"
 
 
 def test_open_uses_clickthrough_nonactivating_layered_tool_styles() -> None:

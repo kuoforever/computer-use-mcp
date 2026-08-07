@@ -284,6 +284,7 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
     assert config.operator.high_contrast is True
     assert config.operator.decision_cards_enabled is True
     assert config.operator.approval_notifications_enabled is True
+    assert config.operator.locale == "auto"
     assert config.mcp.executable == mcp_executable.resolve()
     assert config.mcp.cwd == config.state_dir
     assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"
@@ -344,6 +345,7 @@ def test_config_init_creates_the_public_web_word_product_profile(
     assert config.operator.high_contrast is True
     assert config.operator.decision_cards_enabled is True
     assert config.operator.approval_notifications_enabled is True
+    assert config.operator.locale == "auto"
     assert config.operator.decision_timeout_seconds == 180
     assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"
     assert config.mcp.environment["CUMCP_ALLOWLIST"] == "chrome.exe,winword.exe"
@@ -2657,7 +2659,12 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
     monkeypatch.setattr(
         decision_card_window_win32,
         "Win32DecisionCardWindowApi",
-        lambda *, corner, accessibility: (native, corner, accessibility),
+        lambda *, corner, accessibility, locale: (
+            native,
+            corner,
+            accessibility,
+            locale,
+        ),
     )
     notifier = object()
     monkeypatch.setattr(
@@ -2672,9 +2679,12 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
     assert port._timeout_seconds == 45
     assert port._surface.api[:2] == (native, "top_left")
     assert port._surface.api[2].text_scale_factor == 1.0
+    assert port._surface.api[3].value == "en-US"
+    assert port._surface.locale.value == "en-US"
     assert isinstance(port._attention, ApprovalAttentionLifecycle)
     assert port._attention.store.state_dir == config.state_dir
     assert port._attention.notifications is notifier
+    assert port._attention.locale.value == "en-US"
 
 
 def test_cli_builds_progress_lifecycle_only_for_explicit_opt_in(
@@ -2707,9 +2717,12 @@ def test_cli_builds_progress_lifecycle_only_for_explicit_opt_in(
     }
     constructed = 0
 
-    def native_api(*, accessibility: object) -> FakeProgressWindowApi:
+    observed_locales: list[object] = []
+
+    def native_api(*, accessibility: object, locale: object) -> FakeProgressWindowApi:
         nonlocal constructed
         assert accessibility is not None
+        observed_locales.append(locale)
         constructed += 1
         api = FakeProgressWindowApi()
         api.pump = lambda: None  # type: ignore[attr-defined]
@@ -2734,6 +2747,8 @@ def test_cli_builds_progress_lifecycle_only_for_explicit_opt_in(
     assert isinstance(lifecycle, RunProgressCoordinator)
     assert lifecycle.poller.state_dir == base["state_dir"]
     assert constructed == 1
+    assert observed_locales[0].value == "en-US"
+    assert lifecycle.poller.window.locale.value == "en-US"
     lifecycle.release()
 
 
@@ -2765,8 +2780,9 @@ def test_progress_native_construction_failure_is_fail_silent(
         operator=OperatorConfig(progress_enabled=True),
     )
 
-    def fail_native(*, accessibility: object) -> None:
+    def fail_native(*, accessibility: object, locale: object) -> None:
         assert accessibility is not None
+        assert locale is not None
         raise OSError("native unavailable")
 
     monkeypatch.setattr(

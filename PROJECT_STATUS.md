@@ -1,13 +1,13 @@
 # Project status
 
 > **Mode: post-MVP operator productization is explicitly active.**
-> The user explicitly resumed after PR #276. `GDA-PRODUCT-009` Approval Inbox
-> plus notifications merged through PR #276 as `50aebdf`.
-> `GDA-PRODUCT-010` accessibility closure is implemented and fully validated
-> locally; publication is the sole active action. After a clear merge and branch
-> cleanup, pause immediately per the user's latest instruction. Do not select or
-> start the first later localization/multi-display/personalization slice until
-> the user explicitly resumes.
+> The user explicitly resumed after PR #277. `GDA-PRODUCT-010` accessibility
+> closure merged through PR #277 as `205d30d`, and both feature branches were
+> removed. `GDA-PRODUCT-011` is locally complete and publication is the single
+> active action: plain-language English and Simplified Chinese localization for
+> the composed native operator surfaces.
+> Multi-display, personalization, human assistive-technology evidence, E4, and
+> release remain separate later gates.
 > `GDA-PRODUCT-007` merged its Host-fixed Pre-run Review through PR #274.
 > `GDA-PRODUCT-005` completed its functional UI-default
 > scope through PR #270; its draft release checkpoint in PR #272 and all final
@@ -63,7 +63,9 @@ Those are post-MVP programs, not blockers for the first honest release.
 | `GDA-PRODUCT-007` | Complete; merged | Host-compiled Pre-run Review Scope Sheet before the installed side-effect workflow | Commit `480d9d3`, merged through PR #274 as `a0e24782` after all four GitHub checks passed. Human/JSON review, shared fixed validator, exact `START`, explicit non-interactive acknowledgement, cancel/EOF zero-work behavior, same-object config/request handoff, and installed-wheel rejection of whitespace-wrapped acknowledgement passed `1912 passed, 8 skipped`, Ruff, mypy over 130 source files, docs consistency, diff check, and a clean Python 3.13 wheel smoke; both branch copies were removed. No provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-008` | Publication-cleared; PR #275 | Cooperative Pause/Takeover/Resume for the installed side-effect workflow | Commit `6ccdee7` and PR #275 passed all four required GitHub checks after the local gate: `1923 passed, 8 skipped`, Ruff, mypy over 131 source files, docs consistency, diff check, and fresh Python 3.13 wheel `C6CEB16C...E49F33` cross-process `pause_requested -> paused/released -> resume_requested -> closed` smoke. The strict Host-owned lifecycle covers both public-web-word Runner loops and the product Decision Card takeover choice; pause releases authority only at a durable safe boundary, explicit resume invalidates old authority and requires fresh observation, and possibly dispatched work remains terminal `UNKNOWN_OUTCOME`. No provider, MCP tool, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-009` | Complete; merged | Approval Inbox plus fixed-content local notifications | Commit `236ce46`, merged through PR #276 as `50aebdf` after the complete local gate and all four GitHub checks; both published branch copies were removed. Strict expiring records and fixed notifications remain attention-only, with no liveness, approval, control, retry, replay, or dispatch port. No provider, MCP tool, application, visual, assistive-technology, E4, or release evidence is claimed |
-| `GDA-PRODUCT-010` | Complete locally; publication pending | Accessibility closure for the composed operator experience | Shared Windows accessibility preferences, safe Decision Card keyboard traversal, native UIA Text/Edit/Button semantics, labelled details, bounded countdown/status announcements, system High Contrast colors, reduced motion, contrast tokens, and 200%/400% reflow passed `1965 passed, 8 skipped`, Ruff, mypy over 134 source files, docs consistency, diff check, clean Python 3.13 wheel `008D26E1...15AEEA19`, and a bounded native UIA/no-activation smoke. The installed wheel loaded `UISettings`; the native smoke safely returned `option_deny`. Neither is Narrator/NVDA, live large-text, application, provider, MCP, E4, or release evidence |
+| `GDA-PRODUCT-010` | Complete; merged | Accessibility closure for the composed operator experience | Commit `87de32d`, merged through PR #277 as `205d30d` after `1965 passed, 8 skipped`, Ruff, mypy over 134 source files, docs consistency, diff check, clean Python 3.13 wheel `008D26E1...15AEEA19`, bounded native UIA/no-activation smoke, and all four GitHub checks. The smoke safely returned `option_deny`; no Narrator/NVDA, live large-text, application, provider, MCP, E4, or release evidence is claimed |
+| `GDA-PRODUCT-011` | Local gate complete; publication pending | Plain-language English and Simplified Chinese native operator UI | Strict `[operator].locale = "en-US" | "zh-CN" | "auto"`, absent-key English compatibility, generated-profile `auto`, fail-silent English fallback, and reviewed Decision Card/Progress/Presence/fixed-notification resources are implemented. Internal IDs/enums, persisted JSON, approval/dispatch authority, and unknown Host text stay unchanged. Complete local gate: `1998 passed, 8 skipped`, Ruff, mypy over 135 source files, docs consistency, diff check, clean Python 3.13 wheel `C8FF8D36...CFB9BCE6`, installed init/doctor/validate/import smoke, and bounded two-locale native UIA/no-activation smoke returning `option_deny` in both languages. No Narrator/NVDA, live large-text, application/provider/MCP action, E4, or release evidence is claimed |
+| `GDA-PRODUCT-012` | Exact next after PRODUCT-011 merge | Multi-display composition for native operator surfaces | Define and implement one bounded monitor-selection/placement contract without widening desktop dispatch, coordinate authority, capture scope, or primary-display MVP claims. Personalization and human assistive-technology/E4/release evidence remain later |
 
 During every live desktop test, the user may take the mouse, keyboard, or
 foreground focus. Treat unexpected input/focus drift as possible operator
@@ -107,7 +109,7 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-07, all green — `1965 passed, 8 skipped`, Ruff, mypy over 134 source files, docs consistency, and `git diff --check` |
+| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-07, all green — `1998 passed, 8 skipped`, Ruff, mypy over 135 source files, docs consistency, and `git diff --check` |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
 The test count is a dated working snapshot, not a permanent capability claim.
@@ -158,7 +160,9 @@ delivery work.
 | `GDA-PRODUCT-007` | Complete; merged | Host-compiled Pre-run Review Scope Sheet | Commit `480d9d3`, merged through PR #274 as `a0e24782`; the complete local gate and all four GitHub checks passed, both branch copies were removed, and no provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-008` | Publication-cleared; PR #275 | Cooperative Pause/Takeover/Resume | Strict versioned local record, live-lease and exact-checkpoint binding, CLI human/JSON control, Decision Card takeover, safe-boundary acknowledgement, authority release, explicit resume, observation-only reacquisition, fresh-evidence acknowledgement, continuation separation, nested verifier state, and unknown-outcome precedence passed the complete local, installed-wheel, and four-job GitHub gates. Native timing remains deferred with E4/release until feature freeze |
 | `GDA-PRODUCT-009` | Complete; merged | Approval Inbox plus fixed-content local notifications | Commit `236ce46`, merged through PR #276 as `50aebdf`; complete local and four-job GitHub gates passed, both published branch copies were removed, and no provider/MCP/application/accessibility/release claim is made |
-| `GDA-PRODUCT-010` | Complete locally; publication pending | Accessibility closure | Shared preference resolution plus bounded keyboard, UIA semantics/names, announcements, High Contrast, reduced motion, contrast, and 200%/400% reflow passed the complete local gate, clean-wheel import, and one native UIA/no-activation smoke. Human assistive-technology/live-large-text, localization, multi-display, personalization, E4, and release remain separate |
+| `GDA-PRODUCT-010` | Complete; merged | Accessibility closure | Commit `87de32d`, merged through PR #277 as `205d30d`; complete local, clean-wheel, native UIA/no-activation, and four-job GitHub gates passed. Human assistive-technology/live-large-text, application/provider/MCP, E4, and release remain unclaimed |
+| `GDA-PRODUCT-011` | Local gate complete; publication pending | Plain-language English and Simplified Chinese native operator UI | Strict locale preference/resolution plus localized Decision Card, Progress, Presence, fixed notification, and matching UIA names passed the complete local, clean-wheel, and two-locale native UIA/no-activation gates. Stable machine contracts and authority are unchanged; broader CLI, multi-display, personalization, and human assistive-technology evidence remain separate |
+| `GDA-PRODUCT-012` | Exact next after PRODUCT-011 merge | Multi-display composition | Bound native operator-surface selection and placement to explicit monitor facts without changing desktop-action coordinates, capture scope, authority, or replay behavior; define the exact slice only after PRODUCT-011 publication is clear |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |
@@ -220,8 +224,9 @@ merged through PR #262 as `0b43442`. `GDA-CORE-026` is merged through PR #263
 as `95bd16a`. `GDA-CORE-027` is merged through PR #264 as `ee4aebf`.
 `GDA-CORE-028` is merged through PR #265 as `9a0ae0e`. `GDA-PRODUCT-001` is
 merged through PR #266 as `3c7aa48`. `GDA-PRODUCT-002` is merged through PR
-#267 as `d94d5f9`, including closure of `GDA-CORE-029`. `GDA-PRODUCT-003` is
-complete locally and awaiting publication; `GDA-PRODUCT-004` is the exact
+#267 as `d94d5f9`, including closure of `GDA-CORE-029`. `GDA-PRODUCT-010` is
+merged through PR #277 as `205d30d`. `GDA-PRODUCT-011` is locally complete and
+awaiting publication; `GDA-PRODUCT-012` multi-display composition is the exact
 post-merge next item.
 `GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
 active. The historical Full Cycle freeze remains the handoff baseline; it no
@@ -350,3 +355,5 @@ chronology is in
 | 2026-08-07 | The user instructed delivery to pause after PR #276 completes. Finish only PRODUCT-009 publication and branch cleanup; do not start PRODUCT-010 automatically. Accessibility closure remains the exact next item and resumes only on explicit user direction. |
 | 2026-08-07 | The user explicitly resumed after PR #276. `GDA-PRODUCT-010` implemented shared system accessibility preferences; safe Decision Card keyboard/UIA semantics; bounded status announcements; High Contrast/reduced motion; and 200%/400% text reflow. The full local gate passed `1965 passed, 8 skipped`, Ruff, mypy over 134 source files, docs consistency, diff check, clean Python 3.13 wheel `008D26E1...15AEEA19`, and one deterministic native UIA/no-activation smoke returning safe denial. Narrator/NVDA, live large-text, application/provider/MCP, E4, and release evidence remain unclaimed; publication is the sole active action. |
 | 2026-08-07 | The user instructed delivery to pause immediately after PR #277 completes and its branch is cleaned up because they plan to shut down. Finish only PRODUCT-010 publication; do not define or start PRODUCT-011 until explicit resume. |
+| 2026-08-07 | PR #277 passed all four required GitHub jobs with no review, comment, unresolved thread, or conflict, then merged as `205d30d`; both PRODUCT-010 branch copies were removed without touching the peer-owned original checkout changes. The user then cancelled the shutdown/pause instruction and explicitly resumed delivery. Per the UI/UX review order, `GDA-PRODUCT-011` now owns bounded plain-language English/Simplified-Chinese localization for the four native operator surfaces; broader CLI, multi-display, personalization, human assistive-technology evidence, E4, and release remain later. |
+| 2026-08-07 | `GDA-PRODUCT-011` implemented strict locale resolution and reviewed English/Simplified-Chinese presentation for Decision Card, Progress, Presence, and the fixed approval notification while preserving stable IDs, persisted machine contracts, safe `option_deny`, passive no-activation, and sole Runner/MCP dispatch. The local gate passed `1998 passed, 8 skipped`, Ruff, mypy over 135 source files, docs consistency, diff check, clean Python 3.13 wheel `C8FF8D36...CFB9BCE6`, installed config/doctor/validate/import smoke, and two-locale native UIA/no-activation smoke returning `option_deny` twice. Publication is the only active action; multi-display composition is exact next, while personalization, human Narrator/NVDA/live-large-text, E4, and release remain later. |

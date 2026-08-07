@@ -69,6 +69,7 @@ def _default_product_operator(*, decision_timeout_seconds: int = 300) -> Operato
         high_contrast=True,
         decision_cards_enabled=True,
         approval_notifications_enabled=True,
+        locale="auto",
         decision_timeout_seconds=decision_timeout_seconds,
     )
 
@@ -143,6 +144,7 @@ reduced_motion = {str(operator.reduced_motion).lower()}
 high_contrast = {str(operator.high_contrast).lower()}
 decision_cards_enabled = {str(operator.decision_cards_enabled).lower()}
 approval_notifications_enabled = {str(operator.approval_notifications_enabled).lower()}
+locale = {_toml_string(operator.locale)}
 decision_timeout_seconds = {operator.decision_timeout_seconds}
 decision_card_corner = {_toml_string(operator.decision_card_corner)}
 """
