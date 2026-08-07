@@ -13,14 +13,15 @@ from pathlib import Path
 
 from .config import AgentConfig
 from .public_web_word import (
-    PUBLIC_WEB_WORD_MAX_APPROVALS,
+    PUBLIC_WEB_WORD_MAX_HIGH_RISK_APPROVALS,
+    PUBLIC_WEB_WORD_MAX_SIDE_EFFECTS,
     PUBLIC_WEB_WORD_SOURCE_TITLE,
     PUBLIC_WEB_WORD_SOURCE_URL,
     public_web_word_contract_error,
 )
 
 
-PRE_RUN_REVIEW_VERSION = 1
+PRE_RUN_REVIEW_VERSION = 2
 MAX_PRE_RUN_PATH_CHARS = 2048
 
 
@@ -82,7 +83,8 @@ class PreRunReview:
     modifies: tuple[ReviewDataUse, ...]
     output_path: Path
     output_policy: str
-    max_approvals: int
+    max_side_effects: int
+    max_high_risk_approvals: int
     stop_conditions: tuple[ReviewStopCondition, ...]
     possible_residue: tuple[str, ...]
 
@@ -101,7 +103,14 @@ class PreRunReview:
                 "path": str(self.output_path),
                 "policy": self.output_policy,
             },
-            "maximum_approvals": self.max_approvals,
+            "action_authorization": {
+                "policy": "host_risk_tier_v1",
+                "low_risk_requires_action_approval": False,
+                "high_risk_requires_action_approval": True,
+                "ambiguous_or_out_of_scope": "deny",
+            },
+            "maximum_side_effects": self.max_side_effects,
+            "maximum_high_risk_approvals": self.max_high_risk_approvals,
             "stop_conditions": [item.as_json() for item in self.stop_conditions],
             "possible_residue": list(self.possible_residue),
             "acknowledgement": {
@@ -207,7 +216,8 @@ def compile_public_web_word_review(
         ),
         output_path=output_path,
         output_policy="CREATE_NEW_ONLY_NEVER_OVERWRITE",
-        max_approvals=PUBLIC_WEB_WORD_MAX_APPROVALS,
+        max_side_effects=PUBLIC_WEB_WORD_MAX_SIDE_EFFECTS,
+        max_high_risk_approvals=PUBLIC_WEB_WORD_MAX_HIGH_RISK_APPROVALS,
         stop_conditions=(
             ReviewStopCondition(
                 "PRECONDITION_FAILED",
@@ -273,7 +283,12 @@ def render_pre_run_review(review: PreRunReview) -> str:
             "",
             f"Output: {review.output_path}",
             "Output policy: create new only; never overwrite.",
-            f"Maximum action approvals: {review.max_approvals} (one exact effect each)",
+            f"Maximum side effects: {review.max_side_effects}",
+            "Host risk policy: reviewed low-risk reversible effects do not prompt; "
+            "high-risk effects require one exact approval; ambiguous or out-of-scope "
+            "effects are denied.",
+            "Maximum high-risk action approvals: "
+            f"{review.max_high_risk_approvals}",
             "",
             "Stops when",
         ]
@@ -286,7 +301,7 @@ def render_pre_run_review(review: PreRunReview) -> str:
     lines.extend(
         [
             "",
-            "Starting this workflow does not pre-approve any desktop action and does not grant retry or replay authority.",
+            "Starting this workflow does not approve a high-risk desktop action and does not grant retry or replay authority. Reviewed low-risk effects proceed only under the fixed Host policy above.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -294,7 +309,8 @@ def render_pre_run_review(review: PreRunReview) -> str:
 
 __all__ = [
     "PRE_RUN_REVIEW_VERSION",
-    "PUBLIC_WEB_WORD_MAX_APPROVALS",
+    "PUBLIC_WEB_WORD_MAX_HIGH_RISK_APPROVALS",
+    "PUBLIC_WEB_WORD_MAX_SIDE_EFFECTS",
     "PreRunReview",
     "PreRunReviewError",
     "ReviewApplication",

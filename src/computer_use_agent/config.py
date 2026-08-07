@@ -30,6 +30,8 @@ class ConfigError(ValueError):
 
 READ_ONLY_MODE = "read_only"
 APPROVED_ACTIONS_MODE = "approved_actions"
+ALL_SIDE_EFFECTS_APPROVAL = "all_side_effects"
+HIGH_RISK_ONLY_APPROVAL = "high_risk_only"
 SUPPORTED_PROVIDERS = frozenset({"openai", "anthropic"})
 SUPPORTED_PRIVACY_DETECTORS = frozenset(
     {"email", "phone", "ipv4", "cn_id", "bank_card", "secret"}
@@ -364,6 +366,7 @@ class MCPLaunchConfig:
 class PolicyConfig:
     mode: str = READ_ONLY_MODE
     require_approval_for_actions: bool = True
+    action_approval_policy: str = ALL_SIDE_EFFECTS_APPROVAL
     max_model_turns: int = 12
     max_tool_calls: int = 32
     max_side_effects: int = 8
@@ -378,7 +381,22 @@ class PolicyConfig:
         if not isinstance(self.require_approval_for_actions, bool):
             raise ConfigError("require_approval_for_actions must be boolean")
         if self.mode == APPROVED_ACTIONS_MODE and not self.require_approval_for_actions:
-            raise ConfigError("approved_actions mode still requires host approval in the MVP")
+            raise ConfigError("approved_actions mode still requires a host approval boundary")
+        if (
+            not isinstance(self.action_approval_policy, str)
+            or self.action_approval_policy
+            not in {ALL_SIDE_EFFECTS_APPROVAL, HIGH_RISK_ONLY_APPROVAL}
+        ):
+            raise ConfigError(
+                "action_approval_policy must be 'all_side_effects' or 'high_risk_only'"
+            )
+        if (
+            self.mode != APPROVED_ACTIONS_MODE
+            and self.action_approval_policy != ALL_SIDE_EFFECTS_APPROVAL
+        ):
+            raise ConfigError(
+                "high_risk_only action approval requires approved_actions mode"
+            )
         for field_name, value in (
             ("max_model_turns", self.max_model_turns),
             ("max_tool_calls", self.max_tool_calls),
@@ -594,6 +612,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         {
             "mode",
             "require_approval_for_actions",
+            "action_approval_policy",
             "max_model_turns",
             "max_tool_calls",
             "max_side_effects",
@@ -679,6 +698,9 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     policy_config = PolicyConfig(
         mode=policy.get("mode", READ_ONLY_MODE),
         require_approval_for_actions=approval_required,
+        action_approval_policy=policy.get(
+            "action_approval_policy", ALL_SIDE_EFFECTS_APPROVAL
+        ),
         max_model_turns=_read_nonnegative_int(policy, "max_model_turns", "policy", 12),
         max_tool_calls=_read_nonnegative_int(policy, "max_tool_calls", "policy", 32),
         max_side_effects=_read_nonnegative_int(policy, "max_side_effects", "policy", 8),

@@ -32,7 +32,15 @@ directory, and starts emergency-stop key polling until the child is closed.
 continuation-enabled Notepad profile. `--profile public-web-word` generates the
 fixed workflow's `approved_actions` profile, allows only `chrome.exe` and
 `winword.exe`, disables continuation, and sets bounded budgets of 28 model
-turns, 24 tool calls, and 7 side effects. Both generated installed product
+turns, 24 tool calls, and 7 side effects. It also writes
+`action_approval_policy = "high_risk_only"`: only a side effect that the fixed
+Host workflow validates as an exact in-scope reversible step is classified
+low risk and allowed without a Decision Card. High-risk effects still require
+an exact approval; a missing classifier, invalid proposal, ambiguity, or scope
+drift is denied before dispatch. Risk is never provider- or model-authored.
+Every legacy or hand-written `approved_actions` profile that omits this setting
+defaults to `action_approval_policy = "all_side_effects"` and retains one
+approval per side effect. Both generated installed product
 profiles explicitly enable all current UI/UX booleans: action feedback,
 presence, progress, reduced motion, high contrast, and Decision Cards. These
 profiles also write the strict presentation-only `theme = "auto"` preference.

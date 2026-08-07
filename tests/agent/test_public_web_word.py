@@ -14,6 +14,7 @@ import pytest
 
 from computer_use_agent.config import (
     APPROVED_ACTIONS_MODE,
+    HIGH_RISK_ONLY_APPROVAL,
     AgentConfig,
     MCPLaunchConfig,
     PolicyConfig,
@@ -50,7 +51,6 @@ from computer_use_agent.types import (
     ModelTurn,
     ModelUsage,
     PolicyDecision,
-    PolicyDecisionKind,
     ProviderContinuationStrategy,
     ToolCall,
     ToolResult,
@@ -332,13 +332,8 @@ class WorkflowDesktop:
 
 class AllowWorkflowActions:
     async def request_approval(self, request: ApprovalRequest) -> PolicyDecision:
-        return PolicyDecision(
-            request.request_id,
-            request.identity,
-            request.call_digest,
-            PolicyDecisionKind.ALLOW,
-            "functional_test",
-        )
+        del request
+        raise AssertionError("bounded low-risk workflow must not request approval")
 
 
 class Process:
@@ -384,7 +379,7 @@ def _config(tmp_path: Path, monkeypatch) -> AgentConfig:
     monkeypatch.setenv("LOCALAPPDATA", str(local))
     return AgentConfig(
         state_dir=local / "computer-use-agent" / "public-web-word",
-        policy_version="public-web-word-test-v1",
+        policy_version="public-web-word-test-v2",
         provider=ProviderConfig("openai", "functional-model"),
         mcp=MCPLaunchConfig(
             executable=(tmp_path / "guarded-desktop-mcp.exe").resolve(),
@@ -398,6 +393,7 @@ def _config(tmp_path: Path, monkeypatch) -> AgentConfig:
         ),
         policy=PolicyConfig(
             mode=APPROVED_ACTIONS_MODE,
+            action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
             max_model_turns=28,
             max_tool_calls=24,
             max_side_effects=7,

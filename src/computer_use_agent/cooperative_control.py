@@ -82,6 +82,7 @@ class DesktopControlAuthority(str, Enum):
 class ControlBoundary(str, Enum):
     BEFORE_PROVIDER = "before_provider"
     BEFORE_TOOL = "before_tool"
+    AFTER_AUTHORIZATION = "after_authorization"
     AFTER_APPROVAL = "after_approval"
 
 

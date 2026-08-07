@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from computer_use_agent.config import AgentConfig, load_agent_config
+from computer_use_agent.config import (
+    ALL_SIDE_EFFECTS_APPROVAL,
+    AgentConfig,
+    load_agent_config,
+)
 from computer_use_agent.config_init import initialize_public_web_word_config
 from computer_use_agent.pre_run_review import (
     PreRunReviewError,
@@ -50,7 +54,7 @@ def test_public_web_word_review_is_host_fixed_complete_and_bounded(
     payload = review.as_json()
     encoded = json.dumps(payload)
 
-    assert payload["pre_run_review_version"] == 1
+    assert payload["pre_run_review_version"] == 2
     assert payload["source"] == "host_fixed_contract"
     assert payload["contains_model_prose"] is False
     assert payload["external_work_started"] is False
@@ -63,7 +67,14 @@ def test_public_web_word_review_is_host_fixed_complete_and_bounded(
         "path": str(output),
         "policy": "CREATE_NEW_ONLY_NEVER_OVERWRITE",
     }
-    assert payload["maximum_approvals"] == 7
+    assert payload["maximum_side_effects"] == 7
+    assert payload["maximum_high_risk_approvals"] == 0
+    assert payload["action_authorization"] == {
+        "policy": "host_risk_tier_v1",
+        "low_risk_requires_action_approval": False,
+        "high_risk_requires_action_approval": True,
+        "ambiguous_or_out_of_scope": "deny",
+    }
     assert payload["acknowledgement"] == {
         "interactive_token": "START",
         "noninteractive_flag": "--acknowledge-scope",
@@ -100,11 +111,13 @@ def test_human_scope_sheet_explains_effects_stops_and_residue(
         "Applications",
         "Reads",
         "Changes",
-        "Maximum action approvals: 7",
+        "Maximum side effects: 7",
+        "reviewed low-risk reversible effects do not prompt",
+        "Maximum high-risk action approvals: 0",
         "Stops when",
         "do not retry automatically",
         "Possible unfinished state",
-        "does not pre-approve any desktop action",
+        "does not approve a high-risk desktop action",
     ):
         assert expected in rendered
     assert FORBIDDEN not in rendered
@@ -133,6 +146,10 @@ def test_review_fails_closed_for_contract_drift_before_output(
     ("drift", "expected"),
     [
         ("policy", "PUBLIC_WEB_WORD_APPROVED_ACTIONS_REQUIRED"),
+        (
+            "approval_policy",
+            "PUBLIC_WEB_WORD_HIGH_RISK_APPROVAL_POLICY_REQUIRED",
+        ),
         ("continuation", "PUBLIC_WEB_WORD_CONTINUATION_MUST_BE_DISABLED"),
         ("allowlist", "PUBLIC_WEB_WORD_ALLOWLIST_MUST_BE_FIXED"),
         ("human_idle", "PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED"),
@@ -149,7 +166,19 @@ def test_shared_product_contract_validator_returns_exact_first_drift(
     if drift == "policy":
         config = replace(
             config,
-            policy=replace(config.policy, mode="read_only"),
+            policy=replace(
+                config.policy,
+                mode="read_only",
+                action_approval_policy=ALL_SIDE_EFFECTS_APPROVAL,
+            ),
+        )
+    elif drift == "approval_policy":
+        config = replace(
+            config,
+            policy=replace(
+                config.policy,
+                action_approval_policy=ALL_SIDE_EFFECTS_APPROVAL,
+            ),
         )
     elif drift == "continuation":
         config = replace(

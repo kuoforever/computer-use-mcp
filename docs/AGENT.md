@@ -310,12 +310,15 @@ exposure remains unavailable.
 `AgentRunner` accepts the three external ports through `RunnerPorts`. All
 normalized tool requests now enter one shared `_execute_requested_call_boundary`.
 That method is the only Runner MCP dispatch site and contains the existing
-policy, grounding, tool/side-effect budget, approval, write-ahead, result
+policy, grounding, tool/side-effect budget, authorization/approval, write-ahead, result
 validation, observation update, and post-action verification behavior. The
 provider loop delegates every call to it; there is no plan-specific dispatch
 path. Its first ledger event contains only task
 length, while raw task text remains in the in-memory `RunState`. The host policy
-denies side effects by default; opt-in action mode still requires local approval. Model-turn,
+denies side effects by default. Opt-in action mode defaults to local approval
+for every effect; the fixed public-web-word profile can instead use a
+Host-owned high-risk-only classifier that denies unknown work and lets only
+exact validated low-risk steps skip the prompt. Model-turn,
 tool-call, result, and observation events are appended to the canonical ledger;
 model and tool budgets are consumed before another external call can occur.
 The current ledger is in-memory only and is not a resumable trace.
@@ -344,6 +347,13 @@ Generation drift has fixed `MCP_GENERATION_CHANGED`; baseline loss has fixed
 `SAFETY_BASELINE_UNSATISFIED`. Either path appends a rejected,
 `not_dispatched` `POLICY_DENIED` result, preserves the prior verified
 observation and `ready` recovery state, and performs no action MCP call.
+
+Low-risk Host authorization uses the same preflight and the distinct
+`after_authorization` cooperative-control boundary. It records a
+`host_low_risk_policy` decision, then revalidates generation-qualified
+grounding and required MCP safety baselines before budget consumption,
+continuation intent, or dispatch. Classifier absence, exception, invalid output,
+or ambiguity is `UNKNOWN` and fails closed; model output cannot set risk.
 
 For each provider turn, the Host derives one final advertised tool set after the
 caller allowlist, privacy policy, current MCP safety baselines, and continuation
@@ -557,8 +567,10 @@ when both optional provider SDKs are needed.
 The task and returned desktop text are disclosed to the configured OpenAI
 model. The API key is read by the provider SDK from the host environment and is
 not passed to the MCP child. Use a non-sensitive desktop and narrow MCP
-allowlist. Approved actions remain experimental and require an interactive
-console; see [Approved actions](APPROVALS.md). `type` remains disabled.
+allowlist. Approved actions remain experimental. Hand-written profiles retain
+interactive per-effect approval by default; only the fixed public-web-word
+profile has bounded Host-owned low-risk authorization. See
+[Approved actions](APPROVALS.md). Generic `run` keeps `type` disabled.
 
 Opt-in E3 tests exercise both adapters against the harmless stdio fixture
 rather than the real desktop. See [Evaluation](EVALUATION.md) for their three
@@ -674,10 +686,10 @@ authority.
 | `list_windows` | observation | none | text | establishes current window IDs |
 | `screenshot` | observation | none | image | sensitive output with configured title-based redaction; establishes screenshot geometry |
 | `capture_region` | observation | integer `x`, `y`, `w`, `h` | text and image | sensitive output with configured title-based redaction inside the crop; the envelope declares the crop origin and does not establish click grounding |
-| `activate_window` | side effect | non-empty `window_id` | text | approval; ID must come from current `list_windows` result |
-| `click` | side effect | exactly `ref` **or** integer `x` and `y` | text | approval; ref or screenshot grounding required |
-| `type` | side effect | `text`, optional non-empty `ref` | text | approval; `text` is sensitive and must never be logged raw |
-| `key` | side effect | non-empty `combo` | text | approval; fresh observation required |
+| `activate_window` | side effect | non-empty `window_id` | text | Host authorization; human approval by default; ID must come from current `list_windows` result |
+| `click` | side effect | exactly `ref` **or** integer `x` and `y` | text | Host authorization; human approval by default; ref or screenshot grounding required |
+| `type` | side effect | `text`, optional non-empty `ref` | text | Host authorization; human approval by default; `text` is sensitive and must never be logged raw |
+| `key` | side effect | non-empty `combo` | text | Host authorization; human approval by default; fresh observation required |
 
 Every host/provider JSON Schema has `additionalProperties: false`. The local
 MCP discovery schemas are separately pinned to the currently implemented
@@ -744,8 +756,11 @@ not inherited.
 The initial host policy has two modes:
 
 - `read_only` is the default and denies all four state-changing tools.
-- `approved_actions` remains opt-in and still requires an explicit local host
-  approval for every action in the MVP.
+- `approved_actions` remains opt-in. Its default `all_side_effects` policy
+  requires an explicit local Host approval for every action. The bounded
+  `high_risk_only` alternative requires a Host classifier, permits only
+  classified low-risk actions without prompting, routes high risk to exact
+  approval, and denies `UNKNOWN`.
 
 No policy or configuration setting may downgrade the MCP server to evade its
 safety mechanisms. A timeout, crash, or provider error after dispatch is an
@@ -814,7 +829,7 @@ as general secret detection.
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
 | `[provider]` | provider name (`openai` or `anthropic`), model ID, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. |
 | `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, out-of-range stable-sample/poll/wait values, audit redirection, and custom redaction controls are rejected. |
-| `[policy]` | read-only/approved-actions choice and fixed budgets | `approved_actions` cannot disable per-action approval. |
+| `[policy]` | read-only/approved-actions choice, action-approval policy, and fixed budgets | `all_side_effects` is the default; `high_risk_only` requires `approved_actions` plus a Host classifier, and unknown risk is denied. |
 
 Configuration parsing has no side effects: it does not create state directories,
 start a provider, start an MCP child, or interact with a desktop.
@@ -829,7 +844,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
 | Exactly thirteen reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
 | Invalid tool arguments fail before dispatch | Unknown fields, missing fields, bad scalar types, and all invalid `click` combinations are rejected | implemented contract test |
-| Host is stricter than server | All action specs require approval and invalidate grounding; `click` XOR is tested | implemented contract test |
+| Host is stricter than server | All action specs require Host authorization and invalidate grounding; default per-effect approval, fixed low-risk classification, unknown denial, and `click` XOR are tested | implemented contract test |
 | Configuration cannot weaken or leak into MCP | Parser allowlists child variable names, pins a safe baseline, rejects unsafe server controls, and confines state to the user-local app root | implemented contract test |
 | Approval and ledger cannot replay or retain typed text | Run/turn-qualified call identity, request/digest binding, deep immutability, and redacted typed-text summaries are tested | implemented contract test |
 | Result and recovery content is bounded and typed | Screenshot-only PNG output has parsed dimensions; text tools reject images; type results use only reviewed codes; action and transport failures differ; unknown outcomes cannot be `ready` | implemented contract test |

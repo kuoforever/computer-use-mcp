@@ -13,9 +13,10 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Mapping, Sequence
 
-from .config import APPROVED_ACTIONS_MODE, AgentConfig
-from .tool_registry import ToolSpec
+from .config import APPROVED_ACTIONS_MODE, HIGH_RISK_ONLY_APPROVAL, AgentConfig
+from .tool_registry import ToolSpec, ToolValidationError, get_tool_spec
 from .types import (
+    ActionRiskTier,
     JSONValue,
     CallIdentity,
     DispatchCertainty,
@@ -27,6 +28,7 @@ from .types import (
     ModelUsage,
     ProviderContinuationStrategy,
     ToolCall,
+    ToolEffect,
     ToolResult,
     ToolResultStatus,
 )
@@ -41,7 +43,8 @@ PUBLIC_WEB_WORD_SOURCE_URL = (
     "https://support.microsoft.com/en-US/Word/training/"
     "collaborate-on-word-documents-with-real-time-co-authoring"
 )
-PUBLIC_WEB_WORD_MAX_APPROVALS = 7
+PUBLIC_WEB_WORD_MAX_SIDE_EFFECTS = 7
+PUBLIC_WEB_WORD_MAX_HIGH_RISK_APPROVALS = 0
 PUBLIC_WEB_WORD_FIXED_ALLOWLIST = "chrome.exe,winword.exe"
 PUBLIC_WEB_WORD_FIXED_HUMAN_STABLE_SAMPLES = "3"
 PUBLIC_WEB_WORD_FIXED_HUMAN_MAX_WAIT_SECONDS = "15"
@@ -79,6 +82,8 @@ def public_web_word_contract_error(config: AgentConfig) -> str | None:
         raise TypeError("config must be an AgentConfig")
     if config.policy.mode != APPROVED_ACTIONS_MODE:
         return "PUBLIC_WEB_WORD_APPROVED_ACTIONS_REQUIRED"
+    if config.policy.action_approval_policy != HIGH_RISK_ONLY_APPROVAL:
+        return "PUBLIC_WEB_WORD_HIGH_RISK_APPROVAL_POLICY_REQUIRED"
     if config.continuation.enabled:
         return "PUBLIC_WEB_WORD_CONTINUATION_MUST_BE_DISABLED"
     if (
@@ -95,7 +100,7 @@ def public_web_word_contract_error(config: AgentConfig) -> str | None:
         return "PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED"
     if (
         config.policy.max_model_turns < 20
-        or config.policy.max_side_effects < PUBLIC_WEB_WORD_MAX_APPROVALS
+        or config.policy.max_side_effects < PUBLIC_WEB_WORD_MAX_SIDE_EFFECTS
         or config.policy.max_tool_calls < 19
     ):
         return "PUBLIC_WEB_WORD_BUDGET_TOO_SMALL"
@@ -1040,6 +1045,25 @@ class ModelDrivenPublicWebWordProvider:
     def correction_count(self, run_id: str) -> int:
         return self._correction_counts.get(run_id, 0)
 
+    def classify_action(
+        self,
+        call: ToolCall,
+        ledger: Sequence[LedgerEvent],
+    ) -> ActionRiskTier:
+        """Authorize only an exact action already accepted by the fixed Host guard."""
+
+        try:
+            effect = get_tool_spec(call.name).effect
+        except ToolValidationError:
+            return ActionRiskTier.UNKNOWN
+        if effect is not ToolEffect.SIDE_EFFECT:
+            return ActionRiskTier.UNKNOWN
+        try:
+            self._validate_call(call, ledger)
+        except PublicWebWordError:
+            return ActionRiskTier.UNKNOWN
+        return ActionRiskTier.LOW
+
     def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
         return self.inner.export_continuation(run_id)
 
@@ -1059,7 +1083,8 @@ __all__ = [
     "PUBLIC_WEB_WORD_BULLET_PREFIX",
     "PUBLIC_WEB_WORD_COMPLETE_TEXT",
     "PUBLIC_WEB_WORD_MARKER",
-    "PUBLIC_WEB_WORD_MAX_APPROVALS",
+    "PUBLIC_WEB_WORD_MAX_HIGH_RISK_APPROVALS",
+    "PUBLIC_WEB_WORD_MAX_SIDE_EFFECTS",
     "PUBLIC_WEB_WORD_SOURCE_TITLE",
     "PUBLIC_WEB_WORD_SOURCE_URL",
     "PUBLIC_WEB_WORD_TASK",

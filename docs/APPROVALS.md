@@ -1,9 +1,11 @@
 # Experimental approved-action workflow
 
-> **Status: implemented with fake-port verification; isolated desktop smoke
-> pending.** The Host can orchestrate locally approved `activate_window`,
-> `click`, and `key` calls. The feature is opt-in and does not alter or bypass
-> any MCP Server safety mechanism. `type` remains disabled.
+> **Status: bounded Host risk-tier authorization is implemented and offline
+> verified; current-candidate isolated desktop evidence is pending.** The Host
+> can orchestrate `activate_window`, `click`, and `key` calls. The fixed
+> public-web-word workflow additionally permits its exact guarded `type` step.
+> This remains opt-in and does not alter or bypass any MCP Server safety
+> mechanism.
 
 ## Enablement
 
@@ -13,6 +15,7 @@ Set the Agent policy explicitly:
 [policy]
 mode = "approved_actions"
 require_approval_for_actions = true
+action_approval_policy = "all_side_effects"
 max_side_effects = 8
 ~~~
 
@@ -20,6 +23,16 @@ Install a provider extra and run from an interactive local console. In this
 mode the provider receives schemas for `activate_window`, `click`, and `key` in
 addition to text observation tools. The common Runner remains the authority:
 provider output cannot approve, ground, or dispatch an action.
+
+`all_side_effects` is the default for omitted, legacy, and hand-written
+configuration and preserves one exact human approval per side effect. The
+alternative `high_risk_only` setting is accepted only in `approved_actions`
+mode and is not sufficient by itself: the Runner also requires a Host-owned
+classifier. The current public-web-word wrapper is the only product classifier;
+it returns low risk only after its exact stage, window, order, coordinate,
+text-shape, and save-evidence checks accept the call. A missing classifier,
+exception, invalid value, ambiguity, or workflow drift becomes `UNKNOWN` and is
+denied before approval or dispatch. The provider cannot choose its risk tier.
 
 ## Authorization sequence
 
@@ -34,16 +47,19 @@ For each requested action, the Host performs these checks in order:
 4. The side-effect budget has remaining capacity.
 5. Model, input-token, context, and tool-call capacity can still hold the
    mandatory post-action observation lane.
-6. The default console displays a non-sensitive argument summary and SHA-256
-   call digest. With explicit Decision Card opt-in, the Runner first yields
-   desktop authority and opens a four-choice native card. Only the explicit
-   exact-effect choice approves that one request. The fixed public-web-word
-   product offers re-observe, cooperative human takeover, and denial; other
-   adapters retain durable defer. Every non-approval choice causes zero
-   side-effect dispatch.
-7. The returned decision must match request ID, run/turn/call identity, and
-   digest. A stale or mismatched decision is rejected.
-8. A valid decision is recorded for audit. For `ALLOW`, the Host then rechecks
+6. Under `high_risk_only`, an exact low-risk classification records a
+   Host-policy `ALLOW` and skips the human prompt. A high-risk classification
+   enters the ordinary exact approval path. `UNKNOWN` is denied.
+7. For approval-required work, the default console displays a non-sensitive
+   argument summary and SHA-256 call digest. With explicit Decision Card
+   opt-in, the Runner first yields desktop authority and opens a four-choice
+   native card. Only the explicit exact-effect choice approves that one
+   request. The fixed public-web-word product offers re-observe, cooperative
+   human takeover, and denial; other adapters retain durable defer. Every
+   non-approval choice causes zero side-effect dispatch.
+8. A returned human decision must match request ID, run/turn/call identity,
+   and digest. A stale or mismatched decision is rejected.
+9. Every valid Host or human `ALLOW` is recorded for audit. The Host then rechecks
    grounding against the live MCP generation and the tool's required safety
    baselines against the live child evidence. Generation drift fails with
    `MCP_GENERATION_CHANGED`; missing baseline evidence fails with
@@ -51,7 +67,7 @@ For each requested action, the Host performs these checks in order:
    policy result while preserving the audited decision and prior verified
    observation; neither consumes side-effect budget nor creates action
    continuation or MCP authority.
-9. Only then is the call marked Host-authorized and dispatched through the serialized
+10. Only then is the call marked Host-authorized and dispatched through the serialized
    MCP bridge, which independently applies its allowlist, human-activity,
    confirmation, E-stop, and audit checks.
 
@@ -161,7 +177,9 @@ terminal unknown state, and is never replayed.
 
 ## Current validation boundary
 
-Offline tests prove allow/deny/mismatch binding, grounding freshness, MCP
+Offline tests prove default per-effect approval, low-risk no-prompt Host
+authorization, high-risk exact approval, missing/unknown/throwing/invalid
+classifier denial, allow/deny/mismatch binding, grounding freshness, MCP
 generation and safety-baseline drift both before and after an approval wait,
 bounds, side-effect accounting, single-call side-effect turns, mandatory
 re-observation, typed-text denial, unknown outcomes, redacted approvals, and
@@ -180,8 +198,9 @@ Do not test approved actions on a sensitive or actively used desktop.
 
 ## Planned enterprise authorization extension
 
-The current approval is intentionally one local confirmation for one GUI
-action. It is not an enterprise authorization model. Future enterprise
+The current bounded classifier authorizes only exact fixed-workflow GUI steps;
+its high-risk path remains one local confirmation for one GUI action. It is not
+an enterprise authorization model. Future enterprise
 workflows must introduce a separate, fail-closed authority envelope bound to:
 
 - authenticated user, tenant, role, and policy version;

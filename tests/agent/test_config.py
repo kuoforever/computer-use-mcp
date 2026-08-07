@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from computer_use_agent.config import (
+    ALL_SIDE_EFFECTS_APPROVAL,
     APPROVED_ACTIONS_MODE,
+    HIGH_RISK_ONLY_APPROVAL,
     ContinuationConfig,
     READ_ONLY_MODE,
     ConfigError,
@@ -63,6 +65,7 @@ def test_config_defaults_to_read_only_and_uses_host_generated_safe_child_environ
 
     assert config.policy.mode == READ_ONLY_MODE
     assert config.policy.require_approval_for_actions is True
+    assert config.policy.action_approval_policy == ALL_SIDE_EFFECTS_APPROVAL
     assert config.mcp.child_environment()["CUMCP_MODE"] == "safe_local"
     assert config.mcp.child_environment()["CUMCP_DANGEROUS_CONFIRM"] == "1"
     assert config.mcp.child_environment()["CUMCP_ALLOWLIST"] == "notepad.exe"
@@ -443,6 +446,19 @@ def test_config_rejects_state_outside_the_user_local_application_directory(
 def test_approved_actions_cannot_disable_host_approval() -> None:
     with pytest.raises(ConfigError, match="still requires"):
         PolicyConfig(mode=APPROVED_ACTIONS_MODE, require_approval_for_actions=False)
+
+
+def test_high_risk_only_approval_is_explicit_and_action_mode_only() -> None:
+    policy = PolicyConfig(
+        mode=APPROVED_ACTIONS_MODE,
+        action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
+    )
+
+    assert policy.action_approval_policy == HIGH_RISK_ONLY_APPROVAL
+    with pytest.raises(ConfigError, match="requires approved_actions"):
+        PolicyConfig(action_approval_policy=HIGH_RISK_ONLY_APPROVAL)
+    with pytest.raises(ConfigError, match="action_approval_policy"):
+        PolicyConfig(mode=APPROVED_ACTIONS_MODE, action_approval_policy="model_chosen")
 
 
 def test_context_event_budget_must_be_positive() -> None:

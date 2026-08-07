@@ -258,7 +258,8 @@ guarded-desktop-agent workflow public-web-word `
 ~~~
 
 The review-only command displays the Host-fixed goal, applications, read/change
-boundary, exact output, maximum seven one-effect approvals, stop conditions,
+boundary, exact output, maximum seven side effects, low-risk Host authorization,
+zero expected high-risk approvals, stop conditions,
 and possible partial files without contacting a provider, starting MCP, opening
 an application, or creating workflow state. The workflow command shows the same
 Scope Sheet and requires the exact token `START` before startup. An intentional
@@ -268,8 +269,10 @@ workflow but does not approve any desktop action. See the
 
 The model chooses the reviewed steps and authors two to four bullets from fresh
 Chrome observations; no bullet findings are prewritten in the task or template.
-The workflow uses the ordinary local approval boundary, saves without
-overwriting, closes the exact fixtures, reopens the same DOCX, and reads it back
+The workflow uses the ordinary Runner policy boundary: exact Host-validated
+low-risk steps proceed without prompting, while high-risk work still requires
+local approval and ambiguity fails closed. It saves without overwriting, closes
+the exact fixtures, reopens the same DOCX, and reads it back
 through Runner/MCP before returning bounded JSON metadata. See the full
 [workflow contract](docs/PUBLIC_WEB_WORD_WORKFLOW.md) and the same-wheel
 [current-candidate integration result](docs/CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md).

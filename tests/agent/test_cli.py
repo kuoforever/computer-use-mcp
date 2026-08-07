@@ -333,9 +333,10 @@ def test_config_init_creates_the_public_web_word_product_profile(
     config = load_agent_config(output)
     assert result["profile"] == "public-web-word"
     assert result["policy_mode"] == "approved_actions"
-    assert config.policy_version == "public-web-word-v1"
+    assert config.policy_version == "public-web-word-v2"
     assert config.provider.request_timeout_seconds == 90
     assert config.policy.mode == "approved_actions"
+    assert config.policy.action_approval_policy == "high_risk_only"
     assert config.policy.max_model_turns == 28
     assert config.policy.max_tool_calls == 24
     assert config.policy.max_side_effects == 7
@@ -465,8 +466,10 @@ def test_public_web_word_review_cli_is_human_first_versioned_and_inert(
     )
     human = capsys.readouterr().out
     assert "Pre-run Review - nothing has started" in human
-    assert "Maximum action approvals: 7" in human
-    assert "does not pre-approve any desktop action" in human
+    assert "Maximum side effects: 7" in human
+    assert "reviewed low-risk reversible effects do not prompt" in human
+    assert "Maximum high-risk action approvals: 0" in human
+    assert "does not approve a high-risk desktop action" in human
 
     assert (
         main(
@@ -483,11 +486,13 @@ def test_public_web_word_review_cli_is_human_first_versioned_and_inert(
         == 0
     )
     payload = json.loads(capsys.readouterr().out)
-    assert payload["pre_run_review_version"] == 1
+    assert payload["pre_run_review_version"] == 2
     assert payload["source"] == "host_fixed_contract"
     assert payload["contains_model_prose"] is False
     assert payload["external_work_started"] is False
-    assert payload["maximum_approvals"] == 7
+    assert payload["maximum_side_effects"] == 7
+    assert payload["maximum_high_risk_approvals"] == 0
+    assert payload["action_authorization"]["policy"] == "host_risk_tier_v1"
     assert payload["acknowledgement"]["grants_action_approval"] is False
     assert not output.exists()
     assert tuple(
@@ -580,7 +585,7 @@ def test_public_web_word_cli_explicit_scope_flag_still_passes_bound_objects(
     assert loads == 1
     assert len(received) == 1
     assert received[0][1].output == output.resolve()  # type: ignore[attr-defined]
-    assert "per-action approval remains required" in capsys.readouterr().err
+    assert "reviewed low-risk effects use Host policy" in capsys.readouterr().err
 
 
 def test_public_web_word_profile_rejects_allowlist_override(

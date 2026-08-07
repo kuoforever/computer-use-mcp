@@ -24,9 +24,12 @@ surface:
   page observations;
 - desktop authority: every model-proposed desktop observation and action passes
   through the existing `AgentRunner` and sole MCP desktop boundary;
-- action authority: the generated profile uses `approved_actions`, so the
-  existing local approval surface still authorizes each proposed side effect;
-- shared-desktop coexistence: after a Decision Card click, the action waits for
+- action authority: the generated profile uses `approved_actions` plus the
+  fixed `high_risk_only` Host policy. Only a proposal that passes the exact
+  workflow stage/window/order/grounding guard is low risk and can proceed
+  without a Decision Card. High-risk work still needs exact approval; unknown,
+  invalid, ambiguous, and scope-drifted work is denied;
+- shared-desktop coexistence: before each authorized action, the action waits for
   three stable human-idle samples inside that single MCP call; continued user
   input keeps control with the user, and the profile's 15-second bound returns
   before the 30-second MCP bridge timeout;
@@ -82,9 +85,12 @@ shows the Host-compiled [Pre-run Review Scope Sheet](PRE_RUN_REVIEW.md). It
 requires the exact token `START`; EOF or any other response cancels with zero
 external work. A deliberate non-interactive caller must pass
 `--acknowledge-scope`. That flag acknowledges only the displayed workflow
-scope: all seven possible side effects still require their ordinary exact
-approval, and all policy, grounding, budget, live-authority, verification, and
-no-replay rules remain unchanged. `review public-web-word` displays the same
+scope: it grants no action approval. The seven possible fixed side effects are
+Host-reviewed low-risk operations and do not open a Decision Card; any
+high-risk effect would still need ordinary exact approval, while unknown or
+out-of-scope work is denied. All grounding, budget, live-authority,
+verification, mandatory re-observation, and no-replay rules remain unchanged.
+`review public-web-word` displays the same
 text or versioned JSON without starting the workflow.
 
 While either Runner loop is active, `task pause` or `task takeover` can record a
