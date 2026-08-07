@@ -23,6 +23,7 @@ not a line-by-line mirror of every reference page.
 | I want to run the installed fixed public-browser-to-Word product workflow | [Public Web to Word workflow](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | I want to inspect local task outcomes without execution authority | [Read-only Task Center and outcome receipts](TASK_CENTER.md) |
 | I want to review a fixed workflow scope before anything starts | [Pre-run Review Scope Sheet](PRE_RUN_REVIEW.md) |
+| I want to pause, take over, and explicitly resume one live fixed workflow | [Cooperative Pause, Takeover, and Resume](COOPERATIVE_CONTROL.md) |
 | I need the shortest implemented/evidence/next-gate view | [Capability status](CAPABILITY_STATUS.md) |
 | I need environment variables or safety behavior | [Configuration and safety](CONFIGURATION.md) |
 | I need exact MCP tool parameters and behavior | [Tool reference](TOOLS.md) |
@@ -98,6 +99,7 @@ not a line-by-line mirror of every reference page.
 | Public Web to Word workflow | Fixed source/application boundary, installed command, durable DOCX completion contract, and bounded result metadata |
 | Task Center and outcome receipts | Read-only local run/campaign grouping, fixed human outcome wording, strict private product receipt, and the no-control/no-replay boundary |
 | Pre-run Review | Host-fixed workflow goal, applications, data use, output, approval bound, stops, residue, exact acknowledgement, and zero-startup review contract |
+| Cooperative control | Same-process safe-boundary pause, explicit desktop authority release, explicit resume, mandatory fresh observation, and no uncertain replay |
 | Capability status | Cross-surface implementation state, retained evidence level, and next executable gate |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
 | Tool reference | Public MCP tool surface and result semantics |
@@ -121,7 +123,7 @@ not a line-by-line mirror of every reference page.
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
-| Operator experience | Implemented passive progress with opt-in ordinary-run, bounded-plan, read-only recovery, and fixed MCP-backed campaign execution lifecycle wiring; zero-port campaign control remains window-free. Ordinary-run, one provider-free bounded plan, one persisted read-only recovery observation, and the fixed synthetic campaign have native progress lifecycle evidence. Opt-in durable ordinary-run/bounded-plan/read-only-recovery/fixed-campaign presence and a focus-taking four-choice Win32 Decision Card with expandable digest evidence also exist; bounded-plan presence has native evidence, while recovery and BOSS campaign presence plus same-run re-observe/durable defer remain offline verified and host-owned mobile notification remains planned |
+| Operator experience | Implemented passive progress/presence lifecycle wiring, a focus-taking Decision Card, read-only Task Center, Pre-run Review, and same-process cooperative control for the fixed public-web-word Runner loops. Cooperative pause/takeover/resume is offline verified only; recovery/BOSS campaign presence, native takeover timing, and host-owned mobile notification remain planned |
 | Operator progress viewer | Checkpoint projection, non-activating window behavior, multi-run grouping, and acceptance checks |
 | Operator session notes | Sanitized cross-session evidence and live desktop regressions |
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |

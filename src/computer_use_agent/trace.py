@@ -119,6 +119,7 @@ _TRANSITIONS = {
     },
     RunPhase.PLANNING: {
         RunPhase.WAITING_APPROVAL,
+        RunPhase.PAUSED,
         RunPhase.EXECUTING,
         RunPhase.SUCCESS,
         RunPhase.FAILED,
@@ -131,7 +132,12 @@ _TRANSITIONS = {
         RunPhase.FAILED,
         RunPhase.CANCELLED,
     },
-    RunPhase.PAUSED: {RunPhase.CANCELLED},
+    RunPhase.PAUSED: {
+        RunPhase.OBSERVING,
+        RunPhase.FAILED,
+        RunPhase.UNKNOWN_OUTCOME,
+        RunPhase.CANCELLED,
+    },
     RunPhase.EXECUTING: {
         RunPhase.OBSERVING,
         RunPhase.PLANNING,

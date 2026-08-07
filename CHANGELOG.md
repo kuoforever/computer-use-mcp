@@ -36,6 +36,15 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Cooperative Pause/Takeover/Resume.** The installed public-web-word Runner
+  loops now publish one strict local control lifecycle. CLI `task pause` and
+  `task takeover` become effective only after a durable safe-boundary
+  acknowledgement releases Agent desktop authority; `task resume` invalidates
+  prior grounding and approval authority and permits only fresh observation
+  before later side effects. The product Decision Card routes Human takeover
+  through the same path. Possibly dispatched work remains terminal
+  `UNKNOWN_OUTCOME` with no replay. This adds no `BlockInput`, continuation,
+  campaign, remote-control, Full Cycle export, or second desktop-dispatch path.
 - **Host-compiled Pre-run Review.** The installed public-web-word workflow now
   displays a human Scope Sheet before any provider, MCP, application, desktop,
   or fixture startup, covering its fixed goal, applications, read/change

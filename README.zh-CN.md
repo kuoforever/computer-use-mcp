@@ -151,6 +151,20 @@ MCP、打开应用或创建 workflow state。正式 workflow 会再次显示同�
 输出有界元数据。完整边界见
 [Public Web to Word 工作流契约](docs/PUBLIC_WEB_WORD_WORKFLOW.md)。
 
+当其中一个 Runner loop 正在运行时，可在第二个本地终端请求协作式控制：
+
+~~~powershell
+guarded-desktop-agent task takeover --config C:\absolute\path\public-web-word.toml
+guarded-desktop-agent task control --config C:\absolute\path\public-web-word.toml
+# 只有 status=paused 且 authority=released 后，人才可操作桌面。
+guarded-desktop-agent task resume --config C:\absolute\path\public-web-word.toml
+~~~
+
+`pause_requested` 只表示请求已记录，不表示暂停完成。显式 resume 会丢弃旧 approval
+和 grounding，并要求先持久化一次 fresh observation，之后才允许新的 side effect。
+已在执行或可能已执行的动作仍以 `UNKNOWN_OUTCOME` 终止，绝不自动重放。完整边界见
+[协作式 Pause、Takeover 与 Resume](docs/COOPERATIVE_CONTROL.md)。
+
 ## 原始 MCP server 启动
 
 ~~~powershell

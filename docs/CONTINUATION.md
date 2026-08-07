@@ -19,6 +19,13 @@
 Broader resume means reconstructing the next state-machine step from a completed,
 durably recorded boundary. It never means retrying an in-flight operation.
 
+Same-process cooperative Pause/Takeover/Resume is a separate authority lane.
+The live Runner owns it, explicit resume always requires a fresh successful
+observation, and it is rejected before external work when continuation is
+enabled. A persisted `PAUSED` checkpoint without its still-live cooperative
+lease is not crash-resumable; use the conservative recovery/new-run rules in
+this document instead. See [Cooperative control](COOPERATIVE_CONTROL.md).
+
 The implementation must preserve these rules:
 
 1. A provider request or MCP call is issued at most once for a given dispatch

@@ -90,6 +90,7 @@ class DecisionCardApprovalPort:
         surface: DecisionCardChoicePort,
         *,
         timeout_seconds: int = 300,
+        takeover_enabled: bool = False,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         if not isinstance(timeout_seconds, int) or isinstance(timeout_seconds, bool):
@@ -98,8 +99,11 @@ class DecisionCardApprovalPort:
             raise ValueError("decision card timeout must be between 5 and 3600")
         if not callable(clock):
             raise ValueError("decision card clock must be callable")
+        if not isinstance(takeover_enabled, bool):
+            raise ValueError("takeover_enabled must be a boolean")
         self._surface = surface
         self._timeout_seconds = timeout_seconds
+        self._takeover_enabled = takeover_enabled
         self._clock = clock
 
     @staticmethod
@@ -142,7 +146,11 @@ class DecisionCardApprovalPort:
                     option_kinds=(
                         DecisionOptionKind.APPROVE_EXACT_EFFECT,
                         DecisionOptionKind.REOBSERVE,
-                        DecisionOptionKind.DEFER,
+                        (
+                            DecisionOptionKind.HUMAN_TAKEOVER
+                            if self._takeover_enabled
+                            else DecisionOptionKind.DEFER
+                        ),
                         DecisionOptionKind.DENY,
                     ),
                 ),
@@ -181,6 +189,13 @@ class DecisionCardApprovalPort:
         if result.status is SelectionStatus.DEFERRED:
             return self._decision(
                 request, PolicyDecisionKind.DEFER, "decision_card_deferred"
+            )
+        if (
+            result.status is SelectionStatus.HANDOFF
+            and result.option_kind is DecisionOptionKind.HUMAN_TAKEOVER
+        ):
+            return self._decision(
+                request, PolicyDecisionKind.TAKEOVER, "decision_card_human_takeover"
             )
         return self._decision(
             request, PolicyDecisionKind.DENY, f"decision_card_{result.status.value}"

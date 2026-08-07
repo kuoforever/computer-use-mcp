@@ -255,6 +255,21 @@ overwriting, closes the exact fixtures, reopens the same DOCX, and reads it back
 through Runner/MCP before returning bounded JSON metadata. See the full
 [workflow contract](docs/PUBLIC_WEB_WORD_WORKFLOW.md).
 
+While one of those Runner loops is live, a second local terminal can request
+cooperative control:
+
+~~~powershell
+guarded-desktop-agent task takeover --config C:\absolute\path\public-web-word.toml
+guarded-desktop-agent task control --config C:\absolute\path\public-web-word.toml
+# Touch the desktop only after status=paused and authority=released.
+guarded-desktop-agent task resume --config C:\absolute\path\public-web-word.toml
+~~~
+
+`pause_requested` is not a completed pause. Explicit resume discards the old
+approval and grounding and requires a durable fresh observation before any
+later side effect. In-flight uncertainty remains terminal and is never
+replayed. See [Cooperative Pause, Takeover, and Resume](docs/COOPERATIVE_CONTROL.md).
+
 ## Raw MCP server quick start
 
 Create a virtual environment and install the package:
