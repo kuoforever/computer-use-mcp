@@ -51,6 +51,23 @@ class Surface:
         return DecisionSelection(card.decision_id, card.card_digest, self.option_id)
 
 
+class Attention:
+    def __init__(self, *, fail_open: bool = False, fail_close: bool = False) -> None:
+        self.fail_open = fail_open
+        self.fail_close = fail_close
+        self.events: list[tuple[str, object]] = []
+
+    def open(self, request, card, *, opened_at: datetime):  # noqa: ANN001
+        self.events.append(("open", (request, card, opened_at)))
+        if self.fail_open:
+            raise RuntimeError("attention open failed")
+
+    def close(self, request_id: str) -> None:
+        self.events.append(("close", request_id))
+        if self.fail_close:
+            raise RuntimeError("attention close failed")
+
+
 def _clock(*values: datetime):
     moments = deque(values)
     return lambda: moments.popleft()
@@ -156,3 +173,60 @@ def test_cancellation_propagates_without_an_allow_decision() -> None:
                 CancelledSurface(), clock=_clock(NOW)
             ).request_approval(_request())
         )
+
+
+def test_attention_lifecycle_uses_the_exact_card_and_always_closes() -> None:
+    request = _request()
+    attention = Attention()
+    surface = Surface("option_approve_exact_effect")
+
+    decision = asyncio.run(
+        DecisionCardApprovalPort(
+            surface,
+            attention=attention,
+            timeout_seconds=30,
+            clock=_clock(NOW, NOW),
+        ).request_approval(request)
+    )
+
+    assert decision.kind is PolicyDecisionKind.ALLOW
+    opened_request, opened_card, opened_at = attention.events[0][1]
+    assert opened_request is request
+    assert opened_card is surface.cards[0][0]
+    assert opened_card.expires_at == NOW + timedelta(seconds=30)
+    assert opened_at == NOW
+    assert attention.events[-1] == ("close", request.request_id)
+
+
+@pytest.mark.parametrize(("fail_open", "fail_close"), [(True, False), (False, True)])
+def test_supplemental_attention_failure_never_changes_approval_authority(
+    fail_open: bool, fail_close: bool
+) -> None:
+    decision = asyncio.run(
+        DecisionCardApprovalPort(
+            Surface("option_approve_exact_effect"),
+            attention=Attention(fail_open=fail_open, fail_close=fail_close),
+            clock=_clock(NOW, NOW),
+        ).request_approval(_request())
+    )
+
+    assert decision.kind is PolicyDecisionKind.ALLOW
+    assert decision.reason == "decision_card_exact_effect"
+
+
+def test_cancellation_with_attention_withdraws_before_propagating() -> None:
+    class CancelledSurface:
+        async def choose(self, _card, *, timeout_seconds: int):  # noqa: ANN001
+            del timeout_seconds
+            raise asyncio.CancelledError
+
+    attention = Attention()
+    request = _request()
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(
+            DecisionCardApprovalPort(
+                CancelledSurface(), attention=attention, clock=_clock(NOW)
+            ).request_approval(request)
+        )
+
+    assert attention.events[-1] == ("close", request.request_id)

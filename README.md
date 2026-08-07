@@ -215,6 +215,24 @@ receipt after save, digest, reopen, and cleanup verification; only that receipt
 allows Task Center to claim the DOCX was saved and verified. See the complete
 [Task Center and receipt contract](docs/TASK_CENTER.md).
 
+## Read-only Approval Inbox
+
+When a configured Decision Card is waiting, inspect its bounded local attention
+record from another terminal:
+
+~~~powershell
+guarded-desktop-agent approval inbox --config C:\absolute\path\agent.toml
+guarded-desktop-agent approval inbox --config C:\absolute\path\agent.toml --json
+~~~
+
+The Inbox reports only validated Host identity, fixed action classification,
+digests, and expiry. It cannot approve, deny, defer, take over, resume, retry,
+or dispatch work, and `pending_at_last_record` does not claim the Runner is
+still live. Generated product profiles also enable a fixed-content Windows
+attention notification with no action button or private task/action content.
+The operator must return to the bound Decision Card. See the full
+[Approval Inbox and notification contract](docs/APPROVAL_INBOX.md).
+
 ## Public Web to Word workflow
 
 Create the dedicated supervised profile, check readiness, then write one new

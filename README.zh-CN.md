@@ -193,6 +193,19 @@ $env:CUMCP_ALLOWLIST = "notepad.exe"
 
 ## 推荐操作流程
 
+审批卡正在等待时，可在另一个本地终端读取严格受限的只读 Inbox：
+
+~~~powershell
+guarded-desktop-agent approval inbox --config C:\absolute\path\agent.toml
+guarded-desktop-agent approval inbox --config C:\absolute\path\agent.toml --json
+~~~
+
+它只显示 Host 验证过的 identity、固定动作分类、digest 和 expiry，不能批准、
+拒绝、延期、接管、恢复、重试或 dispatch；`pending_at_last_record` 也不代表
+Runner 一定仍然存活。生成的产品配置还会启用只有固定文案、没有操作按钮和
+私密任务内容的 Windows 通知；真正的决定仍必须回到绑定的 Decision Card。
+完整边界见 [Approval Inbox 与通知契约](docs/APPROVAL_INBOX.md)。
+
 1. 使用 `ui_snapshot()` 获取控件及 `ref_N` 引用，或用 `screenshot()`
    观察界面。
 2. UIA 可识别控件时，优先使用 `click(ref="ref_N")` 和

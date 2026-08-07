@@ -114,8 +114,24 @@ def _approval_port(
     if not config.operator.decision_cards_enabled:
         return ConsoleApprovalPort(input_fn=_console_input, output_fn=_console_output)
     from .approvals import DecisionCardApprovalPort
+    from .approval_inbox import ApprovalAttentionLifecycle, LocalApprovalInbox
     from .decision_card_window import DecisionCardWindow
     from .decision_card_window_win32 import Win32DecisionCardWindowApi
+
+    notifications = None
+    if config.operator.approval_notifications_enabled:
+        try:
+            from .approval_notification_win32 import Win32ApprovalNotifier
+
+            notifications = Win32ApprovalNotifier()
+        except Exception:
+            # Notifications are presentation only. Native availability must not
+            # change approval policy, the Decision Card, or Runner dispatch.
+            notifications = None
+    attention = ApprovalAttentionLifecycle(
+        LocalApprovalInbox(config.state_dir),
+        notifications=notifications,
+    )
 
     return DecisionCardApprovalPort(
         DecisionCardWindow(
@@ -125,6 +141,7 @@ def _approval_port(
         ),
         timeout_seconds=config.operator.decision_timeout_seconds,
         takeover_enabled=cooperative_takeover,
+        attention=attention,
     )
 
 
@@ -310,6 +327,28 @@ def build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Print the same versioned control record as JSON.",
         )
+
+    approval = commands.add_parser(
+        "approval", help="Inspect local approval attention without deciding it."
+    )
+    approval_commands = approval.add_subparsers(
+        dest="approval_command", required=True
+    )
+    approval_inbox = approval_commands.add_parser(
+        "inbox", help="Show validated local Decision Card attention records."
+    )
+    approval_inbox.add_argument("--config", required=True, type=Path)
+    approval_inbox.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum validated records to display (1-100; pending first).",
+    )
+    approval_inbox.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the same bounded read-only Approval Inbox as versioned JSON.",
+    )
 
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
@@ -1709,6 +1748,18 @@ def _show_task_center(path: Path, *, limit: int, json_output: bool) -> int:
     return 0
 
 
+def _show_approval_inbox(path: Path, *, limit: int, json_output: bool) -> int:
+    from .approval_inbox import build_approval_inbox, render_approval_inbox
+
+    config = load_agent_config(path)
+    inbox = build_approval_inbox(config.state_dir, limit=limit)
+    if json_output:
+        _print_json(inbox.as_json())
+    else:
+        print(render_approval_inbox(inbox), end="")
+    return 0
+
+
 def _control_task(
     path: Path,
     command: str,
@@ -2090,6 +2141,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "task" and args.task_command == "center":
             return _show_task_center(
+                args.config,
+                limit=args.limit,
+                json_output=args.json,
+            )
+        if args.command == "approval" and args.approval_command == "inbox":
+            return _show_approval_inbox(
                 args.config,
                 limit=args.limit,
                 json_output=args.json,

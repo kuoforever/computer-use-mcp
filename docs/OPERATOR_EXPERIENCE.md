@@ -51,11 +51,15 @@
 > effective only after a durable safe-boundary pause releases desktop authority,
 > and explicit resume requires fresh observation. Native takeover timing remains
 > unverified.
+> One strict [Approval Inbox](APPROVAL_INBOX.md) now supplements a compiled
+> Decision Card with a local expiring identity/digest record and optional
+> fixed-content Windows notification. Both are offline verified, have no
+> approval or dispatch authority, and retain no raw task/action content.
 
 ## Goal
 
 Make desktop Agent activity continuously legible without making model output an
-authority source. The operator experience has five coordinated but
+authority source. The operator experience has seven coordinated but
 separately trusted surfaces:
 
 1. a Pre-run Review Scope Sheet showing the fixed workflow boundary before any
@@ -68,9 +72,11 @@ separately trusted surfaces:
 5. a CLI-first read-only Task Center grouping validated tasks and rendering
    fixed Completion/Failure Receipts after the active desktop work ends;
 6. a local cooperative control lane that requests safe pause, publishes explicit
-   authority release, and requires explicit resume plus fresh observation.
+   authority release, and requires explicit resume plus fresh observation;
+7. a read-only Approval Inbox plus fixed-content local notification that makes
+   one bound Decision Card discoverable without becoming a decision surface.
 
-All six surfaces observe or act only through their documented Host-owned
+All seven surfaces observe or act only through their documented Host-owned
 boundary. They do not infer success from model prose, create a second dispatch
 path, replay uncertain work, or weaken Host/MCP policy.
 
@@ -87,6 +93,8 @@ validated checkpoint / campaign / approval request
       -> presence indicator       # passive, click-through, never authority
       -> progress viewer          # passive by default, never execution
       -> Task Center              # explicit local read, fixed receipts only
+      -> Approval Inbox           # pending record only; no liveness or decision
+      -> Windows notification     # fixed attention text; no callback/action
       -> Decision Card            # explicit focus-taking human boundary
           -> bound policy decision
               -> ordinary Host policy / grounding / approval / MCP path
@@ -309,8 +317,11 @@ completion notification. MCP log notifications are never used as terminal
 evidence.
 
 No iPhone push adapter is implemented in this repository. The local Task Center
-displays the same validated projection, but it neither sends a mobile
-notification nor changes task state.
+displays the validated task projection, but it neither sends a mobile
+notification nor changes task state. A separate local Windows notification is
+implemented only for a compiled Decision Card; it carries fixed wording, has
+no action, and is not a terminal-status or mobile-notification bridge. See
+[Approval Inbox](APPROVAL_INBOX.md).
 
 ## Decision Cards
 
@@ -551,10 +562,17 @@ campaign-control mutation, or second desktop dispatcher.
    local CLI control, Decision Card takeover, durable authority release,
    explicit resume, fresh-observation gating, and unknown-outcome precedence;
    offline verified only.**
-8. After the executable campaign worker exists, verify fake-host terminal and
+8. Add a strict read-only Approval Inbox and fixed-content local notification
+   around the existing Decision Card lifecycle. **Implemented with exact
+   identity/digest/expiry binding, bounded private records, no liveness claim,
+   fail-silent native delivery, fixed payload, and no approval or dispatch
+   action; native assistive-technology evidence remains open.**
+9. Close keyboard, screen-reader, high-contrast, reduced-motion, and 200%/400%
+   scaling gaps across the composed operator experience.
+10. After the executable campaign worker exists, verify fake-host terminal and
    attention events from the same redacted status projection without adding a
    second execution path.
-9. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
+11. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
    cross-application scenario with one approval and one human takeover.
 
 The final integrated presentation and evidence requirements live in the

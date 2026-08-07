@@ -46,6 +46,7 @@ CURRENT_STATE_DOCS: tuple[str, ...] = (
     # current behavior. Left out of the original list, these described the live
     # runtime while being exempt from the checks written for exactly that.
     "docs/APPROVALS.md",
+    "docs/APPROVAL_INBOX.md",
     "docs/BOSS_SEMANTIC_EXTRACTION_CONTRACT.md",
     "docs/CONFIGURATION.md",
     "docs/CONTEXT_MEMORY.md",
