@@ -121,6 +121,8 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["task", "pause", "--help"],
         ["task", "takeover", "--help"],
         ["task", "resume", "--help"],
+        ["approval", "--help"],
+        ["approval", "inbox", "--help"],
         ["resume", "--help"],
         ["cancel", "--help"],
         ["recovery", "--help"],
@@ -281,6 +283,7 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
     assert config.operator.reduced_motion is True
     assert config.operator.high_contrast is True
     assert config.operator.decision_cards_enabled is True
+    assert config.operator.approval_notifications_enabled is True
     assert config.mcp.executable == mcp_executable.resolve()
     assert config.mcp.cwd == config.state_dir
     assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"
@@ -340,6 +343,7 @@ def test_config_init_creates_the_public_web_word_product_profile(
     assert config.operator.reduced_motion is True
     assert config.operator.high_contrast is True
     assert config.operator.decision_cards_enabled is True
+    assert config.operator.approval_notifications_enabled is True
     assert config.operator.decision_timeout_seconds == 180
     assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"
     assert config.mcp.environment["CUMCP_ALLOWLIST"] == "chrome.exe,winword.exe"
@@ -743,6 +747,72 @@ def test_task_center_cli_rejects_unbounded_limit(
         == 2
     )
     assert capsys.readouterr().err.strip() == "error: TASK_CENTER_LIMIT_INVALID"
+
+
+def test_approval_inbox_cli_is_read_only_and_does_not_create_empty_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+
+    assert main(["approval", "inbox", "--config", str(config_path)]) == 0
+    human = capsys.readouterr().out
+    assert "Guarded Desktop Agent Approval Inbox" in human
+    assert "cannot approve, deny, defer, take over, or dispatch" in human
+    assert "No validated local approval requests found" in human
+    assert not state_dir.exists()
+
+    assert (
+        main(
+            [
+                "approval",
+                "inbox",
+                "--config",
+                str(config_path),
+                "--json",
+                "--limit",
+                "7",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["approval_inbox_version"] == 1
+    assert payload["read_only"] is True
+    assert payload["liveness_claimed"] is False
+    assert payload["items"] == []
+    assert all(value is False for value in payload["capabilities"].values())
+    assert not state_dir.exists()
+
+
+def test_approval_inbox_cli_rejects_unbounded_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "approval",
+                "inbox",
+                "--config",
+                str(config_path),
+                "--limit",
+                "101",
+            ]
+        )
+        == 2
+    )
+    assert capsys.readouterr().err.strip() == "error: APPROVAL_INBOX_LIMIT_INVALID"
 
 
 def test_dry_run_outputs_only_safe_metadata_and_releases_the_lock(
@@ -2563,7 +2633,8 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
         PolicyConfig,
         ProviderConfig,
     )
-    from computer_use_agent import decision_card_window_win32
+    from computer_use_agent import approval_notification_win32, decision_card_window_win32
+    from computer_use_agent.approval_inbox import ApprovalAttentionLifecycle
 
     local = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local))
@@ -2577,6 +2648,7 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
         policy=PolicyConfig(mode=APPROVED_ACTIONS_MODE),
         operator=OperatorConfig(
             decision_cards_enabled=True,
+            approval_notifications_enabled=True,
             decision_timeout_seconds=45,
             decision_card_corner="top_left",
         ),
@@ -2587,12 +2659,21 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
         "Win32DecisionCardWindowApi",
         lambda *, corner: (native, corner),
     )
+    notifier = object()
+    monkeypatch.setattr(
+        approval_notification_win32,
+        "Win32ApprovalNotifier",
+        lambda: notifier,
+    )
 
     port = agent_cli._approval_port(config)
 
     assert isinstance(port, DecisionCardApprovalPort)
     assert port._timeout_seconds == 45
     assert port._surface.api == (native, "top_left")
+    assert isinstance(port._attention, ApprovalAttentionLifecycle)
+    assert port._attention.store.state_dir == config.state_dir
+    assert port._attention.notifications is notifier
 
 
 def test_cli_builds_progress_lifecycle_only_for_explicit_opt_in(

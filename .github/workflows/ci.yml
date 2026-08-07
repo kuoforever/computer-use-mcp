@@ -102,6 +102,7 @@ jobs:
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe config init --provider openai --model wheel-smoke --output $openAIConfig
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe config doctor --config $openAIConfig
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe config validate --config $openAIConfig
+          .\.wheel-venv\Scripts\guarded-desktop-agent.exe approval inbox --config $openAIConfig --json
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe config init --provider anthropic --model wheel-smoke --output $anthropicConfig
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe config doctor --config $anthropicConfig
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe config validate --config $anthropicConfig

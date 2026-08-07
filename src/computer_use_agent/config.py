@@ -462,6 +462,7 @@ class OperatorConfig:
     reduced_motion: bool = False
     high_contrast: bool = False
     decision_cards_enabled: bool = False
+    approval_notifications_enabled: bool = False
     decision_timeout_seconds: int = 300
     decision_card_corner: str = "bottom_right"
 
@@ -474,6 +475,7 @@ class OperatorConfig:
                 self.reduced_motion,
                 self.high_contrast,
                 self.decision_cards_enabled,
+                self.approval_notifications_enabled,
             )
         ):
             raise ConfigError("operator boolean settings must be boolean")
@@ -608,6 +610,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "reduced_motion",
             "high_contrast",
             "decision_cards_enabled",
+            "approval_notifications_enabled",
             "decision_timeout_seconds",
             "decision_card_corner",
         },
@@ -711,6 +714,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         "reduced_motion",
         "high_contrast",
         "decision_cards_enabled",
+        "approval_notifications_enabled",
     ):
         value = operator.get(key, False)
         if not isinstance(value, bool):

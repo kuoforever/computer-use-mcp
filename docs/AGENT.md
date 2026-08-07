@@ -81,6 +81,12 @@ the following commands:
   for the earlier bounded scope and one reviewed model per provider; the new
   document-aware scope still needs an exact-candidate rerun. The separate [E4 record](E4_EVIDENCE.md)
   covers the reviewed Agent Host desktop path, not a separate Planner pass.
+- `approval inbox --config PATH [--json]` reads only strict local pending
+  Decision Card records. It shows last-record/expired status, fixed action
+  classification, expiry, and Host digests without task, model, argument,
+  typed, UI, credential, or result content. It cannot approve, deny, defer,
+  take over, resume, retry, or dispatch work, and it does not claim process
+  liveness. See [Approval Inbox](APPROVAL_INBOX.md).
 - `eval --cases PATH [--report PATH]` runs versioned E1/E2 JSON fixtures with
   deterministic fake ports, compares exact canonical traces and dispatched
   tool names, prints a JSON report, and exits nonzero on any mismatch or safety

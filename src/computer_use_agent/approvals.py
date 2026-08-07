@@ -32,6 +32,20 @@ class DecisionCardChoicePort(Protocol):
     ) -> DecisionSelection | None: ...
 
 
+class ApprovalAttentionPort(Protocol):
+    """Supplemental pending-attention projection with no decision authority."""
+
+    def open(
+        self,
+        request: ApprovalRequest,
+        card: DecisionCard,
+        *,
+        opened_at: datetime,
+    ) -> object: ...
+
+    def close(self, request_id: str) -> None: ...
+
+
 class ReadOnlyApprovalPort:
     """Fail if approval is ever requested by the read-only runtime."""
 
@@ -91,6 +105,7 @@ class DecisionCardApprovalPort:
         *,
         timeout_seconds: int = 300,
         takeover_enabled: bool = False,
+        attention: ApprovalAttentionPort | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         if not isinstance(timeout_seconds, int) or isinstance(timeout_seconds, bool):
@@ -104,6 +119,7 @@ class DecisionCardApprovalPort:
         self._surface = surface
         self._timeout_seconds = timeout_seconds
         self._takeover_enabled = takeover_enabled
+        self._attention = attention
         self._clock = clock
 
     @staticmethod
@@ -156,15 +172,30 @@ class DecisionCardApprovalPort:
                 ),
                 now=now,
             )
-            selection = await self._surface.choose(
-                card, timeout_seconds=self._timeout_seconds
-            )
-            result = validate_decision_selection(
-                card,
-                selection,
-                current_binding=request.binding,
-                now=self._clock(),
-            )
+            attention_started = self._attention is not None
+            if self._attention is not None:
+                try:
+                    self._attention.open(request, card, opened_at=now)
+                except Exception:
+                    # The Inbox/notification lane is presentation only. Failure
+                    # cannot grant, deny, or otherwise change approval authority.
+                    pass
+            try:
+                selection = await self._surface.choose(
+                    card, timeout_seconds=self._timeout_seconds
+                )
+                result = validate_decision_selection(
+                    card,
+                    selection,
+                    current_binding=request.binding,
+                    now=self._clock(),
+                )
+            finally:
+                if attention_started and self._attention is not None:
+                    try:
+                        self._attention.close(request.request_id)
+                    except Exception:
+                        pass
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -203,6 +234,7 @@ class DecisionCardApprovalPort:
 
 
 __all__ = [
+    "ApprovalAttentionPort",
     "ConsoleApprovalPort",
     "DecisionCardApprovalPort",
     "DecisionCardChoicePort",

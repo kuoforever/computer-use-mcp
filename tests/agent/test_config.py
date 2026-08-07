@@ -273,12 +273,14 @@ def test_decision_cards_are_default_off_and_timeout_is_bounded(
     path.write_text(
         _config_text(tmp_path)
         + "\n[operator]\ndecision_cards_enabled = true\n"
+        + "approval_notifications_enabled = true\n"
         + "decision_timeout_seconds = 45\n"
         + 'decision_card_corner = "top_left"\n',
         encoding="utf-8",
     )
     assert load_agent_config(path).operator == OperatorConfig(
         decision_cards_enabled=True,
+        approval_notifications_enabled=True,
         decision_timeout_seconds=45,
         decision_card_corner="top_left",
     )
@@ -289,6 +291,14 @@ def test_decision_cards_are_default_off_and_timeout_is_bounded(
 
     with pytest.raises(ConfigError, match="decision_card_corner"):
         OperatorConfig(decision_card_corner="center")
+
+    path.write_text(
+        _config_text(tmp_path)
+        + '\n[operator]\napproval_notifications_enabled = "yes"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="approval_notifications_enabled.*boolean"):
+        load_agent_config(path)
 
 
 @pytest.mark.parametrize(

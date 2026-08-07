@@ -1,10 +1,12 @@
 # Project status
 
 > **Mode: post-MVP operator productization is explicitly active.**
-> Automatic continuation is paused at the user's request after completion of
-> PR #275. `GDA-PRODUCT-008` remains the sole delivery item through that PR;
-> its implementation and publication gates are clear. On explicit resume, the
-> exact next item is `GDA-PRODUCT-009`: Approval Inbox plus notifications.
+> The user explicitly resumed after PR #275. `GDA-PRODUCT-009` Approval Inbox
+> plus notifications is implemented and fully validated locally; publication
+> is the sole active action. Per the user's latest instruction, automatic
+> continuation pauses after PR #276 completes and its branch is cleaned up.
+> On explicit resume, the exact next item is `GDA-PRODUCT-010`: accessibility
+> closure for the composed operator experience.
 > `GDA-PRODUCT-007` merged its Host-fixed Pre-run Review through PR #274.
 > `GDA-PRODUCT-005` completed its functional UI-default
 > scope through PR #270; its draft release checkpoint in PR #272 and all final
@@ -59,7 +61,8 @@ Those are post-MVP programs, not blockers for the first honest release.
 | `GDA-PRODUCT-006` | Complete; merged | Read-only Task Center plus human-readable Completion/Failure Receipt | Commit `1806091`, merged through PR #273 as `62fff669` after all four GitHub checks passed. CLI-first human/JSON views reuse the existing structurally redacted run/campaign projection; the strict immutable public-web-word receipt gates artifact success claims after save, digest, reopen, and cleanup verification. Complete gate: `1897 passed, 8 skipped`, Ruff, mypy over 129 source files, docs consistency, diff check, a fresh Python 3.13 installed-wheel Task Center smoke, independent contract review, and both branch copies removed. No provider, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-007` | Complete; merged | Host-compiled Pre-run Review Scope Sheet before the installed side-effect workflow | Commit `480d9d3`, merged through PR #274 as `a0e24782` after all four GitHub checks passed. Human/JSON review, shared fixed validator, exact `START`, explicit non-interactive acknowledgement, cancel/EOF zero-work behavior, same-object config/request handoff, and installed-wheel rejection of whitespace-wrapped acknowledgement passed `1912 passed, 8 skipped`, Ruff, mypy over 130 source files, docs consistency, diff check, and a clean Python 3.13 wheel smoke; both branch copies were removed. No provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-008` | Publication-cleared; PR #275 | Cooperative Pause/Takeover/Resume for the installed side-effect workflow | Commit `6ccdee7` and PR #275 passed all four required GitHub checks after the local gate: `1923 passed, 8 skipped`, Ruff, mypy over 131 source files, docs consistency, diff check, and fresh Python 3.13 wheel `C6CEB16C...E49F33` cross-process `pause_requested -> paused/released -> resume_requested -> closed` smoke. The strict Host-owned lifecycle covers both public-web-word Runner loops and the product Decision Card takeover choice; pause releases authority only at a durable safe boundary, explicit resume invalidates old authority and requires fresh observation, and possibly dispatched work remains terminal `UNKNOWN_OUTCOME`. No provider, MCP tool, desktop, application, E4, or release evidence is claimed |
-| `GDA-PRODUCT-009` | Exact next; user-paused | Approval Inbox plus notifications | Do not start until the user explicitly resumes delivery. Preserve the existing approval identity/digest/expiry authority, validated host-terminal projection, local-only privacy boundary, zero model-authority rule, and sole Runner/MCP dispatch path; define the bounded product contract before implementation |
+| `GDA-PRODUCT-009` | Complete locally; publication pending | Approval Inbox plus fixed-content local notifications | Strict expiring identity/digest records attach only after Decision Card compilation; human/JSON Inbox reads claim no liveness and expose no approval/control/dispatch action; Win32 delivery owns a hidden Host window, carries no private or action content, and fails silently outside approval authority. Complete local gate: `1942 passed, 8 skipped`, Ruff, mypy over 133 source files, docs consistency, diff check, clean Python 3.13 wheel `19F18E39...D78A905`, empty-read inertness, and installed no-console notification show/withdraw. No provider, MCP tool, application, visual, assistive-technology, E4, or release evidence is claimed |
+| `GDA-PRODUCT-010` | Exact next; user-paused after PR #276 | Accessibility closure for the composed operator experience | Resume only on explicit user direction. Audit against relevant WCAG 2.2 AA and Windows UIA conventions; close keyboard-only focus/order/action, accessible name/role/state, timeout/status announcement, High Contrast, reduced-motion, and 200%/400% text scaling/reflow gaps with deterministic tests and bounded native evidence. Preserve passive/read-only/approval boundaries; localization, multi-monitor composition, and personalization remain later slices |
 
 During every live desktop test, the user may take the mouse, keyboard, or
 foreground focus. Treat unexpected input/focus drift as possible operator
@@ -73,8 +76,8 @@ The post-MVP UI/UX sequence is: read-only Task Center plus Completion/Failure
 Receipt; Pre-run Review; cooperative Pause/Takeover/Resume; Approval Inbox plus
 notifications; then the accessibility closure sequence. Campaign `advance`,
 bounded BOSS semantic batches, broader Wave 1 applications, and other product
-programs remain separate later items and are not silently pulled into
-`GDA-PRODUCT-009`, which remains paused by the user.
+programs remain separate later items and are not silently pulled into the
+active product slice.
 
 ## Preserved Full Cycle integration objective
 
@@ -103,7 +106,7 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Providers | OpenAI and Claude bounded paths |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-07, all green — pytest, Ruff, mypy over 127 source files, docs consistency, and `git diff --check` |
+| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-07, all green — `1942 passed, 8 skipped`, Ruff, mypy over 133 source files, docs consistency, and `git diff --check` |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
 The test count is a dated working snapshot, not a permanent capability claim.
@@ -153,7 +156,8 @@ delivery work.
 | `GDA-PRODUCT-006` | Complete; merged | Read-only Task Center plus Completion/Failure Receipt | Commit `1806091`, merged through PR #273 as `62fff669`; existing validated run/campaign projection remains the only status source. The CLI-first surface and strict public-web-word receipt passed `1897 passed, 8 skipped`, Ruff, mypy over 129 source files, docs consistency, diff check, a fresh Python 3.13 installed-wheel smoke, independent contract review, and all four GitHub checks; both branch copies were removed and no provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-007` | Complete; merged | Host-compiled Pre-run Review Scope Sheet | Commit `480d9d3`, merged through PR #274 as `a0e24782`; the complete local gate and all four GitHub checks passed, both branch copies were removed, and no provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-008` | Publication-cleared; PR #275 | Cooperative Pause/Takeover/Resume | Strict versioned local record, live-lease and exact-checkpoint binding, CLI human/JSON control, Decision Card takeover, safe-boundary acknowledgement, authority release, explicit resume, observation-only reacquisition, fresh-evidence acknowledgement, continuation separation, nested verifier state, and unknown-outcome precedence passed the complete local, installed-wheel, and four-job GitHub gates. Native timing remains deferred with E4/release until feature freeze |
-| `GDA-PRODUCT-009` | Exact next; user-paused | Approval Inbox plus notifications | Resume only on explicit user direction; first define the Host-owned read/attention/delivery contract without approval bypass, raw-content notification, model authority, or another dispatch path |
+| `GDA-PRODUCT-009` | Complete locally; publication pending | Approval Inbox plus fixed-content local notifications | Bound private records, no-liveness human/JSON inspection, strict notification content, hidden Host window lifecycle, configuration/defaults, clean-wheel CLI and native show/withdraw passed the complete local gate; publication is the only remaining action and no provider/MCP/application/accessibility/release claim is made |
+| `GDA-PRODUCT-010` | Exact next; user-paused after PR #276 | Accessibility closure | Resume only on explicit user direction; then close bounded keyboard, UIA/assistive-technology, announcement, High Contrast, reduced-motion, and 200%/400% scaling/reflow gaps without broadening authority. Keep localization, multi-monitor composition, and personalization separate |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |
@@ -341,3 +345,5 @@ chronology is in
 | 2026-08-07 | `GDA-PRODUCT-007` merged through PR #274 as `a0e24782` after `1912 passed, 8 skipped`, Ruff, mypy over 130 source files, docs consistency, an exact-current installed-wheel review/cancel smoke, and all four GitHub checks; both branch copies were removed. `GDA-PRODUCT-008` now owns cooperative Pause/Takeover/Resume: safe-boundary pause, explicit authority release, explicit resume, mandatory fresh re-observation, and no replay of uncertain work. |
 | 2026-08-07 | `GDA-PRODUCT-008` implementation completed locally: strict control state, live-lease/checkpoint binding, public-web-word Runner wiring, Decision Card takeover, stale-call rejection, explicit resume, observation-only reacquisition, and unknown-outcome precedence passed `1923 passed, 8 skipped`, Ruff, mypy over 131 source files, docs consistency, diff check, and fresh-wheel cross-process control smoke. Publication is the exact next action; E4, native takeover evidence, and release remain deferred until feature freeze. |
 | 2026-08-07 | Commit `6ccdee7` and PR #275 cleared all four required GitHub jobs with no review, comment, unresolved thread, or conflict. Per the user's instruction, automatic continuation pauses after this PR; `GDA-PRODUCT-009` Approval Inbox plus notifications is recorded as the exact next item and must not start until explicit resume. |
+| 2026-08-07 | The user explicitly resumed UI/UX delivery after PR #275. `GDA-PRODUCT-009` defined attention as separate from approval authority, then implemented a strict expiring local Inbox plus fixed-content Win32 notification attached to the existing Decision Card only. The complete local gate passed `1942 passed, 8 skipped`, Ruff, mypy over 133 source files, docs consistency, diff check, clean Python 3.13 wheel `19F18E39...D78A905`, empty-read inertness, and installed no-console notification show/withdraw. Publication is the only active action; `GDA-PRODUCT-010` accessibility closure is exact next after a clear merge and cleanup. |
+| 2026-08-07 | The user instructed delivery to pause after PR #276 completes. Finish only PRODUCT-009 publication and branch cleanup; do not start PRODUCT-010 automatically. Accessibility closure remains the exact next item and resumes only on explicit user direction. |

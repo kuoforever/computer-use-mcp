@@ -89,6 +89,9 @@ high_contrast = false
 # Focus-taking multi-option approval card for approved-actions mode. The Host
 # yields desktop authority before opening it; close and timeout deny.
 decision_cards_enabled = false
+# Fixed-content Windows attention notification. It has no approval action,
+# task/model content, desktop authority, or dispatch path.
+approval_notifications_enabled = false
 decision_timeout_seconds = 300
 # top_left | top_right | bottom_left | bottom_right
 decision_card_corner = "bottom_right"

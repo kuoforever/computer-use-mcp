@@ -309,13 +309,16 @@ focus-taking local Decision Card:
 ~~~toml
 [operator]
 decision_cards_enabled = true
+approval_notifications_enabled = true
 decision_timeout_seconds = 300
 decision_card_corner = "bottom_right"
 ~~~
 
 Newly generated installed product profiles write `decision_cards_enabled =
-true`; legacy or hand-written configuration that omits the key retains the
-parser default `false`. The timeout is a strict integer from 5 to 3600 seconds.
+true` and `approval_notifications_enabled = true`; legacy or hand-written
+configuration that omits either key retains the parser default `false`.
+Notification enablement is a strict boolean. The timeout is a strict integer
+from 5 to 3600 seconds.
 The card defaults to the bottom-right work-area corner; the other
 accepted positions are `top_left`, `top_right`, and `bottom_left`. It opens as
 a normal movable, resizable, minimizable, non-topmost Windows window. Its
@@ -335,6 +338,14 @@ allow remains bound to the original
 `ApprovalRequest` and continues through the existing grounding, budget, MCP,
 audit, and post-action verification path. The adapter is Windows-only and does
 not apply to read-only, planned, campaign, or recovery runtimes.
+
+When Decision Cards are enabled, the Host also publishes one strict private,
+expiring Approval Inbox record after card compilation. `approval inbox` reads
+that record without claiming process liveness and cannot decide or dispatch
+work. When notifications are enabled, Windows receives only fixed product
+wording with no request identity, tool, target, task, model text, argument, or
+digest. Native notification failure is fail-silent and cannot affect approval.
+See the complete [Approval Inbox contract](APPROVAL_INBOX.md).
 
 ## Agent text privacy
 
