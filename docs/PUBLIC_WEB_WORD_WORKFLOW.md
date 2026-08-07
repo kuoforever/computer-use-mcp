@@ -96,6 +96,15 @@ Decision Card exposes takeover through this same path in place of the older
 non-resumable Defer choice. Full commands, states, and failure rules are in
 [Cooperative Pause, Takeover, and Resume](COOPERATIVE_CONTROL.md).
 
+The Provider adapter receives one stable, initially reviewed tool schema for
+the whole workflow. After any side effect, the Runner still narrows its current
+accepted set to observations until fresh grounding. The fixed workflow wrapper
+checks every proposed call against that narrower set before it can reach the
+Runner: an action proposed during reacquisition becomes a bounded
+`NOT_DISPATCHED` correction, and any unknown or changed tool schema fails
+closed. This composes provider request-contract stability with mandatory
+post-action re-observation; it does not advertise or grant another tool.
+
 ## Completion evidence
 
 Success requires all of these states in one run:
@@ -150,3 +159,6 @@ Runner contract and are never automatically replayed.
 This workflow does not establish arbitrary webpages, other browsers, other
 office suites, account-authenticated content, universal GUI coverage, or a
 release artifact.
+
+The latest same-wheel Notepad and fixed-workflow result is retained in the
+[current-candidate product integration evidence](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md).

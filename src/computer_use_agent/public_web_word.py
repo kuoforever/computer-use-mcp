@@ -149,6 +149,16 @@ _WORD_EDITOR_NAME = re.compile(
     re.IGNORECASE,
 )
 _PROPOSAL_CORRECTION_HINTS = {
+    "PUBLIC_WEB_WORD_REOBSERVATION_REQUIRED": (
+        "A side effect completed, so the Host currently permits only a fresh "
+        "observation. Request one of the currently advertised observation tools; "
+        "do not request another action first."
+    ),
+    "PUBLIC_WEB_WORD_FIXTURES_NOT_OBSERVED": (
+        "The fixed Chrome and Word titles were not both present in the latest "
+        "window list. Request only list_windows with no arguments; do not use a "
+        "window-scoped tool until both exact fixture titles are returned."
+    ),
     "PUBLIC_WEB_WORD_SCREENSHOT_OUT_OF_SCOPE": (
         "Screenshot is allowed once, after Word activation and a fresh editor "
         "snapshot, before the first editor click. After a successful editor click "
@@ -585,6 +595,11 @@ class ModelDrivenPublicWebWordProvider:
     continuation_strategy: ProviderContinuationStrategy = field(init=False)
     _accepted_notes: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _correction_counts: dict[str, int] = field(default_factory=dict, init=False, repr=False)
+    _provider_tools: dict[str, tuple[ToolSpec, ...]] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.inner, ModelProviderPort):
@@ -619,6 +634,18 @@ class ModelDrivenPublicWebWordProvider:
         tools: Sequence[ToolSpec],
         memories: Sequence[MemoryContextItem] = (),
     ) -> ModelTurn:
+        host_tools = tuple(tools)
+        pinned_tools = self._provider_tools.get(run_id)
+        if pinned_tools is None:
+            pinned_tools = host_tools
+            self._provider_tools[run_id] = pinned_tools
+        else:
+            pinned_by_name = {tool.name: tool for tool in pinned_tools}
+            if len(pinned_by_name) != len(pinned_tools) or any(
+                pinned_by_name.get(tool.name) != tool for tool in host_tools
+            ):
+                raise PublicWebWordError("PUBLIC_WEB_WORD_TOOL_CONTRACT_DRIFT")
+        host_tool_names = frozenset(tool.name for tool in host_tools)
         feedback_ledger = tuple(ledger)
         input_tokens: int | None = 0
         output_tokens: int | None = 0
@@ -628,7 +655,7 @@ class ModelDrivenPublicWebWordProvider:
                 turn_id=turn_id,
                 task=task,
                 ledger=feedback_ledger,
-                tools=tools,
+                tools=pinned_tools,
                 memories=memories,
             )
             input_tokens = self._sum_usage(input_tokens, turn.usage.input_tokens)
@@ -645,6 +672,10 @@ class ModelDrivenPublicWebWordProvider:
             try:
                 if len(calls) != 1:
                     raise PublicWebWordError("PUBLIC_WEB_WORD_MULTIPLE_CALLS")
+                if calls[0].name not in host_tool_names:
+                    raise PublicWebWordError(
+                        "PUBLIC_WEB_WORD_REOBSERVATION_REQUIRED"
+                    )
                 self._validate_call(calls[0], ledger)
             except PublicWebWordError as exc:
                 if correction_index >= self.max_proposal_corrections:

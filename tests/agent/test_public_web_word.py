@@ -622,6 +622,60 @@ class CorrectionModel:
         del run_id, state, tools
 
 
+@dataclass
+class StaticContractRecoveryModel:
+    name: str = "static-contract-recovery-model"
+    continuation_strategy: ProviderContinuationStrategy = (
+        ProviderContinuationStrategy.STATELESS_REPLAY
+    )
+    calls: int = 0
+    tool_contracts: list[tuple[str, ...]] = field(default_factory=list)
+
+    async def create_turn(
+        self,
+        *,
+        run_id: str,
+        turn_id: str,
+        task: str,
+        ledger: Sequence[LedgerEvent],
+        tools: Sequence[ToolSpec],
+        memories: Sequence[MemoryContextItem] = (),
+    ) -> ModelTurn:
+        del task, memories
+        self.calls += 1
+        self.tool_contracts.append(tuple(tool.name for tool in tools))
+        if self.calls == 2:
+            name = "activate_window"
+            arguments: Mapping[str, JSONValue] = {"window_id": "101"}
+        else:
+            name = "list_windows"
+            arguments = {}
+        if self.calls == 3:
+            assert ledger[-1].tool_result is not None
+            assert ledger[-1].tool_result.dispatch is DispatchCertainty.NOT_DISPATCHED
+        return ModelTurn(
+            run_id,
+            turn_id,
+            f"recovery_{self.calls}",
+            "",
+            (_call(run_id, turn_id, name, arguments),),
+            ModelUsage(4, 1),
+        )
+
+    def export_continuation(self, run_id: str) -> Mapping[str, JSONValue]:
+        del run_id
+        return {}
+
+    def restore_continuation(
+        self,
+        run_id: str,
+        state: Mapping[str, JSONValue],
+        *,
+        tools: Sequence[ToolSpec],
+    ) -> None:
+        del run_id, state, tools
+
+
 def test_one_invalid_model_proposal_is_corrected_before_desktop_dispatch() -> None:
     inner = CorrectionModel()
     provider = ModelDrivenPublicWebWordProvider(
@@ -651,6 +705,83 @@ def test_one_invalid_model_proposal_is_corrected_before_desktop_dispatch() -> No
     assert turn.tool_calls[0].name == "list_windows"
     assert turn.usage == ModelUsage(8, 2)
     assert provider.correction_count(RUN_ID) == 1
+
+
+def test_inner_tool_contract_stays_fixed_while_host_requires_reobservation() -> None:
+    inner = StaticContractRecoveryModel()
+    provider = ModelDrivenPublicWebWordProvider(
+        inner,
+        PUBLIC_WEB_WORD_SOURCE_TITLE,
+        "result.docx",
+        "101",
+        "202",
+    )
+    full_tools = tuple(
+        tool
+        for tool in REVIEWED_TOOLS
+        if tool.name in {"list_windows", "activate_window"}
+    )
+    observation_tools = tuple(
+        tool for tool in full_tools if tool.name == "list_windows"
+    )
+
+    first = asyncio.run(
+        provider.create_turn(
+            run_id=RUN_ID,
+            turn_id="turn_1",
+            task="fixed workflow",
+            ledger=(),
+            tools=full_tools,
+        )
+    )
+    second = asyncio.run(
+        provider.create_turn(
+            run_id=RUN_ID,
+            turn_id="turn_2",
+            task="fixed workflow",
+            ledger=(),
+            tools=observation_tools,
+        )
+    )
+
+    assert first.tool_calls[0].name == "list_windows"
+    assert second.tool_calls[0].name == "list_windows"
+    assert len(inner.tool_contracts) == 3
+    assert inner.tool_contracts[0] == inner.tool_contracts[1] == inner.tool_contracts[2]
+    assert set(inner.tool_contracts[0]) == {"list_windows", "activate_window"}
+    assert provider.correction_count(RUN_ID) == 1
+
+    with pytest.raises(PublicWebWordError, match="PUBLIC_WEB_WORD_TOOL_CONTRACT_DRIFT"):
+        asyncio.run(
+            provider.create_turn(
+                run_id=RUN_ID,
+                turn_id="turn_3",
+                task="fixed workflow",
+                ledger=(),
+                tools=REVIEWED_TOOLS,
+            )
+        )
+
+
+def test_unready_fixture_feedback_requires_a_fresh_window_list() -> None:
+    call = _call(RUN_ID, "turn_2", "ui_snapshot", {"scope": "101"})
+    rejection = PublicWebWordProposalRejection(
+        attempt=1,
+        max_attempts=2,
+        code="PUBLIC_WEB_WORD_FIXTURES_NOT_OBSERVED",
+        tool_names=("ui_snapshot",),
+    )
+
+    event = ModelDrivenPublicWebWordProvider._proposal_feedback_events(
+        (call,), rejection
+    )[0]
+
+    assert event.tool_result is not None
+    assert event.tool_result.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert "Request only list_windows with no arguments" in (
+        event.tool_result.sanitized_text
+    )
+    assert "both exact fixture titles" in event.tool_result.sanitized_text
 
 
 def test_redundant_screenshot_feedback_names_the_exact_next_step() -> None:

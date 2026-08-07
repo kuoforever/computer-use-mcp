@@ -94,6 +94,27 @@ save/readback, independent reopen, visual QA, and exact-window cleanup gates
 also passed. GitHub CI and review remain publication gates for the change that
 adds this retained record; they do not retroactively widen the live result.
 
+## Subsequent feature-freeze candidate rerun
+
+`GDA-PRODUCT-015` reran the fixed product contract from the same clean wheel
+used for its Notepad result: runtime candidate `d254cd9`, wheel
+`9589a611...e1423a`. Run
+`public-web-word-a1b3f312904128839b246b93f888b811` passed the Host-fixed
+Pre-run Review and ordinary user-approved Decision Card path, authored a
+498-character three-bullet brief, and completed durable save, OOXML/digest,
+independent reopen/readback, receipt, Task Center, and exact fixture-window
+cleanup verification. The artifact SHA-256 was `b1ef0215...1e6fc`.
+
+Diagnostics on this current candidate also exposed and fixed two bounded
+composition gaps: a loading-title fixture now requests one fresh observation,
+and the workflow wrapper preserves the reviewed Provider tool contract while
+the Runner still enforces observation-only reacquisition after every side
+effect. The shared
+[current-candidate integration record](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md)
+owns the full run, usage, brief, receipt, cleanup, hardening, and explicit
+open-gate metadata. It does not replace the earlier candidate or its separate
+visual-QA record.
+
 ## Supported claim
 
 This record supports one model-scoped, provider-scoped, application-scoped

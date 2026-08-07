@@ -124,6 +124,18 @@ the stored terminal plan digest above includes the later completed
 document text, final text, and provider response identity remain only in the
 ignored local evidence state and are not committed.
 
+## Subsequent feature-freeze candidate rerun
+
+`GDA-PRODUCT-015` reran this same bounded contract from clean wheel
+`9589a611...e1423a` at runtime candidate `d254cd9`. Run
+`8e87cfe9c16343319ae890d9756018f0` completed one foreground
+`document_text`, then one final response with zero side effects, retries, or
+tool failures. The 110-character answer projection had SHA-256
+`860e601b...f846a`; the codename, arithmetic, and decision predicates all
+passed, and the exact Notepad fixture window was closed. The shared
+[current-candidate integration record](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md)
+owns the full candidate, trace, redacted-export, and cleanup metadata.
+
 ## Supported claim
 
 This record supports one model-scoped, application-scoped,

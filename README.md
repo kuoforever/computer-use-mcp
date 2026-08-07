@@ -192,10 +192,10 @@ desktop content, and performs no desktop action. MCP startup can still create
 its configured audit directory and start its emergency-stop key polling before
 the child is closed.
 
-This path is offline verified and has one exact-candidate
-[OpenAI/Windows/Notepad result](docs/DESKTOP_ASK_EVIDENCE.md). That bounded
-result does not establish another provider, application, desktop action, or
-release artifact.
+This path is offline verified and has a same-wheel current-candidate
+[OpenAI/Windows/Notepad result](docs/CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md).
+That bounded result does not establish another provider, application, desktop
+action, or release artifact.
 
 ## Read-only Task Center
 
@@ -271,7 +271,8 @@ Chrome observations; no bullet findings are prewritten in the task or template.
 The workflow uses the ordinary local approval boundary, saves without
 overwriting, closes the exact fixtures, reopens the same DOCX, and reads it back
 through Runner/MCP before returning bounded JSON metadata. See the full
-[workflow contract](docs/PUBLIC_WEB_WORD_WORKFLOW.md).
+[workflow contract](docs/PUBLIC_WEB_WORD_WORKFLOW.md) and the same-wheel
+[current-candidate integration result](docs/CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md).
 
 While one of those Runner loops is live, a second local terminal can request
 cooperative control:

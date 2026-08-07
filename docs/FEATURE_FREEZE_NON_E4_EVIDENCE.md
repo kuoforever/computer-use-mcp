@@ -127,3 +127,14 @@ the clean commit above; no product code was changed to make the smoke pass.
 
 `NOT RUN` and `BLOCKED BY AVAILABLE HARDWARE` are disclosures, not passes.
 Nothing in this record permanently waives a missing gate.
+
+## Subsequent exact-candidate product integration
+
+The application row above remains the truthful state of this dated
+`23e71a5` audit. A later bounded item built one clean wheel from runtime
+candidate `d254cd9` and passed both the installed Notepad Desktop Ask and the
+fixed Chrome-to-disposable-Word workflow. Its separate
+[current-candidate product integration record](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md)
+owns those later run IDs, digests, receipts, cleanup facts, and explicit open
+gates. That later result does not retroactively convert this audit's human,
+hardware, E4, or release rows into passes.
