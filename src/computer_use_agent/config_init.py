@@ -59,6 +59,19 @@ def _toml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _default_product_operator(*, decision_timeout_seconds: int = 300) -> OperatorConfig:
+    """Enable every current UI/UX preference in a newly generated profile."""
+
+    return OperatorConfig(
+        presence_enabled=True,
+        progress_enabled=True,
+        reduced_motion=True,
+        high_contrast=True,
+        decision_cards_enabled=True,
+        decision_timeout_seconds=decision_timeout_seconds,
+    )
+
+
 def resolve_mcp_executable(explicit: Path | None) -> Path:
     candidates: tuple[Path, ...]
     if explicit is not None:
@@ -123,8 +136,13 @@ enabled = {str(continuation.enabled).lower()}
 ttl_seconds = {continuation.ttl_seconds}
 
 [operator]
+presence_enabled = {str(operator.presence_enabled).lower()}
+progress_enabled = {str(operator.progress_enabled).lower()}
+reduced_motion = {str(operator.reduced_motion).lower()}
+high_contrast = {str(operator.high_contrast).lower()}
 decision_cards_enabled = {str(operator.decision_cards_enabled).lower()}
 decision_timeout_seconds = {operator.decision_timeout_seconds}
+decision_card_corner = {_toml_string(operator.decision_card_corner)}
 """
 
 
@@ -154,10 +172,14 @@ def initialize_desktop_ask_config(
             executable=executable,
             args=(),
             cwd=state_dir,
-            environment={"CUMCP_ALLOWLIST": allowlist},
+            environment={
+                "CUMCP_ACTION_FEEDBACK": "1",
+                "CUMCP_ALLOWLIST": allowlist,
+            },
         ),
         policy=PolicyConfig(),
         continuation=ContinuationConfig(enabled=True),
+        operator=_default_product_operator(),
     )
 
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -208,6 +230,7 @@ def initialize_public_web_word_config(
             args=(),
             cwd=state_dir,
             environment={
+                "CUMCP_ACTION_FEEDBACK": "1",
                 "CUMCP_ALLOWLIST": "chrome.exe,winword.exe",
                 # A Decision Card click is human input. Keep the action inside
                 # its single MCP call until the operator has released control.
@@ -222,10 +245,7 @@ def initialize_public_web_word_config(
             max_side_effects=7,
         ),
         continuation=ContinuationConfig(enabled=False),
-        operator=OperatorConfig(
-            decision_cards_enabled=True,
-            decision_timeout_seconds=180,
-        ),
+        operator=_default_product_operator(decision_timeout_seconds=180),
     )
     state_dir.mkdir(parents=True, exist_ok=True)
     try:

@@ -31,8 +31,13 @@ directory, and starts emergency-stop key polling until the child is closed.
 `--profile desktop-ask` is the default and generates the existing read-only,
 continuation-enabled Notepad profile. `--profile public-web-word` generates the
 fixed workflow's `approved_actions` profile, allows only `chrome.exe` and
-`winword.exe`, disables continuation, enables the local Decision Card, and sets
-bounded budgets of 28 model turns, 24 tool calls, and 7 side effects. See the
+`winword.exe`, disables continuation, and sets bounded budgets of 28 model
+turns, 24 tool calls, and 7 side effects. Both generated installed product
+profiles explicitly enable all current UI/UX booleans: action feedback,
+presence, progress, reduced motion, high contrast, and Decision Cards. These
+surfaces remain passive or locally interactive under their existing contracts;
+the settings grant no provider, desktop, approval, replay, or side-effect
+authority. See the
 [workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md). Its allowlist is closed:
 `config init --profile public-web-word` rejects `--allowlist`, and the runtime
 rejects a hand-edited value instead of failing later during Chrome or Word use.
@@ -154,7 +159,7 @@ same-desktop background control safe or parallel.
 | `CUMCP_HUMAN_POLL_INTERVAL_SECONDS` | `0.25` | Interval between consecutive readiness samples. The Host accepts only `0.05` through `5.0` seconds. |
 | `CUMCP_HUMAN_MAX_WAIT_SECONDS` | `60` | Maximum time one action call may wait for a stable idle streak. The Host accepts only `1` through `300` seconds. The installed Public Web to Word profile fixes this at `15`, below its 30-second MCP bridge timeout, so extended operator activity remains a known pre-dispatch result rather than a transport timeout. |
 | `CUMCP_INTERACTION_SPEED` | unset | Optional Host-owned presentation profile: `fast`, `normal`, or `deliberate`. It changes only bounded pointer motion, pre/post-action dwell, and the default typing delay. Unset preserves native timing. Delay is never authority: every later native mutation still revalidates. The profile never changes observation, approval, readiness, policy, budgets, or verification. |
-| `CUMCP_ACTION_FEEDBACK` | `0` | Shows a passive, click-through, non-activating, capture-excluded mouse halo and content-free `AGENT TYPING` / `AGENT KEY` badge. During visible typing, a pulsing caret, cycling dots, and progress bar follow the foreground editor's native caret using bounded geometry plus length/timing metadata. If no native caret exists, the badge stays at its last safe fallback. It never receives typed text or key values. |
+| `CUMCP_ACTION_FEEDBACK` | Raw MCP default `0`; generated product profiles write `1` | Shows a passive, click-through, non-activating, capture-excluded mouse halo and content-free `AGENT TYPING` / `AGENT KEY` badge. During visible typing, a pulsing caret, cycling dots, and progress bar follow the foreground editor's native caret using bounded geometry plus length/timing metadata. If no native caret exists, the badge stays at its last safe fallback. It never receives typed text or key values. |
 | `CUMCP_TYPE_WAIT_SECONDS` | profile value or `0` | Optional explicit delay between literal Unicode scalars for the focused-control `type` fallback. Accepted range is `0` to `0.1`; it overrides the selected presentation profile. Braces are literal; chords use `key`. Ref-based ValuePattern writes remain one opaque UIA mutation rather than per-character. |
 | `CUMCP_DANGEROUS_CONFIRM` | on in safe mode; off in full-control mode | Enables confirmation for dangerous `click(ref=...)` targets. |
 | `CUMCP_ESTOP` | `ctrl+alt+q` | Global hotkey that latches all actions off until the server restarts. |
@@ -243,17 +248,19 @@ dispatch must retain the existing crash boundary. It remains disabled when
 The ordinary Agent `run` and `resume` paths, bounded observation-only
 `ask` / `plan run`, explicit `recover --execute-read-only`, and the three fixed
 MCP-backed campaign execution commands can show the primary-display
-computer-use halo with an explicit local opt-in:
+computer-use halo when enabled:
 
 ~~~toml
 [operator]
 presence_enabled = true
-reduced_motion = false
-high_contrast = false
+reduced_motion = true
+high_contrast = true
 ~~~
 
-All three values are strict booleans and default to `false`. When disabled, the
-CLI does not construct the native Win32 surface. When enabled, the surface
+All three values are strict booleans. Newly generated installed product
+profiles write all three as `true`; legacy or hand-written configuration that
+omits them retains the parser default `false`. When disabled, the CLI does not
+construct the native Win32 surface. When enabled, the surface
 receives only fixed phases after their run checkpoints are durably published.
 It receives no task, target, model output, arguments, approval, or execution
 capability. E-stop, detected human activity, terminal completion, and final
@@ -278,7 +285,9 @@ for the duration of one CLI process:
 progress_enabled = true
 ~~~
 
-`progress_enabled` is a strict boolean and defaults to `false`. When enabled, a
+`progress_enabled` is a strict boolean. Newly generated installed product
+profiles write `true`; legacy or hand-written configuration that omits it
+retains the parser default `false`. When enabled, a
 dedicated background UI thread reads only validated local state and pumps the
 native Win32 window; durable phase notifications wake that reader after each
 checkpoint. The window receives no provider, MCP, desktop, approval, or replay
@@ -304,8 +313,10 @@ decision_timeout_seconds = 300
 decision_card_corner = "bottom_right"
 ~~~
 
-The feature is disabled by default; the timeout is a strict integer from 5 to
-3600 seconds. The card defaults to the bottom-right work-area corner; the other
+Newly generated installed product profiles write `decision_cards_enabled =
+true`; legacy or hand-written configuration that omits the key retains the
+parser default `false`. The timeout is a strict integer from 5 to 3600 seconds.
+The card defaults to the bottom-right work-area corner; the other
 accepted positions are `top_left`, `top_right`, and `bottom_left`. It opens as
 a normal movable, resizable, minimizable, non-topmost Windows window. Its
 initial size stays compact, while the decision and digest-only evidence panes

@@ -1,6 +1,6 @@
 # Operator experience
 
-> **Status: passive progress plus opt-in ordinary-run/bounded-plan/read-only
+> **Status: passive progress plus configurable ordinary-run/bounded-plan/read-only
 > recovery/fixed-campaign progress and ordinary-run/bounded-plan/read-only
 > recovery/fixed-campaign
 > primary-display presence
@@ -10,7 +10,9 @@
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
 > it from durable phases in ordinary Agent `run`/`resume` and bounded
-> observation-only `plan run` lifecycles when explicitly enabled. Explicit
+> observation-only `plan run` lifecycles when enabled. Newly generated installed
+> product profiles enable every current UI/UX boolean; legacy or hand-written
+> absent-key configuration retains the prior disabled behavior. Explicit
 > read-only recovery now projects the same presence phases only after validated
 > persistence and durable recovery CAS writes. The three fixed MCP-backed
 > campaign execution commands also project their durable run phases through
@@ -18,16 +20,17 @@
 > control remains window-free.
 > Multi-monitor support and abrupt-process teardown remain separate gates.
 > Decision Card compilation,
-> choice validation, and an opt-in four-choice focus-taking Win32 adapter are
+> choice validation, and a configurable four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
-> remains one exact action at a time; console confirmation is default and the
-> card requires explicit opt-in. The standalone native surface has retained
+> remains one exact action at a time; generated installed profiles enable the
+> card, while legacy/manual absent-key configuration retains console
+> confirmation. The standalone native surface has retained
 > [on-device evidence](PRESENCE_WINDOW_EVIDENCE.md), and ordinary Host wiring
 > has retained [lifecycle evidence](PRESENCE_LIFECYCLE_EVIDENCE.md). One fixed
 > provider-free bounded plan has separate native
 > [presence lifecycle evidence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md). Decision
 > Card models have retained [offline evidence](DECISION_CARD_MODEL_EVIDENCE.md),
-> and the opt-in approval path has bounded native
+> and the enabled approval path has bounded native
 > [focus/timeout evidence](DECISION_CARD_WINDOW_EVIDENCE.md). The separate
 > progress lifecycle has retained
 > [background-thread evidence](PROGRESS_LIFECYCLE_EVIDENCE.md), a fixed

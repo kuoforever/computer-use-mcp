@@ -97,7 +97,8 @@ Coordinate click, scroll, and drag are necessary for canvas/game-style surfaces
 that UIA cannot expose, but they move the physical pointer and have all normal
 foreground risks.
 
-When the operator enables action feedback, coordinate motion gets a
+Newly generated installed product profiles enable action feedback; legacy or
+hand-written MCP configuration can still disable it. When enabled, coordinate motion gets a
 high-contrast halo and fixed action label. Ref actions retain their semantic
 UIA dispatch: the overlay pulses at the last observed element bounds without
 converting the ref into a coordinate click. Keyboard feedback says only

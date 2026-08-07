@@ -81,7 +81,10 @@ $env:OPENAI_API_KEY = "<provider credential>"
 `ask` 默认直接输出答案；加 `--json` 会同时输出 run ID、plan ID、观察次数和
 usage。它只允许一到四次已审核的只读观察，包括有界的 UIA
 `document_text`，不能规划桌面副作用。生成的配置不写入凭据，使用用户本地状态
-目录，并启用这条观察/最终回答路径所需的短期 continuation WAL。
+目录，并启用这条观察/最终回答路径所需的短期 continuation WAL。新生成的产品
+配置还会默认开启当前全部 UI/UX 布尔设置：动作反馈、presence、progress、
+reduced motion、high contrast 和 Decision Cards。这些设置只增加可见性和本地
+交互，不授予模型或桌面执行权限，并且每一项仍可在配置中显式关闭。
 
 `config doctor` 是安装后 readiness 检查：它依次验证配置、provider extra、
 文档约定的凭据环境变量、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP

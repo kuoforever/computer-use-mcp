@@ -268,8 +268,14 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
     assert config.provider.model == "reviewed-model"
     assert config.policy.mode == "read_only"
     assert config.continuation.enabled is True
+    assert config.operator.presence_enabled is True
+    assert config.operator.progress_enabled is True
+    assert config.operator.reduced_motion is True
+    assert config.operator.high_contrast is True
+    assert config.operator.decision_cards_enabled is True
     assert config.mcp.executable == mcp_executable.resolve()
     assert config.mcp.cwd == config.state_dir
+    assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"
     assert config.state_dir.is_dir()
 
     assert main(arguments) == 2
@@ -321,7 +327,13 @@ def test_config_init_creates_the_public_web_word_product_profile(
     assert config.policy.max_tool_calls == 24
     assert config.policy.max_side_effects == 7
     assert config.continuation.enabled is False
+    assert config.operator.presence_enabled is True
+    assert config.operator.progress_enabled is True
+    assert config.operator.reduced_motion is True
+    assert config.operator.high_contrast is True
     assert config.operator.decision_cards_enabled is True
+    assert config.operator.decision_timeout_seconds == 180
+    assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"
     assert config.mcp.environment["CUMCP_ALLOWLIST"] == "chrome.exe,winword.exe"
     assert config.mcp.environment["CUMCP_HUMAN_MAX_WAIT_SECONDS"] == "15"
     assert config.mcp.environment["CUMCP_HUMAN_STABLE_SAMPLES"] == "3"
