@@ -5,8 +5,9 @@
 > plus notifications merged through PR #276 as `50aebdf`.
 > `GDA-PRODUCT-010` accessibility closure is implemented and fully validated
 > locally; publication is the sole active action. After a clear merge and branch
-> cleanup, consult this tracker before selecting the first later
-> localization/multi-display/personalization slice.
+> cleanup, pause immediately per the user's latest instruction. Do not select or
+> start the first later localization/multi-display/personalization slice until
+> the user explicitly resumes.
 > `GDA-PRODUCT-007` merged its Host-fixed Pre-run Review through PR #274.
 > `GDA-PRODUCT-005` completed its functional UI-default
 > scope through PR #270; its draft release checkpoint in PR #272 and all final
@@ -348,3 +349,4 @@ chronology is in
 | 2026-08-07 | The user explicitly resumed UI/UX delivery after PR #275. `GDA-PRODUCT-009` defined attention as separate from approval authority, then implemented a strict expiring local Inbox plus fixed-content Win32 notification attached to the existing Decision Card only. The complete local gate passed `1942 passed, 8 skipped`, Ruff, mypy over 133 source files, docs consistency, diff check, clean Python 3.13 wheel `19F18E39...D78A905`, empty-read inertness, and installed no-console notification show/withdraw. Publication is the only active action; `GDA-PRODUCT-010` accessibility closure is exact next after a clear merge and cleanup. |
 | 2026-08-07 | The user instructed delivery to pause after PR #276 completes. Finish only PRODUCT-009 publication and branch cleanup; do not start PRODUCT-010 automatically. Accessibility closure remains the exact next item and resumes only on explicit user direction. |
 | 2026-08-07 | The user explicitly resumed after PR #276. `GDA-PRODUCT-010` implemented shared system accessibility preferences; safe Decision Card keyboard/UIA semantics; bounded status announcements; High Contrast/reduced motion; and 200%/400% text reflow. The full local gate passed `1965 passed, 8 skipped`, Ruff, mypy over 134 source files, docs consistency, diff check, clean Python 3.13 wheel `008D26E1...15AEEA19`, and one deterministic native UIA/no-activation smoke returning safe denial. Narrator/NVDA, live large-text, application/provider/MCP, E4, and release evidence remain unclaimed; publication is the sole active action. |
+| 2026-08-07 | The user instructed delivery to pause immediately after PR #277 completes and its branch is cleaned up because they plan to shut down. Finish only PRODUCT-010 publication; do not define or start PRODUCT-011 until explicit resume. |
