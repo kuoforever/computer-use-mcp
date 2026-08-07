@@ -250,6 +250,24 @@ def render_workflow_detail_lines(checklist: WorkflowChecklist) -> tuple[str, ...
     return tuple(lines)
 
 
+def workflow_accessible_name(lines: Sequence[str]) -> str:
+    """Compress the fixed six-line workflow summary into one bounded UIA name."""
+
+    summary = tuple(lines)
+    if (
+        len(summary) != 6
+        or not summary[0].startswith("COMPUTER USE  ·  ")
+        or any(not isinstance(line, str) or len(line) > _MAX_LINE_CHARS for line in summary)
+    ):
+        raise ProgressWindowError("PROGRESS_ACCESSIBLE_SUMMARY_INVALID")
+    status = summary[0].partition("·")[2].strip().capitalize()
+    current = summary[3].replace("·", ".").capitalize()
+    return (
+        f"Computer Use. {status}. Workflow {summary[1]}. {current}. "
+        f"{summary[4]}. Application {summary[5]}."
+    )
+
+
 def render_progress_lines(
     projection: ProgressProjection,
     *,
@@ -546,5 +564,6 @@ __all__ = [
     "render_progress_lines",
     "render_workflow_detail_lines",
     "render_workflow_summary_lines",
+    "workflow_accessible_name",
     "workflow_visual",
 ]

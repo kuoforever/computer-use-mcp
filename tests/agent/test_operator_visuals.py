@@ -3,8 +3,10 @@ from __future__ import annotations
 import pytest
 
 from computer_use_agent.operator_visuals import (
+    OPERATOR_SURFACE,
     OperatorVisualError,
     OperatorVisualRole,
+    contrast_ratio,
     operator_visual,
 )
 from computer_use_agent.decision_card_window import decision_attention_visual
@@ -28,6 +30,16 @@ def test_every_shared_operator_role_has_a_fixed_visual_token(
     assert token.label
     assert token.glyph
     assert 0 <= token.color_rgb <= 0xFFFFFF
+
+
+def test_every_small_status_label_meets_wcag_aa_contrast() -> None:
+    background = OPERATOR_SURFACE.background_rgb
+
+    assert contrast_ratio(OPERATOR_SURFACE.text_rgb, background) >= 4.5
+    assert contrast_ratio(OPERATOR_SURFACE.muted_text_rgb, background) >= 4.5
+    assert contrast_ratio(OPERATOR_SURFACE.hairline_rgb, background) >= 3.0
+    for role in OperatorVisualRole:
+        assert contrast_ratio(operator_visual(role).color_rgb, background) >= 4.5
 
 
 def test_attention_verification_and_inspection_roles_are_visually_distinct() -> None:

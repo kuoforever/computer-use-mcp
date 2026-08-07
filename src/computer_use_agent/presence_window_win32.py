@@ -7,8 +7,18 @@ from ctypes import wintypes
 from computer_use_mcp.dpi import enable_dpi_awareness
 
 from .win32_dll import private_windll
+from .operator_accessibility import (
+    OperatorAccessibilitySettings,
+    effective_text_dpi,
+    layout_dpi,
+    win32_palette,
+)
 from .presence import PresenceView
-from .presence_window import DisplayBounds, PresenceGeometry
+from .presence_window import (
+    DisplayBounds,
+    PresenceGeometry,
+    presence_accessible_name,
+)
 
 _SW_SHOWNOACTIVATE = 4
 _HWND_TOPMOST = -1
@@ -20,6 +30,9 @@ _WM_ERASEBKGND = 0x0014
 _WM_NCHITTEST = 0x0084
 _WM_MOUSEACTIVATE = 0x0021
 _WM_TIMER = 0x0113
+_EVENT_OBJECT_NAMECHANGE = 0x800C
+_OBJID_WINDOW = 0
+_CHILDID_SELF = 0
 _HTTRANSPARENT = -1
 _MA_NOACTIVATE = 3
 _TRANSPARENT = 1
@@ -76,13 +89,22 @@ class Win32PresenceWindowApi:
 
     _class_seq = 0
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        accessibility: OperatorAccessibilitySettings | None = None,
+    ) -> None:
         enable_dpi_awareness()
+        self.accessibility = accessibility or OperatorAccessibilitySettings()
+        if not isinstance(self.accessibility, OperatorAccessibilitySettings):
+            raise ValueError("presence accessibility settings are invalid")
         self._user32 = private_windll("user32")
         self._gdi32 = private_windll("gdi32")
         self._kernel32 = private_windll("kernel32")
         self._states: dict[int, tuple[PresenceView, PresenceGeometry]] = {}
         self._frames: dict[int, int] = {}
+        self._accessible_names: dict[int, str] = {}
+        self._configure_accessibility_apis()
         self._wndproc = _WNDPROC(self._on_message)
         Win32PresenceWindowApi._class_seq += 1
         self._class_name = f"CuaPresence_{id(self)}_{self._class_seq}"
@@ -159,6 +181,16 @@ class Win32PresenceWindowApi:
     ) -> None:
         self._states[int(hwnd)] = (view, geometry)
         self._frames[int(hwnd)] = 0
+        accessible_name = presence_accessible_name(view)
+        if self._accessible_names.get(int(hwnd)) != accessible_name:
+            if self._user32.SetWindowTextW(wintypes.HWND(hwnd), accessible_name):
+                self._accessible_names[int(hwnd)] = accessible_name
+                self._user32.NotifyWinEvent(
+                    _EVENT_OBJECT_NAMECHANGE,
+                    wintypes.HWND(hwnd),
+                    _OBJID_WINDOW,
+                    _CHILDID_SELF,
+                )
         self._user32.KillTimer(wintypes.HWND(hwnd), _ANIMATION_TIMER_ID)
         if view.animation_interval_ms is not None:
             timer = self._user32.SetTimer(
@@ -209,6 +241,7 @@ class Win32PresenceWindowApi:
     def destroy(self, hwnd: int) -> None:
         self._states.pop(int(hwnd), None)
         self._frames.pop(int(hwnd), None)
+        self._accessible_names.pop(int(hwnd), None)
         self._user32.KillTimer(wintypes.HWND(hwnd), _ANIMATION_TIMER_ID)
         self._user32.DestroyWindow(wintypes.HWND(hwnd))
 
@@ -258,9 +291,18 @@ class Win32PresenceWindowApi:
                 return
             view, geometry = state
             color_rgb = view.color_rgb
-            if view.animation_interval_ms is not None and self._frames.get(hwnd, 0) >= 2:
+            if (
+                not view.high_contrast
+                and view.animation_interval_ms is not None
+                and self._frames.get(hwnd, 0) >= 2
+            ):
                 color_rgb = self._dim(color_rgb)
-            color = self._colorref(color_rgb)
+            palette = win32_palette(
+                self._user32,
+                high_contrast=view.high_contrast,
+                accent_rgb=color_rgb,
+            )
+            color = palette.accent
             border = self._gdi32.CreateSolidBrush(color)
             full = wintypes.RECT(0, 0, geometry.width, geometry.height)
             for inset in range(geometry.border_px):
@@ -274,8 +316,32 @@ class Win32PresenceWindowApi:
             self._gdi32.DeleteObject(border)
             # A solid status tab makes the active phase readable at a glance;
             # the rest of the window remains color-key transparent.
-            tab_width = min(360, max(240, geometry.width // 5))
-            tab_height = max(42, geometry.label_inset_px * 2 + 18)
+            text = f"{view.glyph}  AGENT · {view.label.upper()}"
+            display_dpi = self.display_bounds().dpi
+            geometry_dpi = layout_dpi(
+                display_dpi,
+                self.accessibility.text_scale_factor,
+            )
+            text_dpi = effective_text_dpi(
+                display_dpi,
+                self.accessibility.text_scale_factor,
+            )
+            font_height = max(12, round(10 * text_dpi / 72))
+            estimated_text_width = len(text) * max(
+                7,
+                round(7 * text_dpi / 96),
+            )
+            tab_width = min(
+                max(1, geometry.width - geometry.border_px),
+                max(
+                    round(240 * geometry_dpi / 96),
+                    estimated_text_width + geometry.label_inset_px * 2,
+                ),
+            )
+            tab_height = max(
+                round(42 * geometry_dpi / 96),
+                geometry.label_inset_px * 2 + font_height,
+            )
             tab = wintypes.RECT(
                 geometry.border_px,
                 geometry.border_px,
@@ -286,17 +352,55 @@ class Win32PresenceWindowApi:
             self._user32.FillRect(hdc, ctypes.byref(tab), tab_brush)
             self._gdi32.DeleteObject(tab_brush)
             self._gdi32.SetBkMode(hdc, _TRANSPARENT)
-            self._gdi32.SetTextColor(hdc, self._colorref(0xFFFFFF))
-            text = f"{view.glyph}  AGENT · {view.label.upper()}"
-            self._gdi32.TextOutW(
-                hdc,
-                geometry.label_inset_px,
-                geometry.label_inset_px,
-                text,
-                len(text),
+            self._gdi32.SetTextColor(hdc, palette.accent_text)
+            font = self._gdi32.CreateFontW(
+                -font_height,
+                0,
+                0,
+                0,
+                600,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                5,
+                0,
+                "Segoe UI",
             )
+            previous = self._gdi32.SelectObject(hdc, font) if font else None
+            try:
+                self._gdi32.TextOutW(
+                    hdc,
+                    geometry.label_inset_px,
+                    geometry.label_inset_px,
+                    text,
+                    len(text),
+                )
+            finally:
+                if font:
+                    self._gdi32.SelectObject(hdc, previous)
+                    self._gdi32.DeleteObject(font)
         finally:
             self._user32.EndPaint(wintypes.HWND(hwnd), ctypes.byref(ps))
+
+    def _configure_accessibility_apis(self) -> None:
+        self._user32.GetSysColor.argtypes = [ctypes.c_int]
+        self._user32.GetSysColor.restype = wintypes.DWORD
+        self._user32.SetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPCWSTR]
+        self._user32.SetWindowTextW.restype = wintypes.BOOL
+        self._user32.NotifyWinEvent.argtypes = [
+            wintypes.DWORD,
+            wintypes.HWND,
+            wintypes.LONG,
+            wintypes.LONG,
+        ]
+        self._gdi32.CreateFontW.restype = wintypes.HGDIOBJ
+        self._gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+        self._gdi32.SelectObject.restype = wintypes.HGDIOBJ
+        self._gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+        self._gdi32.DeleteObject.restype = wintypes.BOOL
 
     @staticmethod
     def _colorref(rgb: int) -> int:

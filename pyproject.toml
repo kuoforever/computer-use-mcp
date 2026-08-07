@@ -23,6 +23,7 @@ dependencies = [
     "winrt-Windows.Graphics.Imaging~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Media.Ocr~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Storage.Streams~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.UI.ViewManagement~=3.2.1; sys_platform == 'win32'",
 ]
 # Mouse/keyboard input is done via ctypes (keybd_event/mouse_event) and
 # uiautomation.SendKeys — no pyautogui dependency needed.

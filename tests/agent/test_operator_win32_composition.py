@@ -18,6 +18,7 @@ from computer_use_agent.progress_window_win32 import (
 from computer_use_agent.progress_window_win32 import (
     _window_size as progress_window_size,
 )
+from computer_use_agent.progress_window_win32 import _workflow_layout
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 operator surfaces")
@@ -40,6 +41,27 @@ def test_progress_summary_geometry_scales_with_dpi() -> None:
     assert scale_progress(460, 144) == 690
     assert progress_window_size(False, 144) == (690, 375)
     assert progress_window_size(True, 144) == (780, 840)
+
+
+def test_progress_geometry_reflows_at_400_percent_text_scale() -> None:
+    compact = progress_window_size(False, 96, text_scale_factor=4.0)
+    expanded = progress_window_size(True, 96, text_scale_factor=4.0)
+
+    assert 920 <= compact[0] <= 1_040
+    assert compact[1] >= 500
+    assert expanded[0] >= compact[0]
+    assert expanded[1] > compact[1]
+
+
+def test_progress_rows_do_not_overlap_at_400_percent_text_scale() -> None:
+    rows = _workflow_layout(192, 384, checklist_steps=6)
+
+    assert len(rows) == 19
+    for current, following in zip(rows, rows[1:], strict=False):
+        assert current[0] + current[1] < following[0]
+    assert progress_window_size(True, 96, text_scale_factor=4.0)[1] > (
+        rows[-1][0] + rows[-1][1]
+    )
 
 
 @pytest.mark.parametrize("dpi", [96, 120, 144])

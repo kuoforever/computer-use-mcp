@@ -76,7 +76,7 @@ _TOKENS = {
         OperatorVisualRole.PLANNING,
         "Planning",
         "PLAN",
-        0x8E5BE8,
+        0x9565EC,
     ),
     OperatorVisualRole.EXECUTING: OperatorVisualToken(
         OperatorVisualRole.EXECUTING,
@@ -204,8 +204,36 @@ OPERATOR_SURFACE = OperatorSurfaceTokens(
     surface_rgb=0x232A36,
     text_rgb=0xF5F5F5,
     muted_text_rgb=0xB8B8B8,
-    hairline_rgb=0x39424F,
+    hairline_rgb=0x626D7D,
 )
+
+
+def contrast_ratio(foreground_rgb: int, background_rgb: int) -> float:
+    """Return the WCAG relative-luminance contrast ratio for two RGB colors."""
+
+    for value in (foreground_rgb, background_rgb):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not 0 <= value <= 0xFFFFFF
+        ):
+            raise OperatorVisualError("OPERATOR_CONTRAST_COLOR_INVALID")
+
+    def luminance(rgb: int) -> float:
+        channels = tuple(((rgb >> shift) & 0xFF) / 255 for shift in (16, 8, 0))
+        linear = tuple(
+            channel / 12.92
+            if channel <= 0.04045
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        )
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    lighter, darker = sorted(
+        (luminance(foreground_rgb), luminance(background_rgb)),
+        reverse=True,
+    )
+    return (lighter + 0.05) / (darker + 0.05)
 
 #: The shared type scale. An uppercase accent micro-label introduces a surface,
 #: one large semibold line names the current thing, and muted body text carries
@@ -229,5 +257,6 @@ __all__ = [
     "OperatorVisualError",
     "OperatorVisualRole",
     "OperatorVisualToken",
+    "contrast_ratio",
     "operator_visual",
 ]
