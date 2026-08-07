@@ -144,12 +144,16 @@ tools.
 
 ## Desktop Ask quick start
 
-Use Python 3.11, 3.12, or 3.13. The example below installs the OpenAI adapter;
-use `agent-anthropic`, `anthropic`, and `ANTHROPIC_API_KEY` for Claude.
+Use Python 3.11, 3.12, or 3.13. Download the `0.1.0` wheel from the
+[GitHub release](https://github.com/kuoforever/guarded-desktop-agent/releases/tag/v0.1.0)
+and verify its SHA-256 against the release record. The example below installs
+the OpenAI adapter; use `agent-anthropic`, `anthropic`, and
+`ANTHROPIC_API_KEY` for Claude.
 
 ~~~powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
+.\.venv\Scripts\python.exe -m pip install `
+  ".\guarded_desktop_agent-0.1.0-py3-none-any.whl[agent-openai]"
 
 .\.venv\Scripts\guarded-desktop-agent.exe config init `
   --provider openai `

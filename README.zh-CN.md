@@ -55,9 +55,16 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 
 ## Desktop Ask 首次使用
 
+使用 Python 3.11、3.12 或 3.13。从
+[GitHub release](https://github.com/kuoforever/guarded-desktop-agent/releases/tag/v0.1.0)
+下载 `0.1.0` wheel，并先将 SHA-256 与 release record 核对。以下示例安装
+OpenAI adapter；如使用 Claude，请将 extra、provider 和凭据变量分别替换为
+`agent-anthropic`、`anthropic` 和 `ANTHROPIC_API_KEY`。
+
 ~~~powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
+.\.venv\Scripts\python.exe -m pip install `
+  ".\guarded_desktop_agent-0.1.0-py3-none-any.whl[agent-openai]"
 
 .\.venv\Scripts\guarded-desktop-agent.exe config init `
   --provider openai `

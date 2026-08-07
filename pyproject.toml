@@ -10,6 +10,17 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+keywords = ["desktop-agent", "mcp", "windows", "uiautomation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Desktop Environment",
+]
 dependencies = [
     "mcp>=1.27.2,<2",        # MCP server/client SDK; tested stdio contract
     "mss>=9.0",              # screen capture
@@ -26,6 +37,12 @@ dependencies = [
 ]
 # Mouse/keyboard input is done via ctypes (keybd_event/mouse_event) and
 # uiautomation.SendKeys — no pyautogui dependency needed.
+
+[project.urls]
+Homepage = "https://github.com/kuoforever/guarded-desktop-agent"
+Repository = "https://github.com/kuoforever/guarded-desktop-agent"
+Issues = "https://github.com/kuoforever/guarded-desktop-agent/issues"
+Changelog = "https://github.com/kuoforever/guarded-desktop-agent/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5,<0.16", "mypy>=1.11", "build>=1.2", "setuptools>=77.0.3"]

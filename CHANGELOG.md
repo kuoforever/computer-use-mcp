@@ -10,6 +10,12 @@ a version number states what is packaged, never what has been verified.
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-07
+
+First packaged version. **Experimental**: Windows-only, foreground desktop,
+primary display. A release does not mean production-ready, and it does not
+promote any capability evidence level.
+
 ### Evidence
 
 - **Exact-candidate Desktop Ask.** A fresh Python 3.13 wheel and state completed
@@ -191,17 +197,10 @@ a version number states what is packaged, never what has been verified.
   isolates a corrupt record from valid ones. This is delivery step 1 of the
   [operator progress viewer](docs/PROGRESS_VIEWER.md); no window is drawn yet.
 
-## [0.1.0] — not yet released
-
-First packaged version. **Experimental**: Windows-only, foreground desktop,
-primary display. A release does not mean production-ready, and it does not
-promote any capability evidence level.
-
-### Added
-
-- **MCP server** over stdio exposing ten reviewed tools: `ui_snapshot`,
-  `find`, `list_windows`, `screenshot`, `capture_region`, `ocr`,
-  `activate_window`, `click`, `type`, and `key`. Session-scoped `ref_N`
+- **MCP server** over stdio exposing thirteen reviewed tools: `ui_snapshot`,
+  `find`, `list_windows`, `document_text`, `screenshot`, `capture_region`,
+  `ocr`, `activate_window`, `click`, `type`, `key`, `scroll`, and `drag`.
+  Session-scoped `ref_N`
   handles, one bounded relocation of a stale ref by role and name, and no
   silent coordinate fallback.
 - **Safety modes.** `safe_local` gates action tools on the foreground window's
@@ -242,11 +241,13 @@ promote any capability evidence level.
 - Foreground desktop, primary display. Not a background worker.
 - Not a browser automation framework. Chromium-family UIA trees may be
   incomplete until accessibility content is exposed.
-- No application acceptance evidence. Retained BOSS records cover bounded
-  read-only observation of specific pages only.
+- Application evidence is limited to one read-only OpenAI/Notepad Desktop Ask
+  result and one fixed OpenAI/Chrome/Word workflow. It does not establish
+  arbitrary applications, sites, providers, or unattended operation.
 - Screenshot redaction is title-substring based, not comprehensive secret
   detection.
 - Live provider and isolated desktop validation remain explicit human gates and
   are deliberately absent from default CI.
 
-[Unreleased]: https://github.com/kuoforever/guarded-desktop-agent/compare/main...HEAD
+[Unreleased]: https://github.com/kuoforever/guarded-desktop-agent/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/kuoforever/guarded-desktop-agent/releases/tag/v0.1.0
