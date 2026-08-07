@@ -101,10 +101,8 @@ Not yet claimed:
 
 - retained Narrator, NVDA, or JAWS announcement evidence for the native
   notification and Decision Card together;
-- complete keyboard-only tab order, focus-name/role/state, and timeout warning
-  evidence across every Decision Card choice;
-- 200% and 400% text scaling, reflow, and Windows High Contrast evidence for
-  the complete composed experience;
+- human judgment of the automated keyboard/UIA order, 200%/400% reflow, and
+  Windows High Contrast presentation;
 - notification-center persistence behavior across Windows versions, a native
   Inbox window, multi-monitor placement, or mobile push; and
 - localization of Approval Inbox CLI wording; the fixed notification itself is
@@ -112,7 +110,8 @@ Not yet claimed:
   [operator localization contract](OPERATOR_LOCALIZATION.md).
 
 The current two-locale Shell show/withdraw lifecycle is retained in
-[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md). Windows
+[PRODUCT-017 automated native evidence](PRODUCT017_AUTOMATED_NATIVE_EVIDENCE.md).
+Windows
 quiet time means Shell acceptance is not a visibility claim. The remaining
 gaps do not weaken the current exact approval, expiry, privacy, or dispatch
 boundaries.
