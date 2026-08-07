@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 import json
@@ -12,6 +13,7 @@ from computer_use_agent.approvals import DecisionCardApprovalPort
 import computer_use_agent.cli as agent_cli
 from computer_use_agent.config import (
     APPROVED_ACTIONS_MODE,
+    HIGH_RISK_ONLY_APPROVAL,
     AgentConfig,
     ContinuationConfig,
     MCPLaunchConfig,
@@ -32,9 +34,11 @@ from computer_use_agent.fakes import FakeDesktopMCP, FakeModelProvider
 from computer_use_agent.runner import AgentRunner, RunFailure, RunnerError, RunnerPorts
 from computer_use_agent.trace import RunPhase, RunRecorder, read_run_record
 from computer_use_agent.types import (
+    ActionRiskTier,
     ApprovalRequest,
     CallIdentity,
     DispatchCertainty,
+    LedgerEvent,
     LedgerEventKind,
     ModelTurn,
     ModelUsage,
@@ -128,6 +132,7 @@ class DynamicApproval:
 @dataclass
 class AutoResumeControl:
     trigger_check: int | None = None
+    trigger_kind: ControlRequestKind = ControlRequestKind.PAUSE
     status: ControlStatus = ControlStatus.ACTIVE
     request: ControlRequest | None = None
     pending_checks: int = 0
@@ -149,7 +154,7 @@ class AutoResumeControl:
             self.trigger_check == self.pending_checks
             and self.status is ControlStatus.ACTIVE
         ):
-            self.request = ControlRequest("external_pause", ControlRequestKind.PAUSE)
+            self.request = ControlRequest("external_request", self.trigger_kind)
             self.status = ControlStatus.PAUSE_REQUESTED
         if self.status is ControlStatus.PAUSE_REQUESTED:
             return self.request
@@ -200,6 +205,20 @@ class AutoResumeControl:
         assert run_id
         self.status = ControlStatus.CLOSED
         self.closed_outcome = outcome
+
+
+@dataclass
+class LowRiskClassifier:
+    calls: list[ToolCall] = field(default_factory=list)
+
+    def classify_action(
+        self,
+        call: ToolCall,
+        ledger: Sequence[LedgerEvent],
+    ) -> ActionRiskTier:
+        assert ledger
+        self.calls.append(call)
+        return ActionRiskTier.LOW
 
 
 def test_local_control_requires_live_owner_and_exact_paused_checkpoint(
@@ -484,6 +503,96 @@ def test_takeover_decision_uses_same_pause_path_without_action_dispatch(
         for event in outcome.state.event_log
         if event.kind is LedgerEventKind.TOOL_RESULT
     )
+
+
+def test_external_takeover_after_low_risk_authorization_requires_fresh_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "run_takeover_after_low_risk_authorization"
+    before = _call(run_id, 1, "call_before", "ui_snapshot", {})
+    stale_action = _call(run_id, 2, "call_stale", "click", {"ref": "ref_1"})
+    refreshed = _call(run_id, 3, "call_refreshed", "ui_snapshot", {})
+    fresh_action = _call(run_id, 4, "call_fresh", "click", {"ref": "ref_2"})
+    verified = _call(run_id, 5, "call_verified", "ui_snapshot", {})
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                _turn(run_id, 1, before),
+                _turn(run_id, 2, stale_action),
+                _turn(run_id, 3, refreshed),
+                _turn(run_id, 4, fresh_action),
+                _turn(run_id, 5, verified),
+                _turn(run_id, 6, text="fresh low-risk action verified"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        results=deque(
+            [
+                _result(before, text='ref_1 | button "Old" | (1,1,10,10) | enabled'),
+                _result(
+                    refreshed,
+                    text='ref_2 | button "Fresh" | (1,1,10,10) | enabled',
+                ),
+                _result(fresh_action),
+                _result(
+                    verified,
+                    text='ref_3 | text "Done" | (1,1,10,10) | enabled',
+                ),
+            ]
+        )
+    )
+    control = AutoResumeControl(
+        trigger_check=5,
+        trigger_kind=ControlRequestKind.TAKEOVER,
+    )
+    classifier = LowRiskClassifier()
+    base_config = _config(tmp_path, monkeypatch)
+    config = replace(
+        base_config,
+        policy=replace(
+            base_config.policy,
+            action_approval_policy=HIGH_RISK_ONLY_APPROVAL,
+        ),
+    )
+
+    outcome = asyncio.run(
+        AgentRunner(
+            config,
+            RunnerPorts(
+                provider,
+                desktop,
+                DynamicApproval(),
+                action_risk_classifier=classifier,
+                control=control,
+            ),
+        ).run("Take over after Host authorization", run_id=run_id)
+    )
+
+    assert outcome.text == "fresh low-risk action verified"
+    assert len(control.paused) == 1
+    assert control.paused[0][0] is ControlBoundary.AFTER_AUTHORIZATION
+    assert control.paused[0][1] > 0
+    assert control.fresh_observations == 1
+    assert control.closed_outcome is ControlOutcome.SUCCESS
+    assert classifier.calls == [stale_action, fresh_action]
+    assert [call.identity for call in desktop.tool_calls] == [
+        before.identity,
+        refreshed.identity,
+        fresh_action.identity,
+        verified.identity,
+    ]
+    assert outcome.state.budgets.side_effects_used == 1
+    stale_results = [
+        event.tool_result
+        for event in outcome.state.event_log
+        if event.kind is LedgerEventKind.TOOL_RESULT
+        and event.tool_result is not None
+        and event.tool_result.identity == stale_action.identity
+    ]
+    assert len(stale_results) == 1
+    assert stale_results[0].code == "OPERATOR_TAKEOVER"
+    assert stale_results[0].dispatch is DispatchCertainty.NOT_DISPATCHED
 
 
 def test_unknown_side_effect_wins_over_late_pause_and_is_never_replayed(

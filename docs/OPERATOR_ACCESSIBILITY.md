@@ -97,7 +97,10 @@ deterministic and excluded plausible user input/focus interference.
 
 All ten current-candidate locale/presentation cases and their exact evidence
 boundary are retained in
-[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md). The live
+[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md). The same
+ten safe-denial cases passed again after PRODUCT-016; the newer scope and open
+human rows are in
+[PRODUCT-017 automated native evidence](PRODUCT017_AUTOMATED_NATIVE_EVIDENCE.md). The live
 large-text result proves automated geometry and UIA behavior only, not human
 legibility or visual acceptance.
 

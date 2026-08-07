@@ -1,7 +1,8 @@
 # Cooperative Pause, Takeover, and Resume
 
 > **Status: implemented and offline verified for the installed
-> `public-web-word` Runner loops; native desktop acceptance is pending.** This is
+> `public-web-word` Runner loops; automated risk-policy composition passed and
+> human native takeover timing is pending.** This is
 > same-process cooperative control, not crash recovery, remote control, campaign
 > control, or an operating-system input lock.
 
@@ -43,8 +44,10 @@ observation is durable. Only then does the control record return to `active`.
 | `resuming` | `agent` | Old grounding is invalid and a fresh successful observation is mandatory. |
 | `closed` | `none` | The controlled Runner loop ended; inspect its ordinary run outcome. |
 
-The reviewed safe boundaries are `before_provider`, `before_tool`, and
-`after_approval`. The request does not interrupt an in-flight provider or MCP
+The reviewed safe boundaries are `before_provider`, `before_tool`,
+`after_authorization`, and `after_approval`. The authorization boundary is
+used after a low-risk Host policy decision; the approval boundary remains the
+human-decision path. The request does not interrupt an in-flight provider or MCP
 call. In particular, a side effect that is already dispatched or might have
 been dispatched is never relabeled as paused: an uncertain result remains
 terminal `UNKNOWN_OUTCOME` and is never replayed.
@@ -97,7 +100,10 @@ Offline tests cover the local CAS lifecycle, live-lease and exact-checkpoint
 binding, human/JSON CLI commands, nested reopen-verifier state, safe pause before
 tool dispatch, Decision Card takeover, stale-call rejection, observation-only
 resumption, fresh-observation acknowledgement, early continuation rejection,
-and `UNKNOWN_OUTCOME` precedence over a late pause request.
+`UNKNOWN_OUTCOME` precedence over a late pause request, and external takeover
+after low-risk Host authorization with zero stale-action dispatch and mandatory
+fresh observation. The current automated native/non-E4 boundary is retained in
+[PRODUCT-017 automated native evidence](PRODUCT017_AUTOMATED_NATIVE_EVIDENCE.md).
 
 They do not prove real provider timing, Windows focus behavior, operator hand
 timing, application correctness, multi-display behavior, E4, or release
