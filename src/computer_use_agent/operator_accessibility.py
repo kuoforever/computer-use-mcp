@@ -16,7 +16,8 @@ from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Protocol
 
-from .operator_visuals import OPERATOR_SURFACE
+from .operator_personalization import OperatorTheme
+from .operator_visuals import operator_accent, operator_surface
 from .win32_dll import private_windll
 
 
@@ -176,11 +177,14 @@ def win32_palette(
     *,
     high_contrast: bool,
     accent_rgb: int,
+    theme: OperatorTheme = OperatorTheme.DARK,
 ) -> Win32Palette:
     """Resolve shared product colors or the operator's selected system colors."""
 
     if not isinstance(high_contrast, bool):
         raise ValueError("OPERATOR_HIGH_CONTRAST_INVALID")
+    if not isinstance(theme, OperatorTheme):
+        raise ValueError("OPERATOR_THEME_INVALID")
     if (
         isinstance(accent_rgb, bool)
         or not isinstance(accent_rgb, int)
@@ -197,14 +201,17 @@ def win32_palette(
             accent=int(user32.GetSysColor(_COLOR_HIGHLIGHT)),
             accent_text=int(user32.GetSysColor(_COLOR_HIGHLIGHTTEXT)),
         )
+    surface = operator_surface(theme)
     return Win32Palette(
-        background=_colorref(OPERATOR_SURFACE.background_rgb),
-        surface=_colorref(OPERATOR_SURFACE.surface_rgb),
-        text=_colorref(OPERATOR_SURFACE.text_rgb),
-        muted_text=_colorref(OPERATOR_SURFACE.muted_text_rgb),
-        hairline=_colorref(OPERATOR_SURFACE.hairline_rgb),
-        accent=_colorref(accent_rgb),
-        accent_text=_colorref(OPERATOR_SURFACE.background_rgb),
+        background=_colorref(surface.background_rgb),
+        surface=_colorref(surface.surface_rgb),
+        text=_colorref(surface.text_rgb),
+        muted_text=_colorref(surface.muted_text_rgb),
+        hairline=_colorref(surface.hairline_rgb),
+        accent=_colorref(operator_accent(theme, accent_rgb)),
+        accent_text=_colorref(
+            0xFFFFFF if theme is OperatorTheme.LIGHT else surface.background_rgb
+        ),
     )
 
 

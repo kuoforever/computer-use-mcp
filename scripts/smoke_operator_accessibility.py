@@ -1,9 +1,11 @@
-"""Bounded two-locale native accessibility smoke for operator surfaces.
+"""Bounded native theme and two-locale smoke for operator surfaces.
 
 The probe opens no provider, MCP, application, or desktop-action port.  The
 passive surfaces must preserve the foreground window.  The focus-taking
 Decision Card is inspected through UI Automation and resolved with keyboard
 navigation to its safe ``option_deny`` choice in English and Simplified Chinese.
+The probe covers dark, light, and the High Contrast override without claiming
+human assistive-technology or physical multi-monitor evidence.
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ from computer_use_agent.operator_localization import (  # noqa: E402
     localize_fixed_text,
     operator_text,
 )
+from computer_use_agent.operator_personalization import OperatorTheme  # noqa: E402
 from computer_use_agent.presence import (  # noqa: E402
     DesktopAuthority,
     PresencePhase,
@@ -119,11 +122,13 @@ def _control_rows(control, depth: int = 0) -> list[dict[str, object]]:  # noqa: 
 def _passive_surface_smoke(
     accessibility: OperatorAccessibilitySettings,
     locale: OperatorLocale,
+    theme: OperatorTheme,
 ) -> dict[str, object]:
     before = _foreground()
     progress = Win32ProgressWindowApi(
         accessibility=accessibility,
         locale=locale,
+        theme=theme,
     )
     progress_hwnd = progress.create(
         ex_style=0x08000088,
@@ -139,6 +144,7 @@ def _passive_surface_smoke(
     presence_api = Win32PresenceWindowApi(
         accessibility=accessibility,
         locale=locale,
+        theme=theme,
     )
     presence = PassivePresenceWindow(
         presence_api,
@@ -211,6 +217,7 @@ def _passive_surface_smoke(
 def _decision_card_smoke(
     accessibility: OperatorAccessibilitySettings,
     locale: OperatorLocale,
+    theme: OperatorTheme,
 ) -> dict[str, object]:
     result: list[str | None] = []
     error: list[BaseException] = []
@@ -221,6 +228,7 @@ def _decision_card_smoke(
                 Win32DecisionCardWindowApi(
                     accessibility=accessibility,
                     locale=locale,
+                    theme=theme,
                 ).choose(
                     title=_title(locale),
                     instruction=(
@@ -260,6 +268,7 @@ def _decision_card_smoke(
     monitor_api = Win32PresenceWindowApi(
         accessibility=accessibility,
         locale=locale,
+        theme=theme,
     )
     selected = monitor_api.display_monitor()
     card_rect = _window_rect(hwnd)
@@ -360,27 +369,38 @@ def _decision_card_smoke(
 
 
 def main() -> int:
-    accessibility = OperatorAccessibilitySettings(
-        high_contrast=True,
-        reduced_motion=True,
-        text_scale_factor=1.0,
-    )
-    locales: dict[str, object] = {}
-    for locale in OperatorLocale:
-        with auto.UIAutomationInitializerInThread():
-            passive = _passive_surface_smoke(accessibility, locale)
-        decision = _decision_card_smoke(accessibility, locale)
-        locales[locale.value] = {"passive": passive, "decision": decision}
+    cases = {
+        "high-contrast-over-light": (
+            OperatorAccessibilitySettings(
+                high_contrast=True,
+                reduced_motion=True,
+                text_scale_factor=1.0,
+            ),
+            OperatorTheme.LIGHT,
+        ),
+        "dark": (OperatorAccessibilitySettings(), OperatorTheme.DARK),
+        "light": (OperatorAccessibilitySettings(), OperatorTheme.LIGHT),
+    }
+    appearances: dict[str, object] = {}
+    for case_name, (accessibility, theme) in cases.items():
+        locales: dict[str, object] = {}
+        for locale in OperatorLocale:
+            with auto.UIAutomationInitializerInThread():
+                passive = _passive_surface_smoke(accessibility, locale, theme)
+            decision = _decision_card_smoke(accessibility, locale, theme)
+            locales[locale.value] = {"passive": passive, "decision": decision}
+        appearances[case_name] = {
+            "accessibility": {
+                "high_contrast": accessibility.high_contrast,
+                "reduced_motion": accessibility.reduced_motion,
+                "text_scale_factor": accessibility.text_scale_factor,
+            },
+            "theme": theme.value,
+            "locales": locales,
+        }
     print(
         json.dumps(
-            {
-                "accessibility": {
-                    "high_contrast": accessibility.high_contrast,
-                    "reduced_motion": accessibility.reduced_motion,
-                    "text_scale_factor": accessibility.text_scale_factor,
-                },
-                "locales": locales,
-            },
+            {"appearances": appearances},
             ensure_ascii=False,
             sort_keys=True,
         )

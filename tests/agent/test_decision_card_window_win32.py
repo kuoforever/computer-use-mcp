@@ -17,6 +17,7 @@ from computer_use_agent.decision_card_window_win32 import (
     Win32DecisionCardWindowApi,
     _corner_origin,
     _header_rects,
+    _immersive_dark_mode,
     _layout_rects,
     _restore_if_minimized,
     _scaled_client_size,
@@ -28,6 +29,7 @@ from computer_use_agent.decision_card_window_win32 import (
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
 from computer_use_agent.operator_visuals import OPERATOR_TYPE_META
 from computer_use_agent.operator_localization import OperatorLocale
+from computer_use_agent.operator_personalization import OperatorTheme
 from computer_use_agent.progress_window_win32 import (
     _HUD_BACKGROUND as _PROGRESS_BACKGROUND,
     _HUD_MUTED as _PROGRESS_MUTED,
@@ -67,6 +69,12 @@ def test_native_window_defaults_to_bottom_right_and_rejects_unknown_corner() -> 
     assert Win32DecisionCardWindowApi().corner == "bottom_right"
     with pytest.raises(ValueError, match="corner is invalid"):
         Win32DecisionCardWindowApi(corner="center")  # type: ignore[arg-type]
+
+
+def test_light_and_high_contrast_disable_immersive_dark_caption() -> None:
+    assert _immersive_dark_mode(OperatorTheme.DARK, high_contrast=False)
+    assert not _immersive_dark_mode(OperatorTheme.LIGHT, high_contrast=False)
+    assert not _immersive_dark_mode(OperatorTheme.DARK, high_contrast=True)
 
 
 def test_native_copy_uses_one_locale_for_visible_and_uia_text() -> None:

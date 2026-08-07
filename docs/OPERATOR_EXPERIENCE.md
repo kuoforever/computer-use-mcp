@@ -18,7 +18,8 @@
 > campaign execution commands also project their durable run phases through
 > presence and start the same campaign-state progress poller; zero-port campaign
 > control remains window-free.
-> Multi-monitor support and abrupt-process teardown remain separate gates. The
+> Host-owned multi-display composition is implemented; physical two-monitor
+> usability and abrupt-process teardown remain separate gates. The
 > composed Windows surfaces now share the implemented
 > [operator accessibility contract](OPERATOR_ACCESSIBILITY.md): safe keyboard
 > traversal, native UIA semantics, bounded status announcements, Windows High
@@ -28,6 +29,10 @@
 > The four native operator surfaces also share the bounded
 > [English/Simplified-Chinese localization contract](OPERATOR_LOCALIZATION.md);
 > machine identifiers and authority remain locale-neutral.
+> Presence, Progress, and Decision Card also share the bounded
+> [dark/light/system theme contract](OPERATOR_PERSONALIZATION.md). High Contrast
+> remains authoritative over product theme, and no theme value can alter
+> enablement, monitor selection, approval, capture, or dispatch.
 > Decision Card compilation,
 > choice validation, and a configurable four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
@@ -186,7 +191,9 @@ token while retaining the separate `approval locked` boundary. The older
 run/campaign diagnostic projection also uses `In progress`, `Needs input`,
 `Paused`, `Ready`, `Failed`, `Cancelled`, and `Needs inspection` rather than a
 second vocabulary. High Contrast uses the operator's selected Windows system
-colors and never removes the fixed label or glyph.
+colors and never removes the fixed label or glyph. Otherwise one strict dark,
+light, or system-following theme selects shared chrome and contrast-checked
+semantic accent variants without changing status roles or machine identifiers.
 
 Implementation requirements:
 
@@ -595,11 +602,18 @@ campaign-control mutation, or second desktop dispatcher.
    fail-silent native delivery, fixed payload, and no approval or dispatch
    action; native assistive-technology evidence remains open.**
 9. Close keyboard, screen-reader, high-contrast, reduced-motion, and 200%/400%
-   scaling gaps across the composed operator experience.
-10. After the executable campaign worker exists, verify fake-host terminal and
+   scaling gaps across the composed operator experience. **Deterministic and
+   native UIA closure is implemented; human Narrator/NVDA and live large-text
+   review remain feature-freeze evidence gates.**
+10. Add one bounded presentation-only personalization contract. **Implemented:
+    strict dark, light, and system-following theme resolution shares one palette
+    across the three native surfaces; High Contrast wins and learned,
+    per-application, model-controlled, and authority-bearing preferences remain
+    excluded.**
+11. After the executable campaign worker exists, verify fake-host terminal and
    attention events from the same redacted status projection without adding a
    second execution path.
-11. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
+12. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
    cross-application scenario with one approval and one human takeover.
 
 The final integrated presentation and evidence requirements live in the

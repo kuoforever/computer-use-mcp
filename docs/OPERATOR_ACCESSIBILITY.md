@@ -61,8 +61,11 @@ Normal product tokens meet at least 4.5:1 for text and 3:1 for non-text
 boundaries in deterministic contrast tests. Forced or detected High Contrast
 uses `COLOR_WINDOW`, `COLOR_WINDOWTEXT`, `COLOR_HIGHLIGHT`,
 `COLOR_HIGHLIGHTTEXT`, `COLOR_BTNFACE`, and `COLOR_BTNTEXT`; it does not infer a
-dark/light palette or retain optional dimming. Reduced motion disables Presence
-animation while preserving the fixed label, glyph, and phase state.
+dark/light palette or retain optional dimming. Otherwise the strict dark/light
+theme contract selects the fixed product palette; the complete precedence is in
+[Operator presentation personalization](OPERATOR_PERSONALIZATION.md). Reduced
+motion disables Presence animation while preserving the fixed label, glyph, and
+phase state.
 
 Decision Card layout tests cover compact and expanded controls at 100%, 200%,
 and 400% effective text scale, including non-overlap and safe choice placement.
@@ -83,11 +86,12 @@ Run the bounded native probe from a normal interactive Windows desktop:
 python scripts/smoke_operator_accessibility.py
 ~~~
 
-The 2026-08-07 probe forced High Contrast and reduced motion, found the Decision
-Card header as UIA Text controls, the labelled details pane as Edit, and all four
-choices as Button. It observed initial `Deny` focus, traversed the complete Tab
-path, resolved `Deny` with `Enter`, and confirmed that Progress and Presence kept
-the foreground unchanged while exposing bounded top-level names. The trace was
+The 2026-08-07 probe exercised dark, light, and High-Contrast-over-light in
+English and Simplified Chinese. It found the Decision Card header as UIA Text
+controls, the labelled details pane as Edit, and all four choices as Button. It
+observed initial safe-denial focus, traversed the complete Tab path, resolved
+`option_deny` with `Enter`, and confirmed that Progress and Presence kept the
+foreground unchanged while exposing bounded top-level names. The trace was
 deterministic and excluded plausible user input/focus interference.
 
 This is a UI Automation client smoke, not proof of spoken order, pronunciation,
@@ -96,7 +100,7 @@ The same bounded probe now exercises English and Simplified Chinese UIA names;
 the localization boundary and fallback rules are recorded in
 [Operator localization](OPERATOR_LOCALIZATION.md). Narrator/NVDA human review,
 live 200%/400% visual review, translation certification, physical two-monitor
-usability evidence, personalization, E4, and exact release evidence stay
+usability evidence, human visual-design review, E4, and exact release evidence stay
 separate later gates. The implemented per-monitor rectangle/DPI selection
 contract is documented in
 [Native operator multi-display composition](OPERATOR_MULTI_DISPLAY.md).

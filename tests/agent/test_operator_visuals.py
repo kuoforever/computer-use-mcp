@@ -4,11 +4,14 @@ import pytest
 
 from computer_use_agent.operator_visuals import (
     OPERATOR_SURFACE,
+    OPERATOR_SURFACE_LIGHT,
     OperatorVisualError,
     OperatorVisualRole,
     contrast_ratio,
+    operator_accent,
     operator_visual,
 )
+from computer_use_agent.operator_personalization import OperatorTheme
 from computer_use_agent.decision_card_window import decision_attention_visual
 from computer_use_agent.presence import (
     DesktopAuthority,
@@ -40,6 +43,21 @@ def test_every_small_status_label_meets_wcag_aa_contrast() -> None:
     assert contrast_ratio(OPERATOR_SURFACE.hairline_rgb, background) >= 3.0
     for role in OperatorVisualRole:
         assert contrast_ratio(operator_visual(role).color_rgb, background) >= 4.5
+
+
+def test_light_theme_chrome_and_status_accents_meet_contrast_contract() -> None:
+    surface = OPERATOR_SURFACE_LIGHT
+
+    assert contrast_ratio(surface.text_rgb, surface.background_rgb) >= 4.5
+    assert contrast_ratio(surface.muted_text_rgb, surface.background_rgb) >= 4.5
+    assert contrast_ratio(surface.hairline_rgb, surface.background_rgb) >= 3.0
+    for role in OperatorVisualRole:
+        accent = operator_accent(
+            OperatorTheme.LIGHT,
+            operator_visual(role).color_rgb,
+        )
+        assert contrast_ratio(accent, surface.background_rgb) >= 4.5
+        assert contrast_ratio(0xFFFFFF, accent) >= 4.5
 
 
 def test_attention_verification_and_inspection_roles_are_visually_distinct() -> None:

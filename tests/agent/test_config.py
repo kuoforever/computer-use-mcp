@@ -317,6 +317,38 @@ def test_operator_locale_is_strict_and_absent_key_preserves_english(
     assert load_agent_config(path).operator.locale == "zh-CN"
 
 
+def test_operator_theme_is_strict_and_absent_key_preserves_dark(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(_config_text(tmp_path), encoding="utf-8")
+    assert load_agent_config(path).operator.theme == "dark"
+
+    path.write_text(
+        _config_text(tmp_path) + '\n[operator]\ntheme = "light"\n',
+        encoding="utf-8",
+    )
+    assert load_agent_config(path).operator.theme == "light"
+
+
+@pytest.mark.parametrize("theme", ["system", "auto ", "LIGHT", "blue"])
+def test_operator_theme_rejects_unsupported_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(tmp_path) + f'\n[operator]\ntheme = "{theme}"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="operator theme"):
+        load_agent_config(path)
+
+
 @pytest.mark.parametrize("locale", ["en", "zh", "auto ", "fr-FR"])
 def test_operator_locale_rejects_unsupported_values(
     tmp_path: Path,
