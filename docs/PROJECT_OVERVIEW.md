@@ -232,6 +232,7 @@ surfaces rather than one automatic general-product loop.
 | Token-efficient observation | Contract/planned experiments | Escalate from structured/cheap sources to pixels; retain item-local context and measured cost | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | Presence and progress UI | Partial | Passive progress is implemented and follows durable ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery phases, and validated state during fixed MCP-backed campaign execution; zero-port campaign control remains window-free. The fixed synthetic campaign lifecycle is [desktop verified](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); one persisted read-only observation has separate [recovery progress evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md); and one fixed provider-free plan has separate [plan progress](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md) and [presence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md) lifecycle evidence. An opt-in bounded primary-display halo is also [desktop verified](PRESENCE_WINDOW_EVIDENCE.md) and follows ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery, and fixed MCP-backed campaign phases through a fail-silent Host coordinator. Integrated BOSS-campaign progress/presence evidence and recovery presence desktop evidence remain planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Progress viewer](PROGRESS_VIEWER.md) |
 | Decision Cards | Partial / opt-in Windows | Pure cards compile 2-4 bounded options; an opt-in focus-taking four-choice Win32 adapter yields authority and returns exact-effect approval, re-observe, durable defer, or denial through the existing ApprovalPort. Expandable inspection exposes digest-only evidence; re-observe/defer semantics are offline verified, while four-choice desktop and cross-application evidence remain planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Approved actions](APPROVALS.md) |
+| Public web to Word workflow | Implemented / exact scoped evidence | One installed fixed workflow lets a reviewed OpenAI model observe a fresh public Microsoft Support page, author a bounded brief, and write, save, reopen, visually verify, and clean up one disposable Word fixture through the existing Runner/MCP and Decision Card boundaries. The [retained result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md) does not establish arbitrary websites or applications | [Workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | Mobile notifications | Host capability; internal repository projection implemented | Future host surface may poll validated terminal/attention state; no MCP-log completion inference or repository delivery bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
 | Wave 1 applications | Planned acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, then cross-application handoff | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance waves | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
@@ -379,9 +380,10 @@ In priority order:
 2. Retain one on-device UIA/document-text semantic item through the new bounded
    runtime; review the OCR Host safety baseline separately and add another
    source only on a demonstrated gap.
-3. Retain one exact-candidate installed public-browser-to-disposable-Word run
-   with a non-prewritten brief, durable reopen/readback, render QA, and exact
-   fixture cleanup.
+3. Preserve the exact scope of the retained installed
+   [public-browser-to-disposable-Word result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md):
+   one reviewed model, fixed public source, disposable Word output, durable
+   reopen/readback, real-Word render QA, and exact fixture cleanup.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host
