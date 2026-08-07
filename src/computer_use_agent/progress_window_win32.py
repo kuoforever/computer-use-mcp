@@ -25,6 +25,14 @@ from .operator_visuals import (
     OPERATOR_WEIGHT_NORMAL,
     OPERATOR_WEIGHT_SEMIBOLD,
 )
+from .operator_accessibility import (
+    OperatorAccessibilitySettings,
+    Win32Palette,
+    effective_text_dpi,
+    layout_dpi,
+    win32_palette,
+)
+from .progress_window import workflow_accessible_name
 
 _SW_SHOWNOACTIVATE = 4
 
@@ -42,6 +50,9 @@ _WM_DESTROY = 0x0002
 _WM_CLOSE = 0x0010
 _WM_ERASEBKGND = 0x0014
 _WM_LBUTTONUP = 0x0202
+_EVENT_OBJECT_NAMECHANGE = 0x800C
+_OBJID_WINDOW = 0
+_CHILDID_SELF = 0
 
 _TRANSPARENT = 1
 _DEFAULT_WIN_W = 460
@@ -80,10 +91,97 @@ def _scaled(value: int, dpi: int) -> int:
     return max(1, round(value * dpi / 96))
 
 
-def _window_size(expanded: bool, dpi: int) -> tuple[int, int]:
+def _font_height(points: int, dpi: int) -> int:
+    """Return the conservative pixel height used by the GDI font request."""
+
+    return max(1, round(points * dpi / 72))
+
+
+def _workflow_layout(
+    geometry_dpi: int,
+    text_dpi: int,
+    *,
+    checklist_steps: int = 0,
+) -> tuple[tuple[int, int], ...]:
+    """Place workflow rows without overlap at combined display/text scaling.
+
+    The original 96-DPI visual rhythm remains the preferred layout.  When text
+    becomes taller than those fixed slots, later rows move down instead of
+    painting through earlier content.  Each tuple is ``(top, height)``.
+    """
+
+    if checklist_steps < 0:
+        raise ValueError("checklist_steps must be non-negative")
+    points = (10, 16, 10, 9, 14, 10)
+    preferred_tops = (18, 47, 78, 114, 139, 174)
+    minimum_gaps = (8, 8, 14, 6, 6)
+    rows: list[tuple[int, int]] = []
+    for index, (point_size, preferred_top) in enumerate(
+        zip(points, preferred_tops, strict=True)
+    ):
+        height = _font_height(point_size, text_dpi)
+        top = _scaled(preferred_top, geometry_dpi)
+        if rows:
+            previous_top, previous_height = rows[-1]
+            top = max(
+                top,
+                previous_top
+                + previous_height
+                + _scaled(minimum_gaps[index - 1], geometry_dpi),
+            )
+        rows.append((top, height))
+
+    if not checklist_steps:
+        return tuple(rows)
+
+    previous_top, previous_height = rows[-1]
+    header_top = max(
+        _scaled(218, geometry_dpi),
+        previous_top + previous_height + _scaled(24, geometry_dpi),
+    )
+    header_height = _font_height(9, text_dpi)
+    rows.append((header_top, header_height))
+    title_top = max(
+        _scaled(247, geometry_dpi),
+        header_top + header_height + _scaled(20, geometry_dpi),
+    )
+    for step_index in range(checklist_steps):
+        title_height = _font_height(11, text_dpi)
+        rows.append((title_top, title_height))
+        meta_top = max(
+            title_top + _scaled(22, geometry_dpi),
+            title_top + title_height + _scaled(4, geometry_dpi),
+        )
+        meta_height = _font_height(9, text_dpi)
+        rows.append((meta_top, meta_height))
+        if step_index + 1 < checklist_steps:
+            title_top = max(
+                title_top + _scaled(47, geometry_dpi),
+                meta_top + meta_height + _scaled(10, geometry_dpi),
+            )
+    return tuple(rows)
+
+
+def _window_size(
+    expanded: bool,
+    dpi: int,
+    *,
+    text_scale_factor: float = 1.0,
+) -> tuple[int, int]:
     width = _EXPANDED_WIN_W if expanded else _DEFAULT_WIN_W
     height = _EXPANDED_WIN_H if expanded else _DEFAULT_WIN_H
-    return _scaled(width, dpi), _scaled(height, dpi)
+    geometry_dpi = layout_dpi(dpi, text_scale_factor)
+    text_dpi = effective_text_dpi(dpi, text_scale_factor)
+    rows = _workflow_layout(
+        geometry_dpi,
+        text_dpi,
+        checklist_steps=6 if expanded else 0,
+    )
+    content_height = rows[-1][0] + rows[-1][1] + _scaled(28, geometry_dpi)
+    return (
+        _scaled(width, geometry_dpi),
+        max(_scaled(height, geometry_dpi), content_height),
+    )
 
 
 class _WNDCLASSEXW(ctypes.Structure):
@@ -161,8 +259,15 @@ class Win32ProgressWindowApi:
 
     _class_seq = 0
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        accessibility: OperatorAccessibilitySettings | None = None,
+    ) -> None:
         enable_dpi_awareness()
+        self.accessibility = accessibility or OperatorAccessibilitySettings()
+        if not isinstance(self.accessibility, OperatorAccessibilitySettings):
+            raise ValueError("progress accessibility settings are invalid")
         self._user32 = private_windll("user32")
         self._gdi32 = private_windll("gdi32")
         self._kernel32 = private_windll("kernel32")
@@ -173,6 +278,8 @@ class Win32ProgressWindowApi:
         ] = {}
         self._toggle_handlers: dict[int, Callable[[bool], None]] = {}
         self._workflow_accents: dict[int, int] = {}
+        self._base_titles: dict[int, str] = {}
+        self._accessible_names: dict[int, str] = {}
         self._top_right_anchored: set[int] = set()
         self._configure_gdi()
         self._configure_window_apis()
@@ -194,7 +301,11 @@ class Win32ProgressWindowApi:
             wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID,
         ]
         dpi = self._system_dpi()
-        width, height = _window_size(False, dpi)
+        width, height = _window_size(
+            False,
+            dpi,
+            text_scale_factor=self.accessibility.text_scale_factor,
+        )
         x, y = _top_right_origin(
             self._work_area(self.foreground()),
             (width, height),
@@ -211,6 +322,8 @@ class Win32ProgressWindowApi:
         if not hwnd:
             raise OSError(f"CreateWindowExW failed (win32 error {self._last_error()})")
         self._lines[int(hwnd)] = ()
+        self._base_titles[int(hwnd)] = title
+        self._accessible_names[int(hwnd)] = title
         self._top_right_anchored.add(int(hwnd))
         return int(hwnd)
 
@@ -219,6 +332,7 @@ class Win32ProgressWindowApi:
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
         self._workflow_accents.pop(int(hwnd), None)
+        self._set_accessible_name(hwnd, f"{self._base_titles[int(hwnd)]}. Progress summary.")
         self._apply_lines(hwnd, rendered)
 
     def set_workflow_lines(
@@ -248,6 +362,7 @@ class Win32ProgressWindowApi:
         self._workflow_lines[int(hwnd)] = (compact, detail)
         self._toggle_handlers[int(hwnd)] = on_toggle
         self._workflow_accents[int(hwnd)] = accent_rgb
+        self._set_accessible_name(hwnd, workflow_accessible_name(compact))
         self._show_workflow(hwnd, expanded=expanded)
 
     def lines(self, hwnd: int) -> tuple[str, ...]:
@@ -281,6 +396,8 @@ class Win32ProgressWindowApi:
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
         self._workflow_accents.pop(int(hwnd), None)
+        self._base_titles.pop(int(hwnd), None)
+        self._accessible_names.pop(int(hwnd), None)
         self._top_right_anchored.discard(int(hwnd))
         self._user32.DestroyWindow(wintypes.HWND(hwnd))
 
@@ -330,21 +447,32 @@ class Win32ProgressWindowApi:
         hdc = user32.BeginPaint(wintypes.HWND(hwnd), ctypes.byref(ps))
         try:
             rect = ps.rcPaint
-            background = gdi32.CreateSolidBrush(_HUD_BACKGROUND)
+            display_dpi = self._window_dpi(hwnd)
+            geometry_dpi = layout_dpi(
+                display_dpi,
+                self.accessibility.text_scale_factor,
+            )
+            text_dpi = effective_text_dpi(
+                display_dpi,
+                self.accessibility.text_scale_factor,
+            )
+            palette = win32_palette(
+                user32,
+                high_contrast=self.accessibility.high_contrast,
+                accent_rgb=self._workflow_accents.get(hwnd, _DEFAULT_ACCENT_RGB),
+            )
+            background = gdi32.CreateSolidBrush(palette.background)
             user32.FillRect(hdc, ctypes.byref(rect), background)
             gdi32.DeleteObject(background)
             gdi32.SetBkMode(hdc, _TRANSPARENT)
-            gdi32.SetTextColor(hdc, _HUD_TEXT)
-            accent_color = self._rgb_to_colorref(
-                self._workflow_accents.get(hwnd, _DEFAULT_ACCENT_RGB)
-            )
+            gdi32.SetTextColor(hdc, palette.text)
+            accent_color = palette.accent
             accent = gdi32.CreateSolidBrush(accent_color)
-            dpi = self._window_dpi(hwnd)
             accent_rect = wintypes.RECT(
                 0,
                 0,
-                _scaled(6, dpi),
-                max(rect.bottom, _scaled(_DEFAULT_WIN_H, dpi)),
+                _scaled(6, geometry_dpi),
+                max(rect.bottom, _scaled(_DEFAULT_WIN_H, geometry_dpi)),
             )
             user32.FillRect(hdc, ctypes.byref(accent_rect), accent)
             gdi32.DeleteObject(accent)
@@ -353,36 +481,45 @@ class Win32ProgressWindowApi:
                 self._paint_workflow_summary(
                     hdc,
                     lines[:6],
-                    dpi,
+                    geometry_dpi,
+                    text_dpi,
                     accent_color,
+                    palette,
                 )
                 if len(lines) > 6 and lines[6] == "WORKFLOW CHECKLIST":
                     self._paint_workflow_checklist(
                         hdc,
                         lines[6:],
-                        dpi,
+                        geometry_dpi,
+                        text_dpi,
                         accent_color,
+                        palette,
                     )
                 if int(hwnd) in self._workflow_lines:
                     self._paint_toggle(
                         hdc,
                         expanded=self._workflow_is_expanded(int(hwnd)),
-                        dpi=dpi,
+                        geometry_dpi=geometry_dpi,
+                        text_dpi=text_dpi,
+                        palette=palette,
                     )
             else:
-                y = _scaled(_PAD, dpi)
+                y = _scaled(_PAD, geometry_dpi)
                 for line in lines:
                     self._text(
                         hdc,
-                        _scaled(_PAD, dpi),
+                        _scaled(_PAD, geometry_dpi),
                         y,
                         str(line),
                         points=10,
                         weight=_FW_NORMAL,
-                        color=_HUD_TEXT,
-                        dpi=dpi,
+                        color=palette.text,
+                        dpi=text_dpi,
                     )
-                    y += _scaled(_LINE_H, dpi)
+                    y += max(
+                        _scaled(_LINE_H, geometry_dpi),
+                        round(10 * text_dpi / 72) + _scaled(4, geometry_dpi),
+                    )
         finally:
             user32.EndPaint(wintypes.HWND(hwnd), ctypes.byref(ps))
 
@@ -390,92 +527,108 @@ class Win32ProgressWindowApi:
         self,
         hdc: wintypes.HDC,
         lines: tuple[str, ...],
-        dpi: int,
+        geometry_dpi: int,
+        text_dpi: int,
         accent_color: int,
+        palette: Win32Palette,
     ) -> None:
         """Paint the fixed six-line compact summary with visual hierarchy."""
 
-        x = _scaled(24, dpi)
+        x = _scaled(24, geometry_dpi)
         styles = (
-            (18, 10, _FW_SEMIBOLD, accent_color),
-            (47, 16, _FW_SEMIBOLD, _HUD_TEXT),
-            (78, 10, _FW_NORMAL, _HUD_MUTED),
-            (114, 9, _FW_SEMIBOLD, accent_color),
-            (139, 14, _FW_SEMIBOLD, _HUD_TEXT),
-            (174, 10, _FW_NORMAL, _HUD_MUTED),
+            (10, _FW_SEMIBOLD, accent_color),
+            (16, _FW_SEMIBOLD, palette.text),
+            (10, _FW_NORMAL, palette.muted_text),
+            (9, _FW_SEMIBOLD, accent_color),
+            (14, _FW_SEMIBOLD, palette.text),
+            (10, _FW_NORMAL, palette.muted_text),
         )
-        for text, (y, points, weight, color) in zip(lines, styles, strict=True):
+        rows = _workflow_layout(geometry_dpi, text_dpi)
+        for text, (y, _height), (points, weight, color) in zip(
+            lines, rows, styles, strict=True
+        ):
             self._text(
                 hdc,
                 x,
-                _scaled(y, dpi),
+                y,
                 text,
                 points=points,
                 weight=weight,
                 color=color,
-                dpi=dpi,
+                dpi=text_dpi,
             )
 
     def _paint_workflow_checklist(
         self,
         hdc: wintypes.HDC,
         lines: tuple[str, ...],
-        dpi: int,
+        geometry_dpi: int,
+        text_dpi: int,
         accent_color: int,
+        palette: Win32Palette,
     ) -> None:
         """Paint the bounded checklist beneath the unchanged compact summary."""
 
+        checklist_steps = (len(lines) - 1) // 2
+        rows = _workflow_layout(
+            geometry_dpi,
+            text_dpi,
+            checklist_steps=checklist_steps,
+        )
+        header_top, _header_height = rows[6]
         self._text(
             hdc,
-            _scaled(24, dpi),
-            _scaled(218, dpi),
+            _scaled(24, geometry_dpi),
+            header_top,
             lines[0],
             points=9,
             weight=_FW_SEMIBOLD,
             color=accent_color,
-            dpi=dpi,
+            dpi=text_dpi,
         )
-        y = 247
-        for index in range(1, len(lines), 2):
+        for step_index, index in enumerate(range(1, len(lines), 2)):
+            title_top, _title_height = rows[7 + step_index * 2]
+            meta_top, _meta_height = rows[8 + step_index * 2]
             self._text(
                 hdc,
-                _scaled(24, dpi),
-                _scaled(y, dpi),
+                _scaled(24, geometry_dpi),
+                title_top,
                 lines[index],
                 points=11,
                 weight=_FW_SEMIBOLD,
-                color=_HUD_TEXT,
-                dpi=dpi,
+                color=palette.text,
+                dpi=text_dpi,
             )
             self._text(
                 hdc,
-                _scaled(24, dpi),
-                _scaled(y + 22, dpi),
+                _scaled(24, geometry_dpi),
+                meta_top,
                 lines[index + 1],
                 points=9,
                 weight=_FW_NORMAL,
-                color=_HUD_MUTED,
-                dpi=dpi,
+                color=palette.muted_text,
+                dpi=text_dpi,
             )
-            y += 47
 
     def _paint_toggle(
         self,
         hdc: wintypes.HDC,
         *,
         expanded: bool,
-        dpi: int,
+        geometry_dpi: int,
+        text_dpi: int,
+        palette: Win32Palette,
     ) -> None:
         width = _EXPANDED_WIN_W if expanded else _DEFAULT_WIN_W
         self._text(
             hdc,
-            _scaled(width - 132, dpi),
-            _scaled(18, dpi),
+            _scaled(width - 132, geometry_dpi),
+            _scaled(18, geometry_dpi),
             "HIDE STEPS  ∧" if expanded else "SHOW STEPS  ∨",
             points=9,
             weight=_FW_SEMIBOLD,
-            color=_HUD_MUTED,
-            dpi=dpi,
+            color=palette.muted_text,
+            dpi=text_dpi,
         )
 
     def _text(
@@ -538,8 +691,27 @@ class Win32ProgressWindowApi:
         lines = self._lines.get(int(hwnd), ())
         return len(lines) > 6 and lines[6] == "WORKFLOW CHECKLIST"
 
+    def _set_accessible_name(self, hwnd: int, name: str) -> None:
+        """Publish one bounded status change without activating the window."""
+
+        key = int(hwnd)
+        if self._accessible_names.get(key) == name:
+            return
+        if not self._user32.SetWindowTextW(wintypes.HWND(hwnd), name):
+            return
+        self._accessible_names[key] = name
+        self._user32.NotifyWinEvent(
+            _EVENT_OBJECT_NAMECHANGE,
+            wintypes.HWND(hwnd),
+            _OBJID_WINDOW,
+            _CHILDID_SELF,
+        )
+
     def _point_in_toggle(self, hwnd: int, lparam: int, *, expanded: bool) -> bool:
-        dpi = self._window_dpi(hwnd)
+        dpi = layout_dpi(
+            self._window_dpi(hwnd),
+            self.accessibility.text_scale_factor,
+        )
         width = _EXPANDED_WIN_W if expanded else _DEFAULT_WIN_W
         x = ctypes.c_short(lparam & 0xFFFF).value
         y = ctypes.c_short((lparam >> 16) & 0xFFFF).value
@@ -555,13 +727,6 @@ class Win32ProgressWindowApi:
         observed = int(get_dpi(wintypes.HWND(hwnd)))
         return observed if observed > 0 else 96
 
-    @staticmethod
-    def _rgb_to_colorref(rgb: int) -> int:
-        red = (rgb >> 16) & 0xFF
-        green = (rgb >> 8) & 0xFF
-        blue = rgb & 0xFF
-        return red | (green << 8) | (blue << 16)
-
     def _system_dpi(self) -> int:
         get_dpi = getattr(self._user32, "GetDpiForSystem", None)
         if get_dpi is not None:
@@ -573,7 +738,12 @@ class Win32ProgressWindowApi:
 
     def _resize_summary(self, hwnd: int, *, expanded: bool) -> None:
         dpi = self._window_dpi(hwnd)
-        width, height = _window_size(expanded, dpi)
+        geometry_dpi = layout_dpi(dpi, self.accessibility.text_scale_factor)
+        width, height = _window_size(
+            expanded,
+            dpi,
+            text_scale_factor=self.accessibility.text_scale_factor,
+        )
         flags = _SWP_NOZORDER | _SWP_NOACTIVATE
         x = 0
         y = 0
@@ -581,7 +751,7 @@ class Win32ProgressWindowApi:
             x, y = _top_right_origin(
                 self._work_area(hwnd),
                 (width, height),
-                margin=_scaled(_CORNER_MARGIN, dpi),
+                margin=_scaled(_CORNER_MARGIN, geometry_dpi),
             )
         else:
             flags |= _SWP_NOMOVE
@@ -621,6 +791,16 @@ class Win32ProgressWindowApi:
         )
 
     def _configure_window_apis(self) -> None:
+        self._user32.GetSysColor.argtypes = [ctypes.c_int]
+        self._user32.GetSysColor.restype = wintypes.DWORD
+        self._user32.SetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPCWSTR]
+        self._user32.SetWindowTextW.restype = wintypes.BOOL
+        self._user32.NotifyWinEvent.argtypes = [
+            wintypes.DWORD,
+            wintypes.HWND,
+            wintypes.LONG,
+            wintypes.LONG,
+        ]
         self._user32.MonitorFromWindow.argtypes = [
             wintypes.HWND,
             wintypes.DWORD,

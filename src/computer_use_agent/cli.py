@@ -49,12 +49,16 @@ def _presence_lifecycle(config: AgentConfig) -> PresenceLifecyclePort | None:
     from .presence_window import PassivePresenceWindow
     from .presence_window_win32 import Win32PresenceWindowApi
 
+    accessibility = _operator_accessibility(config)
+
     return RunPresenceCoordinator(
-        PassivePresenceWindow(Win32PresenceWindowApi()),
+        PassivePresenceWindow(
+            Win32PresenceWindowApi(accessibility=accessibility)
+        ),
         preferences=PresencePreferences(
             enabled=True,
-            reduced_motion=operator.reduced_motion,
-            high_contrast=operator.high_contrast,
+            reduced_motion=accessibility.reduced_motion,
+            high_contrast=accessibility.high_contrast,
         ),
     )
 
@@ -70,7 +74,7 @@ def _progress_lifecycle(config: AgentConfig) -> ProgressLifecyclePort | None:
         from .progress_window import PassiveProgressWindow
         from .progress_window_win32 import Win32ProgressWindowApi
 
-        api = Win32ProgressWindowApi()
+        api = Win32ProgressWindowApi(accessibility=_operator_accessibility(config))
         window = PassiveProgressWindow(api)
         poller = ProgressPoller(config.state_dir, window)
         return RunProgressCoordinator(poller, pump=api.pump)
@@ -137,11 +141,23 @@ def _approval_port(
         DecisionCardWindow(
             Win32DecisionCardWindowApi(
                 corner=config.operator.decision_card_corner,
+                accessibility=_operator_accessibility(config),
             )
         ),
         timeout_seconds=config.operator.decision_timeout_seconds,
         takeover_enabled=cooperative_takeover,
         attention=attention,
+    )
+
+
+def _operator_accessibility(config: AgentConfig):  # noqa: ANN202
+    """Resolve presentation-only system preferences without opening a UI."""
+
+    from .operator_accessibility import resolve_operator_accessibility
+
+    return resolve_operator_accessibility(
+        force_high_contrast=config.operator.high_contrast,
+        force_reduced_motion=config.operator.reduced_motion,
     )
 
 

@@ -104,6 +104,14 @@ class PresenceUpdate:
     capture_excluded: bool
 
 
+def presence_accessible_name(view: PresenceView) -> str:
+    """Return the fixed click-through halo alternative exposed to UIA clients."""
+
+    if not isinstance(view, PresenceView):
+        raise PresenceWindowError("PRESENCE_ACCESSIBLE_VIEW_INVALID")
+    return f"Computer Use. {view.glyph.capitalize()}. {view.label}."
+
+
 @dataclass
 class PassivePresenceWindow:
     """Synchronize one non-authoritative Host snapshot to a passive halo."""
@@ -171,4 +179,5 @@ __all__ = [
     "PresenceWindowApi",
     "PresenceWindowError",
     "presence_geometry",
+    "presence_accessible_name",
 ]

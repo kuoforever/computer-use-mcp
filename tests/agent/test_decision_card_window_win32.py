@@ -10,6 +10,7 @@ from computer_use_agent.decision_card_window_win32 import (
     _CARD_EX_STYLE,
     _CARD_STYLE,
     _HEADER_TIERS,
+    _HEADER_CONTROL_IDS,
     _HUD_BACKGROUND,
     _HUD_MUTED_TEXT,
     _HUD_TEXT,
@@ -19,6 +20,8 @@ from computer_use_agent.decision_card_window_win32 import (
     _layout_rects,
     _restore_if_minimized,
     _scaled_client_size,
+    _safe_default_control_id,
+    _status_announcement_seconds,
     _toggle_label,
     measure_tier_text_width,
 )
@@ -114,6 +117,7 @@ def test_expanded_layout_reveals_separate_bounded_detail_panes(dpi: int) -> None
     rects = _layout_rects(width, height, 4, expanded=True, dpi=dpi)
 
     details = rects["details"]
+    details_label = rects["details_label"]
     toggle = rects["toggle"]
     first_button = rects["button_0"]
     # One scroll context, not two stacked ones, and it clears the affordance
@@ -121,8 +125,72 @@ def test_expanded_layout_reveals_separate_bounded_detail_panes(dpi: int) -> None
     assert "content" not in rects
     assert "evidence" not in rects
     assert toggle[1] + toggle[3] <= details[1]
+    assert toggle[1] + toggle[3] <= details_label[1]
+    assert details_label[1] + details_label[3] == details[1]
     assert details[1] + details[3] < first_button[1]
     assert details[0] + details[2] <= width
+
+
+@pytest.mark.parametrize("text_scale_factor", [1.0, 2.0, 4.0])
+@pytest.mark.parametrize("expanded", [False, True])
+def test_layout_reflows_through_400_percent_without_control_overlap(
+    text_scale_factor: float,
+    expanded: bool,
+) -> None:
+    width, height = _scaled_client_size(
+        expanded,
+        96,
+        text_scale_factor=text_scale_factor,
+    )
+    rects = _layout_rects(
+        width,
+        height,
+        4,
+        expanded=expanded,
+        dpi=96,
+        text_scale_factor=text_scale_factor,
+    )
+    header = _header_rects(width, 96, text_scale_factor=text_scale_factor)
+
+    header_bottom = max(top + rect_height for (left, top, rect_width, rect_height), _tier in header.values())
+    toggle = rects["toggle"]
+    first_button = rects["button_0"]
+    assert header_bottom <= toggle[1]
+    assert toggle[1] + toggle[3] <= first_button[1]
+    if expanded:
+        details = rects["details"]
+        details_label = rects["details_label"]
+        assert toggle[1] + toggle[3] <= details[1]
+        assert details_label[1] + details_label[3] == details[1]
+        assert details[1] + details[3] <= first_button[1]
+    for x, y, control_width, control_height in rects.values():
+        assert x >= 0 and y >= 0
+        assert x + control_width <= width
+        assert y + control_height <= height
+
+
+def test_header_is_exposed_by_distinct_native_text_controls() -> None:
+    assert tuple(_HEADER_CONTROL_IDS) == (2003, 2004, 2006, 2007)
+    assert len(set(_HEADER_CONTROL_IDS)) == len(_HEADER_TIERS)
+
+
+def test_deny_is_the_only_safe_default_and_is_required() -> None:
+    assert _safe_default_control_id(
+        {
+            1001: "option_approve_exact_effect",
+            1002: "option_reobserve",
+            1003: "option_defer",
+            1004: "option_deny",
+        }
+    ) == 1004
+    with pytest.raises(OSError, match="DECISION_CARD_SAFE_DEFAULT_REQUIRED"):
+        _safe_default_control_id({1001: "option_approve_exact_effect"})
+
+
+def test_timeout_announcements_are_bounded_not_one_event_per_second() -> None:
+    assert _status_announcement_seconds(300) == (300, 60, 30, 10, 0)
+    assert _status_announcement_seconds(30) == (30, 10, 0)
+    assert _status_announcement_seconds(5) == (5, 0)
 
 
 def test_card_frame_offers_no_resize_maximize_or_minimize() -> None:
@@ -143,8 +211,8 @@ def test_choice_controls_are_owner_drawn_without_a_default_push_type() -> None:
 
     style = _BS_OWNERDRAW | _BS_MULTILINE
     assert style & 0x0F == _BS_OWNERDRAW
-    assert _toggle_label(False) == "SHOW DETAILS  ∨"
-    assert _toggle_label(True) == "HIDE DETAILS  ∧"
+    assert _toggle_label(False) == "Show details"
+    assert _toggle_label(True) == "Hide details"
 
 
 def test_header_tiers_match_the_four_line_controller_contract() -> None:
@@ -275,6 +343,11 @@ def test_the_decision_card_never_reaches_for_an_input_trapping_api() -> None:
 
     for name in _TRAPPING_WIN32_CALLS:
         assert name not in source, f"the Decision Card must not call {name}"
+
+    assert "IsDialogMessageW" in source
+    assert "SetFocus(controls[safe_default_name])" in source
+    assert "focused_id in id_to_option" in source
+    assert "GetNextDlgTabItem" in source
 
 
 def test_every_non_choice_exit_denies_rather_than_selecting() -> None:

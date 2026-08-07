@@ -2657,7 +2657,7 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
     monkeypatch.setattr(
         decision_card_window_win32,
         "Win32DecisionCardWindowApi",
-        lambda *, corner: (native, corner),
+        lambda *, corner, accessibility: (native, corner, accessibility),
     )
     notifier = object()
     monkeypatch.setattr(
@@ -2670,7 +2670,8 @@ def test_cli_builds_opt_in_decision_card_approval_with_configured_timeout(
 
     assert isinstance(port, DecisionCardApprovalPort)
     assert port._timeout_seconds == 45
-    assert port._surface.api == (native, "top_left")
+    assert port._surface.api[:2] == (native, "top_left")
+    assert port._surface.api[2].text_scale_factor == 1.0
     assert isinstance(port._attention, ApprovalAttentionLifecycle)
     assert port._attention.store.state_dir == config.state_dir
     assert port._attention.notifications is notifier
@@ -2706,8 +2707,9 @@ def test_cli_builds_progress_lifecycle_only_for_explicit_opt_in(
     }
     constructed = 0
 
-    def native_api() -> FakeProgressWindowApi:
+    def native_api(*, accessibility: object) -> FakeProgressWindowApi:
         nonlocal constructed
+        assert accessibility is not None
         constructed += 1
         api = FakeProgressWindowApi()
         api.pump = lambda: None  # type: ignore[attr-defined]
@@ -2763,7 +2765,8 @@ def test_progress_native_construction_failure_is_fail_silent(
         operator=OperatorConfig(progress_enabled=True),
     )
 
-    def fail_native() -> None:
+    def fail_native(*, accessibility: object) -> None:
+        assert accessibility is not None
         raise OSError("native unavailable")
 
     monkeypatch.setattr(

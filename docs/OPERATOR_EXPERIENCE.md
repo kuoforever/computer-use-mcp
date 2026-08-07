@@ -18,7 +18,13 @@
 > campaign execution commands also project their durable run phases through
 > presence and start the same campaign-state progress poller; zero-port campaign
 > control remains window-free.
-> Multi-monitor support and abrupt-process teardown remain separate gates.
+> Multi-monitor support and abrupt-process teardown remain separate gates. The
+> composed Windows surfaces now share the implemented
+> [operator accessibility contract](OPERATOR_ACCESSIBILITY.md): safe keyboard
+> traversal, native UIA semantics, bounded status announcements, Windows High
+> Contrast/reduced-motion preferences, and 200%/400% text reflow are offline
+> verified, with a bounded native UIA smoke. Human Narrator/NVDA review and live
+> large-text visual acceptance remain separate gates.
 > Decision Card compilation,
 > choice validation, and a configurable four-choice focus-taking Win32 adapter are
 > implemented through the existing `ApprovalPort`. The approved-action flow
@@ -117,7 +123,9 @@ and keeps its right edge fixed while its checklist expands or collapses. An
 explicit operator move opts out of automatic anchoring. Decision Card occupies
 the bottom-right rail, takes focus only for the bound decision, and restores the
 captured prior foreground window on every exit. Pure geometry covers 100%,
-125%, and 150% DPI against the bounded Demo application rectangle. An isolated
+125%, and 150% DPI against the bounded Demo application rectangle; the current
+accessibility slice separately reflows controls and text through 400% effective
+scale. An isolated
 Computer Use review at the current DPI confirmed the passive foreground,
 focus-taking card, and `Esc` restoration sequence; this is not retained
 Chrome/Word or multi-monitor evidence.
@@ -174,8 +182,8 @@ both consume it directly. Decision Card uses the same amber `Needs input`
 token while retaining the separate `approval locked` boundary. The older
 run/campaign diagnostic projection also uses `In progress`, `Needs input`,
 `Paused`, `Ready`, `Failed`, `Cancelled`, and `Needs inspection` rather than a
-second vocabulary. High contrast may replace color with white, but never
-removes the fixed label or glyph.
+second vocabulary. High Contrast uses the operator's selected Windows system
+colors and never removes the fixed label or glyph.
 
 Implementation requirements:
 
@@ -272,7 +280,9 @@ state, completed/skipped/not-started counts, total chapters, exact current
 chapter, and application. In this mode run IDs, provider/tool counters, and the
 seven-approval count are absent. Ordinary poller paths retain their existing
 diagnostic rendering until a later slice supplies durable workflow state. The
-native summary sizes both its window and text geometry from the observed DPI;
+native summary combines observed DPI with the Windows text-scale preference.
+Containers grow through 200%; larger text reflows from requested font height,
+including every summary/checklist row through 400% effective scale;
 an isolated Computer Use review at the current desktop DPI confirmed that the
 fixed title, counts, current chapter, action, and application fit without
 overlap or clipping. This is visual review, not retained production lifecycle
@@ -354,6 +364,14 @@ option outcomes/trade-offs and human-readable safety checks. Internal enum
 values and complete digests are not operator prose; technical correlation is
 shown only as labeled short fingerprints. Collapsing restores the saved compact
 geometry and does not create a new decision or selection.
+
+The card's native Text, Edit, and Button controls expose standard Windows UIA
+semantics. The unique safe `Deny` choice receives initial focus. Native dialog
+navigation owns `Tab`, `Shift+Tab`, arrows, and `Space`; `Enter` activates only a
+known focused toggle or choice, while `Esc` remains safe denial. Countdown name
+changes are limited to bounded milestones rather than every timer tick. The
+full contract, deterministic evidence, and native UIA-smoke limit are recorded
+in [Operator accessibility](OPERATOR_ACCESSIBILITY.md).
 
 At the current desktop DPI, Computer Use inspected a visual-only card carrying
 the same trusted labels used by the bounded Demo. Compact state visibly showed

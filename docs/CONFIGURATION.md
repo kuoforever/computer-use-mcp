@@ -274,6 +274,16 @@ same immediate teardown applies to fixed campaign MCP calls. Campaign
 prepare/start/resume control commands remain window-free. The integration
 remains primary-display-only.
 
+`high_contrast` and `reduced_motion` are force-on presentation preferences for
+all three composed operator surfaces, not replacements for Windows settings.
+The Host also reads system High Contrast, animation, and text-scale preferences;
+either configured or system High Contrast/reduced motion wins. Text scale is
+always system-owned and combines with display DPI through 400%, with container
+growth through 200% followed by reflow. If those public Windows preference APIs
+are unavailable or invalid, presentation falls back to the compatible 100%
+defaults without affecting run authority. See
+[Operator accessibility](OPERATOR_ACCESSIBILITY.md).
+
 ## Passive progress lifecycle
 
 The Agent `run`, `resume`, bounded observation-only `ask` / `plan run`, and explicit
@@ -338,6 +348,12 @@ allow remains bound to the original
 `ApprovalRequest` and continues through the existing grounding, budget, MCP,
 audit, and post-action verification path. The adapter is Windows-only and does
 not apply to read-only, planned, campaign, or recovery runtimes.
+
+The native card starts keyboard focus on `Deny`; native dialog traversal handles
+`Tab`, `Shift+Tab`, arrows, `Space`, and bounded focused-control `Enter`, while
+`Esc` denies. Its standard Text/Edit/Button UIA semantics, labelled details
+pane, announcement milestones, High Contrast, reduced motion, and large-text
+rules are owned by [Operator accessibility](OPERATOR_ACCESSIBILITY.md).
 
 When Decision Cards are enabled, the Host also publishes one strict private,
 expiring Approval Inbox record after card compilation. `approval inbox` reads

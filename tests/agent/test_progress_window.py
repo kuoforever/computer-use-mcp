@@ -30,6 +30,7 @@ from computer_use_agent.progress_window import (
     render_progress_lines,
     render_workflow_detail_lines,
     render_workflow_summary_lines,
+    workflow_accessible_name,
 )
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
 from computer_use_agent.workflow_checklist import WorkflowStatus
@@ -300,6 +301,22 @@ def test_workflow_summary_answers_global_progress_questions() -> None:
         "Open the research brief",
         "Microsoft Word",
     )
+
+
+def test_workflow_accessible_name_contains_only_the_bounded_operator_summary() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    name = workflow_accessible_name(render_workflow_summary_lines(checklist))
+
+    assert name == (
+        "Computer Use. In progress. Workflow Public-source research brief update. "
+        "Current step 3 of 6. Open the research brief. Application Microsoft Word."
+    )
+    assert len(name) <= 600
 
 
 def test_workflow_summary_hides_tool_budget_and_run_diagnostics() -> None:

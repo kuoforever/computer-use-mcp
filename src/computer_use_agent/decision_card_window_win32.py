@@ -24,6 +24,13 @@ from .operator_visuals import (
     OperatorVisualRole,
     operator_visual,
 )
+from .operator_accessibility import (
+    OperatorAccessibilitySettings,
+    Win32Palette,
+    effective_text_dpi,
+    layout_dpi,
+    win32_palette,
+)
 
 from .decision_card_window import DecisionCardButton
 
@@ -57,6 +64,12 @@ _WM_DRAWITEM = 0x002B
 _TDM_CLICK_BUTTON = 0x0400 + 102
 _BN_CLICKED = 0
 _VK_ESCAPE = 0x1B
+_VK_RETURN = 0x0D
+_VK_TAB = 0x09
+_VK_SHIFT = 0x10
+_EVENT_OBJECT_NAMECHANGE = 0x800C
+_OBJID_WINDOW = 0
+_CHILDID_SELF = 0
 
 _WS_CAPTION = 0x00C00000
 _WS_SYSMENU = 0x00080000
@@ -80,6 +93,8 @@ _ES_AUTOVSCROLL = 0x0040
 _ES_READONLY = 0x0800
 _BS_MULTILINE = 0x00002000
 _BS_OWNERDRAW = 0x0000000B
+_SS_LEFT = 0x00000000
+_SS_NOPREFIX = 0x00000080
 
 _ODS_SELECTED = 0x0001
 _ODS_FOCUS = 0x0010
@@ -106,7 +121,10 @@ _DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 _FIRST_BUTTON_ID = 1001
 _CONTENT_ID = 2001
 _EVIDENCE_TOGGLE_ID = 2002
+_HEADER_CONTROL_IDS = (2003, 2004, 2006, 2007)
 _ACCENT_ID = 2005
+_COUNTDOWN_ID = 2008
+_DETAILS_LABEL_ID = 2009
 _TIMER_ID = 1
 _TIMER_INTERVAL_MS = 250
 
@@ -251,23 +269,52 @@ def _corner_origin(
 def _scaled_client_size(
     expanded: bool,
     dpi: int,
+    *,
+    text_scale_factor: float = 1.0,
 ) -> tuple[int, int]:
-    """Return intentional logical geometry for one DPI-aware card state."""
+    """Return a 400%-safe client size with geometry capped for reflow."""
 
-    if not 96 <= dpi <= 768:
-        dpi = _BASE_DPI
+    geometry_dpi = layout_dpi(dpi, text_scale_factor)
+    text_dpi = effective_text_dpi(dpi, text_scale_factor)
     width = _EXPANDED_CLIENT_WIDTH if expanded else _COMPACT_CLIENT_WIDTH
     height = _EXPANDED_CLIENT_HEIGHT if expanded else _COMPACT_CLIENT_HEIGHT
+    client_width = max(1, round(width * geometry_dpi / _BASE_DPI))
+    desired_height = max(1, round(height * geometry_dpi / _BASE_DPI))
+    header_bottom = max(
+        top + rect_height
+        for (_left, top, _width, rect_height), _tier in _header_rects(
+            client_width,
+            dpi,
+            text_scale_factor=text_scale_factor,
+        ).values()
+    )
+
+    def scale(value: int) -> int:
+        return max(1, round(value * geometry_dpi / _BASE_DPI))
+
+    micro_height = max(
+        scale(26),
+        _tier_font_height(OPERATOR_TYPE_MICRO_LABEL, text_dpi) + scale(8),
+    )
+    button_height = max(
+        scale(42),
+        _tier_font_height(OPERATOR_TYPE_META, text_dpi) + scale(16),
+    )
+    gap = scale(8)
+    buttons_height = 2 * button_height + gap
+    required_height = header_bottom + gap + micro_height + gap + buttons_height + scale(20)
+    if expanded:
+        required_height += scale(128) + gap
     return (
-        max(1, round(width * dpi / _BASE_DPI)),
-        max(1, round(height * dpi / _BASE_DPI)),
+        client_width,
+        max(desired_height, required_height),
     )
 
 
 def _toggle_label(expanded: bool) -> str:
-    """Match the Progress HUD's SHOW/HIDE affordance wording and chevron."""
+    """Use one visible/UIA-safe label without symbol-encoding dependence."""
 
-    return "HIDE DETAILS  ∧" if expanded else "SHOW DETAILS  ∨"
+    return "Hide details" if expanded else "Show details"
 
 
 #: Private handles for the measurement helper. It prototypes GDI calls too, and
@@ -353,6 +400,8 @@ def measure_tier_text_width(
 def _header_rects(
     client_width: int,
     dpi: int = _BASE_DPI,
+    *,
+    text_scale_factor: float = 1.0,
 ) -> dict[str, tuple[tuple[int, int, int, int], OperatorTypeTier]]:
     """Compute the painted header rectangles and the tier each one uses.
 
@@ -361,33 +410,38 @@ def _header_rects(
     all fitted the client area while the title inside one of them was clipped.
     """
 
-    if not 96 <= dpi <= 768:
-        dpi = _BASE_DPI
+    geometry_dpi = layout_dpi(dpi, text_scale_factor)
+    text_dpi = effective_text_dpi(dpi, text_scale_factor)
 
     def scale(value: int) -> int:
-        return max(1, round(value * dpi / _BASE_DPI))
+        return max(1, round(value * geometry_dpi / _BASE_DPI))
 
     margin = scale(20)
     countdown_width = scale(120)
     rects: dict[str, tuple[tuple[int, int, int, int], OperatorTypeTier]] = {}
+    top = margin
     for index, (offset, tier, _is_accent) in enumerate(_HEADER_TIERS):
-        top = margin + scale(offset)
         # Only the micro-label shares its row with the countdown. Giving every
         # row that reserve clipped the one line that matters most: the action
         # being approved.
         right = client_width - margin
         if index == 0:
             right -= countdown_width
+        height = max(
+            scale(tier.points * 2),
+            _tier_font_height(tier, text_dpi) + scale(4),
+        )
         rects[f"line_{index}"] = (
-            (margin, top, max(1, right - margin), scale(tier.points * 2)),
+            (margin, top, max(1, right - margin), height),
             tier,
         )
+        top += height + scale(4)
     rects["countdown"] = (
         (
             max(0, client_width - margin - countdown_width),
             margin,
             countdown_width,
-            scale(20),
+            rects["line_0"][0][3],
         ),
         OPERATOR_TYPE_MICRO_LABEL,
     )
@@ -401,22 +455,34 @@ def _layout_rects(
     *,
     expanded: bool,
     dpi: int = _BASE_DPI,
+    text_scale_factor: float = 1.0,
 ) -> dict[str, tuple[int, int, int, int]]:
     """Compute a fixed 2x2 compact grid and bounded expanded detail panes."""
 
-    if not 96 <= dpi <= 768:
-        dpi = _BASE_DPI
+    geometry_dpi = layout_dpi(dpi, text_scale_factor)
+    text_dpi = effective_text_dpi(dpi, text_scale_factor)
 
     def scale(value: int) -> int:
-        return max(1, round(value * dpi / _BASE_DPI))
+        return max(1, round(value * geometry_dpi / _BASE_DPI))
 
     margin = scale(20)
     gap = scale(8)
-    # The header is painted, not built from child controls, so it owns no
-    # rectangle here. This is the reserved band the toggle must clear.
-    header_height = scale(96)
-    toggle_height = scale(26)
-    button_height = scale(42)
+    header_bottom = max(
+        top + rect_height
+        for (_left, top, _width, rect_height), _tier in _header_rects(
+            width,
+            dpi,
+            text_scale_factor=text_scale_factor,
+        ).values()
+    )
+    toggle_height = max(
+        scale(26),
+        _tier_font_height(OPERATOR_TYPE_MICRO_LABEL, text_dpi) + scale(8),
+    )
+    button_height = max(
+        scale(42),
+        _tier_font_height(OPERATOR_TYPE_META, text_dpi) + scale(16),
+    )
     columns = 2
     rows = (button_count + columns - 1) // columns
     buttons_height = rows * button_height + max(0, rows - 1) * gap
@@ -434,7 +500,7 @@ def _layout_rects(
         ),
         "toggle": (
             margin,
-            margin + header_height,
+            header_bottom + gap,
             min(scale(140), width - 2 * margin),
             toggle_height,
         ),
@@ -453,25 +519,80 @@ def _layout_rects(
         # context inside a fixed card was the last structural difference from
         # the reference interfaces, and it was also what clipped text: a fixed
         # 55/45 split cut whichever section happened to be longer.
-        details_top = margin + header_height + toggle_height + gap
+        details_top = rects["toggle"][1] + toggle_height + gap
         details_bottom = buttons_top - gap
-        rects["details"] = (
+        detail_region = (
             margin,
             details_top,
             width - 2 * margin,
             max(128, details_bottom - details_top),
         )
+        details_label_height = max(
+            scale(22),
+            _tier_font_height(OPERATOR_TYPE_META, text_dpi) + scale(4),
+        )
+        rects["details_label"] = (
+            detail_region[0],
+            detail_region[1],
+            detail_region[2],
+            details_label_height,
+        )
+        rects["details"] = (
+            detail_region[0],
+            detail_region[1] + details_label_height,
+            detail_region[2],
+            max(1, detail_region[3] - details_label_height),
+        )
     return rects
+
+
+def _safe_default_control_id(id_to_option: dict[int, str]) -> int:
+    """Require one exact deny option before native keyboard input is accepted."""
+
+    safe_ids = [
+        control_id
+        for control_id, option_id in id_to_option.items()
+        if option_id == "option_deny"
+    ]
+    if len(safe_ids) != 1:
+        raise OSError("DECISION_CARD_SAFE_DEFAULT_REQUIRED")
+    return safe_ids[0]
+
+
+def _status_announcement_seconds(timeout_seconds: int) -> tuple[int, ...]:
+    """Return bounded name-change milestones for one visible countdown."""
+
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int)
+        or not 5 <= timeout_seconds <= 3_600
+    ):
+        raise ValueError("DECISION_CARD_TIMEOUT_INVALID")
+    return tuple(
+        dict.fromkeys(
+            value
+            for value in (timeout_seconds, 60, 30, 10, 0)
+            if value == timeout_seconds or value < timeout_seconds
+        )
+    )
 
 
 class Win32DecisionCardWindowApi:
     """Show a timed, fixed-geometry Decision Card in one dark HUD window."""
 
-    def __init__(self, *, corner: DecisionCardCorner = "bottom_right") -> None:
+    def __init__(
+        self,
+        *,
+        corner: DecisionCardCorner = "bottom_right",
+        accessibility: OperatorAccessibilitySettings | None = None,
+    ) -> None:
         if corner not in _VALID_CORNERS:
             raise ValueError("decision card corner is invalid")
         enable_dpi_awareness()
         self.corner = corner
+        self.accessibility = accessibility or OperatorAccessibilitySettings()
+        if not isinstance(self.accessibility, OperatorAccessibilitySettings):
+            raise ValueError("decision card accessibility settings are invalid")
         self._user32 = private_windll("user32")
         self._kernel32 = private_windll("kernel32")
         self._gdi32 = private_windll("gdi32")
@@ -484,6 +605,8 @@ class Win32DecisionCardWindowApi:
         kernel32 = self._kernel32
         user32.GetForegroundWindow.restype = wintypes.HWND
         user32.GetDpiForSystem.restype = wintypes.UINT
+        user32.GetSysColor.argtypes = [ctypes.c_int]
+        user32.GetSysColor.restype = wintypes.DWORD
         user32.GetDlgCtrlID.argtypes = [wintypes.HWND]
         user32.GetDlgCtrlID.restype = ctypes.c_int
         user32.IsWindow.argtypes = [wintypes.HWND]
@@ -507,6 +630,15 @@ class Win32DecisionCardWindowApi:
         user32.BringWindowToTop.restype = wintypes.BOOL
         user32.SetFocus.argtypes = [wintypes.HWND]
         user32.SetFocus.restype = wintypes.HWND
+        user32.GetFocus.restype = wintypes.HWND
+        user32.GetKeyState.argtypes = [ctypes.c_int]
+        user32.GetKeyState.restype = ctypes.c_short
+        user32.GetNextDlgTabItem.argtypes = [
+            wintypes.HWND,
+            wintypes.HWND,
+            wintypes.BOOL,
+        ]
+        user32.GetNextDlgTabItem.restype = wintypes.HWND
         user32.SetWindowPos.argtypes = [
             wintypes.HWND,
             wintypes.HWND,
@@ -597,6 +729,14 @@ class Win32DecisionCardWindowApi:
         # is the same, but ctypes pointer classes are nominally distinct.
         user32.TranslateMessage.argtypes = [ctypes.c_void_p]
         user32.DispatchMessageW.argtypes = [ctypes.c_void_p]
+        user32.IsDialogMessageW.argtypes = [wintypes.HWND, ctypes.c_void_p]
+        user32.IsDialogMessageW.restype = wintypes.BOOL
+        user32.NotifyWinEvent.argtypes = [
+            wintypes.DWORD,
+            wintypes.HWND,
+            wintypes.LONG,
+            wintypes.LONG,
+        ]
         user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
         user32.MonitorFromWindow.restype = wintypes.HANDLE
         user32.GetMonitorInfoW.argtypes = [
@@ -820,6 +960,7 @@ class Win32DecisionCardWindowApi:
         hairline_brush: wintypes.HBRUSH,
         accent_brush: wintypes.HBRUSH,
         accent_color: int,
+        palette: Win32Palette,
         is_toggle: bool,
         is_safe_default: bool,
         dpi: int,
@@ -847,7 +988,7 @@ class Win32DecisionCardWindowApi:
                 item.rcItem,
                 label,
                 tier=OPERATOR_TYPE_MICRO_LABEL,
-                color=accent_color if focused else _HUD_MUTED_TEXT,
+                color=accent_color if focused else palette.muted_text,
                 dpi=dpi,
                 format_flags=_DT_SINGLELINE | _DT_LEFT | _DT_VCENTER,
             )
@@ -874,7 +1015,7 @@ class Win32DecisionCardWindowApi:
             item.rcItem,
             label,
             tier=OPERATOR_TYPE_META,
-            color=_HUD_TEXT,
+            color=palette.text,
             dpi=dpi,
             format_flags=_DT_SINGLELINE | _DT_CENTER | _DT_VCENTER,
         )
@@ -980,11 +1121,18 @@ class Win32DecisionCardWindowApi:
         compact_window_rect: list[tuple[int, int, int, int] | None] = [None]
         deadline = time.monotonic() + timeout_seconds
         dpi = int(self._user32.GetDpiForSystem() or _BASE_DPI)
-        background_brush = self._gdi32.CreateSolidBrush(_HUD_BACKGROUND)
-        surface_brush = self._gdi32.CreateSolidBrush(_HUD_SURFACE)
-        hairline_brush = self._gdi32.CreateSolidBrush(_HUD_HAIRLINE)
+        text_scale_factor = self.accessibility.text_scale_factor
+        text_dpi = effective_text_dpi(dpi, text_scale_factor)
         attention = operator_visual(OperatorVisualRole.NEEDS_INPUT)
-        accent_color = _colorref(attention.color_rgb)
+        palette = win32_palette(
+            self._user32,
+            high_contrast=self.accessibility.high_contrast,
+            accent_rgb=attention.color_rgb,
+        )
+        background_brush = self._gdi32.CreateSolidBrush(palette.background)
+        surface_brush = self._gdi32.CreateSolidBrush(palette.surface)
+        hairline_brush = self._gdi32.CreateSolidBrush(palette.hairline)
+        accent_color = palette.accent
         accent_brush = self._gdi32.CreateSolidBrush(accent_color)
         header_lines = tuple(instruction.split("\n"))
         if len(header_lines) != len(_HEADER_TIERS):
@@ -994,11 +1142,13 @@ class Win32DecisionCardWindowApi:
             _FIRST_BUTTON_ID + index: button.option_id
             for index, button in enumerate(buttons)
         }
-        safe_default_ids = {
-            control_id
-            for control_id, option_id in id_to_option.items()
-            if option_id == "option_deny"
-        }
+        safe_default_id = _safe_default_control_id(id_to_option)
+        safe_default_ids = {safe_default_id}
+        safe_default_name = f"button_{safe_default_id - _FIRST_BUTTON_ID}"
+        announcement_seconds = frozenset(
+            _status_announcement_seconds(timeout_seconds)
+        )
+        announced_seconds: set[int] = set()
 
         def move(name: str, x: int, y: int, width: int, height: int) -> None:
             handle = controls.get(name)
@@ -1013,14 +1163,24 @@ class Win32DecisionCardWindowApi:
                 )
 
         def layout(width: int, height: int) -> None:
-            for name, rectangle in _layout_rects(
+            rects = _layout_rects(
                 width,
                 height,
                 len(buttons),
                 expanded=expanded[0],
                 dpi=dpi,
-            ).items():
+                text_scale_factor=text_scale_factor,
+            )
+            for name, rectangle in rects.items():
                 move(name, *rectangle)
+            header_rects = _header_rects(
+                width,
+                dpi,
+                text_scale_factor=text_scale_factor,
+            )
+            for index in range(len(_HEADER_TIERS)):
+                move(f"header_{index}", *header_rects[f"line_{index}"][0])
+            move("countdown", *header_rects["countdown"][0])
 
         def resize_for_state(hwnd: wintypes.HWND) -> None:
             if not expanded[0] and compact_window_rect[0] is not None:
@@ -1030,7 +1190,11 @@ class Win32DecisionCardWindowApi:
                     hwnd,
                     _CARD_STYLE,
                     _CARD_EX_STYLE,
-                    _scaled_client_size(expanded[0], dpi),
+                    _scaled_client_size(
+                        expanded[0],
+                        dpi,
+                        text_scale_factor=text_scale_factor,
+                    ),
                 )
             self._user32.SetWindowPos(
                 hwnd,
@@ -1060,14 +1224,6 @@ class Win32DecisionCardWindowApi:
                     self._user32.FillRect(
                         hdc, ctypes.byref(client), background_brush
                     )
-                    self._paint_header(
-                        hdc,
-                        client,
-                        lines=header_lines,
-                        countdown=countdown[0],
-                        accent_color=accent_color,
-                        dpi=dpi,
-                    )
                     if expanded[0]:
                         # Bound the detail region with a hairline. Without an
                         # edge the elevated surface and the scrollbar inside it
@@ -1079,6 +1235,7 @@ class Win32DecisionCardWindowApi:
                             len(buttons),
                             expanded=True,
                             dpi=dpi,
+                            text_scale_factor=text_scale_factor,
                         )["details"]
                         self._user32.FrameRect(
                             hdc,
@@ -1106,6 +1263,7 @@ class Win32DecisionCardWindowApi:
                     hairline_brush=hairline_brush,
                     accent_brush=accent_brush,
                     accent_color=accent_color,
+                    palette=palette,
                     is_toggle=int(item.CtlID) == _EVIDENCE_TOGGLE_ID,
                     is_safe_default=int(item.CtlID) in safe_default_ids,
                     dpi=dpi,
@@ -1136,6 +1294,10 @@ class Win32DecisionCardWindowApi:
                         controls["details"],
                         _SW_SHOWNORMAL if expanded[0] else _SW_HIDE,
                     )
+                    self._user32.ShowWindow(
+                        controls["details_label"],
+                        _SW_SHOWNORMAL if expanded[0] else _SW_HIDE,
+                    )
                     resize_for_state(hwnd)
                     rectangle = wintypes.RECT()
                     self._user32.GetClientRect(hwnd, ctypes.byref(rectangle))
@@ -1149,8 +1311,27 @@ class Win32DecisionCardWindowApi:
                 return 0
             if message == _WM_TIMER and int(wparam) == _TIMER_ID:
                 remaining = max(0, int(deadline - time.monotonic() + 0.999))
-                countdown[0] = f"Closes in {remaining}s"
-                self._user32.InvalidateRect(hwnd, None, False)
+                next_countdown = f"Closes in {remaining}s"
+                countdown_control = controls.get("countdown")
+                if next_countdown != countdown[0]:
+                    countdown[0] = next_countdown
+                    if countdown_control:
+                        self._user32.SetWindowTextW(
+                            countdown_control,
+                            countdown[0],
+                        )
+                if (
+                    remaining in announcement_seconds
+                    and remaining not in announced_seconds
+                ):
+                    announced_seconds.add(remaining)
+                    if countdown_control:
+                        self._user32.NotifyWinEvent(
+                            _EVENT_OBJECT_NAMECHANGE,
+                            countdown_control,
+                            _OBJID_WINDOW,
+                            _CHILDID_SELF,
+                        )
                 if remaining <= 0:
                     self._user32.DestroyWindow(hwnd)
                 return 0
@@ -1167,11 +1348,25 @@ class Win32DecisionCardWindowApi:
                     return int(
                         ctypes.cast(accent_brush, ctypes.c_void_p).value or 0
                     )
-                self._gdi32.SetTextColor(wintypes.HDC(wparam), _HUD_TEXT)
+                if control_id == _HEADER_CONTROL_IDS[0]:
+                    text_color = palette.accent
+                elif control_id in {
+                    _HEADER_CONTROL_IDS[2],
+                    _HEADER_CONTROL_IDS[3],
+                    _COUNTDOWN_ID,
+                }:
+                    text_color = palette.muted_text
+                else:
+                    text_color = palette.text
+                self._gdi32.SetTextColor(wintypes.HDC(wparam), text_color)
                 self._gdi32.SetBkColor(
                     wintypes.HDC(wparam),
-                    _HUD_SURFACE if message == _WM_CTLCOLOREDIT else _HUD_BACKGROUND,
+                    palette.surface
+                    if message == _WM_CTLCOLOREDIT
+                    else palette.background,
                 )
+                if message == _WM_CTLCOLORSTATIC:
+                    self._gdi32.SetBkMode(wintypes.HDC(wparam), _TRANSPARENT)
                 brush = (
                     surface_brush
                     if message == _WM_CTLCOLOREDIT
@@ -1198,6 +1393,7 @@ class Win32DecisionCardWindowApi:
         hwnd = None
         font = None
         owns_font = False
+        owned_header_fonts: list[wintypes.HGDIOBJ] = []
         try:
             style = _CARD_STYLE
             ex_style = _CARD_EX_STYLE
@@ -1205,7 +1401,11 @@ class Win32DecisionCardWindowApi:
                 foreground_before,
                 style,
                 ex_style,
-                _scaled_client_size(False, dpi),
+                _scaled_client_size(
+                    False,
+                    dpi,
+                    text_scale_factor=text_scale_factor,
+                ),
             )
             hwnd = self._user32.CreateWindowExW(
                 ex_style,
@@ -1224,7 +1424,7 @@ class Win32DecisionCardWindowApi:
             if not hwnd:
                 raise OSError("DECISION_CARD_WINDOW_CREATE_FAILED")
             compact_window_rect[0] = (x, y, width, height)
-            dark_mode = wintypes.BOOL(True)
+            dark_mode = wintypes.BOOL(not self.accessibility.high_contrast)
             self._dwmapi.DwmSetWindowAttribute(
                 hwnd,
                 _DWMWA_USE_IMMERSIVE_DARK_MODE,
@@ -1233,7 +1433,7 @@ class Win32DecisionCardWindowApi:
             )
 
             font = self._gdi32.CreateFontW(
-                -max(13, round(10 * dpi / 72)),
+                -max(13, round(10 * text_dpi / 72)),
                 0,
                 0,
                 0,
@@ -1261,6 +1461,7 @@ class Win32DecisionCardWindowApi:
                 *,
                 ex: int = 0,
                 visible: bool = True,
+                control_font: wintypes.HGDIOBJ | None = None,
             ) -> wintypes.HWND:
                 rendered_text = (
                     text.replace("\n", "\r\n")
@@ -1286,13 +1487,40 @@ class Win32DecisionCardWindowApi:
                 if not handle:
                     raise OSError("DECISION_CARD_CONTROL_CREATE_FAILED")
                 controls[name] = handle
-                self._user32.SendMessageW(handle, _WM_SETFONT, font, 1)
+                self._user32.SendMessageW(
+                    handle,
+                    _WM_SETFONT,
+                    control_font or font,
+                    1,
+                )
                 self._uxtheme.SetWindowTheme(
                     handle,
-                    "DarkMode_Explorer",
+                    "" if self.accessibility.high_contrast else "DarkMode_Explorer",
                     None,
                 )
                 return handle
+
+            def create_tier_font(tier: OperatorTypeTier) -> wintypes.HGDIOBJ:
+                handle = self._gdi32.CreateFontW(
+                    _tier_font_height(tier, text_dpi),
+                    0,
+                    0,
+                    0,
+                    tier.weight,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    5,
+                    0,
+                    "Segoe UI",
+                )
+                if handle:
+                    owned_header_fonts.append(handle)
+                    return handle
+                return font
 
             create_control(
                 "accent",
@@ -1301,13 +1529,42 @@ class Win32DecisionCardWindowApi:
                 0,
                 _ACCENT_ID,
             )
-            # The header is painted in WM_PAINT, so it owns no STATIC control.
+            # Standard STATIC controls make every Host-owned header line a UIA
+            # Text element. They remain non-focusable and carry no authority.
+            for index, ((_offset, tier, _accent), line) in enumerate(
+                zip(_HEADER_TIERS, header_lines, strict=True)
+            ):
+                create_control(
+                    f"header_{index}",
+                    "STATIC",
+                    line,
+                    _SS_LEFT | _SS_NOPREFIX,
+                    _HEADER_CONTROL_IDS[index],
+                    control_font=create_tier_font(tier),
+                )
+            create_control(
+                "countdown",
+                "STATIC",
+                countdown[0],
+                _SS_LEFT | _SS_NOPREFIX,
+                _COUNTDOWN_ID,
+                control_font=create_tier_font(OPERATOR_TYPE_MICRO_LABEL),
+            )
             create_control(
                 "toggle",
                 "BUTTON",
                 _toggle_label(False),
                 _BS_OWNERDRAW | _WS_TABSTOP,
                 _EVIDENCE_TOGGLE_ID,
+            )
+            create_control(
+                "details_label",
+                "STATIC",
+                "Decision details",
+                _SS_LEFT | _SS_NOPREFIX,
+                _DETAILS_LABEL_ID,
+                visible=False,
+                control_font=create_tier_font(OPERATOR_TYPE_META),
             )
             create_control(
                 "details",
@@ -1324,11 +1581,8 @@ class Win32DecisionCardWindowApi:
             for index, button in enumerate(buttons):
                 # ``BS_*`` type styles share one 4-bit field, so an owner-drawn
                 # button cannot also carry ``BS_DEFPUSHBUTTON``. That style was
-                # only ever the highlighted border here — this window runs its
-                # own message loop and never calls ``IsDialogMessage``, so it
-                # never made Enter act. The safe-default hint is therefore
-                # painted explicitly below, and it stays on deny: emphasis must
-                # never migrate to the approving option.
+                # safe-default hint is painted explicitly below, and it stays
+                # on deny: emphasis must never migrate to the approving option.
                 create_control(
                     f"button_{index}",
                     "BUTTON",
@@ -1347,6 +1601,7 @@ class Win32DecisionCardWindowApi:
             self._user32.ShowWindow(hwnd, _SW_SHOWNORMAL)
             self._user32.UpdateWindow(hwnd)
             self._bring_to_foreground(hwnd, foreground_before)
+            self._user32.SetFocus(controls[safe_default_name])
 
             message = _MSG()
             while True:
@@ -1365,6 +1620,46 @@ class Win32DecisionCardWindowApi:
                     # directly, so enforce the same safe exit at the pump.
                     self._user32.DestroyWindow(hwnd)
                     continue
+                if (
+                    message.message == _WM_KEYDOWN
+                    and int(message.wParam) == _VK_RETURN
+                ):
+                    focused = self._user32.GetFocus()
+                    focused_id = (
+                        int(self._user32.GetDlgCtrlID(focused)) if focused else 0
+                    )
+                    if focused_id in id_to_option or focused_id == _EVIDENCE_TOGGLE_ID:
+                        # Owner-drawn buttons cannot also carry the ordinary
+                        # default-push type. Enter therefore activates only the
+                        # already-focused known BUTTON; it never invents a
+                        # default approval from the top-level or details pane.
+                        self._user32.SendMessageW(
+                            hwnd,
+                            _WM_COMMAND,
+                            focused_id,
+                            int(focused or 0),
+                        )
+                        continue
+                if (
+                    message.message == _WM_KEYDOWN
+                    and int(message.wParam) == _VK_TAB
+                    and self._user32.GetFocus() == controls.get("details")
+                ):
+                    previous = bool(
+                        int(self._user32.GetKeyState(_VK_SHIFT)) & 0x8000
+                    )
+                    next_control = self._user32.GetNextDlgTabItem(
+                        hwnd,
+                        controls["details"],
+                        previous,
+                    )
+                    if next_control:
+                        self._user32.SetFocus(next_control)
+                    continue
+                if self._user32.IsDialogMessageW(hwnd, ctypes.byref(message)):
+                    # IsDialogMessage already translates and dispatches Tab,
+                    # Shift+Tab, arrows, Space, and Enter for native controls.
+                    continue
                 self._user32.TranslateMessage(ctypes.byref(message))
                 self._user32.DispatchMessageW(ctypes.byref(message))
         finally:
@@ -1375,10 +1670,14 @@ class Win32DecisionCardWindowApi:
                 self._gdi32.DeleteObject(surface_brush)
             if accent_brush:
                 self._gdi32.DeleteObject(accent_brush)
+            if hairline_brush:
+                self._gdi32.DeleteObject(hairline_brush)
             if background_brush:
                 self._gdi32.DeleteObject(background_brush)
             if owns_font and font:
                 self._gdi32.DeleteObject(font)
+            for header_font in owned_header_fonts:
+                self._gdi32.DeleteObject(header_font)
             if foreground_before and self._user32.IsWindow(foreground_before):
                 foreground_after = self._user32.GetForegroundWindow()
                 self._bring_to_foreground(

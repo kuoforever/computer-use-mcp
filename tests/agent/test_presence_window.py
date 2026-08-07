@@ -25,6 +25,7 @@ from computer_use_agent.presence_window import (
     PresenceGeometry,
     PresenceWindowApi,
     PresenceWindowError,
+    presence_accessible_name,
     presence_geometry,
 )
 
@@ -99,6 +100,22 @@ def _snapshot(
 
 def test_fake_satisfies_minimal_native_protocol() -> None:
     assert isinstance(FakePresenceWindowApi(), PresenceWindowApi)
+
+
+def test_presence_accessible_name_is_fixed_and_content_free() -> None:
+    view = PresenceView(
+        phase="WAITING_APPROVAL",
+        visual_role="needs_input",
+        label="Needs input",
+        glyph="APPROVAL",
+        color_rgb=0xF2C94C,
+        motion="PULSE",
+        motion_enabled=False,
+        animation_interval_ms=None,
+        high_contrast=True,
+    )
+
+    assert presence_accessible_name(view) == "Computer Use. Approval. Needs input."
 
 
 def test_open_uses_clickthrough_nonactivating_layered_tool_styles() -> None:
