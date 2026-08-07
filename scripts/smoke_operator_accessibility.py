@@ -67,6 +67,28 @@ def _foreground() -> int:
     return int(user32.GetForegroundWindow() or 0)
 
 
+def _window_rect(hwnd: int) -> tuple[int, int, int, int]:
+    user32 = ctypes.windll.user32
+    user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user32.GetWindowRect.restype = wintypes.BOOL
+    rect = wintypes.RECT()
+    if not user32.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(rect)):
+        raise RuntimeError("native window rectangle is unavailable")
+    return int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)
+
+
+def _inside(
+    inner: tuple[int, int, int, int],
+    outer: tuple[int, int, int, int],
+) -> bool:
+    return (
+        inner[0] >= outer[0]
+        and inner[1] >= outer[1]
+        and inner[2] <= outer[2]
+        and inner[3] <= outer[3]
+    )
+
+
 def _wait_for_window(title: str, seconds: float = 5.0) -> int:
     user32 = ctypes.windll.user32
     user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
@@ -123,6 +145,7 @@ def _passive_surface_smoke(
         title=operator_text(locale, "presence_window_title"),
     )
     try:
+        selected = presence_api.display_monitor()
         progress.set_workflow_lines(
             progress_hwnd,
             compact_lines=compact,
@@ -150,6 +173,8 @@ def _passive_surface_smoke(
         if presence.hwnd is None:
             raise RuntimeError("presence window was not created")
         presence_name = str(auto.ControlFromHandle(presence.hwnd).Name)
+        progress_rect = _window_rect(progress_hwnd)
+        presence_rect = _window_rect(presence.hwnd)
         if before != after:
             raise RuntimeError("passive operator surface changed foreground")
         if progress_name != workflow_accessible_name(compact, locale):
@@ -161,8 +186,19 @@ def _passive_surface_smoke(
         )
         if presence_name != expected_presence_name:
             raise RuntimeError("presence accessible name is incomplete")
+        if not _inside(progress_rect, selected.work_area):
+            raise RuntimeError("progress window escaped selected monitor work area")
+        if presence_rect != selected.bounds:
+            raise RuntimeError("presence window does not match selected monitor bounds")
         return {
             "foreground_unchanged": True,
+            "monitor": {
+                "bounds": selected.bounds,
+                "work_area": selected.work_area,
+                "dpi": selected.dpi,
+            },
+            "progress_rect": progress_rect,
+            "presence_rect": presence_rect,
             "progress_name": progress_name,
             "presence_name": presence_name,
             "presence_capture_excluded": presence_result.capture_excluded,
@@ -221,6 +257,16 @@ def _decision_card_smoke(
     worker.start()
     hwnd = _wait_for_window(_title(locale))
     user32 = ctypes.windll.user32
+    monitor_api = Win32PresenceWindowApi(
+        accessibility=accessibility,
+        locale=locale,
+    )
+    selected = monitor_api.display_monitor()
+    card_rect = _window_rect(hwnd)
+    if not _inside(card_rect, selected.work_area):
+        user32.PostMessageW(wintypes.HWND(hwnd), 0x0010, 0, 0)
+        worker.join(timeout=2)
+        raise RuntimeError("Decision Card escaped selected monitor work area")
     with auto.UIAutomationInitializerInThread():
         rows = _control_rows(auto.ControlFromHandle(hwnd))
         names = {str(row["name"]): str(row["type"]) for row in rows if row["name"]}
@@ -303,6 +349,12 @@ def _decision_card_smoke(
         "tab_wrap_focus": toggle_focus,
         "final_focus": final_focus,
         "focus_path": focus_path,
+        "monitor": {
+            "bounds": selected.bounds,
+            "work_area": selected.work_area,
+            "dpi": selected.dpi,
+        },
+        "window_rect": card_rect,
         "result": result[0],
     }
 

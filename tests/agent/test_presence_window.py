@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import pytest
 
+from computer_use_agent.operator_display import OperatorMonitor
 from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.presence import (
     DesktopAuthority,
@@ -21,7 +20,6 @@ from computer_use_agent.presence_window import (
     WS_EX_TOPMOST,
     WS_EX_TRANSPARENT,
     WS_POPUP,
-    DisplayBounds,
     PassivePresenceWindow,
     PresenceGeometry,
     PresenceWindowApi,
@@ -46,16 +44,20 @@ _FORBIDDEN_CALLS = frozenset(
 
 class FakePresenceWindowApi:
     def __init__(self, *, capture_excluded: bool = True) -> None:
-        self.bounds = DisplayBounds(0, 0, 1920, 1080, 96)
+        self.monitor = OperatorMonitor(
+            (0, 0, 1920, 1080),
+            (0, 0, 1920, 1040),
+            96,
+        )
         self.capture_excluded = capture_excluded
         self.calls: list[tuple] = []
         self._foreground = 4242
         self._next = 100
         self.alive: set[int] = set()
 
-    def display_bounds(self) -> DisplayBounds:
-        self.calls.append(("display_bounds", self.bounds))
-        return self.bounds
+    def display_monitor(self) -> OperatorMonitor:
+        self.calls.append(("display_monitor", self.monitor))
+        return self.monitor
 
     def create(self, *, ex_style: int, style: int, title: str) -> int:
         self._next += 1
@@ -155,7 +157,7 @@ def test_open_uses_clickthrough_nonactivating_layered_tool_styles() -> None:
     assert create[2] == PRESENCE_STYLE == WS_POPUP
     assert result.visible and result.created and result.capture_excluded
     assert api.kinds() == [
-        "display_bounds",
+        "display_monitor",
         "create",
         "exclude_from_capture",
         "configure",
@@ -183,7 +185,11 @@ def test_phase_and_dpi_changes_update_without_recreating_or_taking_focus() -> No
     window.sync(_snapshot())
     hwnd = window.hwnd
 
-    api.bounds = DisplayBounds(0, 0, 2560, 1440, 144)
+    api.monitor = OperatorMonitor(
+        (1920, -200, 4480, 1240),
+        (1920, -160, 4480, 1200),
+        144,
+    )
     outcome = window.sync(_snapshot(PresencePhase.VERIFYING))
 
     assert outcome.changed and not outcome.created
@@ -191,7 +197,7 @@ def test_phase_and_dpi_changes_update_without_recreating_or_taking_focus() -> No
     assert api.kinds().count("create") == 1
     configured = [call for call in api.calls if call[0] == "configure"][-1]
     geometry = configured[3]
-    assert geometry == PresenceGeometry(0, 0, 2560, 1440, 15, 24)
+    assert geometry == PresenceGeometry(1920, -200, 2560, 1440, 15, 24, 144)
     assert api.foreground() == before
 
 
@@ -232,52 +238,6 @@ def test_capture_exclusion_failure_is_reported_without_becoming_a_secrecy_claim(
     assert window.hwnd in api.alive
 
 
-class _FakeUser32:
-    """Mimic the Win32 DPI APIs, including the one that lies.
-
-    ``GetDpiForWindow(GetDesktopWindow())`` reports 96 on a scaled display,
-    because the desktop window is not per-monitor DPI aware.
-    """
-
-    def __init__(self, *, system_dpi: int | None, window_dpi: int = 96) -> None:
-        self._window_dpi = window_dpi
-        if system_dpi is not None:
-            self.GetDpiForSystem = lambda: system_dpi  # noqa: N815
-
-    def GetDesktopWindow(self) -> int:  # noqa: N802
-        return 65548
-
-    def GetDpiForWindow(self, _hwnd: int) -> int:  # noqa: N802
-        return self._window_dpi
-
-    def GetSystemMetrics(self, index: int) -> int:  # noqa: N802
-        return 2560 if index == 0 else 1600
-
-
-def _bounds_with(user32: _FakeUser32) -> DisplayBounds:
-    from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi
-
-    api = Win32PresenceWindowApi.__new__(Win32PresenceWindowApi)
-    api._user32 = user32  # type: ignore[attr-defined]
-    return api.display_bounds()
-
-
-def test_display_bounds_prefers_the_dpi_source_that_is_not_always_96() -> None:
-    """The halo must scale by the primary display's real DPI.
-
-    Reading `GetDpiForWindow(GetDesktopWindow())` pinned the halo to 96 on a
-    150% display, so the border rendered at 10px where the contract asks for
-    15px. That is the concrete reason a full-screen halo was reported as not
-    visible during a live run.
-    """
-
-    assert _bounds_with(_FakeUser32(system_dpi=144, window_dpi=96)).dpi == 144
-    # Falling back is still better than 96, and a zero must not be trusted.
-    assert _bounds_with(_FakeUser32(system_dpi=None, window_dpi=120)).dpi == 120
-    assert _bounds_with(_FakeUser32(system_dpi=0, window_dpi=120)).dpi == 120
-    assert _bounds_with(_FakeUser32(system_dpi=None, window_dpi=0)).dpi == 96
-
-
 def test_no_phase_colour_collides_with_the_transparency_key() -> None:
     """A phase colour equal to the colour key would render as a hole.
 
@@ -303,8 +263,12 @@ def test_no_phase_colour_collides_with_the_transparency_key() -> None:
 
 
 def test_a_scaled_display_yields_a_visibly_thicker_halo_than_the_unscaled_one() -> None:
-    scaled = presence_geometry(_bounds_with(_FakeUser32(system_dpi=144)))
-    unscaled = presence_geometry(_bounds_with(_FakeUser32(system_dpi=96)))
+    scaled = presence_geometry(
+        OperatorMonitor((0, 0, 2560, 1440), (0, 0, 2560, 1400), 144)
+    )
+    unscaled = presence_geometry(
+        OperatorMonitor((0, 0, 1920, 1080), (0, 0, 1920, 1040), 96)
+    )
 
     assert scaled.border_px == 15
     assert unscaled.border_px == 10
@@ -316,20 +280,13 @@ def test_a_scaled_display_yields_a_visibly_thicker_halo_than_the_unscaled_one() 
     [(96, 10, 16), (144, 15, 24), (192, 20, 32), (768, 32, 48)],
 )
 def test_geometry_is_dpi_scaled_and_bounded(dpi: int, border: int, inset: int) -> None:
-    geometry = presence_geometry(DisplayBounds(-1920, 0, 0, 1080, dpi))
+    geometry = presence_geometry(
+        OperatorMonitor((-1920, 0, 0, 1080), (-1920, 0, 0, 1040), dpi)
+    )
 
-    assert geometry == PresenceGeometry(-1920, 0, 1920, 1080, border, inset)
+    assert geometry == PresenceGeometry(-1920, 0, 1920, 1080, border, inset, dpi)
 
 
-@pytest.mark.parametrize(
-    "bounds",
-    [
-        (0, 0, 0, 10, 96),
-        (0, 0, 10, 0, 96),
-        (0, 0, 10, 10, 0),
-        (0, 0, 10, 10, True),
-    ],
-)
-def test_invalid_display_bounds_fail_closed(bounds: Sequence[object]) -> None:
+def test_non_monitor_geometry_input_fails_closed() -> None:
     with pytest.raises(PresenceWindowError, match="PRESENCE_DISPLAY_BOUNDS_INVALID"):
-        DisplayBounds(*bounds)  # type: ignore[arg-type]
+        presence_geometry(object())  # type: ignore[arg-type]

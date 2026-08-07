@@ -14,6 +14,11 @@ from typing import Literal
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .operator_display import OperatorMonitor
+from .operator_display_win32 import (
+    configure_operator_monitor_apis,
+    operator_monitor_for_window,
+)
 from .win32_dll import private_windll
 from .operator_visuals import (
     OPERATOR_SURFACE,
@@ -116,7 +121,6 @@ _SWP_NOMOVE = 0x0002
 _SWP_SHOWWINDOW = 0x0040
 _COLOR_WINDOW = 5
 _DEFAULT_GUI_FONT = 17
-_MONITOR_DEFAULTTOPRIMARY = 1
 _DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
 _FIRST_BUTTON_ID = 1001
@@ -204,15 +208,6 @@ class _MSG(ctypes.Structure):
         ("lParam", wintypes.LPARAM),
         ("time", wintypes.DWORD),
         ("pt", wintypes.POINT),
-    ]
-
-
-class _MONITORINFO(ctypes.Structure):
-    _fields_ = [
-        ("cbSize", wintypes.DWORD),
-        ("rcMonitor", wintypes.RECT),
-        ("rcWork", wintypes.RECT),
-        ("dwFlags", wintypes.DWORD),
     ]
 
 
@@ -602,10 +597,12 @@ class Win32DecisionCardWindowApi:
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("decision card accessibility settings are invalid")
         self._user32 = private_windll("user32")
+        self._shcore = private_windll("shcore")
         self._kernel32 = private_windll("kernel32")
         self._gdi32 = private_windll("gdi32")
         self._dwmapi = private_windll("dwmapi")
         self._uxtheme = private_windll("uxtheme")
+        configure_operator_monitor_apis(self._user32, self._shcore)
         self._configure_apis()
 
     def _configure_apis(self) -> None:
@@ -745,13 +742,6 @@ class Win32DecisionCardWindowApi:
             wintypes.LONG,
             wintypes.LONG,
         ]
-        user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
-        user32.MonitorFromWindow.restype = wintypes.HANDLE
-        user32.GetMonitorInfoW.argtypes = [
-            wintypes.HANDLE,
-            ctypes.POINTER(_MONITORINFO),
-        ]
-        user32.GetMonitorInfoW.restype = wintypes.BOOL
         user32.AdjustWindowRectEx.argtypes = [
             ctypes.POINTER(wintypes.RECT),
             wintypes.DWORD,
@@ -1030,7 +1020,7 @@ class Win32DecisionCardWindowApi:
 
     def _window_rect(
         self,
-        foreground: wintypes.HWND,
+        monitor: OperatorMonitor,
         style: int,
         ex_style: int,
         client_size: tuple[int, int],
@@ -1042,25 +1032,17 @@ class Win32DecisionCardWindowApi:
             raise OSError("DECISION_CARD_WINDOW_RECT_FAILED")
         width = rectangle.right - rectangle.left
         height = rectangle.bottom - rectangle.top
-        monitor = self._user32.MonitorFromWindow(
-            foreground, _MONITOR_DEFAULTTOPRIMARY
-        )
-        info = _MONITORINFO()
-        info.cbSize = ctypes.sizeof(info)
-        if not monitor or not self._user32.GetMonitorInfoW(
-            monitor, ctypes.byref(info)
-        ):
-            raise OSError("DECISION_CARD_MONITOR_INFO_FAILED")
-        work_width = info.rcWork.right - info.rcWork.left
-        work_height = info.rcWork.bottom - info.rcWork.top
+        work_left, work_top, work_right, work_bottom = monitor.work_area
+        work_width = work_right - work_left
+        work_height = work_bottom - work_top
         width = min(width, max(1, work_width - 2 * _CORNER_MARGIN))
         height = min(height, max(1, work_height - 2 * _CORNER_MARGIN))
         left, top = _corner_origin(
             (
-                info.rcWork.left,
-                info.rcWork.top,
-                info.rcWork.right,
-                info.rcWork.bottom,
+                work_left,
+                work_top,
+                work_right,
+                work_bottom,
             ),
             (width, height),
             self.corner,
@@ -1121,6 +1103,11 @@ class Win32DecisionCardWindowApi:
         if not 2 <= len(buttons) <= 4:
             raise OSError("DECISION_CARD_NATIVE_REQUIRES_TWO_TO_FOUR_OPTIONS")
         foreground_before = self._user32.GetForegroundWindow()
+        selected_monitor = operator_monitor_for_window(
+            self._user32,
+            int(foreground_before or 0),
+            shcore=self._shcore,
+        )
         instance = self._kernel32.GetModuleHandleW(None)
         class_name = f"GuardedDesktopDecisionCard_{id(self):x}"
         selected: list[str | None] = [None]
@@ -1128,7 +1115,7 @@ class Win32DecisionCardWindowApi:
         expanded = [False]
         compact_window_rect: list[tuple[int, int, int, int] | None] = [None]
         deadline = time.monotonic() + timeout_seconds
-        dpi = int(self._user32.GetDpiForSystem() or _BASE_DPI)
+        dpi = selected_monitor.dpi
         text_scale_factor = self.accessibility.text_scale_factor
         text_dpi = effective_text_dpi(dpi, text_scale_factor)
         attention = operator_visual(OperatorVisualRole.NEEDS_INPUT)
@@ -1197,7 +1184,7 @@ class Win32DecisionCardWindowApi:
                 left, top, width, height = compact_window_rect[0]
             else:
                 left, top, width, height = self._window_rect(
-                    hwnd,
+                    selected_monitor,
                     _CARD_STYLE,
                     _CARD_EX_STYLE,
                     _scaled_client_size(
@@ -1412,7 +1399,7 @@ class Win32DecisionCardWindowApi:
             style = _CARD_STYLE
             ex_style = _CARD_EX_STYLE
             x, y, width, height = self._window_rect(
-                foreground_before,
+                selected_monitor,
                 style,
                 ex_style,
                 _scaled_client_size(

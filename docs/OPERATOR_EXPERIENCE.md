@@ -203,10 +203,12 @@ Implementation requirements:
   the observation pipeline identify/mask them by trusted window identity;
 - treat capture exclusion as feedback-loop prevention, not a secrecy or DRM
   guarantee;
-- define per-monitor bounds and DPI behavior before claiming multi-monitor
-  support.
+- use one Host-selected per-monitor bounds/work-area/DPI snapshot for each
+  layout without exposing monitor selection to the model.
 
-The implemented slice is deliberately primary-display-only. Its native window
+The implemented Presence surface follows the foreground window's monitor on a
+visible phase sync, using the full monitor rectangle and its effective DPI.
+Missing foreground HWND falls back to the Windows primary monitor. Its native window
 uses `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW |
 WS_EX_TOPMOST | WS_EX_LAYERED`, returns `HTTRANSPARENT` and `MA_NOACTIVATE`, and
 has no controls or focus/input API. `PresenceSnapshot` accepts only fixed phase,
@@ -224,8 +226,11 @@ and fail-silent teardown. Explicit read-only recovery starts only after
 validated persistence and publishes later phases after its existing CAS.
 The three fixed MCP-backed campaign execution commands use the same recorder
 observer and immediate MCP E-stop/human-yield teardown; zero-port campaign
-control remains window-free. Native BOSS campaign evidence and multi-monitor
-selection remain separate work.
+control remains window-free. Progress and Decision Card share the same monitor
+selection contract but use the selected work area for their corner rails. The
+complete rule and its unchanged primary-display action/capture boundary are in
+[Native operator multi-display composition](OPERATOR_MULTI_DISPLAY.md). Native
+BOSS campaign and physical two-monitor evidence remain separate work.
 
 The indicator must not claim that an action succeeded. It displays only the
 current validated Host phase and ownership state.
@@ -560,10 +565,10 @@ campaign-control mutation, or second desktop dispatcher.
    fail-silent isolation, and phase-free campaign wake are tested.**
 3. Implement the click-through presence indicator, capture filtering, reduced
    motion, DPI handling, and E-stop/authority-release teardown. **Implemented
-   for one primary display over an injected controller and ctypes backend;
-   opt-in ordinary `run`/`resume`, bounded `plan run`, and explicit read-only
-   recovery lifecycle wiring is implemented, while campaign wiring and
-   multi-monitor selection remain.**
+   over an injected controller and ctypes backend; opt-in ordinary
+   `run`/`resume`, bounded `plan run`, explicit read-only recovery, fixed
+   campaign lifecycle wiring, and Host-owned foreground-monitor selection are
+   implemented. Physical two-monitor usability remains unverified.**
 4. Add a fake-only Decision Card compiler and deterministic choice tests.
    **Implemented: expiry plus state, policy, task, registry, object, and evidence
    drift all fail closed; recommendation never selects an option.**

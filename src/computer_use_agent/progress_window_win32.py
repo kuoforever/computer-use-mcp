@@ -19,6 +19,11 @@ from ctypes import wintypes
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .operator_display_win32 import (
+    configure_operator_monitor_apis,
+    operator_dpi_for_window,
+    operator_monitor_for_window,
+)
 from .win32_dll import private_windll
 from .operator_visuals import (
     OPERATOR_SURFACE,
@@ -43,8 +48,6 @@ _SWP_NOSIZE = 0x0001
 _SWP_NOMOVE = 0x0002
 _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
-
-_MONITOR_DEFAULTTOPRIMARY = 1
 
 _WM_PAINT = 0x000F
 _WM_DESTROY = 0x0002
@@ -213,15 +216,6 @@ class _PAINTSTRUCT(ctypes.Structure):
     ]
 
 
-class _MONITORINFO(ctypes.Structure):
-    _fields_ = [
-        ("cbSize", wintypes.DWORD),
-        ("rcMonitor", wintypes.RECT),
-        ("rcWork", wintypes.RECT),
-        ("dwFlags", wintypes.DWORD),
-    ]
-
-
 def _top_right_origin(
     work_area: tuple[int, int, int, int],
     outer_size: tuple[int, int],
@@ -274,6 +268,7 @@ class Win32ProgressWindowApi:
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("progress accessibility settings are invalid")
         self._user32 = private_windll("user32")
+        self._shcore = private_windll("shcore")
         self._gdi32 = private_windll("gdi32")
         self._kernel32 = private_windll("kernel32")
         self._lines: dict[int, tuple[str, ...]] = {}
@@ -286,6 +281,7 @@ class Win32ProgressWindowApi:
         self._base_titles: dict[int, str] = {}
         self._accessible_names: dict[int, str] = {}
         self._top_right_anchored: set[int] = set()
+        configure_operator_monitor_apis(self._user32, self._shcore)
         self._configure_gdi()
         self._configure_window_apis()
         # Keep a strong reference to the WNDPROC; if it is collected, the window
@@ -305,14 +301,20 @@ class Win32ProgressWindowApi:
             ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
             wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID,
         ]
-        dpi = self._system_dpi()
+        foreground = self.foreground()
+        monitor = operator_monitor_for_window(
+            self._user32,
+            foreground,
+            shcore=self._shcore,
+        )
+        dpi = monitor.dpi
         width, height = _window_size(
             False,
             dpi,
             text_scale_factor=self.accessibility.text_scale_factor,
         )
         x, y = _top_right_origin(
-            self._work_area(self.foreground()),
+            monitor.work_area,
             (width, height),
             margin=_scaled(_CORNER_MARGIN, dpi),
         )
@@ -743,23 +745,15 @@ class Win32ProgressWindowApi:
         )
 
     def _window_dpi(self, hwnd: int) -> int:
-        get_dpi = getattr(self._user32, "GetDpiForWindow", None)
-        if get_dpi is None:
-            return 96
-        observed = int(get_dpi(wintypes.HWND(hwnd)))
-        return observed if observed > 0 else 96
-
-    def _system_dpi(self) -> int:
-        get_dpi = getattr(self._user32, "GetDpiForSystem", None)
-        if get_dpi is not None:
-            observed = int(get_dpi())
-            if observed > 0:
-                return observed
-        desktop = self._user32.GetDesktopWindow()
-        return self._window_dpi(int(desktop))
+        return operator_dpi_for_window(self._user32, hwnd)
 
     def _resize_summary(self, hwnd: int, *, expanded: bool) -> None:
-        dpi = self._window_dpi(hwnd)
+        monitor = operator_monitor_for_window(
+            self._user32,
+            hwnd,
+            shcore=self._shcore,
+        )
+        dpi = monitor.dpi
         geometry_dpi = layout_dpi(dpi, self.accessibility.text_scale_factor)
         width, height = _window_size(
             expanded,
@@ -771,7 +765,7 @@ class Win32ProgressWindowApi:
         y = 0
         if int(hwnd) in self._top_right_anchored:
             x, y = _top_right_origin(
-                self._work_area(hwnd),
+                monitor.work_area,
                 (width, height),
                 margin=_scaled(_CORNER_MARGIN, geometry_dpi),
             )
@@ -792,25 +786,11 @@ class Win32ProgressWindowApi:
             )
 
     def _work_area(self, hwnd: int) -> tuple[int, int, int, int]:
-        monitor = self._user32.MonitorFromWindow(
-            wintypes.HWND(hwnd),
-            _MONITOR_DEFAULTTOPRIMARY,
-        )
-        info = _MONITORINFO()
-        info.cbSize = ctypes.sizeof(info)
-        if not monitor or not self._user32.GetMonitorInfoW(
-            monitor,
-            ctypes.byref(info),
-        ):
-            raise OSError(
-                f"GetMonitorInfoW failed (win32 error {self._last_error()})"
-            )
-        return (
-            info.rcWork.left,
-            info.rcWork.top,
-            info.rcWork.right,
-            info.rcWork.bottom,
-        )
+        return operator_monitor_for_window(
+            self._user32,
+            hwnd,
+            shcore=self._shcore,
+        ).work_area
 
     def _configure_window_apis(self) -> None:
         self._user32.GetSysColor.argtypes = [ctypes.c_int]
@@ -823,16 +803,6 @@ class Win32ProgressWindowApi:
             wintypes.LONG,
             wintypes.LONG,
         ]
-        self._user32.MonitorFromWindow.argtypes = [
-            wintypes.HWND,
-            wintypes.DWORD,
-        ]
-        self._user32.MonitorFromWindow.restype = wintypes.HANDLE
-        self._user32.GetMonitorInfoW.argtypes = [
-            wintypes.HANDLE,
-            ctypes.POINTER(_MONITORINFO),
-        ]
-        self._user32.GetMonitorInfoW.restype = wintypes.BOOL
 
     def _configure_gdi(self) -> None:
         self._gdi32.CreateFontW.argtypes = [
