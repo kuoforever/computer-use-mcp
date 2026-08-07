@@ -1,5 +1,10 @@
 # Public Web to Word workflow
 
+> **Status: implemented on Windows.** Shipped by `GDA-PRODUCT-004`, merged as
+> `0275f25`. One real run is retained in
+> [product evidence](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md); this page is the
+> contract, not the evidence.
+
 `guarded-desktop-agent workflow public-web-word` is the first installed
 cross-application product workflow. It opens one fixed public Microsoft Support
 page in a fresh Chrome profile, lets the configured model inspect that page,

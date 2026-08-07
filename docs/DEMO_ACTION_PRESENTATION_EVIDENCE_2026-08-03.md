@@ -1,5 +1,8 @@
 # Demo action-presentation evidence (2026-08-03)
 
+> **Result: PASS — retained on-device record, 2026-08-03.** Frozen observation
+> of one dated run. Do not update its numbers; supersede it with a new record.
+
 ## Scope
 
 `GDA-DEMO-004` adds an operator-owned presentation layer to the existing

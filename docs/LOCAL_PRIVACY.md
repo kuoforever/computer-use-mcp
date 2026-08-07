@@ -1,5 +1,9 @@
 # Local privacy boundary
 
+> **Status: implemented, disabled by default.** Nothing here is active unless
+> explicitly enabled; see "Privacy is disabled by default" below. Do not read
+> this page as a claim that outbound text is redacted in a default install.
+
 The Agent Host has an opt-in, run-scoped text pseudonymization boundary. It
 replaces reviewed sensitive spans before task, memory, or desktop-observation
 text can enter provider requests, the replay ledger, traces, or checkpoints.

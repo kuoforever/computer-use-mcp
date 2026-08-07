@@ -42,6 +42,28 @@ CURRENT_STATE_DOCS: tuple[str, ...] = (
     "docs/CAPABILITY_STATUS.md",
     "docs/EVALUATION.md",
     "docs/LONG_RUNNING_TASKS.md",
+    # Every other document whose own status banner claims implemented or
+    # current behavior. Left out of the original list, these described the live
+    # runtime while being exempt from the checks written for exactly that.
+    "docs/APPROVALS.md",
+    "docs/BOSS_SEMANTIC_EXTRACTION_CONTRACT.md",
+    "docs/CONFIGURATION.md",
+    "docs/CONTEXT_MEMORY.md",
+    "docs/CONTINUATION.md",
+    "docs/DEVELOPMENT.md",
+    "docs/DRIVER_CONTRACT.md",
+    "docs/FULLCYCLE_INTEGRATION.md",
+    "docs/OBSERVATION_CONTRACT.md",
+    "docs/OPERATOR_EXPERIENCE.md",
+    "docs/PLANNING.md",
+    "docs/PROGRESS_VIEWER.md",
+    "docs/PROJECT_OVERVIEW.md",
+    "docs/PUBLIC_WEB_WORD_WORKFLOW.md",
+    "docs/RELEASE.md",
+    "docs/STATELESS_REPLAY.md",
+    "docs/TECH_STACK.md",
+    "docs/TELEMETRY.md",
+    "docs/TRACE.md",
 )
 
 # Documents that must enumerate every reviewed tool name.
@@ -64,6 +86,14 @@ ENGLISH_NUMBERS: dict[str, int] = {
     "ten": 10,
     "eleven": 11,
     "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
 }
 CHINESE_NUMBERS: dict[str, int] = {
     "一": 1,
@@ -78,16 +108,26 @@ CHINESE_NUMBERS: dict[str, int] = {
     "十": 10,
     "十一": 11,
     "十二": 12,
+    "十三": 13,
+    "十四": 14,
+    "十五": 15,
+    "十六": 16,
+    "十七": 17,
+    "十八": 18,
+    "十九": 19,
+    "二十": 20,
 }
 
 # "nine tools", "nine-tool server", "the current eight MCP tools". Singular bare
 # phrases such as "one tool-free final response" describe a single call, not the
-# surface, so the bare form requires the plural.
+# surface, so the bare form requires the plural. `-tool` must not be followed by
+# another hyphenated word: "one-tool-call" and "one-tool-free" count calls, not
+# the tool surface.
 _ENGLISH_WORDS = "|".join(ENGLISH_NUMBERS)
 _ENGLISH_COUNT = re.compile(
     r"\b(?P<word>" + _ENGLISH_WORDS + r")(?:"
     r" (?:MCP|reviewed) tools?"
-    r"|-tool\b"
+    r"|-tool\b(?!-)"
     r"| tools\b"
     r")",
     re.IGNORECASE,
@@ -95,6 +135,17 @@ _ENGLISH_COUNT = re.compile(
 # "九个 MCP 工具", "九个工具".
 _CHINESE_COUNT = re.compile(
     r"(?P<word>" + "|".join(sorted(CHINESE_NUMBERS, key=len, reverse=True)) + r")个\s*(?:MCP\s*)?工具"
+)
+# Arabic-digit forms the spelled-out patterns above cannot see: "13 个 MCP 工具",
+# "13 reviewed tools", "13-tool server". The count reached 13 while the number
+# tables stopped at twelve, so every such claim went unchecked; digits are the
+# form the Chinese quick start actually uses.
+_DIGIT_COUNT = re.compile(
+    r"\b(?P<digits>\d{1,2})\s*(?:"
+    r"个\s*(?:MCP\s*)?工具"
+    r"|(?:reviewed|MCP)\s+tools?\b"
+    r"|-tool\b(?!-)"
+    r")"
 )
 # Hand-maintained pytest totals such as "903 passed, 5 skipped".
 _TEST_TOTAL = re.compile(r"\b\d{2,}\s+passed\b")
@@ -146,6 +197,18 @@ def check_tool_counts(expected_count: int) -> list[Finding]:
                             line=line_number,
                             expected=f"a tool count of {expected_count}",
                             actual=f"{match.group(0)!r} (={CHINESE_NUMBERS[word]})",
+                            detail="documented tool count disagrees with the reviewed registry",
+                        )
+                    )
+            for match in _DIGIT_COUNT.finditer(line):
+                value = int(match.group("digits"))
+                if value != expected_count:
+                    findings.append(
+                        Finding(
+                            path=relative_path,
+                            line=line_number,
+                            expected=f"a tool count of {expected_count}",
+                            actual=f"{match.group(0)!r} (={value})",
                             detail="documented tool count disagrees with the reviewed registry",
                         )
                     )
@@ -264,6 +327,116 @@ def check_relative_links() -> list[Finding]:
     return findings
 
 
+# --- checks that protect a coding agent's read path --------------------------
+#
+# A stale claim in a file the agent reads is worse than a long one: it does not
+# slow the agent down, it sends it at the wrong work. The three checks below
+# each pin a defect that actually reached `main`.
+
+_ITEM_ID = re.compile(r"`?GDA-[A-Z]+-\d+`?")
+# "is now the sole active closure item", "is the single active item".
+_ACTIVE_CLAIM = re.compile(
+    r"\b(?:is|becomes|remains)\b[^.]{0,40}?\b"
+    r"(?:the\s+)?(?:single|sole|only|current)\s+active\b",
+    re.IGNORECASE,
+)
+# Dated records and archives freeze what was true when written, so an active
+# claim inside them is history, not a competing registry.
+_FROZEN_PARTS = ("archive", "postmortems")
+
+
+def check_single_active_item_registry() -> list[Finding]:
+    """Only `PROJECT_STATUS.md` may name the active item.
+
+    `HANDOFF.md` carried `GDA-FC-004` as "the sole active closure item" long
+    after the tracker had moved on. Nothing detected it, because prose agreeing
+    with prose is not something a human re-reads every session.
+    """
+    findings: list[Finding] = []
+    for path in sorted(REPO_ROOT.rglob("*.md")):
+        parts = set(path.parts)
+        if parts & {".venv", "node_modules", ".git", "out"}:
+            continue
+        relative_path = path.relative_to(REPO_ROOT).as_posix()
+        if relative_path == "PROJECT_STATUS.md":
+            continue
+        if parts & set(_FROZEN_PARTS) or "EVIDENCE" in path.name:
+            continue
+        for line_number, line in enumerate(_read_lines(relative_path), start=1):
+            if _ACTIVE_CLAIM.search(line) and _ITEM_ID.search(line):
+                findings.append(
+                    Finding(
+                        path=relative_path,
+                        line=line_number,
+                        expected="no active-item claim outside PROJECT_STATUS.md",
+                        actual=line.strip()[:90],
+                        detail=(
+                            "only PROJECT_STATUS.md may name the active item; this copy "
+                            "goes stale silently and misdirects the next session"
+                        ),
+                    )
+                )
+    return findings
+
+
+# `**Status: ...**`, `Status: **executed**`, `Result: PASS`, `Date: 2026-...`,
+# and the Chinese archived-plan form. Any of these tells a reader whether the
+# page describes today.
+_STATUS_MARKER = re.compile(
+    r"(?im)^\s*>?\s*(?:\*\*)?(?:Status|Result|Date|归档状态)\s*[:：]"
+)
+
+
+def check_status_markers() -> list[Finding]:
+    """Every top-level `docs/` page must say whether it describes today.
+
+    `AGENTS.md` forbids resuming planned work. An agent can only obey that if
+    each page states implemented / experimental / planned up front.
+    """
+    findings: list[Finding] = []
+    for path in sorted((REPO_ROOT / "docs").glob("*.md")):
+        relative_path = path.relative_to(REPO_ROOT).as_posix()
+        if relative_path == "docs/README.md":  # the index itself defines the labels
+            continue
+        head = path.read_text(encoding="utf-8")[:1200]
+        if not _STATUS_MARKER.search(head):
+            findings.append(
+                Finding(
+                    path=relative_path,
+                    line=1,
+                    expected="a Status/Result/Date marker in the first lines",
+                    actual="no status marker",
+                    detail="a reader cannot tell whether this page describes current behavior",
+                )
+            )
+    return findings
+
+
+# The tracker reached 1365 lines, 76% of it closed work, while being the one
+# file every session must read. A cap turns "should we clean this up?" into a
+# failing check instead of a standing judgment call.
+PROJECT_STATUS_MAX_LINES = 400
+
+
+def check_project_status_budget() -> list[Finding]:
+    """`PROJECT_STATUS.md` is read at every session start; keep it bounded."""
+    actual = len(_read_lines("PROJECT_STATUS.md"))
+    if actual <= PROJECT_STATUS_MAX_LINES:
+        return []
+    return [
+        Finding(
+            path="PROJECT_STATUS.md",
+            line=actual,
+            expected=f"at most {PROJECT_STATUS_MAX_LINES} lines",
+            actual=f"{actual} lines",
+            detail=(
+                "move closed-work history to docs/archive/ and keep the active item, "
+                "backlog, baseline, and gates here"
+            ),
+        )
+    ]
+
+
 def run_checks() -> list[Finding]:
     expected_names = tuple(tool.name for tool in REVIEWED_TOOLS)
     return [
@@ -271,6 +444,9 @@ def run_checks() -> list[Finding]:
         *check_tool_names(expected_names),
         *check_no_handwritten_test_totals(),
         *check_relative_links(),
+        *check_single_active_item_registry(),
+        *check_status_markers(),
+        *check_project_status_budget(),
     ]
 
 
