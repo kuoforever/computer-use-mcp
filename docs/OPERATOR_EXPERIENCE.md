@@ -24,8 +24,10 @@
 > [operator accessibility contract](OPERATOR_ACCESSIBILITY.md): safe keyboard
 > traversal, native UIA semantics, bounded status announcements, Windows High
 > Contrast/reduced-motion preferences, and 200%/400% text reflow are offline
-> verified, with a bounded native UIA smoke. Human Narrator/NVDA review and live
-> large-text visual acceptance remain separate gates.
+> verified, with current native UIA/geometry smoke through 400%. Human
+> Narrator/NVDA review and human large-text visual acceptance remain separate
+> gates; see the exact boundary in
+> [Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md).
 > The four native operator surfaces also share the bounded
 > [English/Simplified-Chinese localization contract](OPERATOR_LOCALIZATION.md);
 > machine identifiers and authority remain locale-neutral.

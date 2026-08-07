@@ -16,6 +16,23 @@ Together these records complete the bounded dual-provider E3 gate. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
 every model offered by either provider is compatible with the current adapters.
 
+## 2026-08-07: feature-freeze candidate revalidation
+
+Both bounded E3 modules passed from clean, branch-reachable commit `23e71a5`.
+Each provider exercised the ordinary read/tool/result/final cycle and bounded
+`plan run` against the harmless fake stdio MCP child with zero side effects and
+no Windows driver:
+
+| Provider | Explicit model ID | Fixed outcome |
+| --- | --- | --- |
+| OpenAI | `gpt-5.6-terra` | `2 passed in 21.35s` |
+| Anthropic Claude | `claude-sonnet-5` | `2 passed in 21.15s` |
+
+The worktree was clean before and after. No credential, prompt, model prose,
+tool output, provider response identity, or local state path is retained. The
+complete surrounding non-E4 matrix and its limits are in
+[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md).
+
 ## 2026-07-17: OpenAI bounded fake-MCP E3
 
 | Field | Sanitized reviewed value |

@@ -68,6 +68,7 @@ not a line-by-line mirror of every reference page.
 | I need the current keyboard, UIA, High Contrast, reduced-motion, or 200%/400% text-scale contract | [Operator accessibility](OPERATOR_ACCESSIBILITY.md) |
 | I need the English/Simplified-Chinese native UI and locale fallback contract | [Operator localization](OPERATOR_LOCALIZATION.md) |
 | I need the dark/light/system operator theme and High Contrast precedence contract | [Operator presentation personalization](OPERATOR_PERSONALIZATION.md) |
+| I need the current feature-freeze automated, E3, native, and explicit NOT RUN matrix without E4 | [Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md) |
 | I need sanitized findings from live desktop sessions | [Operator session notes](OPERATOR_SESSION_NOTES.md) |
 | I need the retained bounded BOSS MCP observation | [BOSS observation evidence](BOSS_EVIDENCE.md) |
 | I need the retained BOSS static-content OCR result | [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
