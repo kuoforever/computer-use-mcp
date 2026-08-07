@@ -149,6 +149,11 @@ _WORD_EDITOR_NAME = re.compile(
     re.IGNORECASE,
 )
 _PROPOSAL_CORRECTION_HINTS = {
+    "PUBLIC_WEB_WORD_FIXTURES_NOT_OBSERVED": (
+        "The fixed Chrome and Word titles were not both present in the latest "
+        "window list. Request only list_windows with no arguments; do not use a "
+        "window-scoped tool until both exact fixture titles are returned."
+    ),
     "PUBLIC_WEB_WORD_SCREENSHOT_OUT_OF_SCOPE": (
         "Screenshot is allowed once, after Word activation and a fresh editor "
         "snapshot, before the first editor click. After a successful editor click "

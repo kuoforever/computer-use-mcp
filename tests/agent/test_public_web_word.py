@@ -653,6 +653,27 @@ def test_one_invalid_model_proposal_is_corrected_before_desktop_dispatch() -> No
     assert provider.correction_count(RUN_ID) == 1
 
 
+def test_unready_fixture_feedback_requires_a_fresh_window_list() -> None:
+    call = _call(RUN_ID, "turn_2", "ui_snapshot", {"scope": "101"})
+    rejection = PublicWebWordProposalRejection(
+        attempt=1,
+        max_attempts=2,
+        code="PUBLIC_WEB_WORD_FIXTURES_NOT_OBSERVED",
+        tool_names=("ui_snapshot",),
+    )
+
+    event = ModelDrivenPublicWebWordProvider._proposal_feedback_events(
+        (call,), rejection
+    )[0]
+
+    assert event.tool_result is not None
+    assert event.tool_result.dispatch is DispatchCertainty.NOT_DISPATCHED
+    assert "Request only list_windows with no arguments" in (
+        event.tool_result.sanitized_text
+    )
+    assert "both exact fixture titles" in event.tool_result.sanitized_text
+
+
 def test_redundant_screenshot_feedback_names_the_exact_next_step() -> None:
     call = _call(RUN_ID, "turn_12", "screenshot", {})
     rejection = PublicWebWordProposalRejection(
