@@ -71,16 +71,20 @@ class Win32ApprovalNotifier:
         shell32: Any | None = None,
         user32: Any | None = None,
     ) -> None:
-        injected = shell32 is not None or user32 is not None
         self._shell32: Any = shell32 if shell32 is not None else private_windll("shell32")
         self._user32: Any = user32 if user32 is not None else private_windll("user32")
         self._active_notice_id: str | None = None
         self._active_data: _NOTIFYICONDATAW | None = None
         self._active_hwnd: int | None = None
-        if not injected:
-            self._configure_prototypes()
+        # Prototypes are configured per handle, so injecting one test double
+        # cannot leave the other real library with ctypes' default int return
+        # type -- which would truncate a 64-bit HWND.
+        if user32 is None:
+            self._configure_user32()
+        if shell32 is None:
+            self._configure_shell32()
 
-    def _configure_prototypes(self) -> None:
+    def _configure_user32(self) -> None:
         self._user32.CreateWindowExW.argtypes = [
             wintypes.DWORD,
             wintypes.LPCWSTR,
@@ -100,6 +104,8 @@ class Win32ApprovalNotifier:
         self._user32.DestroyWindow.restype = wintypes.BOOL
         self._user32.LoadIconW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR]
         self._user32.LoadIconW.restype = wintypes.HICON
+
+    def _configure_shell32(self) -> None:
         self._shell32.Shell_NotifyIconW.argtypes = [
             wintypes.DWORD,
             ctypes.POINTER(_NOTIFYICONDATAW),

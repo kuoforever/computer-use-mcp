@@ -162,4 +162,31 @@ def publish_atomically(temporary: Path, target: Path) -> None:
     os.replace(temporary, target)
 
 
-__all__ = ["READ_ATTEMPTS", "SHARE_ALL", "publish_atomically", "read_shared_bytes"]
+def has_unsafe_ancestor(path: Path, *, root: Path) -> bool:
+    """Report whether ``path`` is not safely contained under ``root``.
+
+    Walks up to ``root``, rejecting any existing symlink on the way: a
+    redirected component means a validated state path can resolve somewhere the
+    Host never approved. A path outside ``root`` fails the same walk by reaching
+    the filesystem root instead. Returning a bool rather than raising lets each
+    caller keep its own fixed failure code.
+    """
+
+    current = path
+    while True:
+        if current.exists() and current.is_symlink():
+            return True
+        if current == root:
+            return False
+        if current.parent == current:
+            return True
+        current = current.parent
+
+
+__all__ = [
+    "READ_ATTEMPTS",
+    "SHARE_ALL",
+    "has_unsafe_ancestor",
+    "publish_atomically",
+    "read_shared_bytes",
+]

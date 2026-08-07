@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
-from .atomic_file import read_shared_bytes
+from .atomic_file import has_unsafe_ancestor, read_shared_bytes
 
 if TYPE_CHECKING:
     from .public_web_word_runtime import PublicWebWordResult
@@ -102,15 +102,8 @@ def product_receipt_path(state_dir: Path, run_id: str) -> Path:
 
 
 def _reject_unsafe_path(path: Path, *, state_dir: Path) -> None:
-    current = path
-    while True:
-        if current.exists() and current.is_symlink():
-            raise ProductReceiptError("PRODUCT_RECEIPT_PATH_UNSAFE")
-        if current == state_dir:
-            return
-        if current.parent == current:
-            raise ProductReceiptError("PRODUCT_RECEIPT_PATH_UNSAFE")
-        current = current.parent
+    if has_unsafe_ancestor(path, root=state_dir):
+        raise ProductReceiptError("PRODUCT_RECEIPT_PATH_UNSAFE")
 
 
 def _decode_receipt(payload: object, *, expected_run_id: str) -> ProductReceipt:

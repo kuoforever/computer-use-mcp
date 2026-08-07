@@ -172,13 +172,15 @@ class DecisionCardApprovalPort:
                 ),
                 now=now,
             )
-            attention_started = self._attention is not None
-            if self._attention is not None:
+            attention = self._attention
+            if attention is not None:
                 try:
-                    self._attention.open(request, card, opened_at=now)
+                    attention.open(request, card, opened_at=now)
                 except Exception:
                     # The Inbox/notification lane is presentation only. Failure
                     # cannot grant, deny, or otherwise change approval authority.
+                    # This is the one place that isolation is owned; the lane
+                    # itself reports its failures rather than hiding them.
                     pass
             try:
                 selection = await self._surface.choose(
@@ -191,9 +193,11 @@ class DecisionCardApprovalPort:
                     now=self._clock(),
                 )
             finally:
-                if attention_started and self._attention is not None:
+                # Closed even when open failed: close is idempotent, and a
+                # half-opened record must never outlive the decision.
+                if attention is not None:
                     try:
-                        self._attention.close(request.request_id)
+                        attention.close(request.request_id)
                     except Exception:
                         pass
         except asyncio.CancelledError:
