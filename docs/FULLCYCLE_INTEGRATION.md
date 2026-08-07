@@ -116,6 +116,7 @@ Requirements:
 - separate output directory and retention policy;
 - local sanitization and image redaction before write;
 - no secrets, assigned-secret plaintext, memory database, or continuation data;
+- no cooperative control record, request, authority handoff, or resume state;
 - content-addressed artifacts with deletion support;
 - train/validation/test split and licensing decisions owned by Full Cycle;
 - a state-based verifier, not model self-report, supplies outcome labels.

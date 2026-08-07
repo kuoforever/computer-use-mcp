@@ -198,3 +198,39 @@ class RunLock:
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
         self.release()
+
+
+def is_run_lock_held(lock_dir: str | Path) -> bool:
+    """Probe the operating-system lease without reading or changing its payload."""
+
+    lock = RunLock(lock_dir)
+    binary = getattr(os, "O_BINARY", 0)
+    try:
+        descriptor = os.open(lock.path, os.O_RDWR | binary)
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise RunLockError(f"cannot inspect Agent run lock at {lock.path}") from exc
+    acquired_probe = False
+    try:
+        try:
+            lock._acquire_os_lock(descriptor)
+        except OSError:
+            return True
+        else:
+            acquired_probe = True
+            return False
+    finally:
+        if acquired_probe:
+            lock._release_os_lock(descriptor)
+        os.close(descriptor)
+
+
+__all__ = [
+    "RunLock",
+    "RunLockError",
+    "RunLockOwner",
+    "RunLockOwnershipError",
+    "RunLockedError",
+    "is_run_lock_held",
+]

@@ -30,6 +30,8 @@ surface:
   three stable human-idle samples inside that single MCP call; continued user
   input keeps control with the user, and the profile's 15-second bound returns
   before the 30-second MCP bridge timeout;
+- cooperative control: each live Runner loop accepts local pause/takeover only
+  at a known-safe boundary and requires explicit resume plus fresh observation;
 - persistence: continuation is disabled because typed content remains
   ephemeral and does not enter the continuation record.
 
@@ -84,6 +86,15 @@ scope: all seven possible side effects still require their ordinary exact
 approval, and all policy, grounding, budget, live-authority, verification, and
 no-replay rules remain unchanged. `review public-web-word` displays the same
 text or versioned JSON without starting the workflow.
+
+While either Runner loop is active, `task pause` or `task takeover` can record a
+cooperative request from another local terminal. The operator must wait for
+`status=paused` and `authority=released` before touching the desktop. `task
+resume` returns authority to the Runner, invalidates every pre-pause approval
+and grounding fact, and requires a fresh successful observation. The product
+Decision Card exposes takeover through this same path in place of the older
+non-resumable Defer choice. Full commands, states, and failure rules are in
+[Cooperative Pause, Takeover, and Resume](COOPERATIVE_CONTROL.md).
 
 ## Completion evidence
 

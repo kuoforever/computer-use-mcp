@@ -102,7 +102,9 @@ def _apply_recovery_presence_result(
         presence.release()
 
 
-def _approval_port(config: AgentConfig) -> ApprovalPort:
+def _approval_port(
+    config: AgentConfig, *, cooperative_takeover: bool = False
+) -> ApprovalPort:
     """Build the configured local approval surface without eager native imports."""
 
     from .approvals import ConsoleApprovalPort, ReadOnlyApprovalPort
@@ -122,6 +124,7 @@ def _approval_port(config: AgentConfig) -> ApprovalPort:
             )
         ),
         timeout_seconds=config.operator.decision_timeout_seconds,
+        takeover_enabled=cooperative_takeover,
     )
 
 
@@ -272,7 +275,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     task = commands.add_parser(
-        "task", help="Inspect validated local task state without execution authority."
+        "task", help="Inspect tasks or use the reviewed cooperative control lane."
     )
     task_commands = task.add_subparsers(dest="task_command", required=True)
     task_center = task_commands.add_parser(
@@ -290,6 +293,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the same bounded Task Center as versioned JSON.",
     )
+    for command_name, command_help in (
+        ("control", "Show one cooperative control lifecycle."),
+        ("pause", "Request pause at the next known-safe Runner boundary."),
+        ("takeover", "Request safe pause and explicit human desktop takeover."),
+        ("resume", "Request resume from an acknowledged cooperative pause."),
+    ):
+        control_command = task_commands.add_parser(command_name, help=command_help)
+        control_command.add_argument("--config", required=True, type=Path)
+        control_command.add_argument(
+            "--run-id",
+            help="Exact run ID; omit only when one live controlled run is unambiguous.",
+        )
+        control_command.add_argument(
+            "--json",
+            action="store_true",
+            help="Print the same versioned control record as JSON.",
+        )
 
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
@@ -854,7 +874,7 @@ async def _run_public_web_word_async(
     result = await run_public_web_word_workflow(
         config,
         request,
-        approvals=_approval_port(config),
+        approvals=_approval_port(config, cooperative_takeover=True),
     )
     _print_json(result.as_json())
     return 0
@@ -1689,6 +1709,41 @@ def _show_task_center(path: Path, *, limit: int, json_output: bool) -> int:
     return 0
 
 
+def _control_task(
+    path: Path,
+    command: str,
+    *,
+    run_id: str | None,
+    json_output: bool,
+) -> int:
+    from .cooperative_control import (
+        ControlRequestKind,
+        LocalCooperativeControl,
+        render_cooperative_control,
+    )
+
+    config = load_agent_config(path)
+    control = LocalCooperativeControl(
+        config.state_dir,
+        config.application_state_dir,
+    )
+    if command == "control":
+        snapshot = control.inspect(run_id)
+    elif command == "pause":
+        snapshot = control.request_pause(ControlRequestKind.PAUSE, run_id=run_id)
+    elif command == "takeover":
+        snapshot = control.request_pause(ControlRequestKind.TAKEOVER, run_id=run_id)
+    elif command == "resume":
+        snapshot = control.request_resume(run_id=run_id)
+    else:
+        raise ValueError("COOPERATIVE_CONTROL_COMMAND_UNSUPPORTED")
+    if json_output:
+        _print_json(snapshot.as_json())
+    else:
+        print(render_cooperative_control(snapshot), end="")
+    return 0
+
+
 def _show_recovery(path: Path, run_id: str) -> int:
     from .trace import classify_run_recovery, read_run_record
 
@@ -2037,6 +2092,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _show_task_center(
                 args.config,
                 limit=args.limit,
+                json_output=args.json,
+            )
+        if args.command == "task" and args.task_command in {
+            "control",
+            "pause",
+            "takeover",
+            "resume",
+        }:
+            return _control_task(
+                args.config,
+                args.task_command,
+                run_id=args.run_id,
                 json_output=args.json,
             )
         if args.command == "eval":

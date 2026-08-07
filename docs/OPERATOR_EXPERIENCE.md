@@ -46,6 +46,11 @@
 > side-effect product workflow also has a CLI-first Host-compiled
 > [Pre-run Review](PRE_RUN_REVIEW.md) before all external startup; it is
 > offline verified and is not an action approval.
+> The fixed product Runner loops now also expose offline-verified
+> [cooperative Pause/Takeover/Resume](COOPERATIVE_CONTROL.md): a request becomes
+> effective only after a durable safe-boundary pause releases desktop authority,
+> and explicit resume requires fresh observation. Native takeover timing remains
+> unverified.
 
 ## Goal
 
@@ -61,9 +66,11 @@ separately trusted surfaces:
 4. an explicit Decision Card presenting bounded choices and trade-offs when a
    human decision is required;
 5. a CLI-first read-only Task Center grouping validated tasks and rendering
-   fixed Completion/Failure Receipts after the active desktop work ends.
+   fixed Completion/Failure Receipts after the active desktop work ends;
+6. a local cooperative control lane that requests safe pause, publishes explicit
+   authority release, and requires explicit resume plus fresh observation.
 
-All five surfaces observe or act only through their documented Host-owned
+All six surfaces observe or act only through their documented Host-owned
 boundary. They do not infer success from model prose, create a second dispatch
 path, replay uncertain work, or weaken Host/MCP policy.
 
@@ -83,6 +90,12 @@ validated checkpoint / campaign / approval request
       -> Decision Card            # explicit focus-taking human boundary
           -> bound policy decision
               -> ordinary Host policy / grounding / approval / MCP path
+
+live Host Runner lease + strict local control record
+  -> pause/takeover request       # request is not yet authority release
+      -> durable PAUSED boundary
+          -> authority=released   # human may now use the desktop
+              -> explicit resume -> fresh observation -> ordinary Runner path
 ~~~
 
 The passive surfaces must not become approval shortcuts. Opening a Decision
@@ -436,6 +449,27 @@ The card must always make these paths available when applicable:
 
 There is no global "always allow" control in the first interactive version.
 
+## Cooperative desktop authority
+
+`pause_requested` is a notification to the live Runner, not an interrupt and
+not permission for concurrent input. The Runner acknowledges only before a
+provider call, before a tool dispatch, or after an approval returns. It first
+persists `PAUSED`, invalidates old grounding, yields the presence surface, and
+only then publishes `authority=released`.
+
+The operator explicitly requests resume and must stop desktop input while the
+record passes through `resume_requested` and `resuming`. Prior approval and
+grounding never return. The provider sees observation tools only until a fresh
+successful observation is durable. If an action is in flight or its dispatch is
+uncertain, `UNKNOWN_OUTCOME` remains terminal and the request cannot turn it
+into resumable work. The complete state machine and CLI are in
+[Cooperative Pause, Takeover, and Resume](COOPERATIVE_CONTROL.md).
+
+This same-process lane is distinct from durable Defer and crash continuation.
+Defer still stops the run; crash recovery still follows conservative new-run or
+read-only reconstruction rules. There is no `BlockInput`, remote endpoint,
+campaign-control mutation, or second desktop dispatcher.
+
 ## Example
 
 ~~~text
@@ -511,11 +545,16 @@ There is no global "always allow" control in the first interactive version.
    native custom choices; the expandable section shows digest-only Host evidence
    and existing fixed trade-off provenance. Re-observe abandons the stale turn
    and requires fresh evidence. Defer persists a non-resumable paused checkpoint.
-   Campaign/chapter facts remain.**
-7. After the executable campaign worker exists, verify fake-host terminal and
+    Campaign/chapter facts remain.**
+7. Add cooperative Pause/Takeover/Resume without changing the sole Runner/MCP
+   boundary. **Implemented for the fixed public-web-word Runner loops with
+   local CLI control, Decision Card takeover, durable authority release,
+   explicit resume, fresh-observation gating, and unknown-outcome precedence;
+   offline verified only.**
+8. After the executable campaign worker exists, verify fake-host terminal and
    attention events from the same redacted status projection without adding a
    second execution path.
-8. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
+9. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
    cross-application scenario with one approval and one human takeover.
 
 The final integrated presentation and evidence requirements live in the

@@ -47,6 +47,8 @@ REVIEWED_RESULT_CODES = frozenset(
         "NATIVE_AUTHORITY_LOST",
         "NATIVE_OUTCOME_UNKNOWN",
         "NOT_INVOKABLE",
+        "OPERATOR_PAUSED",
+        "OPERATOR_TAKEOVER",
         "OUT_OF_BOUNDS",
         "PERMISSION_DENIED",
         "POLICY_DENIED",
@@ -125,6 +127,7 @@ class PolicyDecisionKind(str, Enum):
     APPROVAL_REQUIRED = "approval_required"
     REOBSERVE = "reobserve"
     DEFER = "defer"
+    TAKEOVER = "takeover"
 
 
 class LedgerEventKind(str, Enum):

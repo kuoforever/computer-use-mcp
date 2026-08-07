@@ -37,8 +37,10 @@ For each requested action, the Host performs these checks in order:
 6. The default console displays a non-sensitive argument summary and SHA-256
    call digest. With explicit Decision Card opt-in, the Runner first yields
    desktop authority and opens a four-choice native card. Only the explicit
-   exact-effect choice approves that one request; re-observe, defer, and denial
-   cause zero side-effect dispatch.
+   exact-effect choice approves that one request. The fixed public-web-word
+   product offers re-observe, cooperative human takeover, and denial; other
+   adapters retain durable defer. Every non-approval choice causes zero
+   side-effect dispatch.
 7. The returned decision must match request ID, run/turn/call identity, and
    digest. A stale or mismatched decision is rejected.
 8. A valid decision is recorded for audit. For `ALLOW`, the Host then rechecks
@@ -79,7 +81,9 @@ then rechecks the live MCP generation, grounding, and required safety baselines
 before dispatch authority exists.
 
 The Win32 adapter uses a timed Common Controls v6 Task Dialog with four custom
-choices: request approval for the exact effect, re-observe, defer, or deny. It
+choices. Its base contract is exact-effect approval, re-observe, defer, or deny;
+the continuation-disabled public-web-word product replaces defer with human
+takeover. It
 shows fixed trade-offs and an expandable evidence section containing
 only evidence kinds, unknown-fact enums, expiry, and SHA-256 Host/card digests.
 Re-observe records a fixed rejected/not-dispatched result, invalidates grounding,
@@ -87,8 +91,12 @@ ends that single-call action turn, and requires a successful reviewed observatio
 before another action or final answer. Defer records a
 fixed rejected/not-dispatched result and a durable `PAUSED` checkpoint with
 `recovery_status=stopped`; it is intentionally not same-run resumable, so recovery
-requires trace inspection and a fresh run. Denial stops the run. All three paths
-consume zero side-effect budget. Cancel/close/timeout return no selection and deny. Native
+requires trace inspection and a fresh run. Cooperative takeover instead records
+a distinct digest-bound decision, releases authority only after a safe durable
+pause, rejects the stale action as not dispatched, and waits for explicit
+same-run resume plus a successful fresh observation. It cannot reuse the old
+approval. Denial stops the run. Every non-approval path consumes zero side-effect
+budget. Cancel/close/timeout return no selection and deny. Native
 errors, malformed choices, missing context, and expiry also deny. This creates
 no alternate MCP call site, global allow control, batch approval, model
 approval, or automatic recommendation selection. The console remains the
@@ -160,9 +168,11 @@ re-observation, typed-text denial, unknown outcomes, redacted approvals, and
 terminal trace state. Post-approval drift retains the correlated `ALLOW` as an
 audit fact but creates no dispatch authority.
 
-The re-observe/defer extension is offline verified only. The retained native
+The re-observe/defer and cooperative-takeover extensions are offline verified
+only. The retained native
 desktop record still covers the earlier three-choice card; a four-choice
-human-operated desktop rerun remains required before widening that evidence claim.
+human-operated takeover/resume rerun remains required before widening that
+evidence claim. See [Cooperative control](COOPERATIVE_CONTROL.md).
 
 No real approved action should be treated as release-qualified until E4 runs
 against disposable Notepad or a VM with a narrow allowlist and operator review.

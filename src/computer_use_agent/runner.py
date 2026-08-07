@@ -13,6 +13,14 @@ from uuid import uuid4
 
 from .campaign import CampaignStore
 from .config import AgentConfig
+from .cooperative_control import (
+    ControlBoundary,
+    ControlOutcome,
+    ControlRequest,
+    ControlRequestKind,
+    CooperativeControlError,
+    CooperativeControlPort,
+)
 from .continuation import ContinuationError, RuntimeContinuationRecorder
 from .context import ContextBudgetError, reduce_ledger
 from .grounding import GroundingError, GroundingState
@@ -112,6 +120,15 @@ class _CallBoundaryOutcome:
 
 
 @dataclass(frozen=True)
+class _CooperativeBoundaryOutcome:
+    """State reached after one requested safe pause and explicit resume."""
+
+    state: RunState
+    grounding: GroundingState
+    request: ControlRequest | None = None
+
+
+@dataclass(frozen=True)
 class RunnerPorts:
     """Injected external boundaries used by the bounded workflow."""
 
@@ -122,6 +139,7 @@ class RunnerPorts:
     telemetry: TelemetryPort | None = None
     presence: PresenceLifecyclePort | None = None
     progress: PresenceLifecyclePort | None = None
+    control: CooperativeControlPort | None = None
 
 
 class _SafeSpan:
@@ -180,6 +198,15 @@ class PreparedRun:
         """Return the exact application root protected by this run lock."""
 
         return self._lock.lock_dir
+
+    @property
+    def owner_token(self) -> str:
+        """Return the live run-lease token for digest binding only."""
+
+        owner = self._lock.owner
+        if self._closed or owner is None:
+            raise RuntimeError("prepared run does not own a live lock")
+        return owner.token
 
     def close(self) -> None:
         if self._closed:
@@ -522,6 +549,90 @@ class AgentRunner:
             evidence_digest=evidence_digest,
         )
 
+    async def _cooperative_pause_boundary(
+        self,
+        state: RunState,
+        grounding: GroundingState,
+        *,
+        recorder: RunRecorder,
+        presence: FailSilentLifecycle,
+        control: CooperativeControlPort | None,
+        boundary: ControlBoundary,
+    ) -> _CooperativeBoundaryOutcome:
+        """Acknowledge one pause only after the current external call is over."""
+
+        if control is None:
+            return _CooperativeBoundaryOutcome(state, grounding)
+        try:
+            request = control.pending_request(state.run_id)
+        except CooperativeControlError as exc:
+            raise RunFailure("COOPERATIVE_CONTROL_FAILED", state) from exc
+        if request is None:
+            return _CooperativeBoundaryOutcome(state, grounding)
+
+        paused_state = replace(
+            state,
+            verified_observation_epoch=None,
+            recovery_status=RecoveryStatus.REQUIRES_REOBSERVATION,
+        )
+        paused_grounding = grounding.invalidate()
+        recorder.record(paused_state, RunPhase.PAUSED)
+        # The durable paused checkpoint is published before the control record
+        # can claim that desktop authority has been released.
+        presence.yield_authority()
+        try:
+            control.acknowledge_paused(
+                paused_state.run_id,
+                request,
+                boundary=boundary,
+                checkpoint_sequence=recorder.checkpoint_sequence,
+            )
+            await control.wait_for_resume(paused_state.run_id, request)
+            control.acknowledge_resumed(paused_state.run_id, request)
+        except CooperativeControlError as exc:
+            raise RunFailure("COOPERATIVE_CONTROL_FAILED", paused_state) from exc
+        # Resume never restores the old grounding.  OBSERVING is a requirement,
+        # not a claim that a fresh observation has already succeeded.
+        recorder.record(paused_state, RunPhase.OBSERVING)
+        return _CooperativeBoundaryOutcome(
+            paused_state,
+            paused_grounding,
+            request,
+        )
+
+    def _paused_call_outcome(
+        self,
+        state: RunState,
+        grounding: GroundingState,
+        call: ToolCall,
+        request: ControlRequest,
+        *,
+        effect: ToolEffect,
+        recorder: RunRecorder,
+    ) -> _CallBoundaryOutcome:
+        """Reject the stale pre-pause call without dispatch or side-effect charge."""
+
+        code = (
+            "OPERATOR_TAKEOVER"
+            if request.kind is ControlRequestKind.TAKEOVER
+            else "OPERATOR_PAUSED"
+        )
+        result = ToolResult(
+            identity=call.identity,
+            tool_name=call.name,
+            status=ToolResultStatus.REJECTED,
+            dispatch=DispatchCertainty.NOT_DISPATCHED,
+            code=code,
+        )
+        state = self._record_result(state, result, effect=effect)
+        recorder.record(state, RunPhase.PLANNING)
+        return _CallBoundaryOutcome(
+            state=state,
+            grounding=grounding,
+            result=result,
+            abandon_remaining_calls=True,
+        )
+
     async def _execute_requested_call_boundary(
         self,
         state: RunState,
@@ -532,6 +643,7 @@ class AgentRunner:
         continuation: RuntimeContinuationRecorder | None,
         presence: FailSilentLifecycle | None = None,
         progress: FailSilentLifecycle | None = None,
+        control: CooperativeControlPort | None = None,
         privacy: PrivacySession | None = None,
     ) -> _CallBoundaryOutcome:
         """Run one fresh requested call through every ordinary host boundary.
@@ -563,6 +675,25 @@ class AgentRunner:
         except ToolValidationError as exc:
             raise RunFailure("SCHEMA_MISMATCH", state) from exc
         spec = get_tool_spec(call.name)
+        pause = await self._cooperative_pause_boundary(
+            state,
+            grounding,
+            recorder=recorder,
+            presence=safe_presence,
+            control=control,
+            boundary=ControlBoundary.BEFORE_TOOL,
+        )
+        state = pause.state
+        grounding = pause.grounding
+        if pause.request is not None:
+            return self._paused_call_outcome(
+                state,
+                grounding,
+                call,
+                pause.request,
+                effect=spec.effect,
+                recorder=recorder,
+            )
         disposition = self.policy.disposition(spec)
         if spec.required_safety_baselines:
             disposition = self.policy.disposition(
@@ -643,6 +774,7 @@ class AgentRunner:
                 PolicyDecisionKind.DENY,
                 PolicyDecisionKind.REOBSERVE,
                 PolicyDecisionKind.DEFER,
+                PolicyDecisionKind.TAKEOVER,
             }:
                 denied = ToolResult(
                     identity=call.identity,
@@ -708,6 +840,60 @@ class AgentRunner:
                 state = self._record_result(state, rejected, effect=spec.effect)
                 state = replace(state, recovery_status=RecoveryStatus.STOPPED)
                 raise RunDeferred(state)
+            if decision.kind is PolicyDecisionKind.TAKEOVER:
+                if control is None:
+                    rejected = ToolResult(
+                        identity=call.identity,
+                        tool_name=call.name,
+                        status=ToolResultStatus.REJECTED,
+                        dispatch=DispatchCertainty.NOT_DISPATCHED,
+                        code="OPERATOR_TAKEOVER",
+                    )
+                    state = self._record_result(state, rejected, effect=spec.effect)
+                    raise RunFailure("COOPERATIVE_CONTROL_UNAVAILABLE", state)
+                try:
+                    takeover = control.request_from_runner(
+                        state.run_id, ControlRequestKind.TAKEOVER
+                    )
+                except CooperativeControlError as exc:
+                    raise RunFailure("COOPERATIVE_CONTROL_FAILED", state) from exc
+                pause = await self._cooperative_pause_boundary(
+                    state,
+                    grounding,
+                    recorder=recorder,
+                    presence=safe_presence,
+                    control=control,
+                    boundary=ControlBoundary.AFTER_APPROVAL,
+                )
+                if pause.request != takeover:
+                    raise RunFailure("COOPERATIVE_CONTROL_FAILED", pause.state)
+                return self._paused_call_outcome(
+                    pause.state,
+                    pause.grounding,
+                    call,
+                    takeover,
+                    effect=spec.effect,
+                    recorder=recorder,
+                )
+            pause = await self._cooperative_pause_boundary(
+                state,
+                grounding,
+                recorder=recorder,
+                presence=safe_presence,
+                control=control,
+                boundary=ControlBoundary.AFTER_APPROVAL,
+            )
+            state = pause.state
+            grounding = pause.grounding
+            if pause.request is not None:
+                return self._paused_call_outcome(
+                    state,
+                    grounding,
+                    call,
+                    pause.request,
+                    effect=spec.effect,
+                    recorder=recorder,
+                )
             # A correlated ALLOW remains useful audit evidence, but the card wait
             # grants no lease over MCP facts. Re-read them before any side-effect
             # charge, action continuation intent, or desktop dispatch can exist.
@@ -856,6 +1042,11 @@ class AgentRunner:
                 epoch=state.observation_epoch,
             )
             recorder.record(state, RunPhase.OBSERVING)
+            if control is not None:
+                try:
+                    control.acknowledge_fresh_observation(state.run_id)
+                except CooperativeControlError as exc:
+                    raise RunFailure("COOPERATIVE_CONTROL_FAILED", state) from exc
         elif (
             spec.effect is ToolEffect.SIDE_EFFECT
             and result.dispatch is not DispatchCertainty.NOT_DISPATCHED
@@ -878,6 +1069,8 @@ class AgentRunner:
 
         if self.ports is None:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
+        if self.ports.control is not None and self.config.continuation.enabled:
+            raise RunnerError("COOPERATIVE_CONTROL_CONTINUATION_UNSUPPORTED")
         reviewed_tool_names = frozenset(tool.name for tool in REVIEWED_TOOLS)
         if (
             allowed_tool_names is not None
@@ -939,6 +1132,7 @@ class AgentRunner:
         grounding = GroundingState()
         presence = FailSilentLifecycle(self.ports.presence)
         progress = FailSilentLifecycle(self.ports.progress)
+        control = self.ports.control
 
         def publish_operator_phase(phase: RunPhase) -> None:
             presence.on_phase(phase)
@@ -951,6 +1145,7 @@ class AgentRunner:
         )
         run_started_ns = perf_counter_ns()
         recorder_started = False
+        control_started = False
         desktop_closed = False
         continuation: RuntimeContinuationRecorder | None = None
         # Read defensively: telemetry observes injected ports and must never be
@@ -972,6 +1167,16 @@ class AgentRunner:
             else:
                 recorder.start(state)
             recorder_started = True
+            if control is not None:
+                try:
+                    control.start(
+                        state.run_id,
+                        owner_token=prepared.owner_token,
+                        runner_state_dir=self.config.state_dir,
+                    )
+                    control_started = True
+                except CooperativeControlError as exc:
+                    raise RunFailure("COOPERATIVE_CONTROL_FAILED", state) from exc
             recorder.record(state, RunPhase.OBSERVING)
             discovered = await self.ports.desktop.discover_tools()
             verify_discovered_tools(discovered)
@@ -1001,6 +1206,18 @@ class AgentRunner:
             recorder.record(state, RunPhase.PLANNING)
             turn_index = 0
             while True:
+                pause = await self._cooperative_pause_boundary(
+                    state,
+                    grounding,
+                    recorder=recorder,
+                    presence=presence,
+                    control=control,
+                    boundary=ControlBoundary.BEFORE_PROVIDER,
+                )
+                state = pause.state
+                grounding = pause.grounding
+                if pause.request is not None:
+                    recorder.record(state, RunPhase.PLANNING)
                 if state.budgets.model_turns_used >= state.budgets.max_model_turns:
                     raise RunFailure("MODEL_TURN_BUDGET_EXHAUSTED", state)
                 if state.budgets.input_tokens_used >= state.budgets.max_input_tokens:
@@ -1016,6 +1233,19 @@ class AgentRunner:
                 except ContextBudgetError as exc:
                     raise RunFailure(str(exc), state) from exc
                 provider_started_ns = perf_counter_ns()
+                turn_tools = provider_tools
+                if (
+                    control is not None
+                    and state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION
+                ):
+                    turn_tools = tuple(
+                        tool
+                        for tool in provider_tools
+                        if tool.effect is ToolEffect.OBSERVATION
+                    )
+                turn_advertised_tool_names = frozenset(
+                    tool.name for tool in turn_tools
+                )
                 if continuation is not None:
                     recorder.record(
                         state, recorder.phase, advance_checkpoint_sequence=True
@@ -1038,7 +1268,7 @@ class AgentRunner:
                             turn_id=turn_id,
                             task=state.task,
                             ledger=provider_ledger,
-                            tools=provider_tools,
+                            tools=turn_tools,
                             memories=memories,
                         )
                 except TimeoutError as exc:
@@ -1046,7 +1276,8 @@ class AgentRunner:
                 if turn.run_id != state.run_id or turn.turn_id != turn_id:
                     raise RunFailure("PROVIDER_TURN_IDENTITY_MISMATCH", state)
                 if any(
-                    call.name not in advertised_tool_names for call in turn.tool_calls
+                    call.name not in turn_advertised_tool_names
+                    for call in turn.tool_calls
                 ):
                     raise RunFailure("PROVIDER_TOOL_NOT_ADVERTISED", state)
                 try:
@@ -1120,6 +1351,7 @@ class AgentRunner:
                                 continuation=continuation,
                                 presence=presence,
                                 progress=progress,
+                                control=control,
                                 privacy=privacy,
                             )
                         except RunFailure as failure:
@@ -1209,6 +1441,18 @@ class AgentRunner:
             run_span.end()
             presence.release()
             progress.release()
+            if control is not None and control_started:
+                control_outcome = {
+                    RunPhase.SUCCESS: ControlOutcome.SUCCESS,
+                    RunPhase.CANCELLED: ControlOutcome.CANCELLED,
+                    RunPhase.PAUSED: ControlOutcome.STOPPED,
+                    RunPhase.UNKNOWN_OUTCOME: ControlOutcome.UNKNOWN_OUTCOME,
+                }.get(recorder.phase, ControlOutcome.FAILED)
+                try:
+                    control.close(state.run_id, control_outcome)
+                except CooperativeControlError:
+                    if not had_active_error:
+                        raise
             prepared.close()
             if continuation is not None:
                 try:

@@ -24,6 +24,7 @@ from .config import (
     OperatorConfig,
     PolicyConfig,
 )
+from .cooperative_control import CooperativeControlPort, LocalCooperativeControl
 from .disposable_process import (
     DisposableCleanup,
     DisposableProcess,
@@ -669,6 +670,7 @@ async def run_public_web_word_workflow(
     windows: ProcessWindows | None = None,
     sleep: Callable[[float], None] = time.sleep,
     run_id: str | None = None,
+    control: CooperativeControlPort | None = None,
 ) -> PublicWebWordResult:
     """Run, save, close, reopen, and independently re-read one disposable DOCX."""
 
@@ -680,6 +682,10 @@ async def run_public_web_word_workflow(
 
         approvals = ConsoleApprovalPort()
     resolved_run_id = run_id or f"public-web-word-{os.urandom(16).hex()}"
+    cooperative_control = control or LocalCooperativeControl(
+        config.state_dir,
+        config.application_state_dir,
+    )
     fixture = prepare_public_web_word_fixture(config, request, run_id=resolved_run_id)
     process_windows = windows or Win32ProcessWindows()
     ownership: list[DisposableProcess] = []
@@ -710,6 +716,7 @@ async def run_public_web_word_workflow(
                 provider=wrapper,
                 desktop=_PublicWebWordVisionDesktop(desktop_factory(config)),
                 approvals=approvals,
+                control=cooperative_control,
             ),
         ).run(
             public_web_word_task(fixture.document.name),
@@ -770,6 +777,7 @@ async def run_public_web_word_workflow(
                 ),
                 desktop=desktop_factory(verifier_config),
                 approvals=approvals,
+                control=cooperative_control,
             ),
         ).run(
             "Reopen and verify the exact disposable Word artifact.",
