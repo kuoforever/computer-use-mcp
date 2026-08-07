@@ -4,8 +4,9 @@ The probe opens no provider, MCP, application, or desktop-action port.  The
 passive surfaces must preserve the foreground window.  The focus-taking
 Decision Card is inspected through UI Automation and resolved with keyboard
 navigation to its safe ``option_deny`` choice in English and Simplified Chinese.
-The probe covers dark, light, and the High Contrast override without claiming
-human assistive-technology or physical multi-monitor evidence.
+The probe covers dark, light, the High Contrast override, and native 200%/400%
+text reflow without claiming human assistive-technology, visual-design, or
+physical multi-monitor evidence.
 """
 from __future__ import annotations
 
@@ -380,6 +381,14 @@ def main() -> int:
         ),
         "dark": (OperatorAccessibilitySettings(), OperatorTheme.DARK),
         "light": (OperatorAccessibilitySettings(), OperatorTheme.LIGHT),
+        "light-200-percent-text": (
+            OperatorAccessibilitySettings(text_scale_factor=2.0),
+            OperatorTheme.LIGHT,
+        ),
+        "dark-400-percent-text": (
+            OperatorAccessibilitySettings(text_scale_factor=4.0),
+            OperatorTheme.DARK,
+        ),
     }
     appearances: dict[str, object] = {}
     for case_name, (accessibility, theme) in cases.items():

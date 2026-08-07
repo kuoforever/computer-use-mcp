@@ -87,12 +87,19 @@ python scripts/smoke_operator_accessibility.py
 ~~~
 
 The 2026-08-07 probe exercised dark, light, and High-Contrast-over-light in
-English and Simplified Chinese. It found the Decision Card header as UIA Text
+English and Simplified Chinese, then exercised live 200% and 400% text reflow.
+It found the Decision Card header as UIA Text
 controls, the labelled details pane as Edit, and all four choices as Button. It
 observed initial safe-denial focus, traversed the complete Tab path, resolved
 `option_deny` with `Enter`, and confirmed that Progress and Presence kept the
 foreground unchanged while exposing bounded top-level names. The trace was
 deterministic and excluded plausible user input/focus interference.
+
+All ten current-candidate locale/presentation cases and their exact evidence
+boundary are retained in
+[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md). The live
+large-text result proves automated geometry and UIA behavior only, not human
+legibility or visual acceptance.
 
 This is a UI Automation client smoke, not proof of spoken order, pronunciation,
 verbosity, braille output, or usability with a particular assistive technology.

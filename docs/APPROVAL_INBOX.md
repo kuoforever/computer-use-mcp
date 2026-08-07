@@ -1,7 +1,7 @@
 # Approval Inbox and local notifications
 
-> **Status: implemented and offline verified; native notification delivery has
-> not yet been retained as desktop evidence.** This surface supplements the
+> **Status: implemented, offline verified, and bounded native notification
+> lifecycle verified.** This surface supplements the
 > existing Decision Card. It does not approve, deny, defer, take over, resume,
 > retry, or dispatch work.
 
@@ -111,8 +111,11 @@ Not yet claimed:
   localized in English and Simplified Chinese under the
   [operator localization contract](OPERATOR_LOCALIZATION.md).
 
-Those gaps belong to the separate accessibility closure slice. They do not
-weaken the current exact approval, expiry, privacy, or dispatch boundaries.
+The current two-locale Shell show/withdraw lifecycle is retained in
+[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md). Windows
+quiet time means Shell acceptance is not a visibility claim. The remaining
+gaps do not weaken the current exact approval, expiry, privacy, or dispatch
+boundaries.
 
 ## Verification boundary
 

@@ -68,6 +68,10 @@ Before tagging a release, record evidence for every item:
 
 Use [Agent release evidence record](RELEASE_EVIDENCE.md) as the review template.
 `NOT RUN` documents a missing gate; it does not turn that gate into a pass.
+The current pre-release automated/E3/native audit and its explicit missing
+human/hardware/E4/application gates are retained in
+[Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md); that audit
+is not release approval.
 
 - CI is green on all supported Python versions.
 - The wheel artifact installs in a clean Windows environment.

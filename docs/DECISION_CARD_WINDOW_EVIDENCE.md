@@ -4,6 +4,11 @@
 > This record demonstrates the opt-in Win32 Decision Card through the production
 > `ApprovalPort` and ordinary Runner boundary. It is not human comprehension,
 > real-provider, real-MCP-child, or application acceptance evidence.
+> The resizable/scrollable frame and long labels below are historical facts for
+> the named 2026-07-26 commit, not the current presentation contract. The
+> current fixed-frame/plain-language probe and the audit that corrected its
+> stale expectations are retained in
+> [Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md).
 
 ## Exact scope
 
