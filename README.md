@@ -176,7 +176,11 @@ observation count, and usage metadata. It can plan one to four reviewed
 observations, including bounded UIA `document_text`; it cannot plan a desktop
 side effect. The generated configuration stores no credential, uses the
 user-local state directory, and enables the short-lived continuation WAL that
-the observation/final-response path requires.
+the observation/final-response path requires. New generated product profiles
+also enable every current UI/UX boolean by default: passive action feedback,
+presence, progress, reduced motion, high contrast, and Decision Cards. These
+settings add visibility and local interaction only; they grant no model or
+desktop authority, and every surface remains explicitly configurable.
 
 `config doctor` is the installed-runtime readiness check. It validates the
 configuration, provider extra and documented credential variable, MCP
