@@ -7,6 +7,13 @@ from datetime import UTC
 from typing import Callable, Protocol, runtime_checkable
 
 from .decision_cards import DecisionCard, DecisionSelection
+from .operator_localization import (
+    OperatorLocale,
+    decision_button_label,
+    localized_visual,
+    localize_fixed_text,
+    operator_text,
+)
 from .operator_visuals import (
     OperatorVisualRole,
     OperatorVisualToken,
@@ -29,15 +36,6 @@ def decision_attention_visual() -> OperatorVisualToken:
 class DecisionCardButton:
     option_id: str
     label: str
-
-
-_COMPACT_BUTTON_LABELS = {
-    "option_approve_exact_effect": "Approve once",
-    "option_reobserve": "Re-observe",
-    "option_defer": "Defer",
-    "option_deny": "Deny",
-    "option_human_takeover": "Take over",
-}
 
 
 @dataclass(frozen=True)
@@ -142,6 +140,11 @@ class DecisionCardWindowApi(Protocol):
 class DecisionCardWindow:
     api: DecisionCardWindowApi
     step_context: Callable[[], OperatorStepContext | None] | None = None
+    locale: OperatorLocale = OperatorLocale.EN_US
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.locale, OperatorLocale):
+            raise DecisionCardWindowError("DECISION_CARD_LOCALE_INVALID")
 
     async def choose(
         self, card: DecisionCard, *, timeout_seconds: int
@@ -157,7 +160,7 @@ class DecisionCardWindow:
         buttons = tuple(
             DecisionCardButton(
                 option.option_id,
-                _COMPACT_BUTTON_LABELS.get(option.option_id, option.title),
+                decision_button_label(self.locale, option.option_id, option.title),
             )
             for option in card.options
         )
@@ -165,29 +168,33 @@ class DecisionCardWindow:
         context = self.step_context() if self.step_context is not None else None
         if context is not None and not isinstance(context, OperatorStepContext):
             raise DecisionCardWindowError("DECISION_CARD_STEP_INVALID")
-        attention = decision_attention_visual()
-        title = "Decision required"
+        attention = localized_visual(self.locale, decision_attention_visual())
+        title = operator_text(self.locale, "decision_required")
         # Exactly four lines, always, in the shared HUD tier order: accent
         # micro-label, the one thing being decided, then the counts and
         # application that qualify it. A backend zips these against a fixed
         # type scale, so the count must not vary with the context.
         instruction_lines = [
-            f"{attention.label.upper()}  ·  APPROVAL LOCKED",
-            "Choose one bounded option",
+            f"{attention.label.upper()}  ·  {operator_text(self.locale, 'approval_locked')}",
+            operator_text(self.locale, "choose_bounded_option"),
             "",
             "",
         ]
         if context is not None:
-            title = f"{attention.label} · approval locked"
-            instruction_lines[1] = context.label
+            title = (
+                f"{attention.label} · "
+                f"{operator_text(self.locale, 'approval_locked_title')}"
+            )
+            instruction_lines[1] = localize_fixed_text(self.locale, context.label)
             instruction_lines[2] = (
-                f"APPROVAL {context.current}/{context.total}"
+                f"{operator_text(self.locale, 'approval')} {context.current}/{context.total}"
                 f"  ·  {context.application}"
             )
             if context.workflow is not None:
                 instruction_lines[3] = (
-                    f"WORKFLOW {context.workflow.current}/{context.workflow.total}"
-                    f"  ·  {context.workflow.label}"
+                    f"{operator_text(self.locale, 'workflow')} "
+                    f"{context.workflow.current}/{context.workflow.total}"
+                    f"  ·  {localize_fixed_text(self.locale, context.workflow.label)}"
                 )
         instruction = "\n".join(instruction_lines)
         try:
@@ -209,37 +216,47 @@ class DecisionCardWindow:
             return None
         return DecisionSelection(card.decision_id, card.card_digest, option_id)
 
-    @staticmethod
-    def _content(card: DecisionCard) -> str:
+    def _content(self, card: DecisionCard) -> str:
         def estimate(value, unit: str) -> str:  # noqa: ANN001
             if value.minimum is None:
-                return "Not estimated"
-            provenance = value.kind.value.replace("_", " ")
+                return operator_text(self.locale, "not_estimated")
+            provenance = localize_fixed_text(
+                self.locale, value.kind.value.replace("_", " ").capitalize()
+            )
+            localized_unit = localize_fixed_text(self.locale, unit)
             if value.minimum == value.maximum == 0:
-                return f"None ({provenance})"
+                none = localize_fixed_text(self.locale, "None")
+                return f"{none} ({provenance})"
             if value.minimum == value.maximum:
-                return f"{value.minimum} {unit} ({provenance})"
+                return f"{value.minimum} {localized_unit} ({provenance})"
             return (
-                f"{value.minimum}–{value.maximum} {unit}"
+                f"{value.minimum}–{value.maximum} {localized_unit}"
                 f" ({provenance})"
             )
 
         def readable(value: str) -> str:
-            return value.replace("_", " ").capitalize()
+            return localize_fixed_text(
+                self.locale, value.replace("_", " ").capitalize()
+            )
 
         def fingerprint(value: str) -> str:
             return f"{value[:10]}…{value[-6:]}"
 
         lines = [
-            "Decision scope",
-            "This card controls one bounded desktop action only.",
-            "A recommendation is advice, not permission for later actions.",
+            operator_text(self.locale, "decision_scope"),
+            localize_fixed_text(
+                self.locale, "This card controls one bounded desktop action only."
+            ),
+            localize_fixed_text(
+                self.locale,
+                "A recommendation is advice, not permission for later actions.",
+            ),
             "",
-            "Your choices",
+            operator_text(self.locale, "your_choices"),
         ]
         for index, option in enumerate(card.options, start=1):
             recommendation = (
-                " — recommended"
+                f" — {operator_text(self.locale, 'recommended')}"
                 if option.option_id == card.recommended_option_id
                 else ""
             )
@@ -251,71 +268,89 @@ class DecisionCardWindow:
                 )
             lines.extend(
                 [
-                    f"{index}. {option.title}{recommendation}",
-                    f"   Outcome: {option.effect}.",
-                    f"   Benefit: {'; '.join(option.benefits)}.",
-                    f"   Trade-off: {'; '.join(option.costs)}.",
-                    f"   Risk: {'; '.join(option.risks)}.",
-                    f"   Can be undone: {'Yes' if option.reversible else 'No'}.",
-                    "   Expected time: "
+                    f"{index}. {localize_fixed_text(self.locale, option.title)}{recommendation}",
+                    f"   {operator_text(self.locale, 'outcome')}: "
+                    f"{localize_fixed_text(self.locale, option.effect)}.",
+                    f"   {operator_text(self.locale, 'benefit')}: "
+                    f"{'; '.join(localize_fixed_text(self.locale, value) for value in option.benefits)}.",
+                    f"   {operator_text(self.locale, 'tradeoff')}: "
+                    f"{'; '.join(localize_fixed_text(self.locale, value) for value in option.costs)}.",
+                    f"   {operator_text(self.locale, 'risk')}: "
+                    f"{'; '.join(localize_fixed_text(self.locale, value) for value in option.risks)}.",
+                    f"   {operator_text(self.locale, 'can_be_undone')}: "
+                    f"{operator_text(self.locale, 'yes' if option.reversible else 'no')}.",
+                    f"   {operator_text(self.locale, 'expected_time')}: "
                     + estimate(option.expected_time_seconds, "seconds")
                     + ".",
-                    "   Compute cost: "
+                    f"   {operator_text(self.locale, 'compute_cost')}: "
                     + estimate(option.expected_tokens, "tokens")
                     + ".",
-                    f"   Confidence: {confidence}.",
+                    f"   {operator_text(self.locale, 'confidence')}: {confidence}.",
                     "",
                 ]
             )
         lines.extend(
             [
-                "Safe exit",
-                "Esc, close, or timeout denies this action.",
+                operator_text(self.locale, "safe_exit"),
+                localize_fixed_text(
+                    self.locale, "Esc, close, or timeout denies this action."
+                ),
                 "",
-                "Support fingerprint",
+                operator_text(self.locale, "support_fingerprint"),
                 fingerprint(card.card_digest),
             ]
         )
         return "\n".join(lines)
 
-    @staticmethod
-    def _evidence_content(card: DecisionCard) -> str:
+    def _evidence_content(self, card: DecisionCard) -> str:
         binding = card.binding
 
         def readable(value: str) -> str:
-            return value.replace("_", " ").capitalize()
+            return localize_fixed_text(
+                self.locale, value.replace("_", " ").capitalize()
+            )
 
         def fingerprint(value: str) -> str:
             return f"{value[:10]}…{value[-6:]}"
 
         lines = [
-            "Safety checks",
-            "- The current screen evidence is bound to this card.",
-            "- If the task, policy, application, or target changes, this card expires.",
-            "- Choosing an option does not authorize any later action.",
+            operator_text(self.locale, "safety_checks"),
+            "- " + localize_fixed_text(
+                self.locale, "The current screen evidence is bound to this card."
+            ),
+            "- " + localize_fixed_text(
+                self.locale,
+                "If the task, policy, application, or target changes, this card expires.",
+            ),
+            "- " + localize_fixed_text(
+                self.locale, "Choosing an option does not authorize any later action."
+            ),
             "",
-            "Evidence available",
+            operator_text(self.locale, "evidence_available"),
             *(
                 f"- {readable(reference.kind.value)}"
                 for reference in card.evidence
             ),
             "",
-            "Still unknown",
+            operator_text(self.locale, "still_unknown"),
             *(
                 f"- {readable(fact.value)}" for fact in card.unknown_facts
             ),
             "",
-            "Technical verification (short fingerprints)",
-            f"- Screen state: {fingerprint(binding.state_digest)}",
-            f"- Safety policy: {fingerprint(binding.policy_digest)}",
-            f"- Task: {fingerprint(binding.task_digest)}",
-            f"- Tool registry: {fingerprint(binding.registry_digest)}",
-            f"- Target object: {fingerprint(binding.object_digest)}",
-            f"- Evidence set: {fingerprint(binding.evidence_digest)}",
-            f"- Card: {fingerprint(card.card_digest)}",
-            f"- Expires: {card.expires_at.astimezone(UTC).strftime('%H:%M:%S UTC')}",
+            operator_text(self.locale, "technical_verification"),
+            f"- {localize_fixed_text(self.locale, 'Screen state')}: {fingerprint(binding.state_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Safety policy')}: {fingerprint(binding.policy_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Task')}: {fingerprint(binding.task_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Tool registry')}: {fingerprint(binding.registry_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Target object')}: {fingerprint(binding.object_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Evidence set')}: {fingerprint(binding.evidence_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Card')}: {fingerprint(card.card_digest)}",
+            f"- {localize_fixed_text(self.locale, 'Expires')}: {card.expires_at.astimezone(UTC).strftime('%H:%M:%S UTC')}",
             "",
-            "Fingerprints help support staff correlate records. They grant no authority.",
+            localize_fixed_text(
+                self.locale,
+                "Fingerprints help support staff correlate records. They grant no authority.",
+            ),
         ]
         return "\n".join(lines)
 

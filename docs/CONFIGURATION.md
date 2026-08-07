@@ -255,11 +255,14 @@ computer-use halo when enabled:
 presence_enabled = true
 reduced_motion = true
 high_contrast = true
+locale = "auto"
 ~~~
 
-All three values are strict booleans. Newly generated installed product
-profiles write all three as `true`; legacy or hand-written configuration that
-omits them retains the parser default `false`. When disabled, the CLI does not
+The three enablement/accessibility values are strict booleans. `locale` accepts
+only `"en-US"`, `"zh-CN"`, or `"auto"`. Newly generated installed product
+profiles write all three booleans as `true` and select `auto`; legacy or
+hand-written configuration that omits them retains disabled booleans and the
+English locale. When disabled, the CLI does not
 construct the native Win32 surface. When enabled, the surface
 receives only fixed phases after their run checkpoints are durably published.
 It receives no task, target, model output, arguments, approval, or execution
@@ -293,6 +296,7 @@ for the duration of one CLI process:
 ~~~toml
 [operator]
 progress_enabled = true
+locale = "auto"
 ~~~
 
 `progress_enabled` is a strict boolean. Newly generated installed product
@@ -322,6 +326,7 @@ decision_cards_enabled = true
 approval_notifications_enabled = true
 decision_timeout_seconds = 300
 decision_card_corner = "bottom_right"
+locale = "auto"
 ~~~
 
 Newly generated installed product profiles write `decision_cards_enabled =
@@ -349,7 +354,9 @@ allow remains bound to the original
 audit, and post-action verification path. The adapter is Windows-only and does
 not apply to read-only, planned, campaign, or recovery runtimes.
 
-The native card starts keyboard focus on `Deny`; native dialog traversal handles
+The native card starts keyboard focus on the unique `option_deny` choice,
+displayed as `Stop task` in English and `停止任务` in Simplified Chinese; native
+dialog traversal handles
 `Tab`, `Shift+Tab`, arrows, `Space`, and bounded focused-control `Enter`, while
 `Esc` denies. Its standard Text/Edit/Button UIA semantics, labelled details
 pane, announcement milestones, High Contrast, reduced motion, and large-text
@@ -362,6 +369,9 @@ work. When notifications are enabled, Windows receives only fixed product
 wording with no request identity, tool, target, task, model text, argument, or
 digest. Native notification failure is fail-silent and cannot affect approval.
 See the complete [Approval Inbox contract](APPROVAL_INBOX.md).
+The bounded locale resolution, fallback, translated surfaces, and stable
+machine-contract rules are owned by
+[Operator localization](OPERATOR_LOCALIZATION.md).
 
 ## Agent text privacy
 

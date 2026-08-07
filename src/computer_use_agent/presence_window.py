@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+from .operator_localization import OperatorLocale, operator_text
 from .presence import PresenceSnapshot, PresenceView, project_presence
 
 WS_POPUP = 0x80000000
@@ -104,12 +105,21 @@ class PresenceUpdate:
     capture_excluded: bool
 
 
-def presence_accessible_name(view: PresenceView) -> str:
+def presence_accessible_name(
+    view: PresenceView,
+    *,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> str:
     """Return the fixed click-through halo alternative exposed to UIA clients."""
 
     if not isinstance(view, PresenceView):
         raise PresenceWindowError("PRESENCE_ACCESSIBLE_VIEW_INVALID")
-    return f"Computer Use. {view.glyph.capitalize()}. {view.label}."
+    if not isinstance(locale, OperatorLocale):
+        raise PresenceWindowError("PRESENCE_ACCESSIBLE_LOCALE_INVALID")
+    product = operator_text(locale, "product_name")
+    if locale is OperatorLocale.EN_US:
+        return f"{product}. {view.glyph.capitalize()}. {view.label}."
+    return f"{product}。{view.glyph}。{view.label}。"
 
 
 @dataclass

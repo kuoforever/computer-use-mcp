@@ -33,6 +33,7 @@ from computer_use_agent.progress_window import (
     workflow_accessible_name,
 )
 from computer_use_agent.demo_cross_app import DEMO_WORKFLOW
+from computer_use_agent.operator_localization import OperatorLocale
 from computer_use_agent.workflow_checklist import WorkflowStatus
 
 FORBIDDEN = "PROGRESS_TASK_SECRET"
@@ -317,6 +318,59 @@ def test_workflow_accessible_name_contains_only_the_bounded_operator_summary() -
         "Current step 3 of 6. Open the research brief. Application Microsoft Word."
     )
     assert len(name) <= 600
+
+
+def test_simplified_chinese_workflow_keeps_unknown_application_text() -> None:
+    checklist = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        completed_step_ids=("prepare_workspace", "review_public_source"),
+        current_step_id="open_research_brief",
+    )
+
+    lines = render_workflow_summary_lines(checklist, OperatorLocale.ZH_CN)
+    name = workflow_accessible_name(lines, OperatorLocale.ZH_CN)
+
+    assert lines == (
+        "电脑操作  ·  进行中",
+        "公开来源研究简报更新",
+        "已完成 2 项  ·  未开始 3 项  ·  共 6 项",
+        "当前第 3/6 步",
+        "打开研究简报",
+        "Microsoft Word",
+    )
+    assert name == (
+        "电脑操作。进行中。流程 公开来源研究简报更新。当前第 3/6 步。"
+        "打开研究简报。应用 Microsoft Word。"
+    )
+
+    detail = render_workflow_detail_lines(checklist, OperatorLocale.ZH_CN)
+    assert detail[6] == "流程清单"
+    assert detail[7:9] == (
+        "✓  1  准备受控演示工作区",
+        "    演示准备  ·  已完成",
+    )
+
+    setup = DEMO_WORKFLOW.project(
+        WorkflowStatus.RUNNING,
+        current_step_id="prepare_workspace",
+    )
+    assert render_workflow_summary_lines(setup, OperatorLocale.ZH_CN)[5] == (
+        "演示准备"
+    )
+
+
+def test_simplified_chinese_diagnostic_progress_preserves_run_id() -> None:
+    lines = "\n".join(
+        render_progress_lines(
+            _projection(_view("run_operator_owned")),
+            locale=OperatorLocale.ZH_CN,
+        )
+    )
+
+    assert "run_operator_owned" in lines
+    assert "第 3/4 步" in lines
+    assert "覆盖范围未知" in lines
+    assert "当前是否存活未知" in lines
 
 
 def test_workflow_summary_hides_tool_budget_and_run_diagnostics() -> None:

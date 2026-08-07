@@ -4,6 +4,7 @@ import pytest
 
 from computer_use_agent.approval_inbox import ApprovalNotice
 from computer_use_agent.approval_notification_win32 import Win32ApprovalNotifier
+from computer_use_agent.operator_localization import OperatorLocale
 
 
 class _User32:
@@ -67,11 +68,22 @@ def test_native_notification_uses_fixed_noninteractive_content_and_withdraws() -
     assert [call[0] for call in shell32.calls] == [0, 4, 2]
     _operation, title, body, flags = shell32.calls[0]
     assert title == "Guarded Desktop Agent"
-    assert body == "Approval needed. Review the bound local approval surface."
+    assert body == "Approval needed. Return to the open decision window."
     assert "private_request_id" not in title + body
     assert flags & 0x10  # NIF_INFO
     assert user32.created == [("STATIC", "Guarded Desktop Agent notification host")]
     assert user32.destroyed == [101]
+
+
+def test_native_notification_uses_matching_simplified_chinese_copy() -> None:
+    shell32 = _Shell32()
+    notifier = Win32ApprovalNotifier(shell32=shell32, user32=_User32())
+
+    notifier.show(ApprovalNotice("request_1", OperatorLocale.ZH_CN))
+
+    _operation, title, body, _flags = shell32.calls[0]
+    assert title == "受保护的桌面智能体"
+    assert body == "需要审批。请返回已打开的决策窗口。"
 
 
 def test_native_notification_requires_a_private_host_window_and_exact_notice_type() -> None:

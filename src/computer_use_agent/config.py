@@ -463,6 +463,7 @@ class OperatorConfig:
     high_contrast: bool = False
     decision_cards_enabled: bool = False
     approval_notifications_enabled: bool = False
+    locale: str = "en-US"
     decision_timeout_seconds: int = 300
     decision_card_corner: str = "bottom_right"
 
@@ -487,6 +488,8 @@ class OperatorConfig:
             raise ConfigError(
                 "operator decision_timeout_seconds must be between 5 and 3600"
             )
+        if self.locale not in {"auto", "en-US", "zh-CN"}:
+            raise ConfigError("operator locale must be auto, en-US, or zh-CN")
         if self.decision_card_corner not in {
             "top_left",
             "top_right",
@@ -611,6 +614,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "high_contrast",
             "decision_cards_enabled",
             "approval_notifications_enabled",
+            "locale",
             "decision_timeout_seconds",
             "decision_card_corner",
         },
@@ -726,6 +730,9 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     )
     if not isinstance(decision_card_corner, str):
         raise ConfigError("[operator].decision_card_corner must be a string")
+    operator_locale = operator.get("locale", "en-US")
+    if not isinstance(operator_locale, str):
+        raise ConfigError("[operator].locale must be a string")
     return AgentConfig(
         state_dir=state_dir,
         policy_version=policy_version,
@@ -736,6 +743,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         privacy=privacy_config,
         operator=OperatorConfig(
             **operator_values,
+            locale=operator_locale,
             decision_timeout_seconds=_read_nonnegative_int(
                 operator,
                 "decision_timeout_seconds",

@@ -13,6 +13,7 @@ from .operator_accessibility import (
     layout_dpi,
     win32_palette,
 )
+from .operator_localization import OperatorLocale
 from .presence import PresenceView
 from .presence_window import (
     DisplayBounds,
@@ -93,11 +94,15 @@ class Win32PresenceWindowApi:
         self,
         *,
         accessibility: OperatorAccessibilitySettings | None = None,
+        locale: OperatorLocale = OperatorLocale.EN_US,
     ) -> None:
         enable_dpi_awareness()
         self.accessibility = accessibility or OperatorAccessibilitySettings()
         if not isinstance(self.accessibility, OperatorAccessibilitySettings):
             raise ValueError("presence accessibility settings are invalid")
+        if not isinstance(locale, OperatorLocale):
+            raise ValueError("presence locale is invalid")
+        self.locale = locale
         self._user32 = private_windll("user32")
         self._gdi32 = private_windll("gdi32")
         self._kernel32 = private_windll("kernel32")
@@ -181,7 +186,7 @@ class Win32PresenceWindowApi:
     ) -> None:
         self._states[int(hwnd)] = (view, geometry)
         self._frames[int(hwnd)] = 0
-        accessible_name = presence_accessible_name(view)
+        accessible_name = presence_accessible_name(view, locale=self.locale)
         if self._accessible_names.get(int(hwnd)) != accessible_name:
             if self._user32.SetWindowTextW(wintypes.HWND(hwnd), accessible_name):
                 self._accessible_names[int(hwnd)] = accessible_name

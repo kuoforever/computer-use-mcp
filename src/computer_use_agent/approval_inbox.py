@@ -21,6 +21,7 @@ from typing import Protocol
 
 from .atomic_file import read_shared_bytes
 from .decision_cards import DecisionCard
+from .operator_localization import OperatorLocale, operator_text
 from .types import ApprovalRequest, JSONValue
 
 
@@ -56,10 +57,6 @@ _ACTION_LABELS = {
     "type": "Type text",
     "key": "Keyboard shortcut",
 }
-
-_NOTICE_TITLE = "Guarded Desktop Agent"
-_NOTICE_BODY = "Approval needed. Review the bound local approval surface."
-
 
 class ApprovalInboxError(RuntimeError):
     """Fixed failure from Approval Inbox persistence or projection."""
@@ -146,17 +143,20 @@ class ApprovalNotice:
     """Fixed-content notification; ``notice_id`` is routing metadata only."""
 
     notice_id: str
+    locale: OperatorLocale = OperatorLocale.EN_US
 
     def __post_init__(self) -> None:
         _safe_id(self.notice_id)
+        if not isinstance(self.locale, OperatorLocale):
+            raise ValueError("locale must be an OperatorLocale")
 
     @property
     def title(self) -> str:
-        return _NOTICE_TITLE
+        return operator_text(self.locale, "approval_notice_title")
 
     @property
     def body(self) -> str:
-        return _NOTICE_BODY
+        return operator_text(self.locale, "approval_notice_body")
 
     def as_json(self) -> dict[str, JSONValue]:
         return {
@@ -374,11 +374,15 @@ class ApprovalAttentionLifecycle:
         store: LocalApprovalInbox,
         *,
         notifications: ApprovalNotificationPort | None = None,
+        locale: OperatorLocale = OperatorLocale.EN_US,
     ) -> None:
         if not isinstance(store, LocalApprovalInbox):
             raise ValueError("store must be a LocalApprovalInbox")
+        if not isinstance(locale, OperatorLocale):
+            raise ValueError("locale must be an OperatorLocale")
         self.store = store
         self.notifications = notifications
+        self.locale = locale
 
     def open(
         self,
@@ -390,7 +394,7 @@ class ApprovalAttentionLifecycle:
         record = self.store.open(request, card, opened_at=opened_at)
         if self.notifications is not None:
             try:
-                self.notifications.show(ApprovalNotice(record.request_id))
+                self.notifications.show(ApprovalNotice(record.request_id, self.locale))
             except Exception:
                 pass
         return record

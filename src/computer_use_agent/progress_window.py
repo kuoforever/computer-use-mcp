@@ -32,6 +32,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+from .operator_localization import (
+    OperatorLocale,
+    localized_visual,
+    localize_fixed_text,
+    operator_text,
+)
 from .operator_visuals import (
     OperatorVisualRole,
     OperatorVisualToken,
@@ -82,7 +88,10 @@ def _clip(line: str) -> str:
     return line[: _MAX_LINE_CHARS - 1] + "…"
 
 
-def _run_lines(view: RunProgressView) -> tuple[str, ...]:
+def _run_lines(
+    view: RunProgressView,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> tuple[str, ...]:
     """Render one run as a bounded, whitelisted block of display lines.
 
     Only fields already present on the redaction-safe view model are read, so
@@ -94,50 +103,94 @@ def _run_lines(view: RunProgressView) -> tuple[str, ...]:
         step = view.tool_calls.used
     else:
         step = min(view.tool_calls.used + 1, view.tool_calls.limit)
-    head = (
-        f"{view.run_id}  STEP {step}/{view.tool_calls.limit}  "
-        f"{view.phase.replace('_', ' ').title()}  {view.display_state}"
+    phase = localize_fixed_text(
+        locale,
+        view.phase.replace("_", " ").title(),
+    )
+    display_state = localize_fixed_text(locale, view.display_state)
+    head = operator_text(
+        locale,
+        "progress_run_head",
+        run_id=view.run_id,
+        step=step,
+        limit=view.tool_calls.limit,
+        phase=phase,
+        state=display_state,
     )
     if view.needs_reobserve:
         # Acceptance check 7: distinct, and never a retry affordance — this is a
         # passive label, not a button.
-        head += "  [re-observe]"
+        head += "  " + operator_text(locale, "reobserve_marker")
 
-    calls = (
-        f"  calls  model {view.model_calls.used}/{view.model_calls.limit}"
-        f"  tool {view.tool_calls.used}/{view.tool_calls.limit}"
+    calls = operator_text(
+        locale,
+        "progress_run_calls",
+        model_used=view.model_calls.used,
+        model_limit=view.model_calls.limit,
+        tool_used=view.tool_calls.used,
+        tool_limit=view.tool_calls.limit,
     )
 
-    token_note = "known" if view.token_coverage_known else "coverage unknown"
+    token_note = operator_text(
+        locale,
+        "coverage_known" if view.token_coverage_known else "coverage_unknown",
+    )
     screenshot_note = (
         str(view.screenshot_results)
         if view.screenshot_count_known
-        else "unavailable"
+        else operator_text(locale, "screenshots_unavailable")
     )
-    usage = (
-        f"  tokens in {view.input_tokens} out {view.output_tokens} ({token_note})"
-        f"  screenshots {screenshot_note}  fails {view.tool_failures}"
+    usage = operator_text(
+        locale,
+        "progress_run_usage",
+        input_tokens=view.input_tokens,
+        output_tokens=view.output_tokens,
+        coverage=token_note,
+        screenshots=screenshot_note,
+        failures=view.tool_failures,
     )
 
     if view.is_terminal:
         if view.duration_ms is not None:
-            usage += f"  ran {view.duration_ms}ms"
+            usage += (
+                f"  ran {view.duration_ms}ms"
+                if locale is OperatorLocale.EN_US
+                else f"  已运行 {view.duration_ms}ms"
+            )
     else:
         if view.elapsed_known and view.duration_ms is not None:
-            usage += f"  elapsed {view.duration_ms}ms at checkpoint"
+            usage += (
+                f"  elapsed {view.duration_ms}ms at checkpoint"
+                if locale is OperatorLocale.EN_US
+                else f"  检查点已用时 {view.duration_ms}ms"
+            )
         # A checkpoint cannot prove a nonterminal run is still alive.
-        usage += "  liveness unknown"
+        usage += (
+            "  liveness unknown"
+            if locale is OperatorLocale.EN_US
+            else "  当前是否存活未知"
+        )
 
     return (_clip(head), _clip(calls), _clip(usage))
 
 
-def _campaign_lines(view: CampaignProgressView) -> tuple[str, ...]:
+def _campaign_lines(
+    view: CampaignProgressView,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> tuple[str, ...]:
     """Render only the bounded aggregate facts admitted by the campaign view."""
 
-    head = f"{view.campaign_id}  {view.display_state}"
-    counts = (
-        f"  items {view.completed_count}/{view.discovered_count} complete"
-        f"  retryable {view.retryable_count}  uncertain {view.uncertain_count}"
+    head = (
+        f"{view.campaign_id}  "
+        f"{localize_fixed_text(locale, view.display_state)}"
+    )
+    counts = operator_text(
+        locale,
+        "progress_campaign_counts",
+        completed=view.completed_count,
+        discovered=view.discovered_count,
+        retryable=view.retryable_count,
+        uncertain=view.uncertain_count,
     )
     return (_clip(head), _clip(counts))
 
@@ -173,15 +226,21 @@ _WORKFLOW_STEP_GLYPHS = {
 }
 
 
-def workflow_visual(status: WorkflowStatus) -> OperatorVisualToken:
+def workflow_visual(
+    status: WorkflowStatus,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> OperatorVisualToken:
     """Return the shared visual token for one validated workflow status."""
 
     if not isinstance(status, WorkflowStatus):
         raise ProgressWindowError("PROGRESS_WORKFLOW_STATUS_INVALID")
-    return operator_visual(_WORKFLOW_STATUS_ROLES[status])
+    return localized_visual(locale, operator_visual(_WORKFLOW_STATUS_ROLES[status]))
 
 
-def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ...]:
+def render_workflow_summary_lines(
+    checklist: WorkflowChecklist,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> tuple[str, ...]:
     """Render one trusted workflow as a compact human-readable HUD summary.
 
     Approval counts and tool-call budgets are deliberately absent. The summary
@@ -192,22 +251,32 @@ def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ..
 
     if not isinstance(checklist, WorkflowChecklist):
         raise ProgressWindowError("PROGRESS_WORKFLOW_INVALID")
-    visual = workflow_visual(checklist.status)
+    visual = workflow_visual(checklist.status, locale)
     total = len(checklist.steps)
-    count_parts = [f"{checklist.completed_count} completed"]
+    count_parts = [
+        operator_text(locale, "completed_count", count=checklist.completed_count)
+    ]
     if checklist.skipped_count:
-        count_parts.append(f"{checklist.skipped_count} skipped")
-    count_parts.append(f"{checklist.not_started_count} not started")
-    count_parts.append(f"{total} total")
+        count_parts.append(
+            operator_text(locale, "skipped_count", count=checklist.skipped_count)
+        )
+    count_parts.append(
+        operator_text(locale, "not_started_count", count=checklist.not_started_count)
+    )
+    count_parts.append(operator_text(locale, "total_count", count=total))
 
     if checklist.current_step_id is None:
         current_line = {
-            WorkflowStatus.NOT_STARTED: "READY TO BEGIN",
-            WorkflowStatus.READY: "ALL WORKFLOW STEPS RESOLVED",
-            WorkflowStatus.CANCELLED: "NO WORKFLOW STEP IS ACTIVE",
-        }.get(checklist.status, "NO WORKFLOW STEP IS ACTIVE")
+            WorkflowStatus.NOT_STARTED: operator_text(locale, "ready_to_begin"),
+            WorkflowStatus.READY: operator_text(
+                locale, "all_workflow_steps_resolved"
+            ),
+            WorkflowStatus.CANCELLED: operator_text(
+                locale, "no_workflow_step_active"
+            ),
+        }.get(checklist.status, operator_text(locale, "no_workflow_step_active"))
         action_line = "—"
-        application_line = "No application is active"
+        application_line = operator_text(locale, "no_application_active")
     else:
         current = next(
             step
@@ -215,18 +284,28 @@ def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ..
             if step.step_id == checklist.current_step_id
         )
         current_line = (
-            f"CURRENT STEP {checklist.current_step_number} OF {total}"
+            operator_text(
+                locale,
+                "current_step",
+                current=checklist.current_step_number,
+                total=total,
+            )
             if current.status is not WorkflowStepStatus.WAITING_APPROVAL
-            else f"APPROVAL NEEDED · STEP {checklist.current_step_number} OF {total}"
+            else operator_text(
+                locale,
+                "approval_needed_step",
+                current=checklist.current_step_number,
+                total=total,
+            )
         )
-        action_line = current.label
-        application_line = current.application
+        action_line = localize_fixed_text(locale, current.label)
+        application_line = localize_fixed_text(locale, current.application)
 
     return tuple(
         _clip(line)
         for line in (
-            f"COMPUTER USE  ·  {visual.label.upper()}",
-            checklist.title,
+            f"{operator_text(locale, 'product_name').upper()}  ·  {visual.label.upper()}",
+            localize_fixed_text(locale, checklist.title),
             "  ·  ".join(count_parts),
             current_line,
             action_line,
@@ -235,33 +314,52 @@ def render_workflow_summary_lines(checklist: WorkflowChecklist) -> tuple[str, ..
     )
 
 
-def render_workflow_detail_lines(checklist: WorkflowChecklist) -> tuple[str, ...]:
+def render_workflow_detail_lines(
+    checklist: WorkflowChecklist,
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> tuple[str, ...]:
     """Extend the compact summary with every bounded, Host-owned checklist row."""
 
-    lines = list(render_workflow_summary_lines(checklist))
-    lines.append("WORKFLOW CHECKLIST")
+    lines = list(render_workflow_summary_lines(checklist, locale))
+    lines.append(operator_text(locale, "workflow_checklist"))
     for index, step in enumerate(checklist.steps, start=1):
         lines.append(
-            _clip(f"{_WORKFLOW_STEP_GLYPHS[step.status]}  {index}  {step.label}")
+            _clip(
+                f"{_WORKFLOW_STEP_GLYPHS[step.status]}  {index}  "
+                f"{localize_fixed_text(locale, step.label)}"
+            )
         )
         lines.append(
-            _clip(f"    {step.application}  ·  {_WORKFLOW_STEP_LABELS[step.status]}")
+            _clip(
+                f"    {localize_fixed_text(locale, step.application)}  ·  "
+                f"{localize_fixed_text(locale, _WORKFLOW_STEP_LABELS[step.status])}"
+            )
         )
     return tuple(lines)
 
 
-def workflow_accessible_name(lines: Sequence[str]) -> str:
+def workflow_accessible_name(
+    lines: Sequence[str],
+    locale: OperatorLocale = OperatorLocale.EN_US,
+) -> str:
     """Compress the fixed six-line workflow summary into one bounded UIA name."""
 
     summary = tuple(lines)
     if (
         len(summary) != 6
-        or not summary[0].startswith("COMPUTER USE  ·  ")
+        or not summary[0].startswith(
+            f"{operator_text(locale, 'product_name').upper()}  ·  "
+        )
         or any(not isinstance(line, str) or len(line) > _MAX_LINE_CHARS for line in summary)
     ):
         raise ProgressWindowError("PROGRESS_ACCESSIBLE_SUMMARY_INVALID")
     status = summary[0].partition("·")[2].strip().capitalize()
     current = summary[3].replace("·", ".").capitalize()
+    if locale is OperatorLocale.ZH_CN:
+        return (
+            f"电脑操作。{status}。流程 {summary[1]}。{current}。"
+            f"{summary[4]}。应用 {summary[5]}。"
+        )
     return (
         f"Computer Use. {status}. Workflow {summary[1]}. {current}. "
         f"{summary[4]}. Application {summary[5]}."
@@ -273,6 +371,7 @@ def render_progress_lines(
     *,
     workflow: WorkflowChecklist | None = None,
     expanded: bool = False,
+    locale: OperatorLocale = OperatorLocale.EN_US,
 ) -> tuple[str, ...]:
     """Project a bounded scan into the exact lines the passive window draws.
 
@@ -287,9 +386,9 @@ def render_progress_lines(
         raise ProgressWindowError("PROGRESS_EXPANDED_INVALID")
     if workflow is not None:
         return (
-            render_workflow_detail_lines(workflow)
+            render_workflow_detail_lines(workflow, locale)
             if expanded
-            else render_workflow_summary_lines(workflow)
+            else render_workflow_summary_lines(workflow, locale)
         )
     if expanded:
         raise ProgressWindowError("PROGRESS_WORKFLOW_UNAVAILABLE")
@@ -299,12 +398,21 @@ def render_progress_lines(
     campaign_total = len(projection.campaigns)
     campaign_shown = min(campaign_total, MAX_DISPLAYED_CAMPAIGNS)
     if campaign_total or projection.unavailable_campaign_ids or projection.unavailable_campaign_unnamed:
-        header = (
-            f"Computer Use  campaigns {campaign_shown}/{campaign_total}"
-            f"  runs {shown}/{total}"
+        header = operator_text(
+            locale,
+            "progress_header_campaigns",
+            campaign_shown=campaign_shown,
+            campaign_total=campaign_total,
+            shown=shown,
+            total=total,
         )
     else:
-        header = f"Computer Use  runs {shown}/{total}"
+        header = operator_text(
+            locale,
+            "progress_header_runs",
+            shown=shown,
+            total=total,
+        )
     lines: list[str] = [_clip(header)]
 
     remaining_campaigns = MAX_DISPLAYED_CAMPAIGNS
@@ -319,9 +427,11 @@ def render_progress_lines(
             if group_shown == group_total
             else f"{group_shown}/{group_total}"
         )
-        lines.append(_clip(f"{campaign_group.label}  {count}"))
+        lines.append(
+            _clip(f"{localize_fixed_text(locale, campaign_group.label)}  {count}")
+        )
         for campaign_view in campaign_views:
-            lines.extend(_campaign_lines(campaign_view))
+            lines.extend(_campaign_lines(campaign_view, locale))
         remaining_campaigns -= group_shown
 
     if projection.unavailable_campaign_ids:
@@ -330,14 +440,23 @@ def render_progress_lines(
         suffix = "" if len(unavailable_campaigns) <= _MAX_LISTED_UNAVAILABLE else ", …"
         lines.append(
             _clip(
-                f"campaigns unavailable ({len(unavailable_campaigns)}): {listed}{suffix}"
+                operator_text(
+                    locale,
+                    "progress_unavailable_campaigns",
+                    count=len(unavailable_campaigns),
+                    listed=listed,
+                    suffix=suffix,
+                )
             )
         )
     if projection.unavailable_campaign_unnamed:
         lines.append(
             _clip(
-                "hidden unsafe campaign records: "
-                f"{projection.unavailable_campaign_unnamed}"
+                operator_text(
+                    locale,
+                    "progress_hidden_campaigns",
+                    count=projection.unavailable_campaign_unnamed,
+                )
             )
         )
 
@@ -349,18 +468,38 @@ def render_progress_lines(
         group_total = len(run_group.views)
         group_shown = len(run_views)
         count = str(group_total) if group_shown == group_total else f"{group_shown}/{group_total}"
-        lines.append(_clip(f"{run_group.label}  {count}"))
+        lines.append(
+            _clip(f"{localize_fixed_text(locale, run_group.label)}  {count}")
+        )
         for run_view in run_views:
-            lines.extend(_run_lines(run_view))
+            lines.extend(_run_lines(run_view, locale))
         remaining -= group_shown
 
     unavailable = projection.unavailable_run_ids
     if unavailable:
         listed = ", ".join(unavailable[:_MAX_LISTED_UNAVAILABLE])
         suffix = "" if len(unavailable) <= _MAX_LISTED_UNAVAILABLE else ", …"
-        lines.append(_clip(f"unavailable ({len(unavailable)}): {listed}{suffix}"))
+        lines.append(
+            _clip(
+                operator_text(
+                    locale,
+                    "progress_unavailable_runs",
+                    count=len(unavailable),
+                    listed=listed,
+                    suffix=suffix,
+                )
+            )
+        )
     if projection.unavailable_unnamed:
-        lines.append(_clip(f"hidden unsafe records: {projection.unavailable_unnamed}"))
+        lines.append(
+            _clip(
+                operator_text(
+                    locale,
+                    "progress_hidden_runs",
+                    count=projection.unavailable_unnamed,
+                )
+            )
+        )
 
     return tuple(lines)
 
@@ -417,6 +556,7 @@ class PassiveProgressWindow:
 
     api: ProgressWindowApi
     title: str = "Computer Use"
+    locale: OperatorLocale = OperatorLocale.EN_US
     _hwnd: int | None = field(default=None, init=False)
     _x: int = field(default=24, init=False)
     _y: int = field(default=24, init=False)
@@ -424,6 +564,10 @@ class PassiveProgressWindow:
     _projection: ProgressProjection | None = field(default=None, init=False, repr=False)
     _workflow: WorkflowChecklist | None = field(default=None, init=False, repr=False)
     _expanded: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.locale, OperatorLocale):
+            raise ProgressWindowError("PROGRESS_LOCALE_INVALID")
 
     @property
     def hwnd(self) -> int | None:
@@ -536,14 +680,17 @@ class PassiveProgressWindow:
         if self._projection is None:
             raise ProgressWindowError("PROGRESS_PROJECTION_UNAVAILABLE")
         if self._workflow is None:
-            self.api.set_lines(hwnd, render_progress_lines(self._projection))
+            self.api.set_lines(
+                hwnd,
+                render_progress_lines(self._projection, locale=self.locale),
+            )
             return
         self.api.set_workflow_lines(
             hwnd,
-            compact_lines=render_workflow_summary_lines(self._workflow),
-            expanded_lines=render_workflow_detail_lines(self._workflow),
+            compact_lines=render_workflow_summary_lines(self._workflow, self.locale),
+            expanded_lines=render_workflow_detail_lines(self._workflow, self.locale),
             expanded=self._expanded,
-            accent_rgb=workflow_visual(self._workflow.status).color_rgb,
+            accent_rgb=workflow_visual(self._workflow.status, self.locale).color_rgb,
             on_toggle=self._on_native_toggle,
         )
 
