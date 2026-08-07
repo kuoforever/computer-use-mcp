@@ -247,7 +247,7 @@ dispatch must retain the existing crash boundary. It remains disabled when
 
 The ordinary Agent `run` and `resume` paths, bounded observation-only
 `ask` / `plan run`, explicit `recover --execute-read-only`, and the three fixed
-MCP-backed campaign execution commands can show the primary-display
+MCP-backed campaign execution commands can show the selected-display
 computer-use halo when enabled:
 
 ~~~toml
@@ -274,8 +274,12 @@ yield teardown. Recovery starts only after its persisted checkpoint and private
 continuation validate; later notifications follow the existing recovery CAS,
 and `ABORTED`/`HUMAN_ACTIVE` close the halo before another bounded step. This
 same immediate teardown applies to fixed campaign MCP calls. Campaign
-prepare/start/resume control commands remain window-free. The integration
-remains primary-display-only.
+prepare/start/resume control commands remain window-free. The Host selects the
+foreground window's monitor, with Windows primary-monitor fallback when no
+foreground HWND exists, and repositions only native operator presentation.
+Desktop actions, screenshots, OCR, and region capture remain
+primary-display-only. See
+[Native operator multi-display composition](OPERATOR_MULTI_DISPLAY.md).
 
 `high_contrast` and `reduced_motion` are force-on presentation preferences for
 all three composed operator surfaces, not replacements for Windows settings.

@@ -6,6 +6,11 @@ from ctypes import wintypes
 
 from computer_use_mcp.dpi import enable_dpi_awareness
 
+from .operator_display import OperatorMonitor
+from .operator_display_win32 import (
+    configure_operator_monitor_apis,
+    foreground_operator_monitor,
+)
 from .win32_dll import private_windll
 from .operator_accessibility import (
     OperatorAccessibilitySettings,
@@ -16,7 +21,6 @@ from .operator_accessibility import (
 from .operator_localization import OperatorLocale
 from .presence import PresenceView
 from .presence_window import (
-    DisplayBounds,
     PresenceGeometry,
     presence_accessible_name,
 )
@@ -39,8 +43,6 @@ _MA_NOACTIVATE = 3
 _TRANSPARENT = 1
 _LWA_COLORKEY = 0x00000001
 _WDA_EXCLUDEFROMCAPTURE = 0x00000011
-_SM_CXSCREEN = 0
-_SM_CYSCREEN = 1
 #: The halo has no alpha blending. The whole window is filled with this key and
 #: ``LWA_COLORKEY`` removes it outright, so the interior is fully transparent
 #: while the border and phase tab stay fully opaque. That is what lets the halo
@@ -86,7 +88,7 @@ class _PAINTSTRUCT(ctypes.Structure):
 
 
 class Win32PresenceWindowApi:
-    """Primary-display-only halo with no input, focus, or activation path."""
+    """Selected-display halo with no input, focus, or activation path."""
 
     _class_seq = 0
 
@@ -104,44 +106,21 @@ class Win32PresenceWindowApi:
             raise ValueError("presence locale is invalid")
         self.locale = locale
         self._user32 = private_windll("user32")
+        self._shcore = private_windll("shcore")
         self._gdi32 = private_windll("gdi32")
         self._kernel32 = private_windll("kernel32")
         self._states: dict[int, tuple[PresenceView, PresenceGeometry]] = {}
         self._frames: dict[int, int] = {}
         self._accessible_names: dict[int, str] = {}
+        configure_operator_monitor_apis(self._user32, self._shcore)
         self._configure_accessibility_apis()
         self._wndproc = _WNDPROC(self._on_message)
         Win32PresenceWindowApi._class_seq += 1
         self._class_name = f"CuaPresence_{id(self)}_{self._class_seq}"
         self._register_class()
 
-    def display_bounds(self) -> DisplayBounds:
-        # GetDpiForWindow(GetDesktopWindow()) always reports 96: the desktop
-        # window is not per-monitor DPI aware, so it never reflects the primary
-        # display's scaling. Reading it made the halo scale by 1.0 on a 150%
-        # display, so the border rendered at 10px where the contract asks for
-        # 15px -- the concrete reason the full-screen halo was reported as not
-        # visible. GetDpiForSystem returns the primary display's DPI for a
-        # per-monitor-aware process, and is what every other HUD surface uses.
-        dpi = 96
-        for name, argument in (
-            ("GetDpiForSystem", None),
-            ("GetDpiForWindow", self._user32.GetDesktopWindow()),
-        ):
-            get_dpi = getattr(self._user32, name, None)
-            if get_dpi is None:
-                continue
-            observed = int(get_dpi() if argument is None else get_dpi(argument))
-            if observed:
-                dpi = observed
-                break
-        return DisplayBounds(
-            0,
-            0,
-            int(self._user32.GetSystemMetrics(_SM_CXSCREEN)),
-            int(self._user32.GetSystemMetrics(_SM_CYSCREEN)),
-            dpi,
-        )
+    def display_monitor(self) -> OperatorMonitor:
+        return foreground_operator_monitor(self._user32, shcore=self._shcore)
 
     def create(self, *, ex_style: int, style: int, title: str) -> int:
         self._user32.CreateWindowExW.restype = wintypes.HWND
@@ -322,7 +301,7 @@ class Win32PresenceWindowApi:
             # A solid status tab makes the active phase readable at a glance;
             # the rest of the window remains color-key transparent.
             text = f"{view.glyph}  AGENT · {view.label.upper()}"
-            display_dpi = self.display_bounds().dpi
+            display_dpi = geometry.dpi
             geometry_dpi = layout_dpi(
                 display_dpi,
                 self.accessibility.text_scale_factor,

@@ -3,7 +3,7 @@
 > **Status: implemented and offline verified on Windows; bounded native UIA
 > smoke passed on 2026-08-07.** This contract covers the focus-taking Decision
 > Card and the passive Progress and Presence surfaces. It does not claim a
-> Narrator/NVDA auditory review, multi-monitor behavior, application acceptance,
+> Narrator/NVDA auditory review, physical multi-monitor usability, application acceptance,
 > provider or MCP execution, or release-candidate evidence.
 
 ## Trust boundary
@@ -95,6 +95,8 @@ verbosity, braille output, or usability with a particular assistive technology.
 The same bounded probe now exercises English and Simplified Chinese UIA names;
 the localization boundary and fallback rules are recorded in
 [Operator localization](OPERATOR_LOCALIZATION.md). Narrator/NVDA human review,
-live 200%/400% visual review, translation certification, multi-display
-composition, personalization, E4, and exact release evidence stay separate
-later gates.
+live 200%/400% visual review, translation certification, physical two-monitor
+usability evidence, personalization, E4, and exact release evidence stay
+separate later gates. The implemented per-monitor rectangle/DPI selection
+contract is documented in
+[Native operator multi-display composition](OPERATOR_MULTI_DISPLAY.md).

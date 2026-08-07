@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+from .operator_display import OperatorDisplayError, OperatorMonitor
 from .operator_localization import OperatorLocale, operator_text
 from .presence import PresenceSnapshot, PresenceView, project_presence
 
@@ -29,27 +30,6 @@ class PresenceWindowError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class DisplayBounds:
-    left: int
-    top: int
-    right: int
-    bottom: int
-    dpi: int
-
-    def __post_init__(self) -> None:
-        if (
-            any(
-                isinstance(value, bool) or not isinstance(value, int)
-                for value in (self.left, self.top, self.right, self.bottom, self.dpi)
-            )
-            or self.right <= self.left
-            or self.bottom <= self.top
-            or not 48 <= self.dpi <= 768
-        ):
-            raise PresenceWindowError("PRESENCE_DISPLAY_BOUNDS_INVALID")
-
-
-@dataclass(frozen=True)
 class PresenceGeometry:
     x: int
     y: int
@@ -57,22 +37,25 @@ class PresenceGeometry:
     height: int
     border_px: int
     label_inset_px: int
+    dpi: int
 
 
-def presence_geometry(bounds: DisplayBounds) -> PresenceGeometry:
-    """Scale one primary-display halo using its validated effective DPI."""
+def presence_geometry(monitor: OperatorMonitor) -> PresenceGeometry:
+    """Scale one selected-monitor halo from a single validated snapshot."""
 
-    if not isinstance(bounds, DisplayBounds):
+    if not isinstance(monitor, OperatorMonitor):
         raise PresenceWindowError("PRESENCE_DISPLAY_BOUNDS_INVALID")
-    border = max(8, min(32, round(10 * bounds.dpi / 96)))
-    inset = max(12, min(48, round(16 * bounds.dpi / 96)))
+    left, top, right, bottom = monitor.bounds
+    border = max(8, min(32, round(10 * monitor.dpi / 96)))
+    inset = max(12, min(48, round(16 * monitor.dpi / 96)))
     return PresenceGeometry(
-        x=bounds.left,
-        y=bounds.top,
-        width=bounds.right - bounds.left,
-        height=bounds.bottom - bounds.top,
+        x=left,
+        y=top,
+        width=right - left,
+        height=bottom - top,
         border_px=border,
         label_inset_px=inset,
+        dpi=monitor.dpi,
     )
 
 
@@ -80,7 +63,7 @@ def presence_geometry(bounds: DisplayBounds) -> PresenceGeometry:
 class PresenceWindowApi(Protocol):
     """Native operations allowed to the halo; focus and input APIs are absent."""
 
-    def display_bounds(self) -> DisplayBounds: ...
+    def display_monitor(self) -> OperatorMonitor: ...
 
     def create(self, *, ex_style: int, style: int, title: str) -> int: ...
 
@@ -147,7 +130,7 @@ class PassivePresenceWindow:
             self.close()
             return PresenceUpdate(False, changed, False, False)
 
-        geometry = presence_geometry(self.api.display_bounds())
+        geometry = presence_geometry(self.api.display_monitor())
         state = (view, geometry)
         created = False
         if self._hwnd is None:
@@ -180,7 +163,6 @@ class PassivePresenceWindow:
 
 
 __all__ = [
-    "DisplayBounds",
     "PRESENCE_EX_STYLE",
     "PRESENCE_STYLE",
     "PassivePresenceWindow",
@@ -188,6 +170,8 @@ __all__ = [
     "PresenceUpdate",
     "PresenceWindowApi",
     "PresenceWindowError",
+    "OperatorDisplayError",
+    "OperatorMonitor",
     "presence_geometry",
     "presence_accessible_name",
 ]
