@@ -121,8 +121,8 @@ must not create a second native-action path.
 | Installed readiness | `config doctor` | Check provider setup and verify the configured MCP child's exact thirteen-tool discovery contract | Implemented; real child handshake, no provider request or MCP tool call |
 | Agent config validation | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
-| Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; one exact-candidate OpenAI/Windows/Notepad [result](DESKTOP_ASK_EVIDENCE.md) is retained |
-| Public Web to Word | `workflow public-web-word` | Let a real model inspect the fixed public source, author a bounded brief, save a new DOCX, then close/reopen/read it back | Implemented and functionally fake-verified; exact-candidate provider/Chrome/Word evidence is the current gate |
+| Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; the same-wheel current-candidate OpenAI/Windows/Notepad [result](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md) is retained |
+| Public Web to Word | `workflow public-web-word` | Let a real model inspect the fixed public source, author a bounded brief, save a new DOCX, then close/reopen/read it back | Implemented/functionally verified; the same-wheel current-candidate provider/Chrome/Word [result](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md) is retained |
 | Pre-run Review | `review public-web-word` / default workflow start gate | Show Host-fixed goal, applications, read/change boundary, exact output, approval bound, stops, and possible residue before external startup | Implemented/offline verified for public-web-word only; exact `START` or `--acknowledge-scope` starts no more than the ordinary workflow and approves no action |
 | Read-only Task Center | `task center` / `task center --json` | Group validated local run/campaign state and render fixed Completion/Failure Receipts | Implemented/offline verified; CLI-first, local-only, and no execution, approval, replay, or notification authority |
 | Cooperative desktop control | `task control`, `task pause`, `task takeover`, `task resume` | Coordinate one live fixed-workflow Runner at safe boundaries | Implemented/offline verified; same-process only, explicit authority release/resume, mandatory fresh observation, no uncertain replay |
@@ -393,18 +393,21 @@ In priority order:
    runtime; review the OCR Host safety baseline separately and add another
    source only on a demonstrated gap.
 3. Preserve the exact scope of the retained installed
-   [public-browser-to-disposable-Word result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md):
+   [current-candidate product integration result](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md):
    one reviewed model, fixed public source, disposable Word output, durable
-   reopen/readback, real-Word render QA, and exact fixture cleanup.
+   reopen/readback, receipt, and exact fixture cleanup. The earlier Word-only
+   record separately retains real-Word render QA.
 4. Use the [retained on-device three-command synthetic campaign result](SYNTHETIC_CAMPAIGN_EVIDENCE.md)
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host
    notification semantics without broadening the campaign selector.
 6. With provider E3 and isolated E4 retained, execute bounded BOSS evidence,
    then Google Docs and WeChat cases only after their preceding gates.
-7. Build and verify the exact-candidate `0.1.0` release wheel, then build
-   operator projections and continual-learning L0 from real retained
-   state, not model prose or invented completion.
+7. Replace per-side-effect prompting with a bounded Host-owned risk-tier policy:
+   reviewed low-risk reversible effects may proceed under policy, while
+   high-risk, ambiguous, or scope-drifted effects still require approval or
+   fail closed. Then close the available non-E4 human/native-control checks;
+   keep physical two-monitor, E4, and release as later explicit gates.
 
 The authoritative current priorities live in
 [Capability status](CAPABILITY_STATUS.md) and [Roadmap](EXECUTION_PLAN.md).
