@@ -36,6 +36,16 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Read-only Task Center and trustworthy outcome receipts.** Added the
+  human-first `task center` command over the existing validated redacted
+  run/campaign projection, with bounded Attention/In progress/History grouping,
+  versioned JSON, fixed Completion/Failure wording, and every control capability
+  explicitly disabled. `UNKNOWN_OUTCOME` warns against automatic retry. The
+  public-web-word workflow now publishes an immutable strict local receipt only
+  after save, digest, reopen/read-back, and both cleanup checks succeed; Task
+  Center withholds the artifact-success claim if that receipt is absent or
+  corrupt. Neither surface adds a provider, MCP, desktop, approval, resume,
+  retry, cancel, campaign-advance, notification, or Full Cycle export port.
 - **Installed Runtime doctor and actionable setup UX.** Added `config doctor`
   to verify the selected provider extra and documented credential presence,
   installed MCP executable/cwd, and the exact thirteen names and schemas

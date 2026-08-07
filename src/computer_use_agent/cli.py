@@ -241,6 +241,26 @@ def build_parser() -> argparse.ArgumentParser:
     public_web_word.add_argument("--chrome-executable", type=Path)
     public_web_word.add_argument("--word-executable", type=Path)
 
+    task = commands.add_parser(
+        "task", help="Inspect validated local task state without execution authority."
+    )
+    task_commands = task.add_subparsers(dest="task_command", required=True)
+    task_center = task_commands.add_parser(
+        "center", help="Show the read-only Task Center and fixed outcome receipts."
+    )
+    task_center.add_argument("--config", required=True, type=Path)
+    task_center.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum validated tasks to display (1-100; attention first).",
+    )
+    task_center.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the same bounded Task Center as versioned JSON.",
+    )
+
     evaluate = commands.add_parser("eval", help="Run deterministic offline E1/E2 cases.")
     evaluate.add_argument("--cases", required=True, type=Path)
     evaluate.add_argument("--report", type=Path)
@@ -1565,6 +1585,18 @@ def _show_report(path: Path) -> int:
     return 0
 
 
+def _show_task_center(path: Path, *, limit: int, json_output: bool) -> int:
+    from .task_center import build_task_center, render_task_center
+
+    config = load_agent_config(path)
+    center = build_task_center(config.state_dir, limit=limit)
+    if json_output:
+        _print_json(center.as_json())
+    else:
+        print(render_task_center(center), end="")
+    return 0
+
+
 def _show_recovery(path: Path, run_id: str) -> int:
     from .trace import classify_run_recovery, read_run_record
 
@@ -1899,6 +1931,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 args.chrome_executable,
                 args.word_executable,
+            )
+        if args.command == "task" and args.task_command == "center":
+            return _show_task_center(
+                args.config,
+                limit=args.limit,
+                json_output=args.json,
             )
         if args.command == "eval":
             return _run_eval(args.cases, args.report, args.manifest, args.write_manifest)
