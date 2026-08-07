@@ -109,6 +109,8 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["ask", "--help"],
         ["plan", "--help"],
         ["plan", "run", "--help"],
+        ["review", "--help"],
+        ["review", "public-web-word", "--help"],
         ["eval", "--help"],
         ["release", "preflight", "--help"],
         ["trace", "--help"],
@@ -349,15 +351,25 @@ def test_public_web_word_cli_routes_only_explicit_paths(
     output = tmp_path / "brief.docx"
     chrome = tmp_path / "chrome.exe"
     word = tmp_path / "winword.exe"
-    captured: list[tuple[Path, Path, Path | None, Path | None]] = []
+    captured: list[tuple[Path, Path, Path | None, Path | None, bool]] = []
 
     def fake_run(
         path: Path,
         artifact: Path,
         chrome_executable: Path | None,
         word_executable: Path | None,
+        *,
+        acknowledge_scope: bool,
     ) -> int:
-        captured.append((path, artifact, chrome_executable, word_executable))
+        captured.append(
+            (
+                path,
+                artifact,
+                chrome_executable,
+                word_executable,
+                acknowledge_scope,
+            )
+        )
         return 0
 
     monkeypatch.setattr(agent_cli, "_run_public_web_word", fake_run)
@@ -375,11 +387,188 @@ def test_public_web_word_cli_routes_only_explicit_paths(
                 str(chrome),
                 "--word-executable",
                 str(word),
+                "--acknowledge-scope",
             ]
         )
         == 0
     )
-    assert captured == [(config, output, chrome, word)]
+    assert captured == [(config, output, chrome, word, True)]
+
+
+def _public_web_word_cli_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path]:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    mcp_executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
+    mcp_executable.parent.mkdir(exist_ok=True)
+    mcp_executable.write_bytes(b"")
+    config_path = tmp_path / "workflow.toml"
+    assert (
+        main(
+            [
+                "config",
+                "init",
+                "--profile",
+                "public-web-word",
+                "--provider",
+                "openai",
+                "--model",
+                "reviewed-model",
+                "--mcp-executable",
+                str(mcp_executable),
+                "--output",
+                str(config_path),
+            ]
+        )
+        == 0
+    )
+    return config_path, tmp_path / "brief.docx"
+
+
+def test_public_web_word_review_cli_is_human_first_versioned_and_inert(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+
+    config_path, output = _public_web_word_cli_config(tmp_path, monkeypatch)
+    capsys.readouterr()
+    state_dir = load_agent_config(config_path).state_dir
+    before = tuple(sorted(path.relative_to(state_dir) for path in state_dir.rglob("*")))
+
+    assert (
+        main(
+            [
+                "review",
+                "public-web-word",
+                "--config",
+                str(config_path),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    human = capsys.readouterr().out
+    assert "Pre-run Review - nothing has started" in human
+    assert "Maximum action approvals: 7" in human
+    assert "does not pre-approve any desktop action" in human
+
+    assert (
+        main(
+            [
+                "review",
+                "public-web-word",
+                "--config",
+                str(config_path),
+                "--output",
+                str(output),
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["pre_run_review_version"] == 1
+    assert payload["source"] == "host_fixed_contract"
+    assert payload["contains_model_prose"] is False
+    assert payload["external_work_started"] is False
+    assert payload["maximum_approvals"] == 7
+    assert payload["acknowledgement"]["grants_action_approval"] is False
+    assert not output.exists()
+    assert tuple(
+        sorted(path.relative_to(state_dir) for path in state_dir.rglob("*"))
+    ) == before
+
+
+def test_public_web_word_cli_cancels_before_start_without_exact_acknowledgement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path, output = _public_web_word_cli_config(tmp_path, monkeypatch)
+    capsys.readouterr()
+    calls: list[tuple[object, object]] = []
+
+    async def fake_run(config: object, request: object) -> int:
+        calls.append((config, request))
+        return 0
+
+    monkeypatch.setattr(agent_cli, "_run_public_web_word_async", fake_run)
+    command = [
+        "workflow",
+        "public-web-word",
+        "--config",
+        str(config_path),
+        "--output",
+        str(output),
+    ]
+    for acknowledgement in ("yes", "start", " START", "START "):
+        monkeypatch.setattr(
+            agent_cli,
+            "_console_input",
+            lambda _prompt, value=acknowledgement: value,
+        )
+        assert main(command) == 1
+    assert calls == []
+    assert not output.exists()
+    error = capsys.readouterr().err
+    assert "Pre-run Review - nothing has started" in error
+    assert "No provider, MCP, application, or desktop connection was opened" in error
+
+    monkeypatch.setattr(agent_cli, "_console_input", lambda _prompt: "START")
+    assert main(command) == 0
+    assert len(calls) == 1
+
+
+def test_public_web_word_cli_explicit_scope_flag_still_passes_bound_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path, output = _public_web_word_cli_config(tmp_path, monkeypatch)
+    capsys.readouterr()
+    loads = 0
+    real_load = agent_cli.load_agent_config
+    received: list[tuple[object, object]] = []
+
+    def counted_load(path: Path):
+        nonlocal loads
+        loads += 1
+        return real_load(path)
+
+    async def fake_run(config: object, request: object) -> int:
+        received.append((config, request))
+        return 0
+
+    monkeypatch.setattr(agent_cli, "load_agent_config", counted_load)
+    monkeypatch.setattr(agent_cli, "_run_public_web_word_async", fake_run)
+    monkeypatch.setattr(
+        agent_cli,
+        "_console_input",
+        lambda _prompt: pytest.fail("explicit acknowledgement must not prompt"),
+    )
+
+    assert (
+        main(
+            [
+                "workflow",
+                "public-web-word",
+                "--config",
+                str(config_path),
+                "--output",
+                str(output),
+                "--acknowledge-scope",
+            ]
+        )
+        == 0
+    )
+    assert loads == 1
+    assert len(received) == 1
+    assert received[0][1].output == output.resolve()  # type: ignore[attr-defined]
+    assert "per-action approval remains required" in capsys.readouterr().err
 
 
 def test_public_web_word_profile_rejects_allowlist_override(

@@ -129,10 +129,21 @@ guarded-desktop-agent config init `
 guarded-desktop-agent config doctor `
   --config C:\absolute\path\public-web-word.toml
 
+guarded-desktop-agent review public-web-word `
+  --config C:\absolute\path\public-web-word.toml `
+  --output C:\absolute\path\collaboration-brief.docx
+
 guarded-desktop-agent workflow public-web-word `
   --config C:\absolute\path\public-web-word.toml `
   --output C:\absolute\path\collaboration-brief.docx
 ~~~
+
+只读 review 会展示 Host 固定的目标、应用、读取/修改边界、精确输出位置、最多
+7 次逐 effect 批准、停止条件和可能残留的部分文件；它不会连接 provider、启动
+MCP、打开应用或创建 workflow state。正式 workflow 会再次显示同一 Scope Sheet，
+只有精确输入 `START` 才会启动。明确的非交互调用方必须增加
+`--acknowledge-scope`；该 flag 只允许进入原 workflow，不会预先批准任何桌面动作。
+完整边界见 [Pre-run Review 契约](docs/PRE_RUN_REVIEW.md)。
 
 模型根据新的 Chrome 观察自行选择已审核步骤并撰写 2–4 个要点；task 和模板
 都不预写结论。工作流继续使用现有本地 approval 边界，不覆盖已有输出；保存后

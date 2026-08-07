@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Mapping, Sequence
 
+from .config import APPROVED_ACTIONS_MODE, AgentConfig
 from .tool_registry import ToolSpec
 from .types import (
     JSONValue,
@@ -40,6 +41,10 @@ PUBLIC_WEB_WORD_SOURCE_URL = (
     "https://support.microsoft.com/en-US/Word/training/"
     "collaborate-on-word-documents-with-real-time-co-authoring"
 )
+PUBLIC_WEB_WORD_MAX_APPROVALS = 7
+PUBLIC_WEB_WORD_FIXED_ALLOWLIST = "chrome.exe,winword.exe"
+PUBLIC_WEB_WORD_FIXED_HUMAN_STABLE_SAMPLES = "3"
+PUBLIC_WEB_WORD_FIXED_HUMAN_MAX_WAIT_SECONDS = "15"
 PUBLIC_WEB_WORD_ALLOWED_TOOLS = frozenset(
     {
         "list_windows",
@@ -65,6 +70,36 @@ Each bullet must be 24-180 characters and appear on its own line.
 Author the bullets only from fresh page observations; no findings are supplied
 in this task. Verify the Word text before saving and again after Ctrl+S, then
 finish without another tool call."""
+
+
+def public_web_word_contract_error(config: AgentConfig) -> str | None:
+    """Return the first fixed product-profile error without opening a port."""
+
+    if not isinstance(config, AgentConfig):
+        raise TypeError("config must be an AgentConfig")
+    if config.policy.mode != APPROVED_ACTIONS_MODE:
+        return "PUBLIC_WEB_WORD_APPROVED_ACTIONS_REQUIRED"
+    if config.continuation.enabled:
+        return "PUBLIC_WEB_WORD_CONTINUATION_MUST_BE_DISABLED"
+    if (
+        config.mcp.environment.get("CUMCP_ALLOWLIST")
+        != PUBLIC_WEB_WORD_FIXED_ALLOWLIST
+    ):
+        return "PUBLIC_WEB_WORD_ALLOWLIST_MUST_BE_FIXED"
+    if (
+        config.mcp.environment.get("CUMCP_HUMAN_STABLE_SAMPLES")
+        != PUBLIC_WEB_WORD_FIXED_HUMAN_STABLE_SAMPLES
+        or config.mcp.environment.get("CUMCP_HUMAN_MAX_WAIT_SECONDS")
+        != PUBLIC_WEB_WORD_FIXED_HUMAN_MAX_WAIT_SECONDS
+    ):
+        return "PUBLIC_WEB_WORD_HUMAN_IDLE_PROFILE_REQUIRED"
+    if (
+        config.policy.max_model_turns < 20
+        or config.policy.max_side_effects < PUBLIC_WEB_WORD_MAX_APPROVALS
+        or config.policy.max_tool_calls < 19
+    ):
+        return "PUBLIC_WEB_WORD_BUDGET_TOO_SMALL"
+    return None
 
 
 def public_web_word_task(word_title_fragment: str) -> str:
@@ -993,10 +1028,12 @@ __all__ = [
     "PUBLIC_WEB_WORD_BULLET_PREFIX",
     "PUBLIC_WEB_WORD_COMPLETE_TEXT",
     "PUBLIC_WEB_WORD_MARKER",
+    "PUBLIC_WEB_WORD_MAX_APPROVALS",
     "PUBLIC_WEB_WORD_SOURCE_TITLE",
     "PUBLIC_WEB_WORD_SOURCE_URL",
     "PUBLIC_WEB_WORD_TASK",
     "PublicWebWordError",
     "PublicWebWordProposalRejection",
+    "public_web_word_contract_error",
     "public_web_word_task",
 ]

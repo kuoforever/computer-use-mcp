@@ -36,6 +36,16 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Host-compiled Pre-run Review.** The installed public-web-word workflow now
+  displays a human Scope Sheet before any provider, MCP, application, desktop,
+  or fixture startup, covering its fixed goal, applications, read/change
+  boundary, exact output, maximum seven one-effect approvals, stop conditions,
+  and possible residue. Exact interactive `START` or an explicit
+  `--acknowledge-scope` flag starts only the ordinary workflow and grants no
+  action approval, retry, or replay authority. A separate `review
+  public-web-word` command returns the same text or versioned JSON with zero
+  external work. The review is compiled from Host contract strings and exact
+  local paths, never model prose.
 - **Read-only Task Center and trustworthy outcome receipts.** Added the
   human-first `task center` command over the existing validated redacted
   run/campaign projection, with bounded Attention/In progress/History grouping,

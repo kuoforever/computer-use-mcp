@@ -42,29 +42,39 @@
 > [recovery lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md). A
 > separate CLI-first [read-only Task Center](TASK_CENTER.md) now groups the same
 > validated local run/campaign projection and renders fixed outcome receipts;
-> it has offline evidence only and no control or notification port.
+> it has offline evidence only and no control or notification port. The fixed
+> side-effect product workflow also has a CLI-first Host-compiled
+> [Pre-run Review](PRE_RUN_REVIEW.md) before all external startup; it is
+> offline verified and is not an action approval.
 
 ## Goal
 
 Make desktop Agent activity continuously legible without making model output an
-authority source. The operator experience has four coordinated but
+authority source. The operator experience has five coordinated but
 separately trusted surfaces:
 
-1. a non-interactive desktop presence indicator showing when computer use is
+1. a Pre-run Review Scope Sheet showing the fixed workflow boundary before any
+   external startup;
+2. a non-interactive desktop presence indicator showing when computer use is
    active and which execution state owns the shared desktop;
-2. a passive progress window projecting validated run and campaign state;
-3. an explicit Decision Card presenting bounded choices and trade-offs when a
+3. a passive progress window projecting validated run and campaign state;
+4. an explicit Decision Card presenting bounded choices and trade-offs when a
    human decision is required;
-4. a CLI-first read-only Task Center grouping validated tasks and rendering
+5. a CLI-first read-only Task Center grouping validated tasks and rendering
    fixed Completion/Failure Receipts after the active desktop work ends.
 
-All four surfaces observe or act only through their documented Host-owned
+All five surfaces observe or act only through their documented Host-owned
 boundary. They do not infer success from model prose, create a second dispatch
 path, replay uncertain work, or weaken Host/MCP policy.
 
 ## Surface separation
 
 ~~~text
+fixed reviewed workflow contract + exact local request
+  -> Pre-run Review             # local scope only; no action approval
+      -> exact start acknowledgement
+          -> ordinary Host workflow entry
+
 validated checkpoint / campaign / approval request
   -> pure operator view-model projection
       -> presence indicator       # passive, click-through, never authority

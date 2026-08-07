@@ -22,6 +22,7 @@ not a line-by-line mirror of every reference page.
 | I want to install and run the server | [Root README](../README.md) |
 | I want to run the installed fixed public-browser-to-Word product workflow | [Public Web to Word workflow](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | I want to inspect local task outcomes without execution authority | [Read-only Task Center and outcome receipts](TASK_CENTER.md) |
+| I want to review a fixed workflow scope before anything starts | [Pre-run Review Scope Sheet](PRE_RUN_REVIEW.md) |
 | I need the shortest implemented/evidence/next-gate view | [Capability status](CAPABILITY_STATUS.md) |
 | I need environment variables or safety behavior | [Configuration and safety](CONFIGURATION.md) |
 | I need exact MCP tool parameters and behavior | [Tool reference](TOOLS.md) |
@@ -96,6 +97,7 @@ not a line-by-line mirror of every reference page.
 | Root README | Current product scope, safe quick start, and high-level limitations |
 | Public Web to Word workflow | Fixed source/application boundary, installed command, durable DOCX completion contract, and bounded result metadata |
 | Task Center and outcome receipts | Read-only local run/campaign grouping, fixed human outcome wording, strict private product receipt, and the no-control/no-replay boundary |
+| Pre-run Review | Host-fixed workflow goal, applications, data use, output, approval bound, stops, residue, exact acknowledgement, and zero-startup review contract |
 | Capability status | Cross-surface implementation state, retained evidence level, and next executable gate |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
 | Tool reference | Public MCP tool surface and result semantics |
