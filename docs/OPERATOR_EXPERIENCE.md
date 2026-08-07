@@ -39,22 +39,28 @@
 > synthetic campaign has
 > [campaign lifecycle evidence](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md). One
 > persisted observation-pending run has separate read-only
-> [recovery lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md).
+> [recovery lifecycle evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md). A
+> separate CLI-first [read-only Task Center](TASK_CENTER.md) now groups the same
+> validated local run/campaign projection and renders fixed outcome receipts;
+> it has offline evidence only and no control or notification port.
 
 ## Goal
 
 Make desktop Agent activity continuously legible without making model output an
-authority source. The complete operator experience has three coordinated but
+authority source. The operator experience has four coordinated but
 separately trusted surfaces:
 
 1. a non-interactive desktop presence indicator showing when computer use is
    active and which execution state owns the shared desktop;
 2. a passive progress window projecting validated run and campaign state;
 3. an explicit Decision Card presenting bounded choices and trade-offs when a
-   human decision is required.
+   human decision is required;
+4. a CLI-first read-only Task Center grouping validated tasks and rendering
+   fixed Completion/Failure Receipts after the active desktop work ends.
 
-The visual surfaces observe host-owned state. They do not infer success from
-model prose, dispatch tools, replay uncertain work, or weaken Host/MCP policy.
+All four surfaces observe or act only through their documented Host-owned
+boundary. They do not infer success from model prose, create a second dispatch
+path, replay uncertain work, or weaken Host/MCP policy.
 
 ## Surface separation
 
@@ -63,6 +69,7 @@ validated checkpoint / campaign / approval request
   -> pure operator view-model projection
       -> presence indicator       # passive, click-through, never authority
       -> progress viewer          # passive by default, never execution
+      -> Task Center              # explicit local read, fixed receipts only
       -> Decision Card            # explicit focus-taking human boundary
           -> bound policy decision
               -> ordinary Host policy / grounding / approval / MCP path
@@ -264,7 +271,7 @@ reasoning. Unknown values remain unavailable rather than becoming zero.
 
 ## Remote and mobile notification semantics
 
-Mobile push is a host surface, not a fourth operator authority surface. After a
+Mobile push is a host surface, not another operator authority surface. After a
 future campaign worker exists, Codex or Claude may poll the bounded status
 projection defined in [Long-running tasks](LONG_RUNNING_TASKS.md). ChatGPT
 Remote or Claude Remote Control may then notify the operator when the host ends
@@ -278,9 +285,9 @@ stale, malformed, missing, or identity-mismatched state cannot produce a
 completion notification. MCP log notifications are never used as terminal
 evidence.
 
-No iPhone push adapter is implemented in this repository. The planned local
-operator UI may display the same validated projection, but it neither sends the
-mobile notification nor changes the task state.
+No iPhone push adapter is implemented in this repository. The local Task Center
+displays the same validated projection, but it neither sends a mobile
+notification nor changes task state.
 
 ## Decision Cards
 

@@ -98,6 +98,22 @@ provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP �
 已有一次 OpenAI/Windows/Notepad exact-candidate 结果；它不证明其他
 provider、application、desktop action 或 release artifact。
 
+## 只读 Task Center
+
+无需连接 provider、MCP 或桌面，即可查看经过验证的本地 run/campaign 状态：
+
+~~~powershell
+guarded-desktop-agent task center --config C:\absolute\path\agent.toml
+guarded-desktop-agent task center --config C:\absolute\path\agent.toml --json
+~~~
+
+默认界面按 Attention、In progress 和 History 分组，并输出固定的
+Completion/Failure Receipt；它不能 approve、resume、retry、cancel 或 advance。
+`UNKNOWN_OUTCOME` 会明确提示不得自动重试。`public-web-word` 只有在保存、摘要、
+重新打开和清理全部验证通过并写入严格的本地不可变 receipt 后，Task Center 才会
+声称 DOCX 已保存并验证。完整边界见
+[Task Center 与 receipt 契约](docs/TASK_CENTER.md)。
+
 ## Public Web to Word 工作流
 
 先生成专用的受监督配置并检查 readiness，再从固定的 Microsoft Support

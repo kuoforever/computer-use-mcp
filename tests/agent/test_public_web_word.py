@@ -514,6 +514,13 @@ def test_installed_workflow_authors_saves_reopens_and_reports_bounded_metadata(
     assert verify_public_web_word_document(output, NOTE) == result.artifact_sha256
     assert original.close_calls == reopened.close_calls == 1
     assert reopened.reopen_document_text_calls == 2
+    from computer_use_agent.product_receipt import read_product_receipt
+
+    receipt = read_product_receipt(config.state_dir, RUN_ID)
+    assert receipt.artifact_path == output
+    assert receipt.artifact_sha256 == result.artifact_sha256
+    assert receipt.saved_verified is receipt.reopen_verified is True
+    assert receipt.fixture_cleanup_verified is receipt.verifier_cleanup_verified is True
 
 
 def test_reopen_verifier_fails_after_one_fresh_text_retry(

@@ -828,7 +828,7 @@ async def run_public_web_word_workflow(
     bullet_count = sum(
         line.startswith(PUBLIC_WEB_WORD_BULLET_PREFIX) for line in lines[3:]
     )
-    return PublicWebWordResult(
+    result = PublicWebWordResult(
         run_id=resolved_run_id,
         provider=config.provider.name,
         model=config.provider.model,
@@ -852,6 +852,14 @@ async def run_public_web_word_workflow(
         fixture_cleanup=fixture_cleanup,
         verifier_cleanup=verifier_cleanup,
     )
+    # Publish the product receipt only after durable save, independent reopen,
+    # exact digest, and both exact-window cleanup checks have passed.  The
+    # receipt has no execution port and is not part of the automatic Full Cycle
+    # export.
+    from .product_receipt import write_public_web_word_receipt
+
+    write_public_web_word_receipt(config.state_dir, result)
+    return result
 
 
 __all__ = [

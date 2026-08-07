@@ -197,6 +197,24 @@ This path is offline verified and has one exact-candidate
 result does not establish another provider, application, desktop action, or
 release artifact.
 
+## Read-only Task Center
+
+Inspect validated local run and campaign state without opening a provider, MCP,
+or desktop connection:
+
+~~~powershell
+guarded-desktop-agent task center --config C:\absolute\path\agent.toml
+guarded-desktop-agent task center --config C:\absolute\path\agent.toml --json
+~~~
+
+The human-first view groups Attention, In progress, and History and renders
+fixed Completion/Failure Receipts. It cannot approve, resume, retry, cancel, or
+advance work. `UNKNOWN_OUTCOME` explicitly warns against automatic retry. A
+successful `public-web-word` workflow also writes a strict immutable local
+receipt after save, digest, reopen, and cleanup verification; only that receipt
+allows Task Center to claim the DOCX was saved and verified. See the complete
+[Task Center and receipt contract](docs/TASK_CENTER.md).
+
 ## Public Web to Word workflow
 
 Create the dedicated supervised profile, check readiness, then write one new

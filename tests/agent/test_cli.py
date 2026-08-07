@@ -113,6 +113,8 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["release", "preflight", "--help"],
         ["trace", "--help"],
         ["report", "--help"],
+        ["task", "--help"],
+        ["task", "center", "--help"],
         ["resume", "--help"],
         ["cancel", "--help"],
         ["recovery", "--help"],
@@ -483,6 +485,71 @@ def test_config_validation_has_no_filesystem_or_external_side_effect(
     assert output["valid"] is True
     assert output["policy_mode"] == "read_only"
     assert not state_dir.exists()
+
+
+def test_task_center_cli_is_read_only_human_first_and_versioned_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+
+    assert main(["task", "center", "--config", str(config_path)]) == 0
+    human = capsys.readouterr().out
+    assert "Guarded Desktop Agent Task Center" in human
+    assert "cannot approve, resume, retry, cancel, or advance" in human
+    assert "No validated local tasks found" in human
+    assert not state_dir.exists()
+
+    assert (
+        main(
+            [
+                "task",
+                "center",
+                "--config",
+                str(config_path),
+                "--json",
+                "--limit",
+                "7",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task_center_version"] == 1
+    assert payload["read_only"] is True
+    assert payload["groups"] == []
+    assert all(value is False for value in payload["capabilities"].values())
+    assert not state_dir.exists()
+
+
+def test_task_center_cli_rejects_unbounded_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, _state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "task",
+                "center",
+                "--config",
+                str(config_path),
+                "--limit",
+                "101",
+            ]
+        )
+        == 2
+    )
+    assert capsys.readouterr().err.strip() == "error: TASK_CENTER_LIMIT_INVALID"
 
 
 def test_dry_run_outputs_only_safe_metadata_and_releases_the_lock(
