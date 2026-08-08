@@ -1,7 +1,7 @@
 # Approval Inbox and local notifications
 
-> **Status: implemented, offline verified, and bounded native notification
-> lifecycle verified.** This surface supplements the
+> **Status: implemented, offline verified, and human-verified for one bounded
+> Windows 11 banner/Notification Center/withdrawal path.** This surface supplements the
 > existing Decision Card. It does not approve, deny, defer, take over, resume,
 > retry, or dispatch work.
 
@@ -51,9 +51,14 @@ unsafe paths or malformed data.
 The English Windows notification contains only the fixed title `Guarded Desktop Agent`
 and fixed body `Approval needed. Return to the open decision window.` It
 contains no request ID, run ID, tool name, digest, target, task, model content,
-or action button. It is withdrawn by Host routing identity, but that identity
-is not rendered or serialized into notification content. Notification
-construction, display, or withdrawal failure cannot change a policy decision.
+or action button. On supported Windows environments the notifier prefers a
+per-user identity-backed modern toast so the operating system can retain the
+notice in Notification Center; if setup or delivery fails, it falls back to
+the prior fixed-content Shell signal. Whole-toast activation is accepted only
+by a local no-authority sink that discards activation data and cannot approve,
+control, retry, replay, or dispatch work. Host routing identity is not rendered
+or serialized into notification content. Construction, display, activation,
+or withdrawal failure cannot change a policy decision.
 
 The only allow path remains:
 
@@ -91,36 +96,38 @@ Implemented accessibility properties:
 - the human CLI view uses explicit status words, absolute expiry, remaining
   time, and next action rather than colour or animation;
 - the versioned JSON view exposes the same facts for assistive wrappers;
-- the Windows notification uses the operating-system notification surface and
-  respects Windows quiet-time behavior;
-- the notification is noninteractive, so it cannot create an inaccessible
-  alternate approval control; and
+- the Windows notification uses the operating-system notification surface;
+- it exposes no notification action button or alternate approval control, and
+  whole-toast activation terminates in a no-authority sink; and
 - the Decision Card remains the single keyboard/focus-taking decision surface.
 
 Not yet claimed:
 
 - retained Narrator, NVDA, or JAWS announcement evidence for the native
-  notification and Decision Card together;
-- human judgment of the automated keyboard/UIA order, 200%/400% reflow, and
-  Windows High Contrast presentation;
-- notification-center persistence behavior across Windows versions, a native
-  Inbox window, multi-monitor placement, or mobile push; and
+  notification itself;
+- Notification Center behavior outside the one named Windows 11 environment, a
+  native Inbox window, multi-monitor placement, or mobile push; and
 - localization of Approval Inbox CLI wording; the fixed notification itself is
   localized in English and Simplified Chinese under the
   [operator localization contract](OPERATOR_LOCALIZATION.md).
 
-The current two-locale Shell show/withdraw lifecycle is retained in
+The earlier two-locale Shell show/withdraw lifecycle is retained in
 [PRODUCT-017 automated native evidence](PRODUCT017_AUTOMATED_NATIVE_EVIDENCE.md).
-Windows
-quiet time means Shell acceptance is not a visibility claim. The remaining
-gaps do not weaken the current exact approval, expiry, privacy, or dispatch
-boundaries.
+The later [PRODUCT-017 human evidence](PRODUCT017_HUMAN_NATIVE_EVIDENCE.md)
+retains both the initially blocked attempt and the repaired modern-notification
+result: one watched Windows 11 Simplified-Chinese banner, pending Notification
+Center item, and Host withdrawal passed. This is not a cross-version or
+screen-reader notification claim. The remaining gaps do not weaken the current
+exact approval, expiry, privacy, or dispatch boundaries.
 
 ## Verification boundary
 
 Offline tests cover strict persistence and parsing, expiry, corrupt-record
 isolation, bounded projection, empty-read inertness, registry action coverage,
-raw-content exclusion, fixed notification payload, notifier withdrawal, CLI
-human/JSON parity, strict configuration, and fail-silent attachment to the
-existing Decision Card. This evidence proves the local contract; it does not
-prove provider, live desktop, application, or release behavior.
+raw-content exclusion, fixed notification payload, modern identity
+registration, no-authority activation, lifecycle replacement/withdrawal,
+legacy fallback, CLI human/JSON parity, strict configuration, and fail-silent
+attachment to the existing Decision Card. This evidence proves the local
+contract; the named human run adds only one Windows 11 presentation/retrieval
+path and does not prove provider, desktop action, application, or release
+behavior.

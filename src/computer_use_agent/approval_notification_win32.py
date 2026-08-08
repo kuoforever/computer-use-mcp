@@ -1,17 +1,19 @@
-"""Noninteractive Windows notification delivery for local approval attention.
+"""No-authority Windows notification delivery for local approval attention.
 
-The tray notification carries fixed product wording only.  It has no click
-handler, action button, approval callback, provider port, desktop port, or task
-state authority.  The bound Decision Card remains the only approval surface.
+The notification carries fixed product wording only.  It has no action button,
+approval callback, provider port, desktop port, or task-state authority.  A
+whole-toast activation reaches only the modern transport's inert sink; the
+bound Decision Card remains the only approval surface.
 """
 
 from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
-from typing import Any
+from typing import Any, Protocol
 
 from .approval_inbox import ApprovalNotice
+from .approval_notification_toast_win32 import ModernToastApprovalNotifier
 from .win32_dll import private_windll
 
 
@@ -62,8 +64,14 @@ class _NOTIFYICONDATAW(ctypes.Structure):
     ]
 
 
-class Win32ApprovalNotifier:
-    """Show one fixed-content Windows tray notification until withdrawn."""
+class _NotificationPort(Protocol):
+    def show(self, notice: ApprovalNotice) -> None: ...
+
+    def withdraw(self, notice_id: str) -> None: ...
+
+
+class _LegacyWin32ApprovalNotifier:
+    """Show one fixed-content legacy tray notification until withdrawn."""
 
     def __init__(
         self,
@@ -183,6 +191,71 @@ class Win32ApprovalNotifier:
             raise OSError("APPROVAL_NOTIFICATION_WITHDRAW_FAILED")
         if not destroyed:
             raise OSError("APPROVAL_NOTIFICATION_HOST_DESTROY_FAILED")
+
+
+class Win32ApprovalNotifier:
+    """Prefer identity-backed toasts and retain legacy banner fallback."""
+
+    def __init__(
+        self,
+        *,
+        shell32: Any | None = None,
+        user32: Any | None = None,
+        modern: _NotificationPort | None = None,
+    ) -> None:
+        injected_legacy = shell32 is not None or user32 is not None
+        self._legacy = _LegacyWin32ApprovalNotifier(
+            shell32=shell32,
+            user32=user32,
+        )
+        self._modern: _NotificationPort | None = (
+            modern
+            if modern is not None
+            else (None if injected_legacy else ModernToastApprovalNotifier())
+        )
+        self._active_notice_id: str | None = None
+        self._active_delivery: str | None = None
+
+    @property
+    def delivery_kind(self) -> str | None:
+        return self._active_delivery
+
+    @property
+    def _active_hwnd(self) -> int | None:
+        return self._legacy._active_hwnd
+
+    def show(self, notice: ApprovalNotice) -> None:
+        if not isinstance(notice, ApprovalNotice):
+            raise ValueError("notice must be an ApprovalNotice")
+        if self._active_notice_id is not None:
+            self.withdraw(self._active_notice_id)
+        if self._modern is not None:
+            try:
+                self._modern.show(notice)
+            except Exception:
+                # Notification transport is presentation-only.  A modern
+                # registration/runtime failure may degrade to the existing
+                # fixed-content banner, but cannot affect approval authority.
+                pass
+            else:
+                self._active_notice_id = notice.notice_id
+                self._active_delivery = "modern"
+                return
+        self._legacy.show(notice)
+        self._active_notice_id = notice.notice_id
+        self._active_delivery = "legacy"
+
+    def withdraw(self, notice_id: str) -> None:
+        if notice_id != self._active_notice_id or self._active_delivery is None:
+            return
+        delivery = self._active_delivery
+        self._active_notice_id = None
+        self._active_delivery = None
+        if delivery == "modern":
+            assert self._modern is not None
+            self._modern.withdraw(notice_id)
+            return
+        self._legacy.withdraw(notice_id)
 
 
 __all__ = ["Win32ApprovalNotifier"]

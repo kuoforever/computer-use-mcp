@@ -1,9 +1,8 @@
 """Bounded two-locale native lifecycle smoke for approval notifications.
 
-The probe carries fixed product wording only.  It verifies Shell acceptance,
-hidden-host cleanup, and foreground preservation; Windows quiet time may still
-suppress the visible toast, so this is not visibility or assistive-technology
-evidence.
+The probe carries fixed product wording only.  It verifies modern-toast or
+legacy-fallback acceptance, cleanup, and foreground preservation.  Automated
+delivery acceptance is not visibility or assistive-technology evidence.
 """
 from __future__ import annotations
 
@@ -42,24 +41,29 @@ def _smoke(locale: OperatorLocale) -> dict[str, object]:
     notifier = Win32ApprovalNotifier()
     before = _foreground()
     notifier.show(notice)
+    delivery = notifier.delivery_kind
     hwnd = int(notifier._active_hwnd or 0)
     try:
-        if not hwnd or not _is_window(hwnd):
+        if delivery == "legacy" and (not hwnd or not _is_window(hwnd)):
             raise RuntimeError("approval notification host window is unavailable")
+        if delivery not in {"modern", "legacy"}:
+            raise RuntimeError("approval notification delivery is unavailable")
         time.sleep(0.75)
         after = _foreground()
     finally:
         notifier.withdraw(notice.notice_id)
     if before != after:
         raise RuntimeError("approval notification changed foreground")
-    if _is_window(hwnd):
+    if hwnd and _is_window(hwnd):
         raise RuntimeError("approval notification host was not destroyed")
     return {
+        "delivery": delivery,
         "fixed_body": notice.body,
         "fixed_title": notice.title,
         "foreground_unchanged": True,
         "host_destroyed": True,
-        "shell_delivery_accepted": True,
+        "notification_delivery_accepted": True,
+        "notification_center_capable": delivery == "modern",
         "visible_toast_claimed": False,
     }
 
