@@ -54,12 +54,37 @@ _WM_PAINT = 0x000F
 _WM_DESTROY = 0x0002
 _WM_CLOSE = 0x0010
 _WM_ERASEBKGND = 0x0014
-_WM_LBUTTONUP = 0x0202
+_WM_COMMAND = 0x0111
+_WM_SETFONT = 0x0030
 _EVENT_OBJECT_NAMECHANGE = 0x800C
 _OBJID_WINDOW = 0
 _CHILDID_SELF = 0
 
 _TRANSPARENT = 1
+_WM_USER = 0x0400
+_EM_EXSETSEL = _WM_USER + 55
+_EM_SETBKGNDCOLOR = _WM_USER + 67
+_EM_SETCHARFORMAT = _WM_USER + 68
+_EM_SCROLLCARET = 0x00B7
+_SCF_SELECTION = 0x0001
+_SCF_ALL = 0x0004
+_CFM_BOLD = 0x00000001
+_CFM_COLOR = 0x40000000
+_CFM_FACE = 0x20000000
+_CFM_SIZE = 0x80000000
+_CFE_BOLD = 0x00000001
+
+_WS_CHILD = 0x40000000
+_WS_VISIBLE = 0x10000000
+_WS_VSCROLL = 0x00200000
+_ES_MULTILINE = 0x0004
+_ES_AUTOVSCROLL = 0x0040
+_ES_READONLY = 0x0800
+_BS_PUSHBUTTON = 0x00000000
+_SW_HIDE = 0
+_BN_CLICKED = 0
+_WORKFLOW_TOGGLE_ID = 2101
+_WORKFLOW_DOCUMENT_ID = 2102
 _DEFAULT_WIN_W = 460
 _DEFAULT_WIN_H = 250
 _EXPANDED_WIN_W = 520
@@ -118,13 +143,17 @@ def _workflow_layout(
     if checklist_steps < 0:
         raise ValueError("checklist_steps must be non-negative")
     points = (10, 16, 10, 9, 14, 10)
+    text_ratio = text_dpi / max(1, geometry_dpi)
+    wrapped_rows = {1: 3, 2: 2, 4: 2} if text_ratio >= 2.0 else {1: 2, 2: 2, 4: 2}
     preferred_tops = (18, 47, 78, 114, 139, 174)
     minimum_gaps = (8, 8, 14, 6, 6)
     rows: list[tuple[int, int]] = []
     for index, (point_size, preferred_top) in enumerate(
         zip(points, preferred_tops, strict=True)
     ):
-        height = _font_height(point_size, text_dpi)
+        height = _font_height(point_size, text_dpi) * (
+            wrapped_rows.get(index, 1) if text_ratio > 1.0 else 1
+        )
         top = _scaled(preferred_top, geometry_dpi)
         if rows:
             previous_top, previous_height = rows[-1]
@@ -136,34 +165,20 @@ def _workflow_layout(
             )
         rows.append((top, height))
 
-    if not checklist_steps:
-        return tuple(rows)
-
-    previous_top, previous_height = rows[-1]
-    header_top = max(
-        _scaled(218, geometry_dpi),
-        previous_top + previous_height + _scaled(24, geometry_dpi),
-    )
-    header_height = _font_height(9, text_dpi)
-    rows.append((header_top, header_height))
-    title_top = max(
-        _scaled(247, geometry_dpi),
-        header_top + header_height + _scaled(20, geometry_dpi),
-    )
-    for step_index in range(checklist_steps):
-        title_height = _font_height(11, text_dpi)
-        rows.append((title_top, title_height))
-        meta_top = max(
-            title_top + _scaled(22, geometry_dpi),
-            title_top + title_height + _scaled(4, geometry_dpi),
-        )
-        meta_height = _font_height(9, text_dpi)
-        rows.append((meta_top, meta_height))
-        if step_index + 1 < checklist_steps:
-            title_top = max(
-                title_top + _scaled(47, geometry_dpi),
-                meta_top + meta_height + _scaled(10, geometry_dpi),
+    if checklist_steps:
+        # Expanded workflow content lives in one bounded RichEdit viewport.
+        # It wraps and scrolls instead of making every checklist row enlarge the
+        # passive window beyond the selected monitor work area.
+        previous_top, previous_height = rows[-1]
+        rows.append(
+            (
+                previous_top + previous_height + _scaled(16, geometry_dpi),
+                max(
+                    _scaled(180, geometry_dpi),
+                    _font_height(10, text_dpi) * 3,
+                ),
             )
+        )
     return tuple(rows)
 
 
@@ -177,12 +192,29 @@ def _window_size(
     height = _EXPANDED_WIN_H if expanded else _DEFAULT_WIN_H
     geometry_dpi = layout_dpi(dpi, text_scale_factor)
     text_dpi = effective_text_dpi(dpi, text_scale_factor)
-    rows = _workflow_layout(
-        geometry_dpi,
-        text_dpi,
-        checklist_steps=6 if expanded else 0,
+    rows = _workflow_layout(geometry_dpi, text_dpi)
+    summary_height = sum(height for _top, height in rows)
+    summary_height += _scaled(8, geometry_dpi) * (len(rows) - 1)
+    # The RichEdit document inserts two empty semantic separators. Their line
+    # height follows text scale, not the geometry cap.
+    summary_height += _font_height(10, text_dpi) * 2
+    toggle_height = max(
+        _scaled(36, geometry_dpi),
+        _font_height(10, text_dpi) + _scaled(12, geometry_dpi),
     )
-    content_height = rows[-1][0] + rows[-1][1] + _scaled(28, geometry_dpi)
+    content_height = (
+        _scaled(_PAD, geometry_dpi) * 2
+        + summary_height
+        + _scaled(10, geometry_dpi)
+        + toggle_height
+    )
+    if text_dpi > geometry_dpi:
+        # RichEdit includes font-leading and word-wrap variance that nominal
+        # font heights do not. Keep the complete six-line glance summary above
+        # the disclosure at 200%/400%; the expanded checklist still scrolls.
+        content_height += _font_height(10, text_dpi) * 3
+    if expanded:
+        content_height += _scaled(80, geometry_dpi)
     return (
         _scaled(width, geometry_dpi),
         max(_scaled(height, geometry_dpi), content_height),
@@ -217,6 +249,38 @@ class _PAINTSTRUCT(ctypes.Structure):
     ]
 
 
+class _CHARRANGE(ctypes.Structure):
+    _fields_ = [
+        ("cpMin", ctypes.c_long),
+        ("cpMax", ctypes.c_long),
+    ]
+
+
+class _CHARFORMAT2W(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.UINT),
+        ("dwMask", wintypes.DWORD),
+        ("dwEffects", wintypes.DWORD),
+        ("yHeight", ctypes.c_long),
+        ("yOffset", ctypes.c_long),
+        ("crTextColor", wintypes.DWORD),
+        ("bCharSet", ctypes.c_byte),
+        ("bPitchAndFamily", ctypes.c_byte),
+        ("szFaceName", wintypes.WCHAR * 32),
+        ("wWeight", wintypes.WORD),
+        ("sSpacing", ctypes.c_short),
+        ("crBackColor", wintypes.DWORD),
+        ("lcid", wintypes.DWORD),
+        ("dwReserved", wintypes.DWORD),
+        ("sStyle", ctypes.c_short),
+        ("wKerning", wintypes.WORD),
+        ("bUnderlineType", ctypes.c_byte),
+        ("bAnimation", ctypes.c_byte),
+        ("bRevAuthor", ctypes.c_byte),
+        ("bReserved1", ctypes.c_byte),
+    ]
+
+
 def _top_right_origin(
     work_area: tuple[int, int, int, int],
     outer_size: tuple[int, int],
@@ -245,12 +309,13 @@ def _top_right_origin(
 
 
 class Win32ProgressWindowApi:
-    """A live, non-activating tool window rendered with GDI text.
+    """A live, non-activating tool window with bounded native semantics.
 
-    One instance owns one registered window class and the line buffers of the
-    windows it creates. The window procedure only paints stored lines and quits
-    cleanly on destroy; it has no input handling and no controls, so there is
-    nothing that could accept focus even if the window were somehow activated.
+    Plain status lines remain passive GDI output. Workflow mode separates one
+    read-only, wrapping UIA Document from one real disclosure Button. The
+    top-level window still never activates or steals focus; the Button exists so
+    mouse and assistive-technology invocation receive standard control states
+    instead of relying on an invisible coordinate hit target.
     """
 
     _class_seq = 0
@@ -286,9 +351,17 @@ class Win32ProgressWindowApi:
         self._base_titles: dict[int, str] = {}
         self._accessible_names: dict[int, str] = {}
         self._top_right_anchored: set[int] = set()
+        self._workflow_toggles: dict[int, int] = {}
+        self._workflow_documents: dict[int, int] = {}
+        self._workflow_fonts: dict[int, wintypes.HGDIOBJ] = {}
         configure_operator_monitor_apis(self._user32, self._shcore)
         self._configure_gdi()
         self._configure_window_apis()
+        self._msftedit_module = self._kernel32.GetModuleHandleW("Msftedit.dll")
+        if not self._msftedit_module:
+            self._msftedit_module = self._kernel32.LoadLibraryW("Msftedit.dll")
+        if not self._msftedit_module:
+            raise OSError("PROGRESS_RICH_EDIT_UNAVAILABLE")
         # Keep a strong reference to the WNDPROC; if it is collected, the window
         # procedure pointer dangles and the next message crashes the process.
         self._wndproc = _WNDPROC(self._on_message)
@@ -341,6 +414,9 @@ class Win32ProgressWindowApi:
 
     def set_lines(self, hwnd: int, lines: Sequence[str]) -> None:
         rendered = tuple(lines)
+        if int(hwnd) in self._workflow_lines:
+            self._resize_summary(hwnd, expanded=False)
+        self._show_workflow_controls(hwnd, visible=False)
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
         self._workflow_accents.pop(int(hwnd), None)
@@ -381,6 +457,7 @@ class Win32ProgressWindowApi:
         self._workflow_lines[int(hwnd)] = (compact, detail)
         self._toggle_handlers[int(hwnd)] = on_toggle
         self._workflow_accents[int(hwnd)] = accent_rgb
+        self._ensure_workflow_controls(hwnd)
         self._set_accessible_name(
             hwnd,
             workflow_accessible_name(compact, self.locale),
@@ -414,6 +491,9 @@ class Win32ProgressWindowApi:
         return int(self._user32.GetForegroundWindow() or 0)
 
     def destroy(self, hwnd: int) -> None:
+        font = self._workflow_fonts.pop(int(hwnd), None)
+        self._workflow_toggles.pop(int(hwnd), None)
+        self._workflow_documents.pop(int(hwnd), None)
         self._lines.pop(int(hwnd), None)
         self._workflow_lines.pop(int(hwnd), None)
         self._toggle_handlers.pop(int(hwnd), None)
@@ -422,6 +502,8 @@ class Win32ProgressWindowApi:
         self._accessible_names.pop(int(hwnd), None)
         self._top_right_anchored.discard(int(hwnd))
         self._user32.DestroyWindow(wintypes.HWND(hwnd))
+        if font:
+            self._gdi32.DeleteObject(font)
 
     # --- message pump (used by the smoke, not the controller) --------------
 
@@ -444,9 +526,11 @@ class Win32ProgressWindowApi:
             return 0
         if msg == _WM_ERASEBKGND:
             return 1  # painted fully in WM_PAINT; skip default erase flicker
-        if msg == _WM_LBUTTONUP and int(hwnd) in self._workflow_lines:
-            expanded = self._workflow_is_expanded(int(hwnd))
-            if self._point_in_toggle(int(hwnd), int(lparam), expanded=expanded):
+        if msg == _WM_COMMAND and int(hwnd) in self._workflow_lines:
+            command_id = int(wparam) & 0xFFFF
+            notification = (int(wparam) >> 16) & 0xFFFF
+            if notification == _BN_CLICKED and command_id == _WORKFLOW_TOGGLE_ID:
+                expanded = self._workflow_is_expanded(int(hwnd))
                 next_expanded = not expanded
                 self._show_workflow(int(hwnd), expanded=next_expanded)
                 try:
@@ -501,31 +585,10 @@ class Win32ProgressWindowApi:
             gdi32.DeleteObject(accent)
             lines = self._lines.get(hwnd, ())
             if int(hwnd) in self._workflow_lines:
-                self._paint_workflow_summary(
-                    hdc,
-                    lines[:6],
-                    geometry_dpi,
-                    text_dpi,
-                    accent_color,
-                    palette,
-                )
-                if self._workflow_is_expanded(int(hwnd)):
-                    self._paint_workflow_checklist(
-                        hdc,
-                        lines[6:],
-                        geometry_dpi,
-                        text_dpi,
-                        accent_color,
-                        palette,
-                    )
-                if int(hwnd) in self._workflow_lines:
-                    self._paint_toggle(
-                        hdc,
-                        expanded=self._workflow_is_expanded(int(hwnd)),
-                        geometry_dpi=geometry_dpi,
-                        text_dpi=text_dpi,
-                        palette=palette,
-                    )
+                # Workflow text and disclosure are child controls. The parent
+                # paints only chrome so information never collides with the
+                # interactive state at large text scales.
+                return
             else:
                 y = _scaled(_PAD, geometry_dpi)
                 for line in lines:
@@ -546,119 +609,83 @@ class Win32ProgressWindowApi:
         finally:
             user32.EndPaint(wintypes.HWND(hwnd), ctypes.byref(ps))
 
-    def _paint_workflow_summary(
+    @staticmethod
+    def _workflow_document_text(lines: tuple[str, ...]) -> tuple[str, tuple[tuple[int, int, int], ...]]:
+        """Return readable paragraphs plus source-line ranges for rich styling."""
+
+        rendered: list[str] = []
+        spans: list[tuple[int, int, int]] = []
+        offset = 0
+        for index, line in enumerate(lines):
+            if index in {3, 6}:
+                rendered.append("")
+                offset += 1
+            rendered.append(line)
+            spans.append((offset, offset + len(line), index))
+            offset += len(line) + 1
+        return "\n".join(rendered), tuple(spans)
+
+    def _style_workflow_document(
         self,
-        hdc: wintypes.HDC,
+        hwnd: int,
         lines: tuple[str, ...],
-        geometry_dpi: int,
-        text_dpi: int,
-        accent_color: int,
-        palette: Win32Palette,
-    ) -> None:
-        """Paint the fixed six-line compact summary with visual hierarchy."""
-
-        x = _scaled(24, geometry_dpi)
-        styles = (
-            (10, _FW_SEMIBOLD, accent_color),
-            (16, _FW_SEMIBOLD, palette.text),
-            (10, _FW_NORMAL, palette.muted_text),
-            (9, _FW_SEMIBOLD, accent_color),
-            (14, _FW_SEMIBOLD, palette.text),
-            (10, _FW_NORMAL, palette.muted_text),
-        )
-        rows = _workflow_layout(geometry_dpi, text_dpi)
-        for text, (y, _height), (points, weight, color) in zip(
-            lines, rows, styles, strict=True
-        ):
-            self._text(
-                hdc,
-                x,
-                y,
-                text,
-                points=points,
-                weight=weight,
-                color=color,
-                dpi=text_dpi,
-            )
-
-    def _paint_workflow_checklist(
-        self,
-        hdc: wintypes.HDC,
-        lines: tuple[str, ...],
-        geometry_dpi: int,
-        text_dpi: int,
-        accent_color: int,
-        palette: Win32Palette,
-    ) -> None:
-        """Paint the bounded checklist beneath the unchanged compact summary."""
-
-        checklist_steps = (len(lines) - 1) // 2
-        rows = _workflow_layout(
-            geometry_dpi,
-            text_dpi,
-            checklist_steps=checklist_steps,
-        )
-        header_top, _header_height = rows[6]
-        self._text(
-            hdc,
-            _scaled(24, geometry_dpi),
-            header_top,
-            lines[0],
-            points=9,
-            weight=_FW_SEMIBOLD,
-            color=accent_color,
-            dpi=text_dpi,
-        )
-        for step_index, index in enumerate(range(1, len(lines), 2)):
-            title_top, _title_height = rows[7 + step_index * 2]
-            meta_top, _meta_height = rows[8 + step_index * 2]
-            self._text(
-                hdc,
-                _scaled(24, geometry_dpi),
-                title_top,
-                lines[index],
-                points=11,
-                weight=_FW_SEMIBOLD,
-                color=palette.text,
-                dpi=text_dpi,
-            )
-            self._text(
-                hdc,
-                _scaled(24, geometry_dpi),
-                meta_top,
-                lines[index + 1],
-                points=9,
-                weight=_FW_NORMAL,
-                color=palette.muted_text,
-                dpi=text_dpi,
-            )
-
-    def _paint_toggle(
-        self,
-        hdc: wintypes.HDC,
         *,
-        expanded: bool,
-        geometry_dpi: int,
-        text_dpi: int,
         palette: Win32Palette,
+        display_dpi: int,
+        text_dpi: int,
     ) -> None:
-        width = _EXPANDED_WIN_W if expanded else _DEFAULT_WIN_W
-        self._text(
-            hdc,
-            _scaled(width - 132, geometry_dpi),
-            _scaled(18, geometry_dpi),
-            (
-                operator_text(
-                    self.locale,
-                    "hide_steps" if expanded else "show_steps",
-                )
-                + ("  ∧" if expanded else "  ∨")
-            ),
-            points=9,
-            weight=_FW_SEMIBOLD,
-            color=palette.muted_text,
-            dpi=text_dpi,
+        """Give the wrapping UIA document the same semantic text hierarchy."""
+
+        document = wintypes.HWND(self._workflow_documents[int(hwnd)])
+        text, spans = self._workflow_document_text(lines)
+        self._user32.SetWindowTextW(document, text)
+        self._user32.SendMessageW(document, _EM_SETBKGNDCOLOR, 0, palette.surface)
+
+        def char_format(*, points: int, color: int, bold: bool) -> _CHARFORMAT2W:
+            result = _CHARFORMAT2W()
+            result.cbSize = ctypes.sizeof(result)
+            result.dwMask = _CFM_BOLD | _CFM_COLOR | _CFM_FACE | _CFM_SIZE
+            result.dwEffects = _CFE_BOLD if bold else 0
+            result.yHeight = max(
+                1,
+                round(points * text_dpi * 20 / max(96, display_dpi)),
+            )
+            result.crTextColor = color
+            result.szFaceName = "Segoe UI"
+            return result
+
+        def send_format(wparam: int, value: _CHARFORMAT2W) -> None:
+            pointer = ctypes.cast(ctypes.byref(value), ctypes.c_void_p).value or 0
+            self._user32.SendMessageW(document, _EM_SETCHARFORMAT, wparam, pointer)
+
+        send_format(
+            _SCF_ALL,
+            char_format(points=10, color=palette.text, bold=False),
         )
+        for start, end, index in spans:
+            selection = _CHARRANGE(start, end)
+            pointer = ctypes.cast(ctypes.byref(selection), ctypes.c_void_p).value or 0
+            self._user32.SendMessageW(document, _EM_EXSETSEL, 0, pointer)
+            if index in {0, 3, 6}:
+                points, color, bold = (10 if index == 0 else 9), palette.accent, True
+            elif index == 1:
+                points, color, bold = 16, palette.text, True
+            elif index == 4:
+                points, color, bold = 14, palette.text, True
+            elif index >= 7 and index % 2 == 1:
+                points, color, bold = 11, palette.text, True
+            elif index >= 7:
+                points, color, bold = 9, palette.muted_text, False
+            else:
+                points, color, bold = 10, palette.muted_text, False
+            send_format(
+                _SCF_SELECTION,
+                char_format(points=points, color=color, bold=bold),
+            )
+        selection = _CHARRANGE(0, 0)
+        pointer = ctypes.cast(ctypes.byref(selection), ctypes.c_void_p).value or 0
+        self._user32.SendMessageW(document, _EM_EXSETSEL, 0, pointer)
+        self._user32.SendMessageW(document, _EM_SCROLLCARET, 0, 0)
 
     def _text(
         self,
@@ -700,6 +727,129 @@ class Win32ProgressWindowApi:
             self._gdi32.SelectObject(hdc, previous)
             self._gdi32.DeleteObject(font)
 
+    def _ensure_workflow_controls(self, hwnd: int) -> None:
+        key = int(hwnd)
+        if key in self._workflow_toggles:
+            return
+        display_dpi = self._window_dpi(key)
+        text_dpi = effective_text_dpi(
+            display_dpi,
+            self.accessibility.text_scale_factor,
+        )
+        instance = self._hinstance()
+        document = self._user32.CreateWindowExW(
+            0,
+            "RICHEDIT50W",
+            "",
+            _WS_CHILD
+            | _WS_VISIBLE
+            | _ES_MULTILINE
+            | _ES_AUTOVSCROLL
+            | _ES_READONLY
+            | _WS_VSCROLL,
+            0,
+            0,
+            1,
+            1,
+            wintypes.HWND(key),
+            wintypes.HMENU(_WORKFLOW_DOCUMENT_ID),
+            instance,
+            None,
+        )
+        toggle = self._user32.CreateWindowExW(
+            0,
+            "BUTTON",
+            operator_text(self.locale, "show_steps"),
+            _WS_CHILD | _WS_VISIBLE | _BS_PUSHBUTTON,
+            0,
+            0,
+            1,
+            1,
+            wintypes.HWND(key),
+            wintypes.HMENU(_WORKFLOW_TOGGLE_ID),
+            instance,
+            None,
+        )
+        if not document or not toggle:
+            if document:
+                self._user32.DestroyWindow(document)
+            if toggle:
+                self._user32.DestroyWindow(toggle)
+            raise OSError("PROGRESS_WORKFLOW_CONTROL_CREATE_FAILED")
+        font = self._gdi32.CreateFontW(
+            -max(12, round(10 * text_dpi / 72)),
+            0,
+            0,
+            0,
+            _FW_SEMIBOLD,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            5,
+            0,
+            "Segoe UI",
+        )
+        self._workflow_documents[key] = int(document)
+        self._workflow_toggles[key] = int(toggle)
+        if font:
+            self._workflow_fonts[key] = font
+            self._user32.SendMessageW(toggle, _WM_SETFONT, font, 1)
+
+    def _show_workflow_controls(self, hwnd: int, *, visible: bool) -> None:
+        command = _SW_SHOWNOACTIVATE if visible else _SW_HIDE
+        for controls in (self._workflow_documents, self._workflow_toggles):
+            handle = controls.get(int(hwnd))
+            if handle:
+                self._user32.ShowWindow(wintypes.HWND(handle), command)
+
+    def _layout_workflow_controls(self, hwnd: int) -> None:
+        key = int(hwnd)
+        document = self._workflow_documents.get(key)
+        toggle = self._workflow_toggles.get(key)
+        if not document or not toggle:
+            return
+        client = wintypes.RECT()
+        if not self._user32.GetClientRect(wintypes.HWND(key), ctypes.byref(client)):
+            return
+        display_dpi = self._window_dpi(key)
+        geometry_dpi = layout_dpi(
+            display_dpi,
+            self.accessibility.text_scale_factor,
+        )
+        text_dpi = effective_text_dpi(
+            display_dpi,
+            self.accessibility.text_scale_factor,
+        )
+        pad = _scaled(_PAD, geometry_dpi)
+        gap = _scaled(10, geometry_dpi)
+        toggle_height = max(
+            _scaled(36, geometry_dpi),
+            _font_height(10, text_dpi) + _scaled(12, geometry_dpi),
+        )
+        content_left = pad + _scaled(6, geometry_dpi)
+        content_width = max(1, client.right - content_left - pad)
+        toggle_top = max(pad, client.bottom - pad - toggle_height)
+        document_height = max(1, toggle_top - gap - pad)
+        self._user32.MoveWindow(
+            wintypes.HWND(document),
+            content_left,
+            pad,
+            content_width,
+            document_height,
+            True,
+        )
+        self._user32.MoveWindow(
+            wintypes.HWND(toggle),
+            content_left,
+            toggle_top,
+            content_width,
+            toggle_height,
+            True,
+        )
+
     def _apply_lines(self, hwnd: int, lines: tuple[str, ...]) -> None:
         self._lines[int(hwnd)] = lines
         if int(hwnd) in self._workflow_lines:
@@ -707,6 +857,7 @@ class Win32ProgressWindowApi:
                 hwnd,
                 expanded=self._workflow_is_expanded(int(hwnd)),
             )
+            self._layout_workflow_controls(hwnd)
         # Repaint without activation. The window owns no executable control.
         self._user32.InvalidateRect(wintypes.HWND(hwnd), None, True)
 
@@ -714,7 +865,32 @@ class Win32ProgressWindowApi:
         variants = self._workflow_lines.get(int(hwnd))
         if variants is None:
             raise ValueError("PROGRESS_WORKFLOW_LINES_UNAVAILABLE")
-        self._apply_lines(hwnd, variants[1] if expanded else variants[0])
+        lines = variants[1] if expanded else variants[0]
+        self._apply_lines(hwnd, lines)
+        self._show_workflow_controls(hwnd, visible=True)
+        toggle = self._workflow_toggles[int(hwnd)]
+        self._user32.SetWindowTextW(
+            wintypes.HWND(toggle),
+            operator_text(self.locale, "hide_steps" if expanded else "show_steps")
+            + ("  ▲" if expanded else "  ▼"),
+        )
+        display_dpi = self._window_dpi(hwnd)
+        palette = win32_palette(
+            self._user32,
+            high_contrast=self.accessibility.high_contrast,
+            accent_rgb=self._workflow_accents.get(int(hwnd), _DEFAULT_ACCENT_RGB),
+            theme=self.theme,
+        )
+        self._style_workflow_document(
+            hwnd,
+            lines,
+            palette=palette,
+            display_dpi=display_dpi,
+            text_dpi=effective_text_dpi(
+                display_dpi,
+                self.accessibility.text_scale_factor,
+            ),
+        )
 
     def _workflow_is_expanded(self, hwnd: int) -> bool:
         lines = self._lines.get(int(hwnd), ())
@@ -737,19 +913,6 @@ class Win32ProgressWindowApi:
             _CHILDID_SELF,
         )
 
-    def _point_in_toggle(self, hwnd: int, lparam: int, *, expanded: bool) -> bool:
-        dpi = layout_dpi(
-            self._window_dpi(hwnd),
-            self.accessibility.text_scale_factor,
-        )
-        width = _EXPANDED_WIN_W if expanded else _DEFAULT_WIN_W
-        x = ctypes.c_short(lparam & 0xFFFF).value
-        y = ctypes.c_short((lparam >> 16) & 0xFFFF).value
-        return (
-            _scaled(width - 150, dpi) <= x <= _scaled(width - 8, dpi)
-            and _scaled(6, dpi) <= y <= _scaled(42, dpi)
-        )
-
     def _window_dpi(self, hwnd: int) -> int:
         return operator_dpi_for_window(self._user32, hwnd)
 
@@ -766,6 +929,9 @@ class Win32ProgressWindowApi:
             dpi,
             text_scale_factor=self.accessibility.text_scale_factor,
         )
+        work_left, work_top, work_right, work_bottom = monitor.work_area
+        width = min(width, work_right - work_left)
+        height = min(height, work_bottom - work_top)
         flags = _SWP_NOZORDER | _SWP_NOACTIVATE
         x = 0
         y = 0
@@ -809,6 +975,35 @@ class Win32ProgressWindowApi:
             wintypes.LONG,
             wintypes.LONG,
         ]
+        self._user32.SendMessageW.argtypes = [
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        ]
+        self._user32.SendMessageW.restype = ctypes.c_ssize_t
+        self._user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        self._user32.ShowWindow.restype = wintypes.BOOL
+        self._user32.MoveWindow.argtypes = [
+            wintypes.HWND,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            wintypes.BOOL,
+        ]
+        self._user32.MoveWindow.restype = wintypes.BOOL
+        self._user32.GetClientRect.argtypes = [
+            wintypes.HWND,
+            ctypes.POINTER(wintypes.RECT),
+        ]
+        self._user32.GetClientRect.restype = wintypes.BOOL
+        self._user32.DestroyWindow.argtypes = [wintypes.HWND]
+        self._user32.DestroyWindow.restype = wintypes.BOOL
+        self._kernel32.LoadLibraryW.argtypes = [wintypes.LPCWSTR]
+        self._kernel32.LoadLibraryW.restype = wintypes.HMODULE
+        self._kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+        self._kernel32.GetModuleHandleW.restype = wintypes.HMODULE
 
     def _configure_gdi(self) -> None:
         self._gdi32.CreateFontW.argtypes = [

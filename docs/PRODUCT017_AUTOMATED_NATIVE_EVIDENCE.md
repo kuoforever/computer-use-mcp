@@ -1,9 +1,11 @@
 # PRODUCT-017 automated native evidence
 
 > **Status: the automatically testable non-E4 subset passed on 2026-08-07.**
-> Human assistive-technology, human large-text/visual, visible-notification,
-> physical two-monitor, and real operator takeover timing remain `NOT RUN` or
-> hardware-blocked. This is not E4, release approval, or a waiver.
+> The later bounded English Narrator result is recorded separately in
+> [PRODUCT-017 human native evidence](PRODUCT017_HUMAN_NATIVE_EVIDENCE.md).
+> Human large-text/visual, visible-notification, physical two-monitor, and real
+> operator takeover timing remain `NOT RUN` or hardware-blocked. This is not
+> E4, release approval, or a waiver.
 
 ## Candidate and authority boundary
 
@@ -32,11 +34,25 @@ Five presentation cases ran in both English and Simplified Chinese: dark,
 light, High-Contrast-over-light, light at 200% text, and dark at 400% text. All
 ten cases:
 
-- exposed the expected UIA Edit/Button path and complete focus sequence;
+- exposed the expected Decision Card UIA Document/Button path and complete
+  focus sequence;
 - began and ended on the localized safe denial option;
 - kept Decision Card and Progress rectangles inside the selected work area;
 - kept Presence aligned to the monitor and capture-excluded; and
-- preserved foreground across the passive Progress and Presence surfaces.
+- preserved foreground across the non-activating Progress and Presence surfaces.
+
+The later UX-walkthrough repair extended the same probe in all ten cases.
+Progress now exposes a wrapping `Document/TextPattern`, one localized
+presentation-only `Button/Invoke`, and exact
+`compact -> expanded -> compact` transitions without changing foreground.
+Presence now sizes its phase tab from measured Segoe UI glyph extents instead
+of a character-count estimate. These later facts are current-branch evidence;
+they do not rewrite the merged 2026-08-07 gate total below.
+
+After the later Narrator and walkthrough repairs, the complete current branch
+passed `2066 passed, 8 skipped`, full Ruff, mypy over 138 source files,
+documentation consistency, and `git diff --check`. Publication and remaining
+human gates are still separate.
 
 This proves automated UIA names, order, safe focus, geometry, reflow, locale,
 theme, and passive-focus contracts. It does not prove spoken output, braille,
@@ -77,8 +93,9 @@ publication gates.
 
 | Gate | State | Required evidence |
 | --- | --- | --- |
-| Narrator/NVDA/JAWS | `NOT RUN` | a person judges spoken order, pronunciation, verbosity, and usability |
-| Human 200%/400% and visual design | `NOT RUN` | a person judges legibility, clipping, hierarchy, and aesthetics |
+| English Windows Narrator Decision Card | `PASS IN LATER BOUNDED EVIDENCE` | see the separate human evidence; this automatic record remains automation-only |
+| NVDA/JAWS/braille/other locales | `NOT RUN` | separate tool- and locale-specific human evidence |
+| Human 200%/400% and visual design | `PARTIAL IN LATER BOUNDED EVIDENCE` | Decision Card was accepted; revised Progress/Presence await final human confirmation |
 | Visible notification presentation | `NOT RUN` | a person confirms presentation/retrieval under reviewed Windows notification settings |
 | Native cooperative takeover timing | `NOT RUN` | a person takes the desktop only after `paused/released`, then stops input before resume and confirms focus/timing |
 | Physical two-monitor usability | `BLOCKED BY AVAILABLE HARDWARE` | two physical displays; synthetic coordinates are insufficient |
