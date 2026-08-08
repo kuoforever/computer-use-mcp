@@ -10,6 +10,8 @@
 - Product implementation: PR #293 merge `51ff2d8`.
 - Repository observation point: `6e325a4`, the documentation-only PRODUCT-021
   closeout on top of that merge.
+- Follow-up observation point: `0d37677`, the documentation closeout after the
+  first supervised configured-G/K evidence publication.
 - Installed wheel SHA-256:
   `4D531EF57559AC884DA2D0044522DEBE9EF39683279A58330702F75E44908D13`.
 - The wheel source tree and PR #293 merge tree both resolved to
@@ -80,9 +82,137 @@ Log SHA-256:
 
 ## Exact claim boundary
 
-This run proves one human-triggered configured G/K path on the two layouts
+The first run proves one human-triggered configured G/K path on the two layouts
 loaded on this machine: G visibly foregrounded Agent Controls, K failed closed
-without an active run, and both registrations were released. It does not prove
-physical Q, a successful pause/release against a live workflow, direct-console
-Ctrl+C wording, layouts not loaded for the run, other Windows builds,
-provider/MCP/application behavior, E4, or release readiness.
+without an active run, and both registrations were released.
+
+## Follow-up physical acceptance
+
+The same installed wheel was rebound explicitly through its isolated `site`
+directory, with a fresh isolated `LOCALAPPDATA` and K pause configuration. The
+follow-up used only operator physical key input. It opened no real provider,
+MCP server, application, or desktop-dispatch port.
+
+### Direct-console Ctrl+C
+
+The Host ran directly in a console under PowerShell transcription rather than
+through `Tee-Object`. The operator confirmed that physical `Ctrl+C` stopped the
+Host. The flushed transcript contains the exact final line:
+
+```text
+SHORTCUTS STOPPED · Registrations released.
+```
+
+Retained ignored transcript:
+
+```text
+out/product021-remaining-physical-308f5e8745544caa8b171a4fafe6f99d/
+  direct-console-transcript.txt
+```
+
+SHA-256:
+`6AA743EB0EDD7309E2091499789F4D31D873808670FC18DB9B773617A3A8CD09`.
+
+### Independent physical Q latch
+
+An installed-candidate `EStop` harness registered only the independent fixed
+`Ctrl+Alt+Q` path. After the operator pressed Q, its transcript recorded:
+
+```text
+ESTOP LATCHED - actions would remain denied until restart
+```
+
+Retained ignored transcript:
+
+```text
+out/product021-remaining-physical-308f5e8745544caa8b171a4fafe6f99d/
+  physical-q-transcript.txt
+```
+
+SHA-256:
+`0038FD7F60EC529B38B728152B7009FC9D7A2A2B8A37730587854F6192601786`.
+
+This proves the installed E-stop object latched from physical Q. The harness
+did not start the full MCP server or attempt an action after the latch, so it
+does not promote full-server action-denial evidence.
+
+### Invalid first active-K attempt
+
+The first fake-only active-Runner harness allowed only 120 seconds. Its Runner
+timed out before the operator input arrived; the later K therefore correctly
+printed `PAUSE UNAVAILABLE` against a closed/failed control record. Timing and
+control evidence invalidate that attempt as a live-pause result. It is retained
+to distinguish a harness-window failure from a product failure:
+
+```text
+out/product021-remaining-physical-308f5e8745544caa8b171a4fafe6f99d/
+  physical-k-transcript.txt
+  physical-pause-runner.log
+  physical-pause-runner.err.log
+```
+
+Their respective SHA-256 values are
+`C2A6AEFAE6ECCCA35E552C3968721B6CF385D0C18B56221B8F4934E3A1FF72D2`,
+`F89A3BEEF530C201C719CAC13F635894E5C8B81260E37B206208C7ECB3BA8013`,
+and `04A1DE17350B2058FE0C488FBA8EBD95E56A0B8D7D7CFFB26F6A8E221969040E`.
+
+### Valid active-Runner K pause and release
+
+A fresh isolated rerun gave the fake-only harness 600 seconds. It used the
+production `AgentRunner`, `LocalCooperativeControl`, control record, and
+OS-backed run lock; fake provider and desktop-MCP objects performed no external
+work. Read-only Win32 probes confirmed that the visible Host owned G/K before
+the operator pressed physical `Ctrl+Alt+K`.
+
+The Host and Runner then recorded this order:
+
+```text
+PAUSE REQUESTED · Pause requested. Wait before touching the shared desktop.
+PAUSED RELEASED · Paused. Desktop authority is released for local use.
+RUNNER OBSERVED PAUSE_REQUESTED
+RUNNER PAUSED - DESKTOP AUTHORITY RELEASED checkpoint=1
+```
+
+The pause occurred at checkpoint `1` with boundary `before_provider`. The state
+and trace retain `model_turns_used=1`, `tool_calls_used=0`, and
+`side_effects_used=0`. A harness-only automated resume was then intentionally
+unable to complete because the fake provider returned final text without a
+fresh observation. The production Runner failed closed with
+`VERIFICATION_REQUIRED`; final control was `closed/failed`, authority `none`,
+and `fresh_observation_required=true`. That cleanup result is not a failed
+pause: it proves stale grounding did not become resume authority.
+
+Retained ignored evidence and SHA-256 values:
+
+```text
+out/product021-remaining-physical-rerun-3544223c91fe40ed9a2ff2b25a9bffdf/
+  host-transcript.txt  7E9262BC49CEC6E0C2DDE721237C29CB2A014AB93CC4013AAB2C23138414B456
+  runner.log           950CF0B07000E5E555F9E4CFB40620CDD97557AA1B0469AB4F82DA514DA33353
+  runner.err.log       B09BBD36292D4DA4B226E461C34BE433ADDB710B4C076BE7A88EDC586B433D0E
+  localappdata/computer-use-agent/runs/physical_pause_run/
+    control.json       B7F399B077642E00F864D4D8D4CA75F265CDFB4D3672A0C2C8F1E03E402A5738
+    state.json         5F01765CEA3C267A2483C4FF8C451F9E91835022CB4FE448187D27E1E07B62FA
+  localappdata/computer-use-agent/traces/
+    physical_pause_run.jsonl
+      AC2EF185911F083D987C7FD4FF880C2A565C59288EF44837A73C189E8337BFAA
+```
+
+After evidence capture, the exact Host processes were stopped. A fresh Win32
+probe registered and released G/K with `error=0`, and no test process remained.
+
+### Layout boundary
+
+The current Windows profile exposed only Simplified Chinese with Microsoft
+Pinyin and English (United States), matching the two loaded handles above. No
+third installed/loaded layout existed for a bounded physical rerun. This is an
+environment limitation and remains unclaimed rather than a failed layout.
+
+## Updated exact claim boundary
+
+Together, the supervised runs prove configured G foreground/fail-closed K,
+direct-console Ctrl+C cleanup wording, the installed physical-Q E-stop latch,
+and physical K driving an active production Runner control lifecycle through
+`pause_requested -> paused/released` before any provider call. They do not
+prove full-MCP post-Q action denial, real-provider/MCP/application pause or
+resume, layouts not installed/loaded for the run, other Windows builds,
+broader assistive technology or hardware, E4, or release readiness.
