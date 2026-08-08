@@ -19,11 +19,15 @@ dependencies = [
     "winrt-runtime~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Foundation~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Foundation.Collections~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Data.Xml.Dom~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Globalization~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Graphics.Imaging~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Media.Ocr~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.Storage.Streams~=3.2.1; sys_platform == 'win32'",
     "winrt-Windows.UI.ViewManagement~=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.UI.Notifications~=3.2.1; sys_platform == 'win32'",
+    "pywin32>=312; sys_platform == 'win32'",
+    "comtypes>=1.4.16; sys_platform == 'win32'",
 ]
 # Mouse/keyboard input is done via ctypes (keybd_event/mouse_event) and
 # uiautomation.SendKeys — no pyautogui dependency needed.

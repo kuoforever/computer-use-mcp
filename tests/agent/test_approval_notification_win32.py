@@ -53,6 +53,21 @@ class _Shell32:
         return operation != self.fail_operation
 
 
+class _Modern:
+    def __init__(self, *, fail_show: bool = False) -> None:
+        self.fail_show = fail_show
+        self.shown: list[ApprovalNotice] = []
+        self.withdrawn: list[str] = []
+
+    def show(self, notice: ApprovalNotice) -> None:
+        self.shown.append(notice)
+        if self.fail_show:
+            raise OSError("modern toast unavailable")
+
+    def withdraw(self, notice_id: str) -> None:
+        self.withdrawn.append(notice_id)
+
+
 def test_native_notification_uses_fixed_noninteractive_content_and_withdraws() -> None:
     shell32 = _Shell32()
     user32 = _User32()
@@ -84,6 +99,47 @@ def test_native_notification_uses_matching_simplified_chinese_copy() -> None:
     _operation, title, body, _flags = shell32.calls[0]
     assert title == "受保护的桌面智能体"
     assert body == "需要审批。请返回已打开的决策窗口。"
+
+
+def test_native_notification_prefers_modern_delivery_when_available() -> None:
+    modern = _Modern()
+    shell32 = _Shell32()
+    notifier = Win32ApprovalNotifier(
+        shell32=shell32,
+        user32=_User32(),
+        modern=modern,
+    )
+    notice = ApprovalNotice("request_1")
+
+    notifier.show(notice)
+    assert notifier.delivery_kind == "modern"
+    notifier.withdraw(notice.notice_id)
+
+    assert modern.shown == [notice]
+    assert modern.withdrawn == ["request_1"]
+    assert shell32.calls == []
+    assert notifier.delivery_kind is None
+
+
+def test_native_notification_falls_back_to_legacy_banner() -> None:
+    modern = _Modern(fail_show=True)
+    shell32 = _Shell32()
+    user32 = _User32()
+    notifier = Win32ApprovalNotifier(
+        shell32=shell32,
+        user32=user32,
+        modern=modern,
+    )
+    notice = ApprovalNotice("request_1")
+
+    notifier.show(notice)
+    assert notifier.delivery_kind == "legacy"
+    notifier.withdraw(notice.notice_id)
+
+    assert modern.shown == [notice]
+    assert modern.withdrawn == []
+    assert [call[0] for call in shell32.calls] == [0, 4, 2]
+    assert user32.destroyed == [101]
 
 
 def test_native_notification_requires_a_private_host_window_and_exact_notice_type() -> None:
