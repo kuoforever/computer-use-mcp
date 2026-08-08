@@ -166,7 +166,7 @@ in the foreground. Ask one read-only question:
 
 ~~~powershell
 .\.venv\Scripts\guarded-desktop-agent.exe ask `
-  --config agent.toml `
+  --config "$env:LOCALAPPDATA\computer-use-agent\agent.toml" `
   --task "Summarize the foreground document in three bullets."
 ~~~
 
@@ -182,11 +182,25 @@ settings add visibility and local interaction only; they grant no model or
 desktop authority, and every surface remains explicitly configurable.
 
 `config settings` is the CLI-first Agent Controls view. It explains purpose,
-provider/model, safety, interface preferences, and exact next command from the
+provider/model, safety, interface preferences, and exact next commands from the
 same strict TOML source. It only reports provider SDK and credential-variable
 presence, opens no external port, registers no shortcut, and grants no
 approval, control, retry/replay, or dispatch authority. Use `--json` for the
-same bounded facts. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
+same bounded facts.
+
+Optionally keep a second terminal open for fixed global Agent Controls and safe
+pause shortcuts:
+
+~~~powershell
+.\.venv\Scripts\guarded-desktop-agent.exe shortcuts run `
+  --config "$env:LOCALAPPDATA\computer-use-agent\agent.toml"
+~~~
+
+`Ctrl+Alt+G` restores that host's Agent Controls console. `Ctrl+Alt+P` requests
+cooperative pause but grants no desktop authority until the host reports
+`PAUSED · DESKTOP AUTHORITY RELEASED`. `Ctrl+Alt+Q` remains the independent MCP
+emergency stop. There is no global approve or resume; closing the host releases
+G/P. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
 
 `config doctor` is the installed-runtime readiness check. It validates the
 configuration, provider extra and documented credential variable, MCP

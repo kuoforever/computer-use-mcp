@@ -47,6 +47,8 @@ _PURPOSES = MappingProxyType(
     }
 )
 _CONFIG_NAME = "agent.toml"
+OPEN_CONTROLS_SHORTCUT = "ctrl+alt+g"
+REQUEST_PAUSE_SHORTCUT = "ctrl+alt+p"
 
 
 def default_config_path(environ: Mapping[str, str] | None = None) -> Path:
@@ -103,6 +105,13 @@ class AgentControlsSnapshot:
             f"{_quoted_path(self.config_path)}"
         )
 
+    @property
+    def shortcuts_command(self) -> str:
+        return (
+            "guarded-desktop-agent shortcuts run --config "
+            f"{_quoted_path(self.config_path)}"
+        )
+
     def as_json(self) -> dict[str, object]:
         operator = self.config.operator
         approval_policy = (
@@ -143,7 +152,18 @@ class AgentControlsSnapshot:
                 "reduced_motion": operator.reduced_motion,
                 "theme": operator.theme,
             },
-            "commands": {"doctor": self.doctor_command},
+            "shortcuts": {
+                "emergency_stop": REQUIRED_SAFE_CHILD_ENVIRONMENT["CUMCP_ESTOP"],
+                "open_controls": OPEN_CONTROLS_SHORTCUT,
+                "request_pause": REQUEST_PAUSE_SHORTCUT,
+                "global_approve": None,
+                "global_resume": None,
+                "registered_by_this_view": False,
+            },
+            "commands": {
+                "doctor": self.doctor_command,
+                "shortcuts": self.shortcuts_command,
+            },
             "authority": {
                 "can_approve": False,
                 "can_control_task": False,
@@ -290,6 +310,14 @@ def render_agent_controls(snapshot: AgentControlsSnapshot) -> str:
             f"  Locale / theme: {operator.locale} / {operator.theme}",
             f"  Decision timeout: {operator.decision_timeout_seconds}s",
             "",
+            "SHORTCUTS",
+            f"  Open Agent Controls: {OPEN_CONTROLS_SHORTCUT}",
+            f"  Request safe pause: {REQUEST_PAUSE_SHORTCUT}",
+            f"  Emergency stop: {REQUIRED_SAFE_CHILD_ENVIRONMENT['CUMCP_ESTOP']}",
+            "  Global approve / resume: not assigned",
+            "  Registration: owned only by an explicit shortcuts run host",
+            f"  Start: {snapshot.shortcuts_command}",
+            "",
             "NEXT",
             f"  {snapshot.doctor_command}",
             "",
@@ -335,8 +363,10 @@ def render_quick_setup(result: QuickSetupResult) -> str:
 
 __all__ = [
     "AgentControlsSnapshot",
+    "OPEN_CONTROLS_SHORTCUT",
     "QuickSetupResult",
     "RECOMMENDED_MODELS",
+    "REQUEST_PAUSE_SHORTCUT",
     "create_quick_setup",
     "default_config_path",
     "load_agent_controls",

@@ -32,6 +32,14 @@ provider SDK/credential-variable presence, paths, and the exact doctor command.
 Its authority flags are all false, including shortcut registration. See
 [Quick Setup and Agent Controls](AGENT_CONTROLS.md).
 
+Shortcut registration belongs only to an explicitly started
+`shortcuts run [--config PATH]` foreground host. Settings remain inert and
+cannot report another process's liveness. The host atomically owns fixed
+`Ctrl+Alt+G` presentation and `Ctrl+Alt+P` cooperative-pause request shortcuts,
+reports conflicts before ACTIVE state, and releases them on exit. It has no
+approve/resume action and does not replace the independent `Ctrl+Alt+Q`
+emergency stop.
+
 For OpenAI, doctor requires the `agent-openai` extra and a non-empty
 `OPENAI_API_KEY`; for Claude it requires `agent-anthropic` and a non-empty
 `ANTHROPIC_API_KEY`. Credential values are neither printed nor passed to the MCP

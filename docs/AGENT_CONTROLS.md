@@ -54,6 +54,38 @@ dispatch, retry/replay, and shortcut registration are all `false`. The surface
 opens no provider, MCP, application, or desktop port and does not claim runtime
 readiness or liveness.
 
-No new global shortcut is part of this slice. The only existing emergency
-shortcut remains `Ctrl+Alt+Q`. Future presentation/pause shortcuts require a
-separate broker and must not introduce global approve or resume actions.
+The settings view does not itself register a shortcut and cannot infer whether
+another process currently owns one. Its fixed `registered_by_this_view=false`
+field and false authority flags describe this projection only, not system-wide
+liveness.
+
+## Explicit shortcut host
+
+An operator may start the separate foreground ShortcutBroker after setup:
+
+~~~powershell
+guarded-desktop-agent shortcuts run --config `
+  "$env:LOCALAPPDATA\computer-use-agent\agent.toml"
+~~~
+
+The command validates the same strict configuration, atomically registers both
+fixed shortcuts with Win32 `RegisterHotKey` and `MOD_NOREPEAT`, and reports
+`SHORTCUTS ACTIVE` only after both registrations and its poll timer succeed.
+If either key conflicts, startup fails visibly and rolls back the other
+registration. `Ctrl+C` releases both registrations.
+
+- `Ctrl+Alt+G` restores and refreshes the Agent Controls console owned by this
+  explicitly started host. It is presentation-only and does not enumerate or
+  claim another process's Decision Card.
+- `Ctrl+Alt+P` submits the existing cooperative `pause` request for the one
+  unambiguous live controlled run. `PAUSE REQUESTED` is not desktop authority;
+  local input is safe only after the host reports `PAUSED · DESKTOP AUTHORITY
+  RELEASED` from exact `status=paused` and `authority=released` state.
+- `Ctrl+Alt+Q` remains the independent MCP emergency-stop path. The broker does
+  not register, replace, or weaken it.
+
+There is no global approve or resume shortcut. The broker starts no provider,
+MCP, application, or desktop-dispatch port, and only the existing Runner/MCP
+path can perform desktop work. Fixed G/P registration is the first bounded
+slice; real Windows AltGr/layout, conflict, and multi-instance evidence remains
+a separate gate before any configurable-key claim.

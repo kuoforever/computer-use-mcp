@@ -47,6 +47,12 @@ the following commands:
   SDK and documented credential-variable presence and has no approval, task
   control, dispatch, retry/replay, or shortcut authority. See
   [Quick Setup and Agent Controls](AGENT_CONTROLS.md).
+- `shortcuts run [--config PATH]` explicitly owns the foreground Win32
+  ShortcutBroker lifetime. It atomically registers fixed `Ctrl+Alt+G` for its
+  Agent Controls console and `Ctrl+Alt+P` for the existing cooperative pause
+  request, then releases both on exit. Pause is safe only after exact
+  `paused/released`; `Ctrl+Alt+Q` remains independent, and global approve and
+  resume do not exist.
 - `config init --provider NAME --model ID --output PATH` creates one
   non-overwriting, immediately valid `read_only` Desktop Ask configuration. It
   locates the installed sibling MCP executable, creates the user-local state and
