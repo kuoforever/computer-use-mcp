@@ -301,6 +301,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     doctor.add_argument("--config", required=True, type=Path)
 
+    shortcuts = commands.add_parser(
+        "shortcuts", help="Run bounded local Agent Controls shortcuts."
+    )
+    shortcut_commands = shortcuts.add_subparsers(
+        dest="shortcut_command", required=True
+    )
+    shortcut_run = shortcut_commands.add_parser(
+        "run", help="Register open-controls and safe-pause shortcuts."
+    )
+    shortcut_run.add_argument("--config", type=Path)
+
     run = commands.add_parser("run", help="Run the bounded Agent workflow.")
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--task", required=True)
@@ -773,6 +784,13 @@ async def _doctor_config_async(path: Path) -> int:
 
 def _doctor_config(path: Path) -> int:
     return asyncio.run(_doctor_config_async(path))
+
+
+def _run_shortcuts(path: Path | None) -> int:
+    from .agent_controls import default_config_path
+    from .shortcut_service import run_shortcut_service
+
+    return run_shortcut_service(default_config_path() if path is None else path)
 
 
 def _run_dry(path: Path, task: str) -> int:
@@ -2248,6 +2266,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _validate_config(args.config)
         if args.command == "config" and args.config_command == "doctor":
             return _doctor_config(args.config)
+        if args.command == "shortcuts" and args.shortcut_command == "run":
+            return _run_shortcuts(args.config)
         if args.command == "run":
             if args.dry_run:
                 if args.memory_scope is not None:

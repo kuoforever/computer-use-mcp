@@ -65,6 +65,17 @@ def test_quick_setup_uses_reviewed_defaults_without_storing_credentials(
         "can_retry_or_replay": False,
         "shortcuts_registered": False,
     }
+    assert projection["shortcuts"] == {
+        "emergency_stop": "ctrl+alt+q",
+        "open_controls": "ctrl+alt+g",
+        "request_pause": "ctrl+alt+p",
+        "global_approve": None,
+        "global_resume": None,
+        "registered_by_this_view": False,
+    }
+    assert projection["commands"]["shortcuts"].endswith(
+        f'--config "{expected_path}"'
+    )
     assert "must-not-enter-config-or-output" not in json.dumps(projection)
     assert projection["commands"]["doctor"].endswith(f'--config "{expected_path}"')
 
@@ -123,6 +134,7 @@ def test_agent_controls_projects_supervised_settings_with_human_json_parity(
     assert "CONNECTION" in human
     assert "SAFETY" in human
     assert "INTERFACE" in human
+    assert "SHORTCUTS" in human
     assert "NEXT" in human
     assert "Supervised browser-to-Word workflow" in human
     assert "Credential: not configured (ANTHROPIC_API_KEY)" in human
