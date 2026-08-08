@@ -8,6 +8,7 @@ from computer_use_agent.config import (
     ALL_SIDE_EFFECTS_APPROVAL,
     APPROVED_ACTIONS_MODE,
     HIGH_RISK_ONLY_APPROVAL,
+    DEFAULT_PAUSE_SHORTCUT,
     ContinuationConfig,
     READ_ONLY_MODE,
     ConfigError,
@@ -18,6 +19,7 @@ from computer_use_agent.config import (
     ProviderConfig,
     default_state_dir,
     load_agent_config,
+    pause_shortcut_virtual_key,
 )
 
 
@@ -226,6 +228,42 @@ def test_operator_presence_is_disabled_by_default_and_strictly_opt_in(
     assert load_agent_config(path).operator == OperatorConfig(
         presence_enabled=True, reduced_motion=True, high_contrast=True
     )
+
+
+def test_operator_pause_shortcut_is_canonical_bounded_and_reserved_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(_config_text(tmp_path), encoding="utf-8")
+    assert load_agent_config(path).operator.pause_shortcut == DEFAULT_PAUSE_SHORTCUT
+
+    path.write_text(
+        _config_text(tmp_path) + '\n[operator]\npause_shortcut = "ctrl+alt+k"\n',
+        encoding="utf-8",
+    )
+    assert load_agent_config(path).operator.pause_shortcut == "ctrl+alt+k"
+    assert pause_shortcut_virtual_key("ctrl+alt+k") == ord("K")
+
+    for value in (
+        "Ctrl+Alt+K",
+        "ctrl+alt+k ",
+        "ctrl+shift+k",
+        "ctrl+alt+g",
+        "ctrl+alt+q",
+        "ctrl+alt+f12",
+        "win+k",
+    ):
+        with pytest.raises(ConfigError, match="operator pause_shortcut"):
+            OperatorConfig(pause_shortcut=value)
+
+    path.write_text(
+        _config_text(tmp_path) + "\n[operator]\npause_shortcut = true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match=r"\[operator\]\.pause_shortcut.*string"):
+        load_agent_config(path)
 
 
 def test_operator_presence_rejects_non_boolean_and_unknown_settings(

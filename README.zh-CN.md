@@ -67,7 +67,8 @@ $env:OPENAI_API_KEY = "<provider credential>"
 ~~~
 
 `config setup` 会为用户本地配置打印准确的 `config doctor --config ...`
-命令；首次提问前请执行该命令。
+命令；首次提问前请执行该命令。安全暂停默认是 `ctrl+alt+p`；可用例如
+`config setup --pause-shortcut ctrl+alt+k` 选择另一个字母，G/Q 保持保留。
 
 打开一个不敏感的 Notepad、Word 或浏览器测试文档并保持在前台，然后执行：
 
@@ -91,17 +92,18 @@ provider SDK 与凭据环境变量是否存在，不打开外部端口、不注�
 approval、control、retry/replay 或 dispatch 权限。加 `--json` 可取得同一组
 有界信息。
 
-如需固定的全局 Agent Controls 与安全暂停快捷键，可另开一个终端并保持运行：
+如需全局 Agent Controls 与安全暂停快捷键，可另开一个终端并保持运行：
 
 ~~~powershell
 .\.venv\Scripts\guarded-desktop-agent.exe shortcuts run `
   --config "$env:LOCALAPPDATA\computer-use-agent\agent.toml"
 ~~~
 
-`Ctrl+Alt+G` 只恢复该 host 自己的 Agent Controls 控制台；`Ctrl+Alt+P` 只提交
-cooperative pause 请求，必须等到明确显示 `PAUSED · DESKTOP AUTHORITY RELEASED`
-才可本地接管；`Ctrl+Alt+Q` 仍是独立 MCP 急停。没有全局 approve/resume，关闭
-host 即释放 G/P。详见 [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md)。
+`Ctrl+Alt+G` 只恢复该 host 自己的 Agent Controls 控制台；配置的暂停组合键（默认
+`Ctrl+Alt+P`）只提交 cooperative pause 请求，必须等到明确显示
+`PAUSED · DESKTOP AUTHORITY RELEASED` 才可本地接管；`Ctrl+Alt+Q` 仍是独立
+MCP 急停。没有全局 approve/resume，关闭 host 即释放两个注册。详见
+[Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md)。
 
 `config doctor` 是安装后 readiness 检查：它依次验证配置、provider extra、
 文档约定的凭据环境变量、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP

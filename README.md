@@ -160,6 +160,8 @@ $env:OPENAI_API_KEY = "<provider credential>"
 
 `config setup` prints the exact `config doctor --config ...` command for its
 user-local configuration. Run that command before asking the first question.
+The safe-pause chord defaults to `ctrl+alt+p`; setup may choose another letter,
+for example `config setup --pause-shortcut ctrl+alt+k`. G and Q remain reserved.
 
 Open a non-sensitive test document in Notepad, Word, or a browser and leave it
 in the foreground. Ask one read-only question:
@@ -188,19 +190,19 @@ presence, opens no external port, registers no shortcut, and grants no
 approval, control, retry/replay, or dispatch authority. Use `--json` for the
 same bounded facts.
 
-Optionally keep a second terminal open for fixed global Agent Controls and safe
-pause shortcuts:
+Optionally keep a second terminal open for global Agent Controls and safe pause:
 
 ~~~powershell
 .\.venv\Scripts\guarded-desktop-agent.exe shortcuts run `
   --config "$env:LOCALAPPDATA\computer-use-agent\agent.toml"
 ~~~
 
-`Ctrl+Alt+G` restores that host's Agent Controls console. `Ctrl+Alt+P` requests
-cooperative pause but grants no desktop authority until the host reports
+`Ctrl+Alt+G` restores that host's Agent Controls console. The configured pause
+chord (default `Ctrl+Alt+P`) requests cooperative pause but grants no desktop
+authority until the host reports
 `PAUSED · DESKTOP AUTHORITY RELEASED`. `Ctrl+Alt+Q` remains the independent MCP
 emergency stop. There is no global approve or resume; closing the host releases
-G/P. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
+both registered shortcuts. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
 
 `config doctor` is the installed-runtime readiness check. It validates the
 configuration, provider extra and documented credential variable, MCP

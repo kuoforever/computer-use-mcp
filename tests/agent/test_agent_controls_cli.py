@@ -72,6 +72,8 @@ def test_config_setup_json_accepts_bounded_profile_provider_and_path_overrides(
                 str(output),
                 "--mcp-executable",
                 str(mcp_executable),
+                "--pause-shortcut",
+                "ctrl+alt+k",
                 "--json",
             ]
         )
@@ -85,4 +87,33 @@ def test_config_setup_json_accepts_bounded_profile_provider_and_path_overrides(
     assert result["configuration"]["provider"] == "anthropic"
     assert result["configuration"]["model"] == "explicit-reviewed-model"
     assert result["authority"]["can_dispatch"] is False
+    assert result["shortcuts"]["request_pause"] == "ctrl+alt+k"
+    assert load_agent_config(output).operator.pause_shortcut == "ctrl+alt+k"
     assert load_agent_config(output).policy.mode == "approved_actions"
+
+
+def test_config_setup_rejects_reserved_pause_shortcut_before_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    output = tmp_path / "reserved.toml"
+
+    assert (
+        main(
+            [
+                "config",
+                "setup",
+                "--output",
+                str(output),
+                "--mcp-executable",
+                str(_mcp_executable(tmp_path)),
+                "--pause-shortcut",
+                "ctrl+alt+q",
+            ]
+        )
+        == 2
+    )
+    assert "operator pause_shortcut" in capsys.readouterr().err
+    assert not output.exists()

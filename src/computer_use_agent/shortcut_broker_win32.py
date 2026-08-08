@@ -38,6 +38,8 @@ class ShortcutLoopEvent(str, Enum):
 
 
 class ShortcutLoopApi(Protocol):
+    def has_ctrl_alt_mapping(self, virtual_key: int) -> bool: ...
+
     def register_hotkey(
         self, identifier: int, modifiers: int, virtual_key: int
     ) -> bool: ...
@@ -63,22 +65,26 @@ class _HotkeySpec:
     action: ShortcutAction
     virtual_key: int
     conflict_code: str
+    layout_conflict_code: str
 
 
-_HOTKEY_SPECS = (
-    _HotkeySpec(
-        OPEN_CONTROLS_HOTKEY_ID,
-        ShortcutAction.OPEN_CONTROLS,
-        ord("G"),
-        "SHORTCUT_CONFLICT_OPEN_CONTROLS",
-    ),
-    _HotkeySpec(
-        REQUEST_PAUSE_HOTKEY_ID,
-        ShortcutAction.REQUEST_PAUSE,
-        ord("P"),
-        "SHORTCUT_CONFLICT_REQUEST_PAUSE",
-    ),
-)
+def _hotkey_specs(request_pause_virtual_key: int) -> tuple[_HotkeySpec, ...]:
+    return (
+        _HotkeySpec(
+            OPEN_CONTROLS_HOTKEY_ID,
+            ShortcutAction.OPEN_CONTROLS,
+            ord("G"),
+            "SHORTCUT_CONFLICT_OPEN_CONTROLS",
+            "SHORTCUT_LAYOUT_CONFLICT_OPEN_CONTROLS",
+        ),
+        _HotkeySpec(
+            REQUEST_PAUSE_HOTKEY_ID,
+            ShortcutAction.REQUEST_PAUSE,
+            request_pause_virtual_key,
+            "SHORTCUT_CONFLICT_REQUEST_PAUSE",
+            "SHORTCUT_LAYOUT_CONFLICT_REQUEST_PAUSE",
+        ),
+    )
 
 
 class GlobalShortcutLoop:
@@ -89,9 +95,11 @@ class GlobalShortcutLoop:
         api: ShortcutLoopApi,
         *,
         timer_interval_ms: int = _DEFAULT_TIMER_INTERVAL_MS,
+        request_pause_virtual_key: int = ord("P"),
     ) -> None:
         if (
-            not callable(getattr(api, "register_hotkey", None))
+            not callable(getattr(api, "has_ctrl_alt_mapping", None))
+            or not callable(getattr(api, "register_hotkey", None))
             or not callable(getattr(api, "unregister_hotkey", None))
             or not callable(getattr(api, "start_timer", None))
             or not callable(getattr(api, "stop_timer", None))
@@ -99,10 +107,15 @@ class GlobalShortcutLoop:
             or isinstance(timer_interval_ms, bool)
             or not isinstance(timer_interval_ms, int)
             or not 25 <= timer_interval_ms <= 5_000
+            or isinstance(request_pause_virtual_key, bool)
+            or not isinstance(request_pause_virtual_key, int)
+            or not ord("A") <= request_pause_virtual_key <= ord("Z")
+            or request_pause_virtual_key in {ord("G"), ord("Q")}
         ):
             raise ShortcutRegistrationError("SHORTCUT_LOOP_CONFIG_INVALID")
         self._api = api
         self._timer_interval_ms = timer_interval_ms
+        self._hotkey_specs = _hotkey_specs(request_pause_virtual_key)
 
     def run(
         self,
@@ -119,7 +132,10 @@ class GlobalShortcutLoop:
         handled = 0
         modifiers = MOD_ALT | MOD_CONTROL | MOD_NOREPEAT
         try:
-            for spec in _HOTKEY_SPECS:
+            for spec in self._hotkey_specs:
+                if self._api.has_ctrl_alt_mapping(spec.virtual_key):
+                    raise ShortcutRegistrationError(spec.layout_conflict_code)
+            for spec in self._hotkey_specs:
                 if not self._api.register_hotkey(
                     spec.identifier,
                     modifiers,
@@ -188,8 +204,44 @@ class Win32GlobalShortcutApi:
         user32.TranslateMessage.restype = wintypes.BOOL
         user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
         user32.DispatchMessageW.restype = wintypes.LPARAM
+        user32.GetKeyboardLayoutList.argtypes = [
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        user32.GetKeyboardLayoutList.restype = ctypes.c_int
+        user32.VkKeyScanExW.argtypes = [wintypes.WCHAR, ctypes.c_void_p]
+        user32.VkKeyScanExW.restype = ctypes.c_short
         self._user32 = user32
         self._timer_id: int | None = None
+
+    def has_ctrl_alt_mapping(self, virtual_key: int) -> bool:
+        count = int(self._user32.GetKeyboardLayoutList(0, None))
+        if count <= 0:
+            raise ShortcutRegistrationError("SHORTCUT_LAYOUT_INSPECTION_FAILED")
+        handles = (ctypes.c_void_p * count)()
+        if int(self._user32.GetKeyboardLayoutList(count, handles)) != count:
+            raise ShortcutRegistrationError("SHORTCUT_LAYOUT_INSPECTION_FAILED")
+        for raw_handle in handles:
+            handle = int(raw_handle or 0)
+            if not handle:
+                raise ShortcutRegistrationError("SHORTCUT_LAYOUT_INSPECTION_FAILED")
+            for codepoint in range(0x20, 0x10000):
+                if 0xD800 <= codepoint <= 0xDFFF:
+                    continue
+                packed = int(
+                    self._user32.VkKeyScanExW(
+                        chr(codepoint),
+                        ctypes.c_void_p(handle),
+                    )
+                )
+                if packed == -1:
+                    continue
+                value = packed & 0xFFFF
+                mapped_key = value & 0xFF
+                shift_state = (value >> 8) & 0xFF
+                if mapped_key == virtual_key and (shift_state & 0x06) == 0x06:
+                    return True
+        return False
 
     def register_hotkey(self, identifier: int, modifiers: int, virtual_key: int) -> bool:
         return bool(self._user32.RegisterHotKey(None, identifier, modifiers, virtual_key))

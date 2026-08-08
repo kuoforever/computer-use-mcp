@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .agent_controls import load_agent_controls, render_agent_controls
-from .config import load_agent_config
+from .config import DEFAULT_PAUSE_SHORTCUT, load_agent_config, pause_shortcut_virtual_key
 from .cooperative_control import LocalCooperativeControl
 from .shortcut_broker import (
     CooperativePausePort,
@@ -66,14 +66,18 @@ class ConsoleAgentControlsPresenter:
         )
 
 
-def render_shortcut_service_started(config_path: Path) -> str:
+def render_shortcut_service_started(
+    config_path: Path,
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
+) -> str:
     if not isinstance(config_path, Path) or not config_path.is_absolute():
         raise ShortcutServiceError("SHORTCUT_SERVICE_CONFIG_INVALID")
+    pause_key = chr(pause_shortcut_virtual_key(pause_shortcut))
     return "\n".join(
         (
             "SHORTCUTS ACTIVE",
             "  Ctrl+Alt+G: Open Agent Controls",
-            "  Ctrl+Alt+P: Request safe pause",
+            f"  Ctrl+Alt+{pause_key}: Request safe pause",
             "  Ctrl+Alt+Q: Emergency stop (independent)",
             "  Global approve: not assigned",
             "  Global resume: not assigned",
@@ -127,12 +131,22 @@ def run_shortcut_service(
         control=resolved_control,
         event_sink=publish,
     )
-    resolved_loop = loop or GlobalShortcutLoop(Win32GlobalShortcutApi())
+    resolved_loop = loop or GlobalShortcutLoop(
+        Win32GlobalShortcutApi(),
+        request_pause_virtual_key=pause_shortcut_virtual_key(
+            config.operator.pause_shortcut
+        ),
+    )
 
     def publish_registered() -> None:
         controls = load_agent_controls(config_path)
         output(render_agent_controls(controls) + "\n\n")
-        output(render_shortcut_service_started(config_path))
+        output(
+            render_shortcut_service_started(
+                config_path,
+                config.operator.pause_shortcut,
+            )
+        )
 
     try:
         resolved_loop.run(broker, on_registered=publish_registered)

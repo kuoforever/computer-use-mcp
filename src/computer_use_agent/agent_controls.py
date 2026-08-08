@@ -16,6 +16,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .config import (
+    DEFAULT_PAUSE_SHORTCUT,
     HIGH_RISK_ONLY_APPROVAL,
     READ_ONLY_MODE,
     REQUIRED_SAFE_CHILD_ENVIRONMENT,
@@ -48,7 +49,7 @@ _PURPOSES = MappingProxyType(
 )
 _CONFIG_NAME = "agent.toml"
 OPEN_CONTROLS_SHORTCUT = "ctrl+alt+g"
-REQUEST_PAUSE_SHORTCUT = "ctrl+alt+p"
+REQUEST_PAUSE_SHORTCUT = DEFAULT_PAUSE_SHORTCUT
 
 
 def default_config_path(environ: Mapping[str, str] | None = None) -> Path:
@@ -155,7 +156,7 @@ class AgentControlsSnapshot:
             "shortcuts": {
                 "emergency_stop": REQUIRED_SAFE_CHILD_ENVIRONMENT["CUMCP_ESTOP"],
                 "open_controls": OPEN_CONTROLS_SHORTCUT,
-                "request_pause": REQUEST_PAUSE_SHORTCUT,
+                "request_pause": operator.pause_shortcut,
                 "global_approve": None,
                 "global_resume": None,
                 "registered_by_this_view": False,
@@ -223,6 +224,7 @@ def create_quick_setup(
     output: Path | None = None,
     allowlist: str | None = None,
     mcp_executable: Path | None = None,
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
     environ: Mapping[str, str] | None = None,
     module_finder: ModuleFinder | None = None,
 ) -> QuickSetupResult:
@@ -249,6 +251,7 @@ def create_quick_setup(
         output=output_path,
         allowlist=allowlist,
         mcp_executable=mcp_executable,
+        pause_shortcut=pause_shortcut,
     )
     controls = load_agent_controls(
         initialized.output,
@@ -312,7 +315,7 @@ def render_agent_controls(snapshot: AgentControlsSnapshot) -> str:
             "",
             "SHORTCUTS",
             f"  Open Agent Controls: {OPEN_CONTROLS_SHORTCUT}",
-            f"  Request safe pause: {REQUEST_PAUSE_SHORTCUT}",
+            f"  Request safe pause: {operator.pause_shortcut}",
             f"  Emergency stop: {REQUIRED_SAFE_CHILD_ENVIRONMENT['CUMCP_ESTOP']}",
             "  Global approve / resume: not assigned",
             "  Registration: owned only by an explicit shortcuts run host",
@@ -354,6 +357,7 @@ def render_quick_setup(result: QuickSetupResult) -> str:
             "SETUP STATUS",
             f"  {sdk_action}",
             f"  {provider_action}",
+            f"  Safe pause shortcut: {snapshot.config.operator.pause_shortcut}",
             "",
             "NEXT",
             f"  {snapshot.doctor_command}",

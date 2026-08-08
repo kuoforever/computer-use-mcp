@@ -270,6 +270,8 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
         str(mcp_executable),
         "--output",
         str(output),
+        "--pause-shortcut",
+        "ctrl+alt+k",
     ]
 
     assert main(arguments) == 0
@@ -289,6 +291,7 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
     assert config.operator.approval_notifications_enabled is True
     assert config.operator.locale == "auto"
     assert config.operator.theme == "auto"
+    assert config.operator.pause_shortcut == "ctrl+alt+k"
     assert config.mcp.executable == mcp_executable.resolve()
     assert config.mcp.cwd == config.state_dir
     assert config.mcp.environment["CUMCP_ACTION_FEEDBACK"] == "1"

@@ -21,11 +21,12 @@ Every command also accepts `--json`. `--run-id` is optional only when exactly
 one non-closed controlled run exists. The control commands never call a
 provider, MCP, desktop driver, or application themselves.
 
-The optional foreground ShortcutBroker delegates `Ctrl+Alt+P` to this exact
-`pause` request path. It first reports only `PAUSE REQUESTED`, polls the same
-strict control record, and reports safe local takeover only for exact
-`status=paused` plus `authority=released`. It has no resume shortcut; after
-human work the operator must still issue the explicit `task resume` command.
+The optional foreground ShortcutBroker delegates the configured pause chord
+(default `Ctrl+Alt+P`) to this exact `pause` request path. It first reports only
+`PAUSE REQUESTED`, polls the same strict control record, and reports safe local
+takeover only for exact `status=paused` plus `authority=released`. It has no
+resume shortcut; after human work the operator must still issue the explicit
+`task resume` command.
 See [Quick Setup and Agent Controls](AGENT_CONTROLS.md#explicit-shortcut-host).
 
 `pause` and `takeover` initially create only a request. **Do not touch the

@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from .config import (
     APPROVED_ACTIONS_MODE,
+    DEFAULT_PAUSE_SHORTCUT,
     SUPPORTED_PROVIDERS,
     AgentConfig,
     ConfigError,
@@ -270,6 +271,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override the Desktop Ask allowlist; public-web-word is fixed.",
     )
     setup.add_argument("--mcp-executable", type=Path)
+    setup.add_argument(
+        "--pause-shortcut",
+        default=DEFAULT_PAUSE_SHORTCUT,
+        help="Set canonical Ctrl+Alt+A-Z pause chord; G and Q are reserved.",
+    )
     setup.add_argument("--json", action="store_true")
     settings = config_commands.add_parser(
         "settings", help="Show safe Agent Controls settings without starting work."
@@ -296,6 +302,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override the Desktop Ask allowlist; public-web-word is fixed.",
     )
     initialize.add_argument("--mcp-executable", type=Path)
+    initialize.add_argument(
+        "--pause-shortcut",
+        default=DEFAULT_PAUSE_SHORTCUT,
+        help="Set canonical Ctrl+Alt+A-Z pause chord; G and Q are reserved.",
+    )
     doctor = config_commands.add_parser(
         "doctor", help="Check provider setup and exact installed MCP discovery."
     )
@@ -717,6 +728,7 @@ def _initialize_config(
     output: Path,
     allowlist: str | None,
     mcp_executable: Path | None,
+    pause_shortcut: str,
 ) -> int:
     from .config_init import initialize_agent_config
 
@@ -727,6 +739,7 @@ def _initialize_config(
         output=output,
         allowlist=allowlist,
         mcp_executable=mcp_executable,
+        pause_shortcut=pause_shortcut,
     )
     _print_json(initialized.as_json())
     return 0
@@ -739,6 +752,7 @@ def _setup_config(
     output: Path | None,
     allowlist: str | None,
     mcp_executable: Path | None,
+    pause_shortcut: str,
     *,
     json_output: bool,
 ) -> int:
@@ -751,6 +765,7 @@ def _setup_config(
         output=output,
         allowlist=allowlist,
         mcp_executable=mcp_executable,
+        pause_shortcut=pause_shortcut,
     )
     if json_output:
         _print_json(result.as_json())
@@ -2249,6 +2264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 args.allowlist,
                 args.mcp_executable,
+                args.pause_shortcut,
                 json_output=args.json,
             )
         if args.command == "config" and args.config_command == "settings":
@@ -2261,6 +2277,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 args.allowlist,
                 args.mcp_executable,
+                args.pause_shortcut,
             )
         if args.command == "config" and args.config_command == "validate":
             return _validate_config(args.config)

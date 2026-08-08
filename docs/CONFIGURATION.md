@@ -12,16 +12,16 @@ The five configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
-| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--output PATH]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
+| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
 | `config settings [--config PATH] [--json]` | Project the strict TOML as human-first Agent Controls settings | Reads configuration plus provider SDK/credential presence only; creates no state and starts no process |
-| `config init --profile PROFILE --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config init --profile PROFILE --provider NAME --model ID --output PATH [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
 | `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact thirteen schemas |
 
 `config setup` defaults to the reviewed `desktop-ask` / `openai` combination
 and the current project-validated model ID. Explicit profile, provider, model,
-path, and Desktop Ask allowlist overrides pass through the same closed
-`config init` validation. It never overwrites an existing file, writes a
+path, Desktop Ask allowlist, and pause-shortcut overrides pass through the same
+closed `config init` validation. It never overwrites an existing file, writes a
 credential, runs doctor automatically, or starts a provider/MCP/application/
 desktop port.
 
@@ -35,10 +35,11 @@ Its authority flags are all false, including shortcut registration. See
 Shortcut registration belongs only to an explicitly started
 `shortcuts run [--config PATH]` foreground host. Settings remain inert and
 cannot report another process's liveness. The host atomically owns fixed
-`Ctrl+Alt+G` presentation and `Ctrl+Alt+P` cooperative-pause request shortcuts,
-reports conflicts before ACTIVE state, and releases them on exit. It has no
-approve/resume action and does not replace the independent `Ctrl+Alt+Q`
-emergency stop.
+`Ctrl+Alt+G` presentation and the configured cooperative-pause request chord
+(default `Ctrl+Alt+P`), reports layout/registration conflicts before ACTIVE,
+and releases both on exit. `[operator].pause_shortcut` accepts only canonical
+`ctrl+alt+<a-z>`; G and Q are reserved. It has no approve/resume action and
+does not replace the independent `Ctrl+Alt+Q` emergency stop.
 
 For OpenAI, doctor requires the `agent-openai` extra and a non-empty
 `OPENAI_API_KEY`; for Claude it requires `agent-anthropic` and a non-empty
@@ -374,6 +375,7 @@ focus-taking local Decision Card:
 [operator]
 decision_cards_enabled = true
 approval_notifications_enabled = true
+pause_shortcut = "ctrl+alt+p"
 decision_timeout_seconds = 300
 decision_card_corner = "bottom_right"
 locale = "auto"

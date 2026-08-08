@@ -161,6 +161,7 @@ def test_quick_setup_human_view_explains_result_and_exact_next_command(
     assert "SETUP CREATED" in human
     assert "No credential was written to the configuration." in human
     assert "Set ANTHROPIC_API_KEY in the current shell." in human
+    assert "Safe pause shortcut: ctrl+alt+p" in human
     assert result.controls.doctor_command in human
     assert str(result.initialized.output) in human
 
