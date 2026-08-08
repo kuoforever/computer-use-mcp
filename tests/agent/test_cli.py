@@ -105,6 +105,8 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
     "arguments",
     [
         ["--help"],
+        ["config", "setup", "--help"],
+        ["config", "settings", "--help"],
         ["run", "--help"],
         ["ask", "--help"],
         ["plan", "--help"],

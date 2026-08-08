@@ -59,16 +59,15 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
 
-.\.venv\Scripts\guarded-desktop-agent.exe config init `
-  --provider openai `
-  --model <已审核的模型 ID> `
-  --output agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe config setup
 
 $env:OPENAI_API_KEY = "<provider credential>"
 
-.\.venv\Scripts\guarded-desktop-agent.exe config doctor `
-  --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe config settings
 ~~~
+
+`config setup` 会为用户本地配置打印准确的 `config doctor --config ...`
+命令；首次提问前请执行该命令。
 
 打开一个不敏感的 Notepad、Word 或浏览器测试文档并保持在前台，然后执行：
 
@@ -85,6 +84,12 @@ usage。它只允许一到四次已审核的只读观察，包括有界的 UIA
 配置还会默认开启当前全部 UI/UX 布尔设置：动作反馈、presence、progress、
 reduced motion、high contrast 和 Decision Cards。这些设置只增加可见性和本地
 交互，不授予模型或桌面执行权限，并且每一项仍可在配置中显式关闭。
+
+`config settings` 是 CLI-first 的 Agent Controls 视图。它从同一份严格
+TOML 展示用途、provider/model、安全、界面偏好和准确的下一条命令；只报告
+provider SDK 与凭据环境变量是否存在，不打开外部端口、不注册快捷键，也不授予
+approval、control、retry/replay 或 dispatch 权限。加 `--json` 可取得同一组
+有界信息。详见 [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md)。
 
 `config doctor` 是安装后 readiness 检查：它依次验证配置、provider extra、
 文档约定的凭据环境变量、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP

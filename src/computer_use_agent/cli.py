@@ -252,6 +252,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     config = commands.add_parser("config", help="Inspect Agent Host configuration.")
     config_commands = config.add_subparsers(dest="config_command", required=True)
+    setup = config_commands.add_parser(
+        "setup", help="Create one recommended configuration without starting work."
+    )
+    setup.add_argument(
+        "--profile",
+        choices=("desktop-ask", "public-web-word"),
+        default="desktop-ask",
+    )
+    setup.add_argument(
+        "--provider", choices=sorted(SUPPORTED_PROVIDERS), default="openai"
+    )
+    setup.add_argument("--model")
+    setup.add_argument("--output", type=Path)
+    setup.add_argument(
+        "--allowlist",
+        help="Override the Desktop Ask allowlist; public-web-word is fixed.",
+    )
+    setup.add_argument("--mcp-executable", type=Path)
+    setup.add_argument("--json", action="store_true")
+    settings = config_commands.add_parser(
+        "settings", help="Show safe Agent Controls settings without starting work."
+    )
+    settings.add_argument("--config", type=Path)
+    settings.add_argument("--json", action="store_true")
     validate = config_commands.add_parser(
         "validate", help="Validate TOML without starting anything."
     )
@@ -694,6 +718,48 @@ def _initialize_config(
         mcp_executable=mcp_executable,
     )
     _print_json(initialized.as_json())
+    return 0
+
+
+def _setup_config(
+    profile: str,
+    provider: str,
+    model: str | None,
+    output: Path | None,
+    allowlist: str | None,
+    mcp_executable: Path | None,
+    *,
+    json_output: bool,
+) -> int:
+    from .agent_controls import create_quick_setup, render_quick_setup
+
+    result = create_quick_setup(
+        profile=profile,
+        provider=provider,
+        model=model,
+        output=output,
+        allowlist=allowlist,
+        mcp_executable=mcp_executable,
+    )
+    if json_output:
+        _print_json(result.as_json())
+    else:
+        print(render_quick_setup(result))
+    return 0
+
+
+def _show_settings(path: Path | None, *, json_output: bool) -> int:
+    from .agent_controls import (
+        default_config_path,
+        load_agent_controls,
+        render_agent_controls,
+    )
+
+    controls = load_agent_controls(default_config_path() if path is None else path)
+    if json_output:
+        _print_json(controls.as_json())
+    else:
+        print(render_agent_controls(controls))
     return 0
 
 
@@ -2157,6 +2223,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     try:
+        if args.command == "config" and args.config_command == "setup":
+            return _setup_config(
+                args.profile,
+                args.provider,
+                args.model,
+                args.output,
+                args.allowlist,
+                args.mcp_executable,
+                json_output=args.json,
+            )
+        if args.command == "config" and args.config_command == "settings":
+            return _show_settings(args.config, json_output=args.json)
         if args.command == "config" and args.config_command == "init":
             return _initialize_config(
                 args.profile,
