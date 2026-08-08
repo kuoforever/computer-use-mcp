@@ -38,6 +38,15 @@ allowlist, human-activity check, confirmation, e-stop, or audit behavior.
 The `guarded-desktop-agent` entry point and `python -m computer_use_agent` expose
 the following commands:
 
+- `config setup` creates one non-overwriting configuration using the reviewed
+  Desktop Ask/OpenAI defaults unless bounded profile/provider/model/path
+  overrides are explicit. It prints a human-first result by default or the same
+  facts with `--json`; it writes no credential and starts no external port.
+- `config settings [--config PATH] [--json]` projects the same strict TOML into
+  bounded Agent Controls settings and an exact doctor command. It inspects only
+  SDK and documented credential-variable presence and has no approval, task
+  control, dispatch, retry/replay, or shortcut authority. See
+  [Quick Setup and Agent Controls](AGENT_CONTROLS.md).
 - `config init --provider NAME --model ID --output PATH` creates one
   non-overwriting, immediately valid `read_only` Desktop Ask configuration. It
   locates the installed sibling MCP executable, creates the user-local state and

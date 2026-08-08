@@ -151,16 +151,15 @@ use `agent-anthropic`, `anthropic`, and `ANTHROPIC_API_KEY` for Claude.
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[agent-openai]"
 
-.\.venv\Scripts\guarded-desktop-agent.exe config init `
-  --provider openai `
-  --model <reviewed-model-id> `
-  --output agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe config setup
 
 $env:OPENAI_API_KEY = "<provider credential>"
 
-.\.venv\Scripts\guarded-desktop-agent.exe config doctor `
-  --config agent.toml
+.\.venv\Scripts\guarded-desktop-agent.exe config settings
 ~~~
+
+`config setup` prints the exact `config doctor --config ...` command for its
+user-local configuration. Run that command before asking the first question.
 
 Open a non-sensitive test document in Notepad, Word, or a browser and leave it
 in the foreground. Ask one read-only question:
@@ -181,6 +180,13 @@ also enable every current UI/UX boolean by default: passive action feedback,
 presence, progress, reduced motion, high contrast, and Decision Cards. These
 settings add visibility and local interaction only; they grant no model or
 desktop authority, and every surface remains explicitly configurable.
+
+`config settings` is the CLI-first Agent Controls view. It explains purpose,
+provider/model, safety, interface preferences, and exact next command from the
+same strict TOML source. It only reports provider SDK and credential-variable
+presence, opens no external port, registers no shortcut, and grants no
+approval, control, retry/replay, or dispatch authority. Use `--json` for the
+same bounded facts. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
 
 `config doctor` is the installed-runtime readiness check. It validates the
 configuration, provider extra and documented credential variable, MCP

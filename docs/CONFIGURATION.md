@@ -8,13 +8,29 @@ Desktop actions have visible side effects. Keep the allowlist narrow and use
 
 ## First-run readiness
 
-The three configuration commands answer different questions:
+The five configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
+| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--output PATH]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
+| `config settings [--config PATH] [--json]` | Project the strict TOML as human-first Agent Controls settings | Reads configuration plus provider SDK/credential presence only; creates no state and starts no process |
 | `config init --profile PROFILE --provider NAME --model ID --output PATH` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
 | `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact thirteen schemas |
+
+`config setup` defaults to the reviewed `desktop-ask` / `openai` combination
+and the current project-validated model ID. Explicit profile, provider, model,
+path, and Desktop Ask allowlist overrides pass through the same closed
+`config init` validation. It never overwrites an existing file, writes a
+credential, runs doctor automatically, or starts a provider/MCP/application/
+desktop port.
+
+`config settings` uses the default user-local setup path when `--config` is
+omitted. Its human and `--json` outputs derive from the same strict
+`AgentConfig` and report only bounded configuration, presentation preferences,
+provider SDK/credential-variable presence, paths, and the exact doctor command.
+Its authority flags are all false, including shortcut registration. See
+[Quick Setup and Agent Controls](AGENT_CONTROLS.md).
 
 For OpenAI, doctor requires the `agent-openai` extra and a non-empty
 `OPENAI_API_KEY`; for Claude it requires `agent-anthropic` and a non-empty
