@@ -101,5 +101,9 @@ MCP, application, or desktop-dispatch port, and only the existing Runner/MCP
 path can perform desktop work. The first fixed-G/P non-input native gate is
 retained in [PRODUCT-020 Windows evidence](SHORTCUT_BROKER_WINDOWS_EVIDENCE.md):
 it covers only the two layouts loaded on that machine and direct Win32 message
-routing. Configured-key physical activation and layouts not loaded when a host
-starts remain unverified.
+routing. A later [PRODUCT-021 supervised physical run](SHORTCUT_BROKER_PHYSICAL_EVIDENCE.md)
+on the same loaded `zh-CN`/`en-US` layouts confirmed that configured G/K input
+foregrounds Agent Controls and fails closed when no run can be paused, followed
+by release/reacquisition. Physical Q, successful live-workflow pause/release,
+direct-console Ctrl+C wording, and layouts not loaded when a host starts remain
+unverified.
