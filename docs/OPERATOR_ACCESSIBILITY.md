@@ -3,10 +3,11 @@
 > **Status: implemented and offline verified on Windows; bounded native UIA
 > smoke passed on 2026-08-08 and one supervised English Narrator Decision Card
 > review passed after a verbosity repair.** A later UX walkthrough accepted the
-> Decision Card large-text design and repaired real Progress/Presence defects.
+> Decision Card large-text design, repaired real Progress/Presence defects, and
+> the operator accepted the revised passive surfaces at 200%/400%.
 > This contract covers the focus-taking Decision Card and the non-activating
 > Progress and Presence surfaces. It does not claim NVDA/JAWS/braille,
-> other-locale auditory review, complete human large-text/visual acceptance,
+> other-locale auditory review,
 > physical multi-monitor usability, application acceptance, provider or MCP
 > execution, or release-candidate evidence.
 
@@ -122,8 +123,8 @@ The supervised [PRODUCT-017 human native evidence](PRODUCT017_HUMAN_NATIVE_EVIDE
 records the observed focus-triggered 500-plus-character Narrator dump, its
 bounded Tab-order repair, the passing default-path plus on-demand scan-mode
 rerun, and the later all-surface UX walkthrough. That walkthrough accepted the
-Decision Card and repaired real Progress/Presence large-text defects; final
-human confirmation of the revised passive surfaces remains open.
+Decision Card and repaired real Progress/Presence large-text defects; the
+operator subsequently accepted both revised passive surfaces at 200%/400%.
 
 The automated probe is not proof of spoken output. The separate supervised
 English Narrator result covers only the named Decision Card path, spoken order,
@@ -133,8 +134,8 @@ usability.
 The same bounded probe now exercises English and Simplified Chinese UIA names;
 the localization boundary and fallback rules are recorded in
 [Operator localization](OPERATOR_LOCALIZATION.md). Other assistive-technology
-and locale review, live 200%/400% visual review, translation certification, physical two-monitor
-usability evidence, human visual-design review, E4, and exact release evidence stay
+and locale review, translation certification, physical two-monitor usability
+evidence, E4, and exact release evidence stay
 separate later gates. The implemented per-monitor rectangle/DPI selection
 contract is documented in
 [Native operator multi-display composition](OPERATOR_MULTI_DISPLAY.md).
