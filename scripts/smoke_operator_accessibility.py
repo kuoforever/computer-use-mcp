@@ -1,13 +1,14 @@
 """Bounded native theme and two-locale smoke for operator surfaces.
 
 The probe opens no provider, MCP, application, or desktop-action port.  The
-passive surfaces must preserve the foreground window.  The focus-taking
+non-activating surfaces must preserve the foreground window.  The focus-taking
 Decision Card is inspected through UI Automation and resolved with keyboard
 navigation to its safe ``option_deny`` choice in English and Simplified Chinese.
 The probe covers dark, light, the High Contrast override, and native 200%/400%
 text reflow without claiming human assistive-technology, visual-design, or
 physical multi-monitor evidence.
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -112,6 +113,8 @@ def _control_rows(control, depth: int = 0) -> list[dict[str, object]]:  # noqa: 
             "name": str(control.Name or ""),
             "type": str(control.ControlTypeName or ""),
             "focused": bool(control.HasKeyboardFocus),
+            "text_pattern": control.GetPattern(auto.PatternId.TextPattern) is not None,
+            "invoke_pattern": control.GetPattern(auto.PatternId.InvokePattern) is not None,
         }
     ]
     if depth < 4:
@@ -142,6 +145,7 @@ def _passive_surface_smoke(
     )
     compact = render_workflow_summary_lines(checklist, locale)
     details = render_workflow_detail_lines(checklist, locale)
+    progress_toggles: list[bool] = []
     presence_api = Win32PresenceWindowApi(
         accessibility=accessibility,
         locale=locale,
@@ -159,10 +163,46 @@ def _passive_surface_smoke(
             expanded_lines=details,
             expanded=False,
             accent_rgb=0x2F80ED,
-            on_toggle=lambda _expanded: None,
+            on_toggle=progress_toggles.append,
         )
         progress.show_noactivate(progress_hwnd)
         progress.pump()
+        progress_root = auto.ControlFromHandle(progress_hwnd)
+        progress_rows = _control_rows(progress_root)
+        progress_documents = [
+            row for row in progress_rows if row["type"] == "DocumentControl"
+        ]
+        if not progress_documents or not any(
+            bool(row["text_pattern"]) for row in progress_documents
+        ):
+            raise RuntimeError("progress summary is not a wrapping UIA Document")
+        show_steps = operator_text(locale, "show_steps") + "  ▼"
+        hide_steps = operator_text(locale, "hide_steps") + "  ▲"
+        progress_buttons = [
+            child
+            for child in progress_root.GetChildren()
+            if str(child.ControlTypeName or "") == "ButtonControl"
+        ]
+        if len(progress_buttons) != 1 or str(progress_buttons[0].Name or "") != show_steps:
+            raise RuntimeError("progress disclosure is not one named UIA Button")
+        invoke = progress_buttons[0].GetPattern(auto.PatternId.InvokePattern)
+        if invoke is None:
+            raise RuntimeError("progress disclosure does not expose InvokePattern")
+        invoke.Invoke()
+        time.sleep(0.05)
+        progress.pump()
+        if progress_toggles != [True] or progress.lines(progress_hwnd) != details:
+            raise RuntimeError("progress disclosure did not enter expanded state")
+        if str(progress_buttons[0].Name or "") != hide_steps:
+            raise RuntimeError("progress disclosure did not expose expanded state")
+        invoke = progress_buttons[0].GetPattern(auto.PatternId.InvokePattern)
+        if invoke is None:
+            raise RuntimeError("expanded progress disclosure lost InvokePattern")
+        invoke.Invoke()
+        time.sleep(0.05)
+        progress.pump()
+        if progress_toggles != [True, False] or progress.lines(progress_hwnd) != compact:
+            raise RuntimeError("progress disclosure did not return to compact state")
         presence_result = presence.sync(
             PresenceSnapshot(
                 phase=PresencePhase.WAITING_APPROVAL,
@@ -207,6 +247,13 @@ def _passive_surface_smoke(
             "progress_rect": progress_rect,
             "presence_rect": presence_rect,
             "progress_name": progress_name,
+            "progress_document_text_pattern": True,
+            "progress_disclosure": {
+                "compact_name": show_steps,
+                "expanded_name": hide_steps,
+                "invoke_pattern": True,
+                "transitions": progress_toggles,
+            },
             "presence_name": presence_name,
             "presence_capture_excluded": presence_result.capture_excluded,
         }
@@ -308,8 +355,10 @@ def _decision_card_smoke(
         if initial_focus != safe_label:
             raise RuntimeError(f"safe initial focus missing: {initial_focus}")
 
-        # option_deny is the final tab stop. Tab wraps to the first control (details
-        # toggle), then five more Tabs reach Deny after the details pane opens.
+        # option_deny is the final tab stop. Tab wraps to the first interactive
+        # control (details toggle). The expanded read-only details remain fully
+        # exposed to UIA reading/scan commands without becoming a focus-triggered
+        # long-value announcement; four more Tabs therefore reach Deny.
         auto.SendKeys("{Tab}", waitTime=0.1)
         toggle_focus = str(auto.GetFocusedControl().Name or "")
         if toggle_focus != operator_text(locale, "show_details"):
@@ -318,15 +367,22 @@ def _decision_card_smoke(
         time.sleep(0.3)
         expanded_rows = _control_rows(auto.ControlFromHandle(hwnd))
         expanded_name_types = {
-            (str(row["name"]), str(row["type"]))
-            for row in expanded_rows
-            if row["name"]
+            (str(row["name"]), str(row["type"])) for row in expanded_rows if row["name"]
         }
         details_label = operator_text(locale, "decision_details")
         if (details_label, "TextControl") not in expanded_name_types:
             raise RuntimeError("details label is not exposed as UIA Text")
+        if (details_label, "DocumentControl") not in expanded_name_types:
+            raise RuntimeError("details content is not exposed as a labelled UIA Document")
+        details_documents = [
+            row
+            for row in expanded_rows
+            if row["name"] == details_label and row["type"] == "DocumentControl"
+        ]
+        if not details_documents[0]["text_pattern"]:
+            raise RuntimeError("details document does not expose UIA TextPattern")
         focus_path: list[dict[str, str]] = []
-        for _ in range(5):
+        for _ in range(4):
             auto.SendKeys("{Tab}", waitTime=0.05)
             current = auto.GetFocusedControl()
             focus_path.append(
@@ -335,13 +391,14 @@ def _decision_card_smoke(
                     "type": str(current.ControlTypeName or ""),
                 }
             )
-        if focus_path[0] != {"name": details_label, "type": "EditControl"}:
-            raise RuntimeError(f"details edit is not labelled: {focus_path[0]!r}")
+        approve_label = decision_button_label(
+            locale, "option_approve_exact_effect", "option_approve_exact_effect"
+        )
+        if focus_path[0] != {"name": approve_label, "type": "ButtonControl"}:
+            raise RuntimeError(f"static details entered the interactive tab order: {focus_path!r}")
         final_focus = focus_path[-1]["name"]
         if final_focus != safe_label:
-            raise RuntimeError(
-                f"tab order did not return to safe choice: {focus_path!r}"
-            )
+            raise RuntimeError(f"tab order did not return to safe choice: {focus_path!r}")
         auto.SendKeys("{Enter}", waitTime=0.1)
 
     worker.join(timeout=3)

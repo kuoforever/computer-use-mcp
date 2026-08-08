@@ -25,8 +25,8 @@ for:
 
 - the Decision Card, including its header, choices, details, evidence labels,
   countdown, and safe-close explanation;
-- the passive Progress summary, checklist, diagnostic projection, and top-level
-  accessible name;
+- the non-activating Progress summary, checklist, presentation-only disclosure,
+  diagnostic projection, and top-level accessible name;
 - the passive Presence label, glyph, window title, and top-level accessible
   name; and
 - the fixed, noninteractive approval notification.
@@ -43,9 +43,10 @@ Locale never changes internal IDs, enums, digests, persisted JSON keys or
 values, approval binding, policy decisions, safe defaults, or Runner/MCP
 dispatch. Native Decision Card focus and close/timeout behavior continue to
 select or return the unique `option_deny` boundary regardless of its displayed
-language. Progress and Presence remain non-activating and read-only. The
-approval notification remains noninteractive with all approve, deny, and
-dispatch capabilities false.
+language. Progress and Presence remain non-activating; the Progress disclosure
+changes only local compact/expanded presentation, and Presence remains
+read-only. The approval notification remains noninteractive with all approve,
+deny, and dispatch capabilities false.
 
 Only exact reviewed Host strings are translated. Unknown Host labels and
 application names are preserved verbatim; model text, task text, arbitrary UI
@@ -66,8 +67,9 @@ MCP, application, or desktop-action port:
 python scripts/smoke_operator_accessibility.py
 ~~~
 
-The probe inspects native UI Automation Text/Edit/Button names, traverses the
-complete Decision Card keyboard path to `option_deny`, and confirms that
-Progress and Presence do not change the foreground window. It is not Narrator
+The probe inspects native UI Automation Text/Document/Button names, traverses
+the complete Decision Card keyboard path to `option_deny`, invokes the localized
+Progress compact/expanded disclosure, and confirms that Progress and Presence
+do not change the foreground window. It is not Narrator
 or NVDA auditory evidence, translation certification, application acceptance,
 or E4/release evidence.

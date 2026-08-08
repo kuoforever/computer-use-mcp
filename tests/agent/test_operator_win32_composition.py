@@ -9,7 +9,11 @@ from computer_use_agent.decision_card_window_win32 import (
     _corner_origin as decision_corner_origin,
     _scaled_client_size as decision_client_size,
 )
-from computer_use_agent.presence_window_win32 import Win32PresenceWindowApi
+from computer_use_agent.presence_window import PresenceGeometry
+from computer_use_agent.presence_window_win32 import (
+    Win32PresenceWindowApi,
+    _presence_tab_layout,
+)
 from computer_use_agent.operator_personalization import OperatorTheme
 from computer_use_agent.progress_window_win32 import Win32ProgressWindowApi
 from computer_use_agent.progress_window_win32 import _scaled as scale_progress
@@ -65,15 +69,53 @@ def test_progress_geometry_reflows_at_400_percent_text_scale() -> None:
     assert expanded[1] > compact[1]
 
 
-def test_progress_rows_do_not_overlap_at_400_percent_text_scale() -> None:
+def test_progress_expanded_content_is_one_bounded_viewport_at_400_percent() -> None:
     rows = _workflow_layout(192, 384, checklist_steps=6)
 
-    assert len(rows) == 19
+    # Six semantic summary rows are followed by one scrollable document
+    # viewport; checklist length no longer makes the passive window unbounded.
+    assert len(rows) == 7
     for current, following in zip(rows, rows[1:], strict=False):
         assert current[0] + current[1] < following[0]
-    assert progress_window_size(True, 96, text_scale_factor=4.0)[1] > (
-        rows[-1][0] + rows[-1][1]
+    compact_height = progress_window_size(False, 96, text_scale_factor=4.0)[1]
+    expanded_height = progress_window_size(True, 96, text_scale_factor=4.0)[1]
+    assert rows[-1][1] == 360
+    assert compact_height < expanded_height <= 1_400
+
+
+def test_progress_document_style_ranges_follow_rich_edit_newlines() -> None:
+    lines = ("status", "workflow", "counts", "step", "action", "app", "checklist")
+
+    text, spans = Win32ProgressWindowApi._workflow_document_text(lines)
+
+    assert text == "status\nworkflow\ncounts\n\nstep\naction\napp\n\nchecklist"
+    assert tuple(text[start:end] for start, end, _index in spans) == lines
+    assert tuple(index for _start, _end, index in spans) == tuple(range(len(lines)))
+
+
+@pytest.mark.parametrize(
+    ("text_width", "text_height"),
+    [(641, 53), (845, 53), (444, 53), (581, 53)],
+)
+def test_presence_status_tab_contains_measured_large_text(
+    text_width: int,
+    text_height: int,
+) -> None:
+    geometry = PresenceGeometry(0, 0, 1920, 1080, 20, 32, 192)
+
+    left, top, right, bottom, text_x, text_y = _presence_tab_layout(
+        geometry,
+        192,
+        text_width=text_width,
+        text_height=text_height,
     )
+
+    assert text_x >= left
+    assert text_y >= top
+    assert text_x + text_width + geometry.label_inset_px <= right
+    assert text_y + text_height + geometry.label_inset_px <= bottom
+    assert right <= geometry.width - geometry.border_px
+    assert bottom <= geometry.height - geometry.border_px
 
 
 @pytest.mark.parametrize("dpi", [96, 120, 144])

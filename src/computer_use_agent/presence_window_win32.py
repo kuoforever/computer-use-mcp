@@ -88,6 +88,43 @@ class _PAINTSTRUCT(ctypes.Structure):
     ]
 
 
+class _SIZE(ctypes.Structure):
+    _fields_ = [("cx", ctypes.c_long), ("cy", ctypes.c_long)]
+
+
+def _presence_tab_layout(
+    geometry: PresenceGeometry,
+    geometry_dpi: int,
+    *,
+    text_width: int,
+    text_height: int,
+) -> tuple[int, int, int, int, int, int]:
+    """Fit one measured status label inside the monitor-sized halo."""
+
+    if text_width < 0 or text_height < 0:
+        raise ValueError("PRESENCE_TEXT_EXTENT_INVALID")
+    left = geometry.border_px
+    top = geometry.border_px
+    width = max(
+        round(240 * geometry_dpi / 96),
+        text_width + geometry.label_inset_px * 2,
+    )
+    height = max(
+        round(42 * geometry_dpi / 96),
+        text_height + geometry.label_inset_px * 2,
+    )
+    right = min(geometry.width - geometry.border_px, left + width)
+    bottom = min(geometry.height - geometry.border_px, top + height)
+    return (
+        left,
+        top,
+        max(left + 1, right),
+        max(top + 1, bottom),
+        left + geometry.label_inset_px,
+        top + geometry.label_inset_px,
+    )
+
+
 class Win32PresenceWindowApi:
     """Selected-display halo with no input, focus, or activation path."""
 
@@ -318,32 +355,6 @@ class Win32PresenceWindowApi:
                 self.accessibility.text_scale_factor,
             )
             font_height = max(12, round(10 * text_dpi / 72))
-            estimated_text_width = len(text) * max(
-                7,
-                round(7 * text_dpi / 96),
-            )
-            tab_width = min(
-                max(1, geometry.width - geometry.border_px),
-                max(
-                    round(240 * geometry_dpi / 96),
-                    estimated_text_width + geometry.label_inset_px * 2,
-                ),
-            )
-            tab_height = max(
-                round(42 * geometry_dpi / 96),
-                geometry.label_inset_px * 2 + font_height,
-            )
-            tab = wintypes.RECT(
-                geometry.border_px,
-                geometry.border_px,
-                tab_width,
-                tab_height,
-            )
-            tab_brush = self._gdi32.CreateSolidBrush(color)
-            self._user32.FillRect(hdc, ctypes.byref(tab), tab_brush)
-            self._gdi32.DeleteObject(tab_brush)
-            self._gdi32.SetBkMode(hdc, _TRANSPARENT)
-            self._gdi32.SetTextColor(hdc, palette.accent_text)
             font = self._gdi32.CreateFontW(
                 -font_height,
                 0,
@@ -362,10 +373,33 @@ class Win32PresenceWindowApi:
             )
             previous = self._gdi32.SelectObject(hdc, font) if font else None
             try:
+                extent = _SIZE()
+                measured = bool(
+                    self._gdi32.GetTextExtentPoint32W(
+                        hdc,
+                        text,
+                        len(text),
+                        ctypes.byref(extent),
+                    )
+                )
+                text_width = int(extent.cx) if measured else len(text) * font_height
+                text_height = int(extent.cy) if measured else font_height
+                left, top, right, bottom, text_x, text_y = _presence_tab_layout(
+                    geometry,
+                    geometry_dpi,
+                    text_width=text_width,
+                    text_height=text_height,
+                )
+                tab = wintypes.RECT(left, top, right, bottom)
+                tab_brush = self._gdi32.CreateSolidBrush(color)
+                self._user32.FillRect(hdc, ctypes.byref(tab), tab_brush)
+                self._gdi32.DeleteObject(tab_brush)
+                self._gdi32.SetBkMode(hdc, _TRANSPARENT)
+                self._gdi32.SetTextColor(hdc, palette.accent_text)
                 self._gdi32.TextOutW(
                     hdc,
-                    geometry.label_inset_px,
-                    geometry.label_inset_px,
+                    text_x,
+                    text_y,
                     text,
                     len(text),
                 )
@@ -390,6 +424,13 @@ class Win32PresenceWindowApi:
         self._gdi32.CreateFontW.restype = wintypes.HGDIOBJ
         self._gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
         self._gdi32.SelectObject.restype = wintypes.HGDIOBJ
+        self._gdi32.GetTextExtentPoint32W.argtypes = [
+            wintypes.HDC,
+            wintypes.LPCWSTR,
+            ctypes.c_int,
+            ctypes.POINTER(_SIZE),
+        ]
+        self._gdi32.GetTextExtentPoint32W.restype = wintypes.BOOL
         self._gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
         self._gdi32.DeleteObject.restype = wintypes.BOOL
 
@@ -426,4 +467,4 @@ class Win32PresenceWindowApi:
         return int(self._kernel32.GetLastError())
 
 
-__all__ = ["Win32PresenceWindowApi"]
+__all__ = ["Win32PresenceWindowApi", "_presence_tab_layout"]
