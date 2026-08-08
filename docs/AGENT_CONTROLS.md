@@ -88,4 +88,7 @@ There is no global approve or resume shortcut. The broker starts no provider,
 MCP, application, or desktop-dispatch port, and only the existing Runner/MCP
 path can perform desktop work. Fixed G/P registration is the first bounded
 slice; real Windows AltGr/layout, conflict, and multi-instance evidence remains
-a separate gate before any configurable-key claim.
+a separate gate before any configurable-key claim. The first non-input native
+registration gate is retained in [PRODUCT-020 Windows evidence](SHORTCUT_BROKER_WINDOWS_EVIDENCE.md):
+it covers only the two layouts loaded on that machine and direct Win32 message
+routing, not physical-key activation or other layouts.
