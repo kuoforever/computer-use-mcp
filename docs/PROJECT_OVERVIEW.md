@@ -119,7 +119,7 @@ must not create a second native-action path.
 | Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
 | Quick Setup | `config setup` | Create one non-overwriting recommended strict configuration | Implemented; no credential write or process start |
 | Agent Controls | `config settings` / `config settings --json` | Explain purpose, connection, safety, interface, and exact readiness command | Implemented and inert; no authority or shortcut registration |
-| ShortcutBroker | `shortcuts run` | Explicitly own fixed open-controls and cooperative-pause-request shortcuts | Implemented/offline verified; foreground host only, no approve/resume/provider/MCP/desktop dispatch |
+| ShortcutBroker | `shortcuts run` | Explicitly own fixed open-controls and a strict configurable cooperative-pause-request shortcut | Implemented/offline verified; loaded-layout guard and foreground host only, no approve/resume/provider/MCP/desktop dispatch |
 | Agent config creation | `config init` | Create a non-overwriting Desktop Ask or public-web-word installed profile | Implemented; no credential read or process start |
 | Installed readiness | `config doctor` | Check provider setup and verify the configured MCP child's exact thirteen-tool discovery contract | Implemented; real child handshake, no provider request or MCP tool call |
 | Agent config validation | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |

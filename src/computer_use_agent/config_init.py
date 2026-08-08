@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import (
     APPROVED_ACTIONS_MODE,
+    DEFAULT_PAUSE_SHORTCUT,
     HIGH_RISK_ONLY_APPROVAL,
     AgentConfig,
     ContinuationConfig,
@@ -60,7 +61,11 @@ def _toml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def _default_product_operator(*, decision_timeout_seconds: int = 300) -> OperatorConfig:
+def _default_product_operator(
+    *,
+    decision_timeout_seconds: int = 300,
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
+) -> OperatorConfig:
     """Enable every current UI/UX preference in a newly generated profile."""
 
     return OperatorConfig(
@@ -70,6 +75,7 @@ def _default_product_operator(*, decision_timeout_seconds: int = 300) -> Operato
         high_contrast=True,
         decision_cards_enabled=True,
         approval_notifications_enabled=True,
+        pause_shortcut=pause_shortcut,
         locale="auto",
         theme="auto",
         decision_timeout_seconds=decision_timeout_seconds,
@@ -147,6 +153,7 @@ reduced_motion = {str(operator.reduced_motion).lower()}
 high_contrast = {str(operator.high_contrast).lower()}
 decision_cards_enabled = {str(operator.decision_cards_enabled).lower()}
 approval_notifications_enabled = {str(operator.approval_notifications_enabled).lower()}
+pause_shortcut = {_toml_string(operator.pause_shortcut)}
 locale = {_toml_string(operator.locale)}
 theme = {_toml_string(operator.theme)}
 decision_timeout_seconds = {operator.decision_timeout_seconds}
@@ -161,6 +168,7 @@ def initialize_desktop_ask_config(
     output: Path,
     allowlist: str = "notepad.exe",
     mcp_executable: Path | None = None,
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
 ) -> InitializedConfig:
     """Create one non-overwriting, immediately valid read-only configuration."""
 
@@ -187,7 +195,7 @@ def initialize_desktop_ask_config(
         ),
         policy=PolicyConfig(),
         continuation=ContinuationConfig(enabled=True),
-        operator=_default_product_operator(),
+        operator=_default_product_operator(pause_shortcut=pause_shortcut),
     )
 
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -214,6 +222,7 @@ def initialize_public_web_word_config(
     model: str,
     output: Path,
     mcp_executable: Path | None = None,
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
 ) -> InitializedConfig:
     """Create one supervised action config for the installed fixed workflow."""
 
@@ -254,7 +263,10 @@ def initialize_public_web_word_config(
             max_side_effects=7,
         ),
         continuation=ContinuationConfig(enabled=False),
-        operator=_default_product_operator(decision_timeout_seconds=180),
+        operator=_default_product_operator(
+            decision_timeout_seconds=180,
+            pause_shortcut=pause_shortcut,
+        ),
     )
     state_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -281,6 +293,7 @@ def initialize_agent_config(
     output: Path,
     allowlist: str | None = None,
     mcp_executable: Path | None = None,
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
 ) -> InitializedConfig:
     """Route one closed product profile without widening its defaults."""
 
@@ -291,6 +304,7 @@ def initialize_agent_config(
             output=output,
             allowlist=allowlist or "notepad.exe",
             mcp_executable=mcp_executable,
+            pause_shortcut=pause_shortcut,
         )
     if profile == PUBLIC_WEB_WORD_PROFILE:
         if allowlist is not None:
@@ -300,6 +314,7 @@ def initialize_agent_config(
             model=model,
             output=output,
             mcp_executable=mcp_executable,
+            pause_shortcut=pause_shortcut,
         )
     raise ConfigInitError("CONFIG_PROFILE_NOT_IMPLEMENTED")
 

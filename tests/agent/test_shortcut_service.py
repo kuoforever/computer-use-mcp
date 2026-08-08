@@ -21,7 +21,12 @@ from computer_use_agent.shortcut_service import (
 )
 
 
-def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def _config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    pause_shortcut: str = "ctrl+alt+p",
+) -> Path:
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
     executable = tmp_path / "guarded-desktop-mcp.exe"
     executable.write_bytes(b"")
@@ -32,6 +37,7 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         model="reviewed-model",
         output=path,
         mcp_executable=executable,
+        pause_shortcut=pause_shortcut,
     )
     return path
 
@@ -206,3 +212,45 @@ def test_console_presenter_reloads_same_strict_config(
     assert "AGENT CONTROLS" in "".join(output)
     assert "SHORTCUT HOST · ACTIVE" in "".join(output)
     assert "reviewed-model" in "".join(output)
+
+
+def test_service_passes_configured_pause_key_to_concrete_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = _config(tmp_path, monkeypatch, pause_shortcut="ctrl+alt+k")
+    output: list[str] = []
+    captured: dict[str, object] = {}
+
+    class ConcreteLoop:
+        def __init__(self, api: object, *, request_pause_virtual_key: int) -> None:
+            captured["api"] = api
+            captured["virtual_key"] = request_pause_virtual_key
+
+        def run(self, _broker, *, on_registered=None) -> int:  # noqa: ANN001
+            assert on_registered is not None
+            on_registered()
+            return 0
+
+    api = object()
+    monkeypatch.setattr(
+        "computer_use_agent.shortcut_service.Win32GlobalShortcutApi",
+        lambda: api,
+    )
+    monkeypatch.setattr(
+        "computer_use_agent.shortcut_service.GlobalShortcutLoop",
+        ConcreteLoop,
+    )
+
+    assert (
+        run_shortcut_service(
+            path,
+            presenter=lambda: None,
+            control=_Control(),
+            output=output.append,
+        )
+        == 0
+    )
+
+    assert captured == {"api": api, "virtual_key": ord("K")}
+    assert "Ctrl+Alt+K: Request safe pause" in "".join(output)

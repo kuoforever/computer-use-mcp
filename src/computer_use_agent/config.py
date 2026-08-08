@@ -46,6 +46,25 @@ MAXIMUM_TYPE_WAIT_SECONDS = 0.1
 DEFAULT_PROVIDER_TIMEOUT_SECONDS = 120
 MIN_PROVIDER_TIMEOUT_SECONDS = 1
 MAX_PROVIDER_TIMEOUT_SECONDS = 600
+DEFAULT_PAUSE_SHORTCUT = "ctrl+alt+p"
+_RESERVED_PAUSE_SHORTCUT_KEYS = frozenset({"g", "q"})
+
+
+def pause_shortcut_virtual_key(value: str) -> int:
+    """Validate one canonical bounded pause chord and return its Win32 key."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) != len(DEFAULT_PAUSE_SHORTCUT)
+        or not value.startswith("ctrl+alt+")
+        or not "a" <= value[-1] <= "z"
+        or value[-1] in _RESERVED_PAUSE_SHORTCUT_KEYS
+    ):
+        raise ConfigError(
+            "operator pause_shortcut must be canonical ctrl+alt+<a-z> "
+            "excluding reserved g and q"
+        )
+    return ord(value[-1].upper())
 
 # These are the only server configuration inputs the host is willing to pass
 # through. Audit and screenshot-redaction destinations remain server defaults so
@@ -481,6 +500,7 @@ class OperatorConfig:
     high_contrast: bool = False
     decision_cards_enabled: bool = False
     approval_notifications_enabled: bool = False
+    pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT
     locale: str = "en-US"
     theme: str = "dark"
     decision_timeout_seconds: int = 300
@@ -499,6 +519,7 @@ class OperatorConfig:
             )
         ):
             raise ConfigError("operator boolean settings must be boolean")
+        pause_shortcut_virtual_key(self.pause_shortcut)
         if (
             isinstance(self.decision_timeout_seconds, bool)
             or not isinstance(self.decision_timeout_seconds, int)
@@ -636,6 +657,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "high_contrast",
             "decision_cards_enabled",
             "approval_notifications_enabled",
+            "pause_shortcut",
             "locale",
             "theme",
             "decision_timeout_seconds",
@@ -762,6 +784,12 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     operator_theme = operator.get("theme", "dark")
     if not isinstance(operator_theme, str):
         raise ConfigError("[operator].theme must be a string")
+    operator_pause_shortcut = operator.get(
+        "pause_shortcut",
+        DEFAULT_PAUSE_SHORTCUT,
+    )
+    if not isinstance(operator_pause_shortcut, str):
+        raise ConfigError("[operator].pause_shortcut must be a string")
     return AgentConfig(
         state_dir=state_dir,
         policy_version=policy_version,
@@ -772,6 +800,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         privacy=privacy_config,
         operator=OperatorConfig(
             **operator_values,
+            pause_shortcut=operator_pause_shortcut,
             locale=operator_locale,
             theme=operator_theme,
             decision_timeout_seconds=_read_nonnegative_int(

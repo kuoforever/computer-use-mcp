@@ -27,11 +27,21 @@ guarded-desktop-agent config doctor --config `
 
 The default is the reviewed `desktop-ask` / `openai` profile and the current
 project-validated OpenAI model ID. The bounded `--profile`, `--provider`,
-`--model`, `--output`, `--allowlist`, and `--mcp-executable` overrides reuse the
-existing `config init` validation; an explicit model override remains the
-operator's responsibility. Existing output is never overwritten. Provider
-credentials remain environment variables and are never written to TOML or
-printed.
+`--model`, `--output`, `--allowlist`, `--mcp-executable`, and
+`--pause-shortcut` overrides reuse the existing `config init` validation; an
+explicit model override remains the operator's responsibility. Existing output
+is never overwritten. Provider credentials remain environment variables and
+are never written to TOML or printed.
+
+The pause chord defaults to `ctrl+alt+p`. Only exact canonical
+`ctrl+alt+<a-z>` is accepted; G remains Agent Controls and Q remains emergency
+stop, so both are rejected as pause keys. Windows-key combinations, function
+keys including F12, uppercase aliases, and whitespace-normalized variants are
+not accepted. For example:
+
+~~~powershell
+guarded-desktop-agent config setup --pause-shortcut ctrl+alt+k
+~~~
 
 Use `config settings --config PATH` for a non-default file and add `--json` to
 either command for automation. Human and JSON views come from the same strict
@@ -44,7 +54,7 @@ Agent Controls may show only bounded configuration and local setup facts:
 - purpose, profile, provider, and model;
 - policy mode, approval policy, allowlisted applications, and `Ctrl+Alt+Q`
   emergency stop;
-- configured presentation preferences;
+- configured presentation preferences and the effective pause shortcut;
 - SDK and documented credential-variable presence as booleans, never the
   credential value;
 - configuration/state paths and the exact `config doctor` command.
@@ -68,27 +78,28 @@ guarded-desktop-agent shortcuts run --config `
   "$env:LOCALAPPDATA\computer-use-agent\agent.toml"
 ~~~
 
-The command validates the same strict configuration, atomically registers both
-fixed shortcuts with Win32 `RegisterHotKey` and `MOD_NOREPEAT`, and reports
-`SHORTCUTS ACTIVE` only after both registrations and its poll timer succeed.
-If either key conflicts, startup fails visibly and rolls back the other
-registration. `Ctrl+C` releases both registrations.
+The command validates the same strict configuration, checks every currently
+loaded keyboard layout for a Ctrl+Alt character mapping on G and the configured
+pause key, then atomically registers both shortcuts with Win32 `RegisterHotKey`
+and `MOD_NOREPEAT`. It reports `SHORTCUTS ACTIVE` only after both registrations
+and its poll timer succeed. A layout or registration conflict fails visibly
+before ACTIVE; partial registration is rolled back. `Ctrl+C` releases both.
 
 - `Ctrl+Alt+G` restores and refreshes the Agent Controls console owned by this
   explicitly started host. It is presentation-only and does not enumerate or
   claim another process's Decision Card.
-- `Ctrl+Alt+P` submits the existing cooperative `pause` request for the one
-  unambiguous live controlled run. `PAUSE REQUESTED` is not desktop authority;
-  local input is safe only after the host reports `PAUSED · DESKTOP AUTHORITY
-  RELEASED` from exact `status=paused` and `authority=released` state.
+- The configured pause chord (default `Ctrl+Alt+P`) submits the existing
+  cooperative `pause` request for the one unambiguous live controlled run.
+  `PAUSE REQUESTED` is not desktop authority; local input is safe only after
+  the host reports `PAUSED · DESKTOP AUTHORITY RELEASED` from exact
+  `status=paused` and `authority=released` state.
 - `Ctrl+Alt+Q` remains the independent MCP emergency-stop path. The broker does
   not register, replace, or weaken it.
 
 There is no global approve or resume shortcut. The broker starts no provider,
 MCP, application, or desktop-dispatch port, and only the existing Runner/MCP
-path can perform desktop work. Fixed G/P registration is the first bounded
-slice; real Windows AltGr/layout, conflict, and multi-instance evidence remains
-a separate gate before any configurable-key claim. The first non-input native
-registration gate is retained in [PRODUCT-020 Windows evidence](SHORTCUT_BROKER_WINDOWS_EVIDENCE.md):
+path can perform desktop work. The first fixed-G/P non-input native gate is
+retained in [PRODUCT-020 Windows evidence](SHORTCUT_BROKER_WINDOWS_EVIDENCE.md):
 it covers only the two layouts loaded on that machine and direct Win32 message
-routing, not physical-key activation or other layouts.
+routing. Configured-key physical activation and layouts not loaded when a host
+starts remain unverified.

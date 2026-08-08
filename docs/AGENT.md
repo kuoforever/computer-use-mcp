@@ -40,17 +40,20 @@ the following commands:
 
 - `config setup` creates one non-overwriting configuration using the reviewed
   Desktop Ask/OpenAI defaults unless bounded profile/provider/model/path
-  overrides are explicit. It prints a human-first result by default or the same
-  facts with `--json`; it writes no credential and starts no external port.
+  overrides are explicit. `--pause-shortcut ctrl+alt+<a-z>` may change only the
+  pause key; G and Q are reserved. It prints a human-first result by default or
+  the same facts with `--json`; it writes no credential and starts no external
+  port.
 - `config settings [--config PATH] [--json]` projects the same strict TOML into
   bounded Agent Controls settings and an exact doctor command. It inspects only
   SDK and documented credential-variable presence and has no approval, task
   control, dispatch, retry/replay, or shortcut authority. See
   [Quick Setup and Agent Controls](AGENT_CONTROLS.md).
 - `shortcuts run [--config PATH]` explicitly owns the foreground Win32
-  ShortcutBroker lifetime. It atomically registers fixed `Ctrl+Alt+G` for its
-  Agent Controls console and `Ctrl+Alt+P` for the existing cooperative pause
-  request, then releases both on exit. Pause is safe only after exact
+  ShortcutBroker lifetime. It checks loaded-layout Ctrl+Alt mappings, then
+  atomically registers fixed `Ctrl+Alt+G` for its Agent Controls console and
+  the configured pause chord (default `Ctrl+Alt+P`) for the existing
+  cooperative request. Pause is safe only after exact
   `paused/released`; `Ctrl+Alt+Q` remains independent, and global approve and
   resume do not exist.
 - `config init --provider NAME --model ID --output PATH` creates one
