@@ -250,7 +250,7 @@ surfaces rather than one automatic general-product loop.
 | Wave 1 applications | Planned acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, then cross-application handoff | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance waves | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Complete-product demonstration | Planned/final integration gate | One chaptered campaign with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
-| Continual learning | Planned | Episode evidence, quarantined candidates, verified promotion, rollback, and cost-aware strategy routing | [Continual learning](CONTINUAL_LEARNING.md) |
+| Continual learning | L0 implemented/offline; L1-L5 planned | Read-only normalized redacted terminal outcomes and fixed explicit-coverage run cost vectors exist; candidate extraction, injection, scoring, routing, promotion, training, and live authority remain absent | [Continual learning](CONTINUAL_LEARNING.md) |
 | Platform expansion | Planned | macOS AX, Linux AT-SPI, an Android device driver (ADB transport, behind the same contract; see [ADR-008](adr/008-android-device-driver-behind-driver-contract.md)), multi-monitor coordinate model, isolated worker runtimes | [Tech stack](TECH_STACK.md) |
 
 ## Implementation structure
@@ -268,6 +268,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_agent/runner.py`, `desktop_mcp.py`, `bounded_stdio.py` | Agent loop and sole MCP dispatch/transport boundary |
 | `src/computer_use_agent/providers/` | OpenAI and Claude ordinary, Planner, and final-response adapters |
 | `src/computer_use_agent/trace.py`, `report.py`, `memory.py` | Safe state, metrics, reporting, and explicit memory |
+| `src/computer_use_agent/episode_outcome.py` | Read-only L0 terminal outcome normalization, explicit metric coverage, durable source reconciliation, and no learning or execution port |
 | `src/computer_use_agent/progress_view.py`, `task_center.py`, `product_receipt.py` | Structurally validated status projection, read-only task grouping/fixed receipt wording, and strict private product completion evidence |
 | `src/computer_use_agent/public_web_word.py`, `pre_run_review.py` | Fixed workflow/profile guard plus the Host-compiled Scope Sheet, versioned JSON, and human rendering without external ports |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
