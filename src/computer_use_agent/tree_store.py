@@ -18,12 +18,20 @@ from pathlib import Path
 from typing import Mapping
 
 from .hierarchical_control import (
+    TREE_CONTRACT_VERSION,
+    TREE_CONTRACT_VERSION_V2,
     TaskTree,
     TreeBudget,
     TreeLimits,
     TreeNode,
     TreeNodeKind,
     TreeValidationError,
+)
+from .hierarchical_parallel_contract import (
+    ParallelBatchDisposition,
+    ParallelConditionBatch,
+    ParallelConditionContractError,
+    ParallelConditionResult,
 )
 from .planning import PlanStepStatus
 from .run_lock import RunLock
@@ -47,7 +55,7 @@ _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _ENVELOPE_FIELDS = frozenset(
     {"store_version", "sequence", "tree", "tree_digest", "envelope_digest"}
 )
-_TREE_FIELDS = frozenset(
+_TREE_FIELDS_V1 = frozenset(
     {
         "contract_version",
         "tree_id",
@@ -61,6 +69,7 @@ _TREE_FIELDS = frozenset(
         "nodes",
     }
 )
+_TREE_FIELDS_V2 = _TREE_FIELDS_V1 | {"parallel_batches"}
 _LIMIT_FIELDS = frozenset(
     {
         "max_depth",
@@ -85,6 +94,29 @@ _NODE_FIELDS = frozenset(
         "template_version",
         "template_digest",
         "budget",
+    }
+)
+_PARALLEL_BATCH_FIELDS = frozenset(
+    {
+        "version",
+        "parallel_node_id",
+        "source_sequence",
+        "source_tree_digest",
+        "snapshot_digest",
+        "context_digest",
+        "disposition",
+        "results",
+    }
+)
+_PARALLEL_RESULT_FIELDS = frozenset(
+    {
+        "node_id",
+        "condition_id",
+        "outcome",
+        "availability",
+        "condition_digest",
+        "fact_digest",
+        "evidence_digest",
     }
 )
 
@@ -232,8 +264,68 @@ def _decode_node(value: object) -> TreeNode:
         raise TreeStoreError("TREE_STORE_INVALID") from exc
 
 
+def _decode_parallel_result(value: object) -> ParallelConditionResult:
+    if not isinstance(value, Mapping) or set(value) != _PARALLEL_RESULT_FIELDS:
+        raise TreeStoreError("TREE_STORE_INVALID")
+    from .world_state import ConditionOutcome, FactAvailability
+
+    try:
+        return ParallelConditionResult(
+            node_id=_require_str(value.get("node_id")),
+            condition_id=_require_str(value.get("condition_id")),
+            outcome=ConditionOutcome(_require_str(value.get("outcome"))),
+            availability=FactAvailability(_require_str(value.get("availability"))),
+            condition_digest=_require_digest(value.get("condition_digest")),
+            fact_digest=(
+                None
+                if value.get("fact_digest") is None
+                else _require_digest(value.get("fact_digest"))
+            ),
+            evidence_digest=(
+                None
+                if value.get("evidence_digest") is None
+                else _require_digest(value.get("evidence_digest"))
+            ),
+        )
+    except (ParallelConditionContractError, ValueError) as exc:
+        raise TreeStoreError("TREE_STORE_INVALID") from exc
+
+
+def _decode_parallel_batch(value: object) -> ParallelConditionBatch:
+    if not isinstance(value, Mapping) or set(value) != _PARALLEL_BATCH_FIELDS:
+        raise TreeStoreError("TREE_STORE_INVALID")
+    raw_results = value.get("results")
+    if not isinstance(raw_results, list):
+        raise TreeStoreError("TREE_STORE_INVALID")
+    try:
+        return ParallelConditionBatch(
+            version=_require_int(value.get("version")),
+            parallel_node_id=_require_str(value.get("parallel_node_id")),
+            source_sequence=_require_sequence(value.get("source_sequence")),
+            source_tree_digest=_require_digest(value.get("source_tree_digest")),
+            snapshot_digest=_require_digest(value.get("snapshot_digest")),
+            context_digest=_require_digest(value.get("context_digest")),
+            disposition=ParallelBatchDisposition(
+                _require_str(value.get("disposition"))
+            ),
+            results=tuple(_decode_parallel_result(item) for item in raw_results),
+        )
+    except (ParallelConditionContractError, ValueError) as exc:
+        raise TreeStoreError("TREE_STORE_INVALID") from exc
+
+
 def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
-    if not isinstance(value, Mapping) or set(value) != _TREE_FIELDS:
+    if not isinstance(value, Mapping):
+        raise TreeStoreError("TREE_STORE_INVALID")
+    contract_version = _require_int(value.get("contract_version"))
+    expected_fields = (
+        _TREE_FIELDS_V1
+        if contract_version == TREE_CONTRACT_VERSION
+        else _TREE_FIELDS_V2
+        if contract_version == TREE_CONTRACT_VERSION_V2
+        else frozenset()
+    )
+    if not expected_fields or set(value) != expected_fields:
         raise TreeStoreError("TREE_STORE_INVALID")
     if value.get("run_id") != expected_run_id:
         raise TreeStoreError("TREE_STORE_IDENTITY_MISMATCH")
@@ -242,7 +334,7 @@ def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
         raise TreeStoreError("TREE_STORE_INVALID")
     try:
         tree = TaskTree(
-            contract_version=_require_int(value.get("contract_version")),
+            contract_version=contract_version,
             tree_id=_require_str(value.get("tree_id")),
             run_id=expected_run_id,
             task_digest=_require_digest(value.get("task_digest")),
@@ -252,6 +344,16 @@ def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
             limits=_decode_limits(value.get("limits")),
             aggregate_budget=_decode_budget(value.get("aggregate_budget")),
             nodes=tuple(_decode_node(node) for node in raw_nodes),
+            parallel_batches=(
+                ()
+                if contract_version == TREE_CONTRACT_VERSION
+                else tuple(
+                    _decode_parallel_batch(batch)
+                    for batch in value.get("parallel_batches", [])
+                )
+                if isinstance(value.get("parallel_batches"), list)
+                else (_raise_invalid_parallel_batches())
+            ),
         )
     except TreeValidationError as exc:
         raise TreeStoreError("TREE_STORE_INVALID") from exc
@@ -308,8 +410,31 @@ def _structure_payload(tree: TaskTree) -> dict[str, object]:
     return {
         key: item
         for key, item in payload.items()
-        if key != "nodes"
+        if key not in {"nodes", "parallel_batches"}
     } | {"nodes": structural_nodes}
+
+
+def _raise_invalid_parallel_batches() -> tuple[ParallelConditionBatch, ...]:
+    raise TreeStoreError("TREE_STORE_INVALID")
+
+
+def _validate_parallel_batch_transition(current: TaskTree, updated: TaskTree) -> None:
+    if updated.parallel_batches == current.parallel_batches:
+        return
+    if updated.contract_version != TREE_CONTRACT_VERSION_V2:
+        raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
+    current_by_node = {batch.parallel_node_id: batch for batch in current.parallel_batches}
+    updated_by_node = {batch.parallel_node_id: batch for batch in updated.parallel_batches}
+    added = set(updated_by_node) - set(current_by_node)
+    if (
+        len(added) != 1
+        or set(current_by_node) - set(updated_by_node)
+        or any(updated_by_node[node_id] != batch for node_id, batch in current_by_node.items())
+    ):
+        raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
+    batch = updated_by_node[next(iter(added))]
+    if batch.disposition is ParallelBatchDisposition.BLOCKED:
+        raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
 
 
 class TaskTreeStore:
@@ -459,6 +584,19 @@ class TaskTreeStore:
             raise TreeStoreError("TREE_STORE_IDENTITY_MISMATCH")
         if _structure_payload(updated_tree) != _structure_payload(current.tree):
             raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
+        _validate_parallel_batch_transition(current.tree, updated_tree)
+        if updated_tree.parallel_batches != current.tree.parallel_batches:
+            new_batches = tuple(
+                batch
+                for batch in updated_tree.parallel_batches
+                if batch not in current.tree.parallel_batches
+            )
+            if (
+                len(new_batches) != 1
+                or new_batches[0].source_sequence != current.sequence
+                or new_batches[0].source_tree_digest != current.tree.digest
+            ):
+                raise TreeStoreError("TREE_STORE_STALE_WRITE")
         if updated_tree.digest == current.tree.digest:
             raise TreeStoreError("TREE_STORE_NO_CHANGE")
         return self._write(

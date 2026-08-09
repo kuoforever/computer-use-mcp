@@ -215,6 +215,22 @@ def test_reader_rejects_registry_drift_even_with_valid_digests(
         lock.release()
 
 
+def test_v1_reader_rejects_resigned_h8a_fields(tmp_path: Path) -> None:
+    store, lock = _locked_store(tmp_path)
+    try:
+        store.create(_tree())
+        path = _path(tmp_path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["tree"]["parallel_batches"] = []
+        _resign(payload)
+        path.write_bytes(_canonical(payload) + b"\n")
+
+        with pytest.raises(TreeStoreError, match="TREE_STORE_INVALID"):
+            store.read("run_1")
+    finally:
+        lock.release()
+
+
 def test_current_registry_drift_rejects_create_and_restart_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

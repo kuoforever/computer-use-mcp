@@ -1,12 +1,13 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H7 implemented and offline verified; H8 remains planned.**
+> **Status: H1-H7 and H8A implemented and offline verified; H8B-H8C remain planned.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
-> existing observation-only Runtime Executor. H4 adds no second Runner/MCP
-> dispatch site or new approval, retry, replay, recovery, or campaign authority.
-> Its evidence is offline fake-port evidence only.
+> existing observation-only Runtime Executor. H8A adds only bounded local H5
+> condition evaluation and one atomic tree-store transition. It adds no second
+> Runner/MCP dispatch site or new approval, retry, replay, recovery, or campaign
+> authority. Its evidence is offline fake-port evidence only.
 
 ## Prior decisions this inherits
 
@@ -106,6 +107,7 @@ host-defined node kinds:
 | `verify` | Check a typed postcondition after fresh observation. |
 | `subtree` | Invoke one pinned, reviewed behavior-template version. |
 | `final_response` | Produce the single terminal, tool-free response boundary. |
+| `parallel` | In contract v2 only, evaluate 2-16 direct H5 condition leaves over one immutable snapshot/context. |
 
 Every node uses the existing durable step vocabulary unchanged. It is the exact
 `PlanStepStatus` set already persisted by the plan store:
@@ -471,6 +473,36 @@ shape, and missing-verification paths. It is injected-port evidence only and
 does not claim a real provider, MCP child, Windows desktop, external
 application, E4, or release result.
 
+## Implemented H8A boundary
+
+`src/computer_use_agent/hierarchical_parallel.py` and its content-free contract
+add tree contract v2 without rewriting contract-v1 snapshots:
+
+- a v2 `parallel` node has exactly 2-16 direct `condition` children, in stable
+  node-ID order; nesting, tool leaves, provider calls, scripts, arbitrary
+  callables, dynamic children, and external boundaries are rejected;
+- a fixed pool of at most four workers evaluates the same immutable H5
+  `WorldStateSnapshot` and `WorldStateContext`; the complete result is sorted by
+  node ID and binds the source tree sequence/digest, snapshot/context digests,
+  and every condition/fact/evidence digest without retaining fact values;
+- no tree state is constructed until every worker completes. All-true
+  atomically completes the condition leaves; any known false atomically records
+  deterministic local failure; unavailable without a false returns `blocked`
+  with the exact persisted tree unchanged;
+- the existing `RunLock`-bound store retains envelope version 1, strictly
+  decodes tree contracts v1-v2, preserves the exact v1 payload/digest, and
+  accepts one immutable parallel batch only when its source sequence and tree
+  digest match the current CAS snapshot; and
+- worker exceptions, invalid bindings, stale CAS, injected pre-commit faults,
+  and process exit before the single CAS produce no partial leaf or batch
+  commit. Restart reads either the exact prior tree or the complete new tree.
+
+The [H8A offline evidence](H8A_PARALLEL_CONDITION_EVIDENCE.md) proves actual
+worker overlap, the four-worker ceiling, deterministic output, strict v1/v2
+compatibility, unavailable zero-write behavior, exception/CAS zero-commit
+behavior, and restart readability. H8A performs no provider, Runner, MCP,
+desktop, application, approval, side effect, retry, replay, E4, or release work.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -503,13 +535,16 @@ not a product priority sequence.
 | `H5` | **Implemented/offline verified:** typed world-state facts, content-free observation evidence, exact window/process binding, bounded freshness, and three-valued equality conditions. | Passed: stale epochs, generation/window drift, expiry, unknown/missing/type mismatch, and clock rollback are unavailable rather than false and expose no fact value. |
 | `H6` | **Implemented/offline verified:** one exact-version reviewed template registry, starting with the per-item observation ladder. | Passed: exact tools, arguments, safety baselines, reducer outcomes, terminal handoffs, and budget reproduce the fixed runtime with no added authority. |
 | `H7` | **Implemented/offline verified:** one exact observation/action/verification-observation/final sequence through the existing Runtime Executor and sole Runner boundary. | Passed: separate shape/authority review plus deterministic isolated-application success, denial, defer, unknown, dispatched-error, and missing-verification evidence with zero new authority. |
-| `H8` | Read-only parallel computation or richer graph dependencies. | Only after serialized desktop authority and crash semantics remain proven. |
+| `H8A` | **Implemented/offline verified:** contract-v2 bounded parallel evaluation of direct H5 condition leaves. | Passed locally: real worker overlap, deterministic digest-bound output, atomic known-result CAS, unavailable/exception/conflict zero-write, and restart semantics; publication must clear before H8B. |
+| `H8B` | Bounded all-of dependency DAG and local join reduction. | Only after H8A publication; every tick still emits at most one external boundary and foreground desktop authority remains serialized. |
+| `H8C` | Safe ordered choice and exact read-only verified-miss fallback. | Only after H8B publication; denial, authority loss, uncertainty, side effects, and missing verification must never become fallback inputs. |
 
 `H1`-`H3` add no runtime behavior at all. H4 composes only the already
 supported observation/final-response plan and adds no new external authority.
 `H7` is the first phase that widens the internal hierarchical runtime, and it
 inherits the existing approval review rather than defining its own. No public
-Planner/Executor or application workflow is widened by H7.
+Planner/Executor or application workflow is widened by H7. H8A is local-only
+computation and does not widen H7 or any external runtime boundary.
 
 `H1` also produces one architecture decision record for the single constraint
 here that reads as over-strict without its context: node state reuses the
@@ -521,7 +556,7 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H7 satisfy the schema, limit, digest, state-vocabulary,
+are true. H1-H7 and H8A satisfy the schema, limit, digest, state-vocabulary,
 linear-plan compatibility, private persistence/CAS/crash boundaries, pure
 next-leaf/transition subset, existing observation-runtime composition, exact
 single-action/verification gate, and
