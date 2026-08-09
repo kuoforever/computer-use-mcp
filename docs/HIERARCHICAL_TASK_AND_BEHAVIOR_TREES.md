@@ -1,9 +1,10 @@
 # Hierarchical task and behavior trees
 
-> **Status: planned. No runtime support is implemented.**
-> This document records the intended post-linear-planning direction. It does
-> not expand the current Planner, Executor, Runner, MCP, approval, recovery, or
-> desktop authority.
+> **Status: H1 contract implemented and offline verified; H2 is next.**
+> Versioned nodes, canonical tree digests, reviewed structural limits, pure
+> status reduction, and lossless linear-plan projection are inert. No tree
+> store, next-leaf compiler, Runner/MCP wiring, provider/desktop port, or new
+> approval, retry, replay, recovery, or campaign authority is implemented.
 
 ## Prior decisions this inherits
 
@@ -287,6 +288,29 @@ A tick may perform local condition evaluation and state reduction, but it should
 produce at most one external tool boundary. Crash reconciliation must repair
 only known completed evidence and must never redispatch uncertain work.
 
+## Implemented H1 boundary
+
+`src/computer_use_agent/hierarchical_control.py` implements the first inert
+contract layer:
+
+- the closed `goal`, `sequence`, `choice`, `condition`, `tool_step`, `verify`,
+  `subtree`, and `final_response` node set;
+- stable node/parent IDs, ordered child bindings, exactly one final response,
+  complete reachability, cycle rejection, and bounded depth/node/child counts;
+- tree-level visits/lifetime limits plus per-node and aggregate tool, token,
+  side-effect, and retry budgets, all bound into canonical JSON and SHA-256;
+- exact reuse of `PlanStepStatus` with pure total parent reduction;
+- a pure reducer that recomputes ancestor projections from leaf evidence but
+  deliberately does not authorize transitions; and
+- lossless projection of an existing strict linear `TaskPlan` as one inert
+  `sequence` without retaining raw task text or executable arguments.
+
+Direct construction fails closed on malformed identities, digests, bindings,
+budgets, versions, topology, or non-canonical parent state. H1 has no parser for
+model candidates and no store or runtime entry point. H2 owns persistence and
+CAS; H3 owns next-leaf compilation. [ADR-010](adr/010-tree-uncertainty-remains-outside-node-state.md)
+keeps uncertain dispatch exclusively in the outer run state.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -312,7 +336,7 @@ not a product priority sequence.
 
 | Phase | Deliverable | Gate before the next phase |
 | --- | --- | --- |
-| `H1` | Versioned node schema, tree digest, structural limits, and deterministic state-reduction rules. | Reduction is pure and total over the existing status vocabulary. |
+| `H1` | **Implemented/offline verified:** versioned node schema, canonical tree digest, structural limits, deterministic state reduction, and linear-plan projection. | Passed: reduction is pure and total over the existing status vocabulary; the contract exposes no execution port. |
 | `H2` | Private tree store with `RunLock`, sequence/digest CAS, and no external ports. | Crash at every persistence boundary has one deterministic offline outcome. |
 | `H3` | Pure next-leaf compiler and offline trace fixtures. | The compiler yields at most one boundary per tick and never dispatches. |
 | `H4` | Observation-only trees through the existing Runner boundary. | Existing policy, approval, grounding, budget, WAL, and re-observation tests pass unchanged. |
@@ -334,7 +358,9 @@ the rule most likely to be relaxed by someone who has not read it.
 
 ## Acceptance conditions
 
-This design is not implemented until all of the following are true:
+The complete hierarchical runtime is not accepted until all of the following
+are true. H1 satisfies only the schema, limit, digest, state-vocabulary, and
+linear-plan compatibility subset:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests

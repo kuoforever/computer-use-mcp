@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-08-06.** This page explains the complete project shape without promoting
+> 2026-08-09.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -25,9 +25,11 @@ four distinct maturity layers:
    boundaries, campaign ledgers, leases, heartbeat, handoff, and reconciliation
    exist. Three fixed campaign CLI commands exercise one exact synthetic path;
    no general campaign worker or complete application workflow is connected.
-4. **Complete-product layers — planned:** multi-source observation, passive
+4. **Complete-product layers — initial contract work active:** hierarchical H1
+   is implemented as an inert offline contract; multi-source observation,
    operator UI, mobile-completion projection, broad application campaigns,
-   isolated workers, additional platforms, and verified continual learning.
+   isolated workers, additional platforms, and verified continual learning
+   remain partial or planned at their documented evidence levels.
 
 The central engineering idea is not “let a model click anywhere.” It is to
 separate observation, reasoning, authority, execution, durable evidence, and
@@ -211,7 +213,7 @@ surfaces rather than one automatic general-product loop.
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
 | Final-response reconciliation | Preflight implemented/internal | Pure reconstruction of exact completed evidence; applying CAS/cleanup and CLI exposure remain next | [Planning](PLANNING.md) |
 | Bounded Planner/Executor CLI | Implemented/read-only | `ask` and `plan run` compose one Planner call, one to four reviewed observations through Runner, and one tool-free final answer; side effects remain unavailable | [Capability status](CAPABILITY_STATUS.md) |
-| Hierarchical task and behavior trees | Planned | Post-linear goals, typed conditions, bounded fallbacks, reusable reviewed behavior templates, and durable node state; no runtime support | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) |
+| Hierarchical task and behavior trees | H1 implemented/offline; H2-H8 planned | Immutable versioned nodes, canonical tree digests, structural/budget limits, pure state reduction, and lossless linear-plan projection exist without persistence, next-leaf compilation, Runner wiring, or runtime authority | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) |
 
 ### Long-running campaigns
 
@@ -270,6 +272,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_agent/public_web_word.py`, `pre_run_review.py` | Fixed workflow/profile guard plus the Host-compiled Scope Sheet, versioned JSON, and human rendering without external ports |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
 | `src/computer_use_agent/planning.py`, `planner.py`, `plan_store.py` | Declarative plan compilation, provider port, and persistence |
+| `src/computer_use_agent/hierarchical_control.py` | Inert H1 node schema, canonical tree digest, reviewed limits, pure status reduction, and linear-plan projection |
 | `src/computer_use_agent/executor*.py`, `planned_observation_runtime.py` | Observation/final runtimes, WALs, reconciliation, and bounded read-only CLI composition |
 | `src/computer_use_agent/campaign*.py`, `batch*.py`, lease/heartbeat modules | Internal long-running control plane |
 | `src/computer_use_agent/evaluation.py`, `release.py` | Deterministic evidence and release preflight |
