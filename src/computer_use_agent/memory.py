@@ -75,6 +75,28 @@ def _iso(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def validate_memory_content(
+    content: str,
+    *,
+    max_chars: int = MAX_MEMORY_CONTENT_CHARS,
+) -> str:
+    """Apply the shared no-secret/no-raw-desktop text boundary."""
+
+    if (
+        not isinstance(max_chars, int)
+        or isinstance(max_chars, bool)
+        or not 1 <= max_chars <= MAX_MEMORY_CONTENT_CHARS
+    ):
+        raise MemoryStoreError("MEMORY_CONTENT_REJECTED")
+    if not isinstance(content, str) or not content.strip():
+        raise MemoryStoreError("memory content must be non-empty")
+    if len(content) > max_chars or any(ord(char) < 32 for char in content):
+        raise MemoryStoreError("MEMORY_CONTENT_REJECTED")
+    if any(pattern.search(content) for pattern in _FORBIDDEN_CONTENT):
+        raise MemoryStoreError("MEMORY_CONTENT_REJECTED")
+    return content.strip()
+
+
 def validate_memory_candidate(
     *,
     kind: MemoryKind,
@@ -91,19 +113,14 @@ def validate_memory_candidate(
         raise MemoryStoreError("MEMORY_REQUIRES_EXPLICIT_CONFIRMATION")
     if source != "user_confirmed":
         raise MemoryStoreError("MEMORY_SOURCE_NOT_TRUSTED")
-    if not isinstance(content, str) or not content.strip():
-        raise MemoryStoreError("memory content must be non-empty")
-    if len(content) > MAX_MEMORY_CONTENT_CHARS or any(ord(char) < 32 for char in content):
-        raise MemoryStoreError("MEMORY_CONTENT_REJECTED")
-    if any(pattern.search(content) for pattern in _FORBIDDEN_CONTENT):
-        raise MemoryStoreError("MEMORY_CONTENT_REJECTED")
+    safe_content = validate_memory_content(content)
     if not isinstance(scope, str) or _SCOPE.fullmatch(scope) is None:
         raise MemoryStoreError("memory scope must be a path-safe logical scope")
     parsed_expiry = _timestamp(expires_at, "expires_at")
     current = datetime.now(UTC) if now is None else now.astimezone(UTC)
     if parsed_expiry <= current:
         raise MemoryStoreError("memory expiry must be in the future")
-    return content.strip(), _iso(parsed_expiry)
+    return safe_content, _iso(parsed_expiry)
 
 
 class MemoryStore:
@@ -281,5 +298,6 @@ __all__ = [
     "MemoryRecord",
     "MemoryStore",
     "build_memory_context",
+    "validate_memory_content",
     "validate_memory_candidate",
 ]
