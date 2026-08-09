@@ -406,13 +406,15 @@ provider calls, zero approval requests, and no direct dispatch site. The
 document-aware scope is offline verified; provider, desktop, and application
 evidence for that expanded scope remain unretained.
 
-## Planned post-linear planning
+## Post-linear planning bridge
 
 The current `TaskPlan` remains deliberately flat, strictly ordered, and
-bounded. Conditional branches, hierarchical subgoals, bounded iteration, and
-reusable behavior subtrees are not implemented.
+bounded. H1-H4 now project that exact linear plan into a durable tree and
+compose its observation/final-response leaves with this existing runtime.
+Conditional branches, hierarchical subgoals, bounded iteration, and reusable
+behavior subtrees are not implemented.
 
-The planned successor is described in
+The continuing design is described in
 [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md).
 It preserves this document's core invariants: model output is non-authorizing,
 tree state is digest-bound evidence, only one next leaf may enter an external
@@ -424,3 +426,7 @@ status. Uncertainty stays where it already lives: an uncertain boundary leaves
 the leaf `in_progress`, records `RunPhase.UNKNOWN_OUTCOME`, and retains the
 continuation WAL. A current linear plan is therefore readable as the degenerate
 tree of one ordered `sequence`, and no persisted status requires a rewrite.
+The H4 bridge marks the exact H3-selected leaf active before this document's
+unchanged plan/WAL/Runner sequence, terminalizes it only after correlated
+durable evidence, and permits only port-free plan-to-tree reconciliation. It
+does not add side-effect, retry, replay, or execution-resume authority.

@@ -14,12 +14,18 @@ from .executor_final import (
     compile_final_response_request,
 )
 from .grounding import GroundingState
+from .hierarchical_control import TreeNodeKind, TreeValidationError, project_linear_plan
+from .hierarchical_runtime import (
+    HierarchicalRuntimeError,
+    LinearTaskTreeProjection,
+    runtime_policy_digest,
+)
 from .planning import PlanStepAction, PlanStepStatus, TaskPlan
 from .presence_lifecycle import FailSilentLifecycle
 from .runner import AgentRunner, PreparedRun, RunFailure
 from .trace import RunPhase, RunRecorder
 from .tool_registry import reviewed_registry_digest, verify_discovered_tools
-from .types import ModelTurn, RunState, ToolResult
+from .types import ModelTurn, RunState, ToolEffect, ToolResult
 
 
 class ExecutorRuntimeError(RuntimeError):
@@ -34,6 +40,8 @@ class RuntimePlanStepOutcome:
     result: ToolResult
     plan_sequence: int
     plan_digest: str
+    tree_sequence: int | None = None
+    tree_digest: str | None = None
 
 
 @dataclass(frozen=True, repr=False)
@@ -45,13 +53,16 @@ class RuntimeFinalResponseOutcome:
     provider_response_id: str
     plan_sequence: int
     plan_digest: str
+    tree_sequence: int | None = None
+    tree_digest: str | None = None
 
     def __repr__(self) -> str:
         return (
             "RuntimeFinalResponseOutcome("
             f"run_id={self.state.run_id!r}, text_length={len(self.text)}, "
             f"provider_response_id={self.provider_response_id!r}, "
-            f"plan_sequence={self.plan_sequence}, plan_digest={self.plan_digest!r})"
+            f"plan_sequence={self.plan_sequence}, plan_digest={self.plan_digest!r}, "
+            f"tree_sequence={self.tree_sequence}, tree_digest={self.tree_digest!r})"
         )
 
 
@@ -68,6 +79,7 @@ class RuntimeExecutorSession:
         continuation: RuntimeContinuationRecorder,
         presence: FailSilentLifecycle,
         progress: FailSilentLifecycle,
+        tree_projection: LinearTaskTreeProjection | None = None,
     ) -> None:
         self.runner = runner
         self.prepared_run = prepared_run
@@ -76,6 +88,7 @@ class RuntimeExecutorSession:
         self.continuation = continuation
         self.presence = presence
         self.progress = progress
+        self.tree_projection = tree_projection
         self.store = prepared_run.plan_store(runner.config.state_dir)
         self.state = prepared_run.state
         self.grounding = GroundingState()
@@ -88,6 +101,18 @@ class RuntimeExecutorSession:
     def _require_active(self) -> None:
         if self._closed:
             raise ExecutorRuntimeError("EXECUTOR_RUNTIME_CLOSED")
+
+    def _tree_metadata(self) -> tuple[int | None, str | None]:
+        if self.tree_projection is None:
+            return None, None
+        snapshot = self.tree_projection.snapshot()
+        return snapshot.sequence, snapshot.tree.digest
+
+    async def _fail_tree_projection(
+        self, *, code: str, delete_continuation: bool
+    ) -> None:
+        self.recorder.record(self.state, RunPhase.FAILED, failure_code=code)
+        await self._shutdown(delete_continuation=delete_continuation)
 
     async def _shutdown(self, *, delete_continuation: bool) -> None:
         if self._closed:
@@ -139,6 +164,15 @@ class RuntimeExecutorSession:
             expected_sequence=snapshot.sequence,
             expected_plan_digest=snapshot.plan.digest,
         )
+        if self.tree_projection is not None:
+            try:
+                self.tree_projection.cancel_pending_step(step.step_id)
+            except HierarchicalRuntimeError as exc:
+                await self._fail_tree_projection(
+                    code="EXECUTOR_TREE_COMMIT_FAILED",
+                    delete_continuation=False,
+                )
+                raise ExecutorRuntimeError("EXECUTOR_TREE_COMMIT_FAILED") from exc
         self.recorder.record(
             self.state,
             RunPhase.CANCELLED,
@@ -156,13 +190,37 @@ class RuntimeExecutorSession:
             prepared = self.contract.prepare_next(self.state)
         except ExecutorSessionError as exc:
             raise ExecutorRuntimeError(str(exc)) from exc
-        running = self.store.transition(
-            self.state.run_id,
-            prepared.step_id,
-            PlanStepStatus.IN_PROGRESS,
-            expected_sequence=prepared.snapshot_sequence,
-            expected_plan_digest=prepared.plan_digest,
-        )
+        if self.tree_projection is not None:
+            try:
+                self.tree_projection.start_step(
+                    prepared.step_id, node_kind=TreeNodeKind.TOOL_STEP
+                )
+            except HierarchicalRuntimeError as exc:
+                await self._fail_tree_projection(
+                    code="EXECUTOR_TREE_PREPARE_FAILED",
+                    delete_continuation=True,
+                )
+                raise ExecutorRuntimeError("EXECUTOR_TREE_PREPARE_FAILED") from exc
+        try:
+            running = self.store.transition(
+                self.state.run_id,
+                prepared.step_id,
+                PlanStepStatus.IN_PROGRESS,
+                expected_sequence=prepared.snapshot_sequence,
+                expected_plan_digest=prepared.plan_digest,
+            )
+        except BaseException as exc:
+            if self.tree_projection is None:
+                raise
+            try:
+                self.tree_projection.reconcile_from_plan()
+            except HierarchicalRuntimeError:
+                pass
+            await self._fail_tree_projection(
+                code="EXECUTOR_PLAN_PREPARE_FAILED",
+                delete_continuation=True,
+            )
+            raise ExecutorRuntimeError("EXECUTOR_PLAN_PREPARE_FAILED") from exc
         try:
             outcome = await self.runner._execute_requested_call_boundary(
                 self.state,
@@ -207,8 +265,27 @@ class RuntimeExecutorSession:
                 raise ExecutorRuntimeError("EXECUTOR_PLAN_COMMIT_FAILED") from exc
             try:
                 self.contract.accept_boundary_outcome(prepared, self.state)
-            except ExecutorSessionError:
-                self.contract.close()
+            except ExecutorSessionError as exc:
+                if self.tree_projection is None:
+                    self.contract.close()
+                else:
+                    await self._shutdown(delete_continuation=False)
+                    raise ExecutorRuntimeError(
+                        "EXECUTOR_RUNTIME_EVIDENCE_INVALID"
+                    ) from exc
+            if self.tree_projection is not None:
+                try:
+                    self.tree_projection.finish_step(
+                        prepared.step_id,
+                        PlanStepStatus.FAILED,
+                        node_kind=TreeNodeKind.TOOL_STEP,
+                    )
+                except HierarchicalRuntimeError as exc:
+                    await self._fail_tree_projection(
+                        code="EXECUTOR_TREE_COMMIT_FAILED",
+                        delete_continuation=False,
+                    )
+                    raise ExecutorRuntimeError("EXECUTOR_TREE_COMMIT_FAILED") from exc
             self.recorder.record(
                 self.state,
                 RunPhase.FAILED,
@@ -250,6 +327,19 @@ class RuntimeExecutorSession:
         except ExecutorSessionError as exc:
             await self._shutdown(delete_continuation=False)
             raise ExecutorRuntimeError("EXECUTOR_RUNTIME_EVIDENCE_INVALID") from exc
+        if self.tree_projection is not None:
+            try:
+                self.tree_projection.finish_step(
+                    prepared.step_id,
+                    target,
+                    node_kind=TreeNodeKind.TOOL_STEP,
+                )
+            except HierarchicalRuntimeError as exc:
+                await self._fail_tree_projection(
+                    code="EXECUTOR_TREE_COMMIT_FAILED",
+                    delete_continuation=False,
+                )
+                raise ExecutorRuntimeError("EXECUTOR_TREE_COMMIT_FAILED") from exc
         if not outcome.result.ok:
             self.recorder.record(
                 self.state,
@@ -258,11 +348,14 @@ class RuntimeExecutorSession:
             )
             await self._shutdown(delete_continuation=True)
             raise ExecutorRuntimeError("EXECUTOR_TOOL_FAILED")
+        tree_sequence, tree_digest = self._tree_metadata()
         return RuntimePlanStepOutcome(
             state=self.state,
             result=outcome.result,
             plan_sequence=finished.sequence,
             plan_digest=finished.plan.digest,
+            tree_sequence=tree_sequence,
+            tree_digest=tree_digest,
         )
 
     async def execute_final_response(
@@ -302,6 +395,19 @@ class RuntimeExecutorSession:
             )
         except ExecutorFinalError as exc:
             raise ExecutorRuntimeError(str(exc)) from exc
+
+        if self.tree_projection is not None:
+            try:
+                self.tree_projection.start_step(
+                    final_step.step_id,
+                    node_kind=TreeNodeKind.FINAL_RESPONSE,
+                )
+            except HierarchicalRuntimeError as exc:
+                await self._fail_tree_projection(
+                    code="EXECUTOR_TREE_PREPARE_FAILED",
+                    delete_continuation=True,
+                )
+                raise ExecutorRuntimeError("EXECUTOR_TREE_PREPARE_FAILED") from exc
 
         final_store = self.prepared_run.final_response_store(
             self.runner.config.state_dir
@@ -367,12 +473,23 @@ class RuntimeExecutorSession:
                 expected_sequence=running.sequence,
                 expected_plan_digest=running.plan.digest,
             )
+            if self.tree_projection is not None:
+                self.tree_projection.finish_step(
+                    final_step.step_id,
+                    PlanStepStatus.COMPLETED,
+                    node_kind=TreeNodeKind.FINAL_RESPONSE,
+                )
             self.recorder.record(
                 self.state,
                 RunPhase.SUCCESS,
                 final_text_length=len(durable_result.text),
             )
         except asyncio.CancelledError:
+            if self.tree_projection is not None:
+                try:
+                    self.tree_projection.reconcile_from_plan()
+                except HierarchicalRuntimeError:
+                    pass
             self.recorder.record(
                 self.state,
                 RunPhase.FAILED,
@@ -385,6 +502,11 @@ class RuntimeExecutorSession:
             await self._shutdown(delete_continuation=False)
             raise
         except BaseException as exc:
+            if self.tree_projection is not None:
+                try:
+                    self.tree_projection.reconcile_from_plan()
+                except HierarchicalRuntimeError:
+                    pass
             code = (
                 "EXECUTOR_FINAL_UNCERTAIN"
                 if intent_written
@@ -394,21 +516,28 @@ class RuntimeExecutorSession:
             await self._shutdown(delete_continuation=False)
             raise ExecutorRuntimeError(code) from exc
 
+        tree_sequence, tree_digest = self._tree_metadata()
         outcome = RuntimeFinalResponseOutcome(
             text=durable_result.text,
             state=self.state,
             provider_response_id=durable_result.provider_response_id,
             plan_sequence=finished.sequence,
             plan_digest=finished.plan.digest,
+            tree_sequence=tree_sequence,
+            tree_digest=tree_digest,
         )
         await self._shutdown(delete_continuation=True)
         return outcome
 
 
-async def open_runtime_executor_session(
-    runner: AgentRunner, *, task: str, plan: TaskPlan
+async def _open_runtime_executor_session(
+    runner: AgentRunner,
+    *,
+    task: str,
+    plan: TaskPlan,
+    tree_id: str | None,
 ) -> RuntimeExecutorSession:
-    """Open one new observation-only runtime session; never resume implicitly."""
+    """Open one new runtime session, optionally with the exact H4 projection."""
 
     if not isinstance(runner, AgentRunner) or not isinstance(plan, TaskPlan):
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_INPUT_INVALID")
@@ -420,6 +549,25 @@ async def open_runtime_executor_session(
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_TASK_MISMATCH") from exc
     if plan.task_digest != task_digest:
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_TASK_MISMATCH")
+    if tree_id is not None and (
+        not isinstance(tree_id, str)
+        or not tree_id
+        or any(
+            step.action is PlanStepAction.TOOL
+            and step.effect is not ToolEffect.OBSERVATION
+            for step in plan.steps
+        )
+    ):
+        raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE")
+    if tree_id is not None:
+        try:
+            project_linear_plan(
+                plan,
+                tree_id=tree_id,
+                policy_digest=runtime_policy_digest(runner.policy),
+            )
+        except (HierarchicalRuntimeError, TreeValidationError) as exc:
+            raise ExecutorRuntimeError("EXECUTOR_TREE_INPUT_INVALID") from exc
     if not runner.config.continuation.enabled:
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_WAL_REQUIRED")
     if runner.ports is None:
@@ -440,9 +588,18 @@ async def open_runtime_executor_session(
     )
     recorder_started = False
     continuation: RuntimeContinuationRecorder | None = None
+    tree_projection: LinearTaskTreeProjection | None = None
     try:
         store = prepared_run.plan_store(runner.config.state_dir)
         store.create(plan)
+        if tree_id is not None:
+            tree_projection = LinearTaskTreeProjection.create(
+                store,
+                prepared_run.tree_store(runner.config.state_dir),
+                plan,
+                tree_id=tree_id,
+                policy_digest=runtime_policy_digest(runner.policy),
+            )
         recorder.start(prepared_run.state)
         recorder_started = True
         recorder.record(prepared_run.state, RunPhase.OBSERVING)
@@ -468,6 +625,7 @@ async def open_runtime_executor_session(
             continuation=continuation,
             presence=presence,
             progress=progress,
+            tree_projection=tree_projection,
         )
     except BaseException:
         try:
@@ -495,10 +653,41 @@ async def open_runtime_executor_session(
         raise
 
 
+async def open_runtime_executor_session(
+    runner: AgentRunner, *, task: str, plan: TaskPlan
+) -> RuntimeExecutorSession:
+    """Open one new observation-only runtime session; never resume implicitly."""
+
+    return await _open_runtime_executor_session(
+        runner,
+        task=task,
+        plan=plan,
+        tree_id=None,
+    )
+
+
+async def open_hierarchical_runtime_executor_session(
+    runner: AgentRunner,
+    *,
+    task: str,
+    plan: TaskPlan,
+    tree_id: str,
+) -> RuntimeExecutorSession:
+    """Open the H4 linear-tree projection over the sole existing runtime."""
+
+    return await _open_runtime_executor_session(
+        runner,
+        task=task,
+        plan=plan,
+        tree_id=tree_id,
+    )
+
+
 __all__ = [
     "ExecutorRuntimeError",
     "RuntimeExecutorSession",
     "RuntimeFinalResponseOutcome",
     "RuntimePlanStepOutcome",
+    "open_hierarchical_runtime_executor_session",
     "open_runtime_executor_session",
 ]

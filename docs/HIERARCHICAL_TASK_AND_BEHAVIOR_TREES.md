@@ -1,11 +1,12 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H3 implemented and offline verified; L0 is next.**
+> **Status: H1-H4 implemented and offline verified; H5 is next.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
-> persistence plus digest-bound next-leaf compilation are inert. No Runner/MCP wiring,
-> provider/desktop port, or new
-> approval, retry, replay, recovery, or campaign authority is implemented.
+> persistence plus digest-bound next-leaf compilation now compose with the
+> existing observation-only Runtime Executor. H4 adds no second Runner/MCP
+> dispatch site or new approval, retry, replay, recovery, or campaign authority.
+> Its evidence is offline fake-port evidence only.
 
 ## Prior decisions this inherits
 
@@ -357,6 +358,33 @@ tool object, callable, authority, or dispatch method. The frozen H3 trace covers
 initial selection, active waiting, ordered advancement, completion, and every
 known terminal result without executing or persisting anything.
 
+## Implemented H4 boundary
+
+`src/computer_use_agent/hierarchical_runtime.py` is a port-free status
+projection consumed optionally by the existing `RuntimeExecutorSession`:
+
+- the Host projects only an observation-only linear `TaskPlan`, binds it to the
+  current reviewed policy digest, and creates the plan and tree under the same
+  existing application `RunLock`;
+- H3 must select the exact plan step, then H2 durably marks that leaf
+  `in_progress` before the existing plan CAS, WAL, and sole Runner boundary;
+- known results update the plan first, pass the existing correlated-ledger
+  check, and only then terminalize the exact tree leaf;
+- unknown or post-dispatch failure leaves both plan and tree `in_progress`,
+  preserves the continuation, closes live authority, and offers no retry or
+  dispatch method; and
+- an explicit same-lock repair can only re-project exact durable plan statuses
+  into the fixed tree structure. It cannot call provider, approval, MCP, or
+  desktop ports and cannot change an `in_progress` plan into a retryable state.
+
+The tool-free final-response leaf uses its existing dedicated WAL and provider
+port ordering. Side-effect plans are rejected before store creation or tool
+discovery. Deterministic tests cover exact pre-boundary ordering, success,
+known failure, uncertainty, cancellation, tree/plan commit failures, local-only
+repair, final-response completion, zero replay, and the unchanged sole Runner
+dispatch-site invariant. No live provider, MCP, desktop, application, E4, or
+release evidence is claimed.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -385,13 +413,14 @@ not a product priority sequence.
 | `H1` | **Implemented/offline verified:** versioned node schema, canonical tree digest, structural limits, deterministic state reduction, and linear-plan projection. | Passed: reduction is pure and total over the existing status vocabulary; the contract exposes no execution port. |
 | `H2` | **Implemented/offline verified:** private tree store with `RunLock`, sequence/tree-digest CAS, strict restart decoding, and no external ports. | Passed: every injected pre-commit persistence failure leaves no create snapshot or the exact prior update snapshot. |
 | `H3` | **Implemented/offline verified:** pure digest-bound next-leaf compiler, legal ordered leaf transitions, and frozen offline trace fixtures. | Passed: every tick yields zero or one inert boundary and never persists or dispatches; unresolved choice facts fail closed. |
-| `H4` | Observation-only trees through the existing Runner boundary. | Existing policy, approval, grounding, budget, WAL, and re-observation tests pass unchanged. |
+| `H4` | **Implemented/offline verified:** observation-only linear trees through the existing Runtime Executor and sole Runner boundary. | Passed: policy, approval, grounding, budget, WAL, re-observation, uncertainty, and single-dispatch-site tests remain green; side effects fail before external work. |
 | `H5` | Typed world-state facts and freshness invalidation. | A stale epoch or changed window fails a condition closed. |
 | `H6` | Small registry of pinned behavior templates, starting with the per-item observation ladder. | The ladder reproduces current fixed-runtime behavior with no added authority. |
 | `H7` | Bounded, approval-preserving side-effect leaves. | Separate review plus isolated application evidence; not a continuation of `H6`. |
 | `H8` | Read-only parallel computation or richer graph dependencies. | Only after serialized desktop authority and crash semantics remain proven. |
 
-`H1`-`H3` add no runtime behavior at all and are offline-testable in full.
+`H1`-`H3` add no runtime behavior at all. H4 composes only the already
+supported observation/final-response plan and adds no new external authority.
 `H7` is the first phase that widens what the product can do, and it inherits
 the existing approval review rather than defining its own.
 
@@ -405,9 +434,9 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H3 satisfy only the schema, limit, digest, state-vocabulary,
-linear-plan compatibility, private persistence/CAS/crash boundaries, and pure
-next-leaf/transition subset:
+are true. H1-H4 satisfy the schema, limit, digest, state-vocabulary,
+linear-plan compatibility, private persistence/CAS/crash boundaries, pure
+next-leaf/transition subset, and existing observation-runtime composition:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests
