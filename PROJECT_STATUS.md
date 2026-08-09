@@ -6,8 +6,8 @@
 > PR #291 merged `GDA-PRODUCT-019` as `60b26cc`; both branch copies were removed.
 > PR #293 merged `GDA-PRODUCT-021` as `51ff2d8`; PR #295 retained the first supervised configured-G/K physical evidence as `1ab8f90`; PR #297 retained the bounded Q/K/Ctrl+C follow-up as `b96e413`. All four PR #297 jobs passed with no review, comment, unresolved thread, or conflict, and both evidence-branch copies were removed.
 > On 2026-08-09 the user explicitly selected hierarchical task/behavior trees and
-> verified continual learning as the next complete-product programs. `H1` is
-> locally complete; publication is active and the queue owns continuation through `L5`.
+> verified continual learning as the next complete-product programs. PR #299
+> merged H1 as `0dd9f1e`; H2 implementation is complete and publication is active. The queue owns continuation through `L5`.
 > `GDA-PRODUCT-007` merged its Host-fixed Pre-run Review through PR #274.
 > `GDA-PRODUCT-005` completed its functional UI-default
 > scope through PR #270; its draft release checkpoint in PR #272 and all final
@@ -85,8 +85,8 @@ training, provider/MCP/desktop access, E4, or release work.
 
 | Phase | State | Bounded outcome | Exit gate / continuation |
 | --- | --- | --- | --- |
-| `H1` | **Implementation complete; publication active** | Versioned hierarchical node schema, canonical tree digest, reviewed structural limits, pure total status reduction, linear-plan projection, and the uncertainty-outside-node-state ADR | `2127 passed, 8 skipped`, Ruff, mypy over 145 source files, docs consistency, and diff check passed with no store, Runner, MCP, provider, desktop, or new authority; publish, merge, and cleanup, then `H2` becomes exact next |
-| `H2` | Queued | Private atomic tree store under the existing `RunLock`, with sequence/tree-digest CAS and no external ports | Deterministic crash result at every persistence boundary, then `H3` |
+| `H1` | Complete; merged | Versioned hierarchical node schema, canonical tree digest, reviewed structural limits, pure total status reduction, linear-plan projection, and the uncertainty-outside-node-state ADR | Commit `fd9872d` passed `2127 passed, 8 skipped`, Ruff, mypy over 145 source files, docs consistency, and diff check; PR #299 passed wheel plus Python 3.11/3.12/3.13 with no review, comment, unresolved thread, or conflict, then merged as `0dd9f1e`; both branch copies were removed and no store, Runner, MCP, provider, desktop, or new authority was added |
+| `H2` | **Implementation complete; publication active** | Private atomic tree store under the existing `RunLock`, with strict bounded restart decoding, sequence/tree-digest CAS, status-only replacement, deterministic pre-commit fault seams, and no external ports | Persistence, restart, tamper, stale-write, structure-drift, and every-checkpoint crash tests plus the complete `2166 passed, 8 skipped`, Ruff, mypy over 146 source files, docs consistency, and diff gate pass; independent PR publication/audit is exact next, then `H3` |
 | `H3` | Queued | Pure next-leaf compiler and frozen offline trace fixtures | At most one boundary per tick and zero dispatch, then `L0` |
 | `L0` | Queued | Redacted normalized episode outcomes and complete cost vectors derived only from existing durable trace/campaign facts | Missing metrics stay explicit and labels reconcile with durable state, then `H4` |
 | `H4` | Queued | Observation-only trees through the sole existing Runner boundary | Existing policy, grounding, budget, WAL, and re-observation gates remain unchanged, then `H5` |
