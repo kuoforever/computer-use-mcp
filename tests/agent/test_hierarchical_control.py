@@ -240,7 +240,8 @@ def test_schema_supports_each_closed_node_kind_without_executable_content() -> N
     )
 
     assert {node.kind for node in tree.nodes} == set(TreeNodeKind) - {
-        TreeNodeKind.PARALLEL
+        TreeNodeKind.PARALLEL,
+        TreeNodeKind.JOIN,
     }
     assert all("arguments" not in node.to_payload() for node in tree.nodes)
 

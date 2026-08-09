@@ -13,6 +13,7 @@ from enum import Enum
 from hashlib import sha256
 
 from .hierarchical_control import (
+    TREE_CONTRACT_VERSION_V3,
     TaskTree,
     TreeNode,
     TreeNodeKind,
@@ -38,6 +39,14 @@ _TERMINAL_STATUSES = frozenset(
 _INTERNAL_ORDERED_KINDS = frozenset(
     {TreeNodeKind.GOAL, TreeNodeKind.SEQUENCE}
 )
+_EXTERNAL_LEAF_KINDS = frozenset(
+    {
+        TreeNodeKind.TOOL_STEP,
+        TreeNodeKind.VERIFY,
+        TreeNodeKind.SUBTREE,
+        TreeNodeKind.FINAL_RESPONSE,
+    }
+)
 
 
 class TreeCompileError(ValueError):
@@ -56,6 +65,7 @@ class TreeTickReason(str, Enum):
     ACTIVE_LEAF_WAIT = "active_leaf_wait"
     TREE_TERMINAL = "tree_terminal"
     CHOICE_FACTS_REQUIRED = "choice_facts_required"
+    DEPENDENCIES_PENDING = "dependencies_pending"
 
 
 def _require_identifier(value: object) -> str:
@@ -200,13 +210,22 @@ class CompiledTreeTick:
         _require_digest(self.source_tree_digest)
         if not isinstance(self.tree_status, PlanStepStatus):
             raise TreeCompileError("TREE_COMPILE_INVALID")
-        expected_reason = {
-            TreeTickDisposition.BOUNDARY: TreeTickReason.BOUNDARY_READY,
-            TreeTickDisposition.WAITING: TreeTickReason.ACTIVE_LEAF_WAIT,
-            TreeTickDisposition.TERMINAL: TreeTickReason.TREE_TERMINAL,
-            TreeTickDisposition.BLOCKED: TreeTickReason.CHOICE_FACTS_REQUIRED,
+        allowed_reasons = {
+            TreeTickDisposition.BOUNDARY: frozenset(
+                {TreeTickReason.BOUNDARY_READY}
+            ),
+            TreeTickDisposition.WAITING: frozenset(
+                {TreeTickReason.ACTIVE_LEAF_WAIT}
+            ),
+            TreeTickDisposition.TERMINAL: frozenset({TreeTickReason.TREE_TERMINAL}),
+            TreeTickDisposition.BLOCKED: frozenset(
+                {
+                    TreeTickReason.CHOICE_FACTS_REQUIRED,
+                    TreeTickReason.DEPENDENCIES_PENDING,
+                }
+            ),
         }[self.disposition]
-        if self.reason is not expected_reason:
+        if self.reason not in allowed_reasons:
             raise TreeCompileError("TREE_COMPILE_INVALID")
         allowed_statuses = {
             TreeTickDisposition.BOUNDARY: frozenset(
@@ -290,6 +309,65 @@ def _next_ordered_leaf(
     raise TreeCompileError("TREE_COMPILE_STATE_INVALID")
 
 
+def _v3_ready_leaves(
+    tree: TaskTree, by_id: dict[str, TreeNode]
+) -> tuple[tuple[TreeNode, ...], bool, bool]:
+    prerequisites: dict[str, tuple[str, ...]] = {}
+    for dependency in tree.dependencies:
+        prerequisites[dependency.dependent_id] = (
+            *prerequisites.get(dependency.dependent_id, ()),
+            dependency.prerequisite_id,
+        )
+
+    def visit(node: TreeNode) -> tuple[list[TreeNode], bool, bool]:
+        if node.status in _TERMINAL_STATUSES:
+            return [], False, False
+        if node.is_leaf:
+            if node.kind is TreeNodeKind.JOIN:
+                return [], False, True
+            if node.status not in {
+                PlanStepStatus.PENDING,
+                PlanStepStatus.IN_PROGRESS,
+            }:
+                raise TreeCompileError("TREE_COMPILE_STATE_INVALID")
+            required = prerequisites.get(node.node_id, ())
+            if any(
+                by_id[prerequisite_id].status is not PlanStepStatus.COMPLETED
+                for prerequisite_id in required
+            ):
+                return [], False, True
+            return [node], False, False
+        if node.kind is TreeNodeKind.CHOICE:
+            return [], True, False
+        if node.kind in _INTERNAL_ORDERED_KINDS:
+            for child_id in node.child_ids:
+                child = by_id[child_id]
+                if child.status is PlanStepStatus.COMPLETED:
+                    continue
+                return visit(child)
+            raise TreeCompileError("TREE_COMPILE_STATE_INVALID")
+        if node.kind is TreeNodeKind.PARALLEL:
+            candidates: list[TreeNode] = []
+            choice_blocked = False
+            dependency_blocked = False
+            for child_id in node.child_ids:
+                child_candidates, child_choice, child_dependency = visit(
+                    by_id[child_id]
+                )
+                candidates.extend(child_candidates)
+                choice_blocked = choice_blocked or child_choice
+                dependency_blocked = dependency_blocked or child_dependency
+            return candidates, choice_blocked, dependency_blocked
+        raise TreeCompileError("TREE_COMPILE_STATE_INVALID")
+
+    candidates, choice_blocked, dependency_blocked = visit(by_id[tree.root_id])
+    return (
+        tuple(sorted(candidates, key=lambda node: node.node_id)),
+        choice_blocked,
+        dependency_blocked,
+    )
+
+
 def compile_next_leaf(tree: TaskTree, *, sequence: int) -> CompiledTreeTick:
     """Compile at most one inert next-leaf boundary without changing state."""
 
@@ -297,7 +375,9 @@ def compile_next_leaf(tree: TaskTree, *, sequence: int) -> CompiledTreeTick:
     active = tuple(
         node
         for node in tree.nodes
-        if node.is_leaf and node.status is PlanStepStatus.IN_PROGRESS
+        if node.is_leaf
+        and node.kind is not TreeNodeKind.JOIN
+        and node.status is PlanStepStatus.IN_PROGRESS
     )
     if len(active) > 1:
         raise TreeCompileError("TREE_COMPILE_MULTIPLE_ACTIVE_LEAVES")
@@ -313,6 +393,50 @@ def compile_next_leaf(tree: TaskTree, *, sequence: int) -> CompiledTreeTick:
         )
 
     by_id = {node.node_id: node for node in tree.nodes}
+    if tree.contract_version >= TREE_CONTRACT_VERSION_V3:
+        if active and active[0].kind in _EXTERNAL_LEAF_KINDS:
+            return CompiledTreeTick(
+                disposition=TreeTickDisposition.WAITING,
+                reason=TreeTickReason.ACTIVE_LEAF_WAIT,
+                source_sequence=sequence,
+                source_tree_digest=tree.digest,
+                tree_status=tree.status,
+            )
+        candidates, choice_blocked, dependency_blocked = _v3_ready_leaves(tree, by_id)
+        if active:
+            if not candidates or active[0].node_id not in {
+                node.node_id for node in candidates
+            }:
+                raise TreeCompileError("TREE_COMPILE_ACTIVE_OUT_OF_ORDER")
+            return CompiledTreeTick(
+                disposition=TreeTickDisposition.WAITING,
+                reason=TreeTickReason.ACTIVE_LEAF_WAIT,
+                source_sequence=sequence,
+                source_tree_digest=tree.digest,
+                tree_status=tree.status,
+            )
+        if candidates:
+            return CompiledTreeTick(
+                disposition=TreeTickDisposition.BOUNDARY,
+                reason=TreeTickReason.BOUNDARY_READY,
+                source_sequence=sequence,
+                source_tree_digest=tree.digest,
+                tree_status=tree.status,
+                boundary=_boundary(tree, candidates[0], sequence),
+            )
+        if choice_blocked:
+            reason = TreeTickReason.CHOICE_FACTS_REQUIRED
+        elif dependency_blocked:
+            reason = TreeTickReason.DEPENDENCIES_PENDING
+        else:
+            raise TreeCompileError("TREE_COMPILE_STATE_INVALID")
+        return CompiledTreeTick(
+            disposition=TreeTickDisposition.BLOCKED,
+            reason=reason,
+            source_sequence=sequence,
+            source_tree_digest=tree.digest,
+            tree_status=tree.status,
+        )
     leaf, choice_blocked = _next_ordered_leaf(by_id[tree.root_id], by_id)
     if choice_blocked:
         if active:
@@ -361,7 +485,7 @@ def transition_tree_leaf(
         raise TreeCompileError("TREE_TRANSITION_TERMINAL")
     by_id = {node.node_id: node for node in tree.nodes}
     node = by_id.get(node_id)
-    if node is None or not node.is_leaf:
+    if node is None or not node.is_leaf or node.kind is TreeNodeKind.JOIN:
         raise TreeCompileError("TREE_TRANSITION_INVALID")
 
     allowed = {
@@ -387,7 +511,9 @@ def transition_tree_leaf(
     active = tuple(
         item.node_id
         for item in tree.nodes
-        if item.is_leaf and item.status is PlanStepStatus.IN_PROGRESS
+        if item.is_leaf
+        and item.kind is not TreeNodeKind.JOIN
+        and item.status is PlanStepStatus.IN_PROGRESS
     )
     if node.status is PlanStepStatus.PENDING:
         if active:
