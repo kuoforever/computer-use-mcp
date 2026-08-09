@@ -1,4 +1,4 @@
-"""Run-lock-bound H4 projection for the existing observation runtime.
+"""Run-lock-bound H4/H7 projection for the existing bounded runtime.
 
 This module has no provider, MCP, desktop, approval, or dispatch port.  It
 binds the H1-H3 linear tree to the existing durable ``TaskPlan`` and permits
@@ -20,6 +20,10 @@ from .hierarchical_control import (
     project_linear_plan,
     reduce_tree_statuses,
 )
+from .hierarchical_side_effects import (
+    HierarchicalSideEffectError,
+    validate_bounded_side_effect_plan,
+)
 from .plan_store import PersistedTaskPlan, PlanStoreError, TaskPlanStore
 from .planning import PlanStepAction, PlanStepStatus, TaskPlan
 from .policy import HostPolicy
@@ -28,7 +32,7 @@ from .types import ToolEffect
 
 
 class HierarchicalRuntimeError(RuntimeError):
-    """A fixed H4 projection failure without plan, tree, or task content."""
+    """A fixed hierarchical projection failure without plan or task content."""
 
 
 def runtime_policy_digest(policy: HostPolicy) -> str:
@@ -108,6 +112,45 @@ class LinearTaskTreeProjection:
             )
             tree_store.create(tree)
             projection._validate_pair(plan_store.read(plan.run_id), tree_store.read(plan.run_id))
+        except (PlanStoreError, TreeStoreError, TreeValidationError) as exc:
+            raise HierarchicalRuntimeError(
+                "HIERARCHICAL_RUNTIME_CREATE_FAILED"
+            ) from exc
+        return projection
+
+    @classmethod
+    def create_bounded_side_effect(
+        cls,
+        plan_store: TaskPlanStore,
+        tree_store: TaskTreeStore,
+        plan: TaskPlan,
+        *,
+        tree_id: str,
+        policy_digest: str,
+    ) -> "LinearTaskTreeProjection":
+        """Create the reviewed H7 sequence beside its existing strict plan."""
+
+        try:
+            validate_bounded_side_effect_plan(plan)
+        except HierarchicalSideEffectError as exc:
+            raise HierarchicalRuntimeError("HIERARCHICAL_RUNTIME_PLAN_UNSAFE") from exc
+        projection = cls(
+            plan_store=plan_store,
+            tree_store=tree_store,
+            run_id=plan.run_id,
+            tree_id=tree_id,
+            policy_digest=policy_digest,
+        )
+        try:
+            tree = project_linear_plan(
+                plan,
+                tree_id=tree_id,
+                policy_digest=policy_digest,
+            )
+            tree_store.create(tree)
+            projection._validate_pair(
+                plan_store.read(plan.run_id), tree_store.read(plan.run_id)
+            )
         except (PlanStoreError, TreeStoreError, TreeValidationError) as exc:
             raise HierarchicalRuntimeError(
                 "HIERARCHICAL_RUNTIME_CREATE_FAILED"
@@ -222,7 +265,11 @@ class LinearTaskTreeProjection:
     ) -> PersistedTaskTree:
         """Commit a known leaf result only after the plan owns that result."""
 
-        if target not in {PlanStepStatus.COMPLETED, PlanStepStatus.FAILED}:
+        if target not in {
+            PlanStepStatus.COMPLETED,
+            PlanStepStatus.FAILED,
+            PlanStepStatus.BLOCKED,
+        }:
             raise HierarchicalRuntimeError("HIERARCHICAL_RUNTIME_TARGET_INVALID")
         plan_snapshot, tree_snapshot = self._read_pair()
         plan_step = next(
