@@ -1,6 +1,6 @@
 # Capability status and evidence dashboard
 
-> **Status: current review dashboard, verified 2026-08-08.** This page is the
+> **Status: current review dashboard, verified 2026-08-09.** This page is the
 > shortest path to the project's actual boundary. It separates design,
 > implementation, offline evidence, provider evidence, desktop evidence, and
 > application evidence. A design or offline test is never promoted to a live
@@ -34,7 +34,7 @@ test was attempted and failed unless a linked evidence record says so.
 | Pre-run Review | `YES` | `PARTIAL` — `review public-web-word` and the default workflow start gate compile a human/JSON Scope Sheet from Host-fixed contract fields and exact local paths before any provider, MCP, application, desktop, or fixture startup. Version 2 discloses seven possible side effects, low-risk Host authorization, zero expected high-risk approvals, and unknown denial. Exact `START` or `--acknowledge-scope` enters only the ordinary workflow and grants no action approval, retry, or replay authority; other commands and workflows do not yet have this surface | `YES` — complete fields, contract drift, risk policy, output preconditions, human/JSON parity, cancel/EOF zero-work behavior, exact acknowledgement, one config load, and bound config/request handoff are tested | `NO` | `NO` — no native window is claimed; the bounded CLI Scope Sheet preceded the retained live workflow | `PARTIAL` — the retained [fixed workflow](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md) started only after its Host-fixed review, but that evidence predates review version 2 and risk-tier code | Preserve the fixed contract; broaden it only through another Host-owned workflow scope |
 | Cooperative desktop control | `YES` | `PARTIAL` — the installed public-web-word Runner loops expose strict local `control`, `pause`, `takeover`, and `resume` commands plus a Decision Card takeover choice. Pause is acknowledged only at a durable safe boundary, authority release is explicit, resume discards old approval/grounding and requires fresh observation, and uncertain work is never replayed. Other workflows, campaigns, crash recovery, remote control, and `BlockInput` are excluded | `YES` — live-lease and checkpoint binding, atomic lifecycle, CLI human/JSON routing, nested verifier state, stale-call rejection, observation-only resumption, Decision Card takeover, external takeover at `after_authorization`, continuation incompatibility, stable Provider tool contract, and unknown-outcome precedence are tested | `NO` | `PARTIAL` — one current fake-only human timing run used the production control record and OS-backed run lock: `pause_requested -> paused/released` took `65.2 ms`; input occurred only while released; resume required a fresh observation and reached `closed/success` in `1587.5 ms` without new input or focus drift. No provider, MCP, application, or desktop action was exercised | `NO` — no real-provider or application takeover timing is claimed | Preserve the passed bounded timing result; widen only with an exact provider/application scope, while keeping crash recovery, campaigns, remote control, and E4 separate |
 | Approval Inbox and local notification | `YES` | `PARTIAL` — Decision Card compilation publishes one strict private expiring identity/digest record, `approval inbox` renders bounded human/JSON inspection without a liveness claim, and an optional Win32 notification carries fixed English or Simplified-Chinese content only. The notifier prefers a per-user identity-backed modern toast with exact tag/group withdrawal and falls back to the legacy Shell signal; whole-toast activation reaches only a local no-authority sink. Inbox and notification have no approval, task-control, provider, MCP, desktop, replay, retry, or dispatch port; console approval, mobile push, Inbox CLI localization, and a native Inbox window are excluded | `YES` — binding/expiry lifecycle, registry action coverage, content exclusion, corrupt isolation, strict bounds, two-locale fixed notification payload, modern registration, inert activation, replacement/withdrawal, legacy fallback, CLI parity, configuration, notification failure isolation, and Decision Card cleanup are tested | `NO` | `PARTIAL` — the earlier [PRODUCT-017 automated native rerun](PRODUCT017_AUTOMATED_NATIVE_EVIDENCE.md) passed legacy Shell acceptance without claiming visibility. The later [human result](PRODUCT017_HUMAN_NATIVE_EVIDENCE.md) retains the initially blocked `ToastEnabled=0` attempt, then records watched transient legacy banners and one repaired Simplified-Chinese modern banner, pending Notification Center record, foreground preservation, and Host withdrawal after the user enabled notifications on Windows 11 | `NO` — no application behavior is claimed | Preserve the one named Windows 11 result; separately test other Windows versions and bounded notification screen-reader behavior |
-| Hierarchical control | `PARTIAL` — [the direction, closed node set, fail-closed propagation, and `H1`-`H8` order](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) are recorded; no node schema, digest, or store contract is fixed | `NO` — the current `TaskPlan` is flat and strictly ordered | `NO` | `N/A` | `N/A` | `N/A` | Fix the `H1` node schema, tree digest, structural limits, and pure state-reduction rules before any store or runtime work |
+| Hierarchical control | `YES` — [the closed node set, fail-closed propagation, `H1`-`H8` order, and uncertainty boundary](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) are fixed | `PARTIAL` — H1 adds immutable versioned nodes, canonical tree digest, reviewed structural/budget limits, pure total parent reduction, and lossless linear-plan projection; it has no store, compiler, Runner, provider, MCP, desktop, or authority port | `YES` — topology, limits, budgets, digest binding, every status combination, malformed contracts, and linear-plan compatibility fail closed in deterministic tests | `N/A` | `N/A` | `N/A` | Implement H2 private atomic storage under the existing `RunLock` with sequence/tree-digest CAS and deterministic crash boundaries |
 | Continual Learning | `YES` | `NO` — current explicit memory is not automatic learning | `NO` | `NO` | `NO` | `NO` | Deliver L0 normalized episode outcomes and complete cost vectors before candidate extraction or strategy routing |
 
 ## Verification snapshot
@@ -78,7 +78,12 @@ unattended operation, or release readiness.
 
 ## Active priorities
 
-1. **Installed product verticals:** the installed-first-run configuration,
+1. **Hierarchical control and verified learning:** H1 now fixes the inert node,
+   digest, limit, reduction, and linear-plan compatibility contract. H2 private
+   storage is exact next, followed by H3 pure next-leaf compilation and then L0
+   normalized episode outcome/cost instrumentation. None of these early phases
+   adds runtime authority or automatic learning.
+2. **Installed product verticals:** the installed-first-run configuration,
    public `ask` command, reviewed Planner scope, and semantic document-text
    flow have one exact-candidate Windows/OpenAI/Notepad
    [result](DESKTOP_ASK_EVIDENCE.md). The installed model-driven
@@ -88,16 +93,16 @@ unattended operation, or release readiness.
    same-wheel [integration result](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md)
    now composes both paths. The remaining human/native-control gates, E4, and
    release remain separate.
-2. **Bounded application evidence:** the repaired `activate_window` path, both
+3. **Bounded application evidence:** the repaired `activate_window` path, both
    reviewed providers, the [BOSS home observation](BOSS_EVIDENCE.md), and the
    separate [interested-jobs OCR result](BOSS_OCR_EVIDENCE.md) have retained
    evidence. This remains narrower than BOSS campaign acceptance and does not
    widen action authority.
-3. **Observation vertical slice:** [the retained OCR result](BOSS_OCR_EVIDENCE.md)
+4. **Observation vertical slice:** [the retained OCR result](BOSS_OCR_EVIDENCE.md)
    recovered a static BOSS tab omitted by UIA, used a fresh OCR target check,
    entered the interested-jobs page, and measured one UIA/OCR card comparison.
    Next reuse that ladder across bounded multi-item and restart cases.
-4. **Runtime connection:** the fixed campaign seam now reuses the Agent
+5. **Runtime connection:** the fixed campaign seam now reuses the Agent
    authority boundary through correlated `OBSERVED`, extracts only a bounded
    non-sensitive window count, commits its verified canonical digest, closes the
    batch with measured usage, writes deterministic handoff, and transfers a
@@ -124,10 +129,10 @@ unattended operation, or release readiness.
    correction. The strict semantic runtime and fresh-run transfer are now
    offline verified; next retain one on-device UIA/document-text semantic item
    before the 100-item gate.
-5. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
+6. **Wave 1 evidence:** only after the prior gates, execute BOSS, Google Docs,
    and WeChat draft-only cases and retain success, token, retry, recovery, and
    takeover measurements.
-6. **Operator and learning layers:** project real checkpoint/campaign facts into
+7. **Operator and learning layers:** project real checkpoint/campaign facts into
    the operator UI; begin continual learning with L0 evidence, not automatic
    promotion or model training.
 

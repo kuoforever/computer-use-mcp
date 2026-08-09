@@ -6,6 +6,7 @@ adapters remain separate modules so importing this package stays side-effect
 free.
 """
 
+from .hierarchical_control import TREE_CONTRACT_VERSION, TaskTree
 from .planning import PLAN_CONTRACT_VERSION, TaskPlan
 from .tool_registry import REVIEWED_TOOLS
 from .types import AGENT_CONTRACT_VERSION
@@ -14,5 +15,7 @@ __all__ = [
     "AGENT_CONTRACT_VERSION",
     "PLAN_CONTRACT_VERSION",
     "REVIEWED_TOOLS",
+    "TREE_CONTRACT_VERSION",
     "TaskPlan",
+    "TaskTree",
 ]
