@@ -1,9 +1,10 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1 contract implemented and offline verified; H2 is next.**
+> **Status: H1-H2 implemented and offline verified; H3 is next.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
-> status reduction, and lossless linear-plan projection are inert. No tree
-> store, next-leaf compiler, Runner/MCP wiring, provider/desktop port, or new
+> status reduction, lossless linear-plan projection, and private atomic tree
+> persistence are inert. No next-leaf compiler, Runner/MCP wiring,
+> provider/desktop port, or new
 > approval, retry, replay, recovery, or campaign authority is implemented.
 
 ## Prior decisions this inherits
@@ -311,6 +312,28 @@ model candidates and no store or runtime entry point. H2 owns persistence and
 CAS; H3 owns next-leaf compilation. [ADR-010](adr/010-tree-uncertainty-remains-outside-node-state.md)
 keeps uncertain dispatch exclusively in the outer run state.
 
+## Implemented H2 boundary
+
+`src/computer_use_agent/tree_store.py` adds one private
+`runs/<run_id>/task-tree.json` snapshot under the existing application
+`RunLock`:
+
+- strict versioned decoding rejects unknown fields, malformed identities,
+  non-canonical parent state, registry drift, and tree/envelope digest drift;
+- create is pending-only and never intentionally replaces an existing tree;
+- replacement requires the exact current sequence and tree digest, increments
+  the sequence once, and permits only a canonical status projection over the
+  unchanged H1 structure, limits, budgets, and identities;
+- a bounded `0600` temporary file is flushed and fsynced before atomic replace,
+  with deterministic fault-injection seams before every persistence boundary;
+  restart reads only the last complete snapshot; and
+- the module has no provider, Runner, MCP, campaign, desktop, policy, approval,
+  retry, replay, or dispatch port.
+
+H2 intentionally does not decide whether a status transition is legal and does
+not select a leaf. Those pure control decisions belong to H3. This keeps the
+store durable evidence rather than a second execution authority.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -337,7 +360,7 @@ not a product priority sequence.
 | Phase | Deliverable | Gate before the next phase |
 | --- | --- | --- |
 | `H1` | **Implemented/offline verified:** versioned node schema, canonical tree digest, structural limits, deterministic state reduction, and linear-plan projection. | Passed: reduction is pure and total over the existing status vocabulary; the contract exposes no execution port. |
-| `H2` | Private tree store with `RunLock`, sequence/digest CAS, and no external ports. | Crash at every persistence boundary has one deterministic offline outcome. |
+| `H2` | **Implemented/offline verified:** private tree store with `RunLock`, sequence/tree-digest CAS, strict restart decoding, and no external ports. | Passed: every injected pre-commit persistence failure leaves no create snapshot or the exact prior update snapshot. |
 | `H3` | Pure next-leaf compiler and offline trace fixtures. | The compiler yields at most one boundary per tick and never dispatches. |
 | `H4` | Observation-only trees through the existing Runner boundary. | Existing policy, approval, grounding, budget, WAL, and re-observation tests pass unchanged. |
 | `H5` | Typed world-state facts and freshness invalidation. | A stale epoch or changed window fails a condition closed. |
@@ -359,8 +382,8 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1 satisfies only the schema, limit, digest, state-vocabulary, and
-linear-plan compatibility subset:
+are true. H1-H2 satisfy only the schema, limit, digest, state-vocabulary,
+linear-plan compatibility, private persistence, CAS, and crash-boundary subset:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests
