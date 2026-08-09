@@ -1,6 +1,6 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H4 implemented and offline verified; H5 is next.**
+> **Status: H1-H5 implemented and offline verified; H6 is next.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
@@ -203,8 +203,8 @@ the existing rule that uncertain side effects are not automatically replayed.
 
 ## World-state and condition model
 
-Conditions must not read arbitrary model prose or stale UI handles. The planned
-world-state projection should contain typed facts with:
+Conditions must not read arbitrary model prose or stale UI handles. The H5
+world-state projection contains typed facts with:
 
 - source and extraction method;
 - observation and MCP generation;
@@ -385,6 +385,35 @@ repair, final-response completion, zero replay, and the unchanged sole Runner
 dispatch-site invariant. No live provider, MCP, desktop, application, E4, or
 release evidence is claimed.
 
+## Implemented H5 boundary
+
+`src/computer_use_agent/world_state.py` adds a pure, bounded, non-persistent
+fact and condition contract:
+
+- each boolean, integer, bounded text, or identifier fact is `observed` or
+  explicitly `unknown` and binds one successful reviewed observation call;
+- the source tool fixes the extraction method to UI Automation, window
+  enumeration, document text, OCR, or pixel measurement; there is no model
+  extraction method;
+- evidence retains only run/turn/call identity, observation epoch, MCP
+  generation, capture time, source-text length/digest, bounded image
+  digest/dimensions, and optional exact window/process identity — never raw
+  observation text or image bytes;
+- window-scoped facts require exact window ID, process ID, and process name;
+  run-scoped facts carry no window binding and gain no window authority;
+- facts have a Host-bounded maximum age. Run, epoch, generation, window, type,
+  clock, or age drift returns an unavailable inspection with no value or
+  evidence/fact digest; and
+- typed equality conditions are deliberately three-valued. Only a fresh known
+  fact can be `true` or `false`; missing, unknown, mismatched, or stale facts are
+  `unavailable`, so a selector cannot mistake lost evidence for known false.
+
+Snapshots are canonical, digest-bound, empty-state capable, and limited to 128
+facts. H5 has no store, provider, Runner, MCP, desktop, approval, tree
+transition, retry, replay, or automatic-learning port. H6 may bind reviewed
+templates to this contract; H5 itself neither chooses a branch nor advances a
+node. Evidence remains offline and injected only.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -414,7 +443,7 @@ not a product priority sequence.
 | `H2` | **Implemented/offline verified:** private tree store with `RunLock`, sequence/tree-digest CAS, strict restart decoding, and no external ports. | Passed: every injected pre-commit persistence failure leaves no create snapshot or the exact prior update snapshot. |
 | `H3` | **Implemented/offline verified:** pure digest-bound next-leaf compiler, legal ordered leaf transitions, and frozen offline trace fixtures. | Passed: every tick yields zero or one inert boundary and never persists or dispatches; unresolved choice facts fail closed. |
 | `H4` | **Implemented/offline verified:** observation-only linear trees through the existing Runtime Executor and sole Runner boundary. | Passed: policy, approval, grounding, budget, WAL, re-observation, uncertainty, and single-dispatch-site tests remain green; side effects fail before external work. |
-| `H5` | Typed world-state facts and freshness invalidation. | A stale epoch or changed window fails a condition closed. |
+| `H5` | **Implemented/offline verified:** typed world-state facts, content-free observation evidence, exact window/process binding, bounded freshness, and three-valued equality conditions. | Passed: stale epochs, generation/window drift, expiry, unknown/missing/type mismatch, and clock rollback are unavailable rather than false and expose no fact value. |
 | `H6` | Small registry of pinned behavior templates, starting with the per-item observation ladder. | The ladder reproduces current fixed-runtime behavior with no added authority. |
 | `H7` | Bounded, approval-preserving side-effect leaves. | Separate review plus isolated application evidence; not a continuation of `H6`. |
 | `H8` | Read-only parallel computation or richer graph dependencies. | Only after serialized desktop authority and crash semantics remain proven. |
@@ -434,9 +463,10 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H4 satisfy the schema, limit, digest, state-vocabulary,
+are true. H1-H5 satisfy the schema, limit, digest, state-vocabulary,
 linear-plan compatibility, private persistence/CAS/crash boundaries, pure
-next-leaf/transition subset, and existing observation-runtime composition:
+next-leaf/transition subset, existing observation-runtime composition, and
+typed fresh-fact condition boundary:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests

@@ -430,3 +430,7 @@ The H4 bridge marks the exact H3-selected leaf active before this document's
 unchanged plan/WAL/Runner sequence, terminalizes it only after correlated
 durable evidence, and permits only port-free plan-to-tree reconciliation. It
 does not add side-effect, retry, replay, or execution-resume authority.
+H5 separately defines typed observation facts and three-valued freshness
+inspection: lost epoch, generation, window/process identity, type, or time
+evidence is unavailable rather than false. It has no tree transition or branch
+selection method; reviewed template binding remains H6 work.
