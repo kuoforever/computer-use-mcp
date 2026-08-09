@@ -111,9 +111,9 @@ def _digest(value: object, code: str) -> str:
 
 
 def _reviewed_tool_names() -> tuple[str, ...]:
-    from .tool_registry import REVIEWED_TOOLS
+    from .tool_registry import ALL_REVIEWED_TOOLS
 
-    return tuple(tool.name for tool in REVIEWED_TOOLS)
+    return tuple(tool.name for tool in ALL_REVIEWED_TOOLS)
 
 
 def _persisted_advertised_tool_names(value: object) -> tuple[str, ...]:

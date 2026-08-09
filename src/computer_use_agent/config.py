@@ -12,6 +12,7 @@ from math import isfinite
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
+from urllib.parse import urlsplit
 
 from .types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
@@ -81,6 +82,9 @@ REVIEWED_MCP_ENVIRONMENT_NAMES = frozenset(
         "CUMCP_ACTION_FEEDBACK",
         "CUMCP_TYPE_WAIT_SECONDS",
         "CUMCP_DANGEROUS_CONFIRM",
+        "CUMCP_BROWSER_OBSERVATION",
+        "CUMCP_BROWSER_CDP_ENDPOINT",
+        "CUMCP_UIA_ACTIONS",
     }
 )
 REQUIRED_SAFE_CHILD_ENVIRONMENT = MappingProxyType(
@@ -228,6 +232,38 @@ def _validate_mcp_environment_value(key: str, value: str) -> None:
         "on",
     }:
         raise ConfigError("CUMCP_ACTION_FEEDBACK must be boolean")
+    elif key == "CUMCP_BROWSER_OBSERVATION" and value.strip().lower() not in {
+        "off",
+        "cdp",
+    }:
+        raise ConfigError("CUMCP_BROWSER_OBSERVATION must be off or cdp")
+    elif key == "CUMCP_BROWSER_CDP_ENDPOINT":
+        try:
+            endpoint = urlsplit(value)
+            port = endpoint.port
+        except ValueError as exc:
+            raise ConfigError("CUMCP_BROWSER_CDP_ENDPOINT must be a loopback URL") from exc
+        if endpoint.username is not None or endpoint.password is not None:
+            raise ConfigError("CUMCP_BROWSER_CDP_ENDPOINT must not contain credentials")
+        if (
+            endpoint.scheme not in {"http", "ws"}
+            or endpoint.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or port is None
+            or endpoint.query
+            or endpoint.fragment
+        ):
+            raise ConfigError("CUMCP_BROWSER_CDP_ENDPOINT must be a loopback URL with a port")
+    elif key == "CUMCP_UIA_ACTIONS" and value.strip().lower() not in {
+        "0",
+        "1",
+        "false",
+        "true",
+        "no",
+        "yes",
+        "off",
+        "on",
+    }:
+        raise ConfigError("CUMCP_UIA_ACTIONS must be boolean")
 
 
 def _read_table(document: Mapping[str, object], name: str, *, required: bool) -> Mapping[str, object]:

@@ -98,7 +98,7 @@ def test_stale_foreground_ref_does_not_relocate_into_new_foreground_window() -> 
         dict(session._scope_by_ref),
     )
 
-    result = session.click(ref=ref)
+    result = session.click(ref=ref, backend="uia")
 
     assert result == Result.fail(
         STALE_ELEMENT,
@@ -139,7 +139,7 @@ def test_stale_all_scope_ref_does_not_query_or_act_on_relocation_candidate() -> 
         dict(session._scope_by_ref),
     )
 
-    result = session.click(ref=ref)
+    result = session.click(ref=ref, backend="uia")
 
     assert result == Result.fail(
         STALE_ELEMENT,
@@ -176,7 +176,7 @@ def test_later_observation_cannot_move_ref_relocation_scope() -> None:
     ref_a = snapshot_ref(session.ui_snapshot(scope="window-A"))
     ref_b = snapshot_ref(session.ui_snapshot(scope="window-B"))
 
-    result = session.click(ref=ref_a)
+    result = session.click(ref=ref_a, backend="uia")
 
     assert ref_a != ref_b
     assert result.ok is True
@@ -199,7 +199,7 @@ def test_foreign_scope_candidate_is_never_used_when_original_scope_has_none() ->
     ref = snapshot_ref(session.ui_snapshot(scope="window-A"))
     session.ui_snapshot(scope="window-B")
 
-    result = session.click(ref=ref)
+    result = session.click(ref=ref, backend="uia")
 
     assert result == Result.fail(
         STALE_ELEMENT,
@@ -227,7 +227,7 @@ def test_successful_relocation_rebinds_node_and_native_maps_bijectively() -> Non
     session = Session(driver)
     ref = snapshot_ref(session.ui_snapshot(scope="101"))
 
-    result = session.click(ref=ref)
+    result = session.click(ref=ref, backend="uia")
     refreshed_refs = [
         line.split(" | ", 1)[0]
         for line in session.ui_snapshot(scope="101").splitlines()
@@ -263,7 +263,7 @@ def test_relocation_reverse_collision_fails_before_candidate_action() -> None:
     snapshot = session.ui_snapshot(scope="101")
     old_ref, owner_ref = [line.split(" | ", 1)[0] for line in snapshot.splitlines()]
 
-    result = session.click(ref=old_ref)
+    result = session.click(ref=old_ref, backend="uia")
 
     assert result == Result.fail(
         STALE_ELEMENT,
@@ -291,7 +291,7 @@ def test_same_native_cross_scope_reuses_ref_and_first_scope() -> None:
     first_ref = snapshot_ref(session.ui_snapshot(scope="scope-A"))
     second_ref = snapshot_ref(session.ui_snapshot(scope="scope-B"))
 
-    result = session.click(ref=first_ref)
+    result = session.click(ref=first_ref, backend="uia")
 
     assert second_ref == first_ref
     assert result.ok is True
@@ -303,7 +303,7 @@ def test_same_native_cross_scope_reuses_ref_and_first_scope() -> None:
 def test_unknown_ref_fails_without_any_driver_call() -> None:
     driver = RefDriver([])
 
-    result = Session(driver).click(ref="ref_999")
+    result = Session(driver).click(ref="ref_999", backend="uia")
 
     assert result == Result.fail(
         STALE_ELEMENT,
@@ -323,7 +323,7 @@ def test_ref_without_semantic_action_never_falls_back_to_coordinates() -> None:
     session = Session(driver)
     ref = snapshot_ref(session.ui_snapshot(scope="scope-A"))
 
-    result = session.click(ref=ref)
+    result = session.click(ref=ref, backend="uia")
 
     assert result == Result.fail(
         NOT_INVOKABLE,
@@ -333,6 +333,21 @@ def test_ref_without_semantic_action_never_falls_back_to_coordinates() -> None:
     assert driver.invoked == []
     assert driver.selected == []
     assert driver.coordinate_clicks == []
+
+
+def test_ref_click_defaults_to_os_input_at_fresh_observed_center() -> None:
+    driver = RefDriver(
+        [("foreground", TreeResult([node("target", patterns=())], truncated=0))]
+    )
+    session = Session(driver)
+    ref = snapshot_ref(session.ui_snapshot())
+
+    result = session.click(ref=ref)
+
+    assert result.ok is True
+    assert driver.coordinate_clicks == [(20, 20, "left")]
+    assert driver.invoked == []
+    assert driver.selected == []
 
 
 def test_snapshot_surfaces_truncation() -> None:

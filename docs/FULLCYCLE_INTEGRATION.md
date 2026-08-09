@@ -71,6 +71,15 @@ input schema, effect, result-content/sensitivity policy, grounding rule,
 approval/observation behavior, sensitive argument names, and required safety
 baselines.
 
+The frozen Lane A manifest intentionally remains the thirteen-core-tool
+`REVIEWED_TOOLS` surface. User-configured `browser_snapshot` is a Runtime-only
+optional observation whose combined registry digest is bound to live Host
+state, discovery, continuation, and recovery, but it is not added to this
+already pinned external export contract. Browser page text is raw semantic
+content and therefore cannot enter the automatic redacted Full Cycle lane.
+Adding it to a future manifest or rich episode would require a new version and
+the separate Lane B consent/security/privacy review.
+
 ### Redacted run bundle v1
 
 Implemented canonical fields:

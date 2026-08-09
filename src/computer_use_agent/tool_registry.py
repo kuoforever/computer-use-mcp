@@ -169,6 +169,19 @@ _MCP_OPTIONAL_Y = {
 }
 _MCP_ZERO_INTEGER = {"default": 0, "title": "Delta", "type": "integer"}
 _MCP_DURATION = {"default": 250, "title": "Duration Ms", "type": "integer"}
+_BROWSER_DETAIL = {"type": "string", "enum": ["semantic", "text", "both"]}
+_MCP_BROWSER_DETAIL = {
+    "default": "semantic",
+    "enum": ["semantic", "text", "both"],
+    "title": "Detail",
+    "type": "string",
+}
+_BROWSER_PAGE_INDEX = {"type": "integer", "minimum": 0, "maximum": 31}
+_MCP_BROWSER_PAGE_INDEX = {
+    "default": 0,
+    "title": "Page Index",
+    "type": "integer",
+}
 
 
 REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
@@ -439,12 +452,64 @@ REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
     ),
 )
 
+OPTIONAL_REVIEWED_TOOLS: tuple[ToolSpec, ...] = (
+    ToolSpec(
+        name="browser_snapshot",
+        description=(
+            "Read bounded rendered text or semantics from a configured Chromium CDP page. "
+            "This tool never navigates or acts; Playwright refs are not desktop action refs. "
+            "Do not repeat an unchanged unavailable call; use desktop observation instead."
+        ),
+        input_schema=_host_schema(
+            {"page_index": _BROWSER_PAGE_INDEX, "detail": _BROWSER_DETAIL}
+        ),
+        mcp_input_schema=_mcp_schema(
+            "browser_snapshotArguments",
+            {
+                "page_index": _MCP_BROWSER_PAGE_INDEX,
+                "detail": _MCP_BROWSER_DETAIL,
+            },
+        ),
+        effect=ToolEffect.OBSERVATION,
+        result_content=ResultContentKind.TEXT,
+        result_sensitivity=ResultSensitivity.NORMAL,
+        redaction_policy=RedactionPolicy.NONE,
+        grounding=GroundingRequirement.NONE,
+        requires_host_approval=False,
+        invalidates_observation=False,
+    ),
+)
+
 # Region-bounded observation tools share the desktop server's pixel ceiling.
 _REGION_TOOLS = frozenset({"ocr", "capture_region"})
 MAX_REGION_PIXELS = 4_000_000
 
-_TOOLS_BY_NAME = {tool.name: tool for tool in REVIEWED_TOOLS}
-EXPECTED_TOOL_NAMES = frozenset(_TOOLS_BY_NAME)
+ALL_REVIEWED_TOOLS = (*REVIEWED_TOOLS, *OPTIONAL_REVIEWED_TOOLS)
+_TOOLS_BY_NAME = {tool.name: tool for tool in ALL_REVIEWED_TOOLS}
+EXPECTED_TOOL_NAMES = frozenset(tool.name for tool in REVIEWED_TOOLS)
+OPTIONAL_TOOL_NAMES = frozenset(tool.name for tool in OPTIONAL_REVIEWED_TOOLS)
+
+
+def configured_optional_tool_names(environment: Mapping[str, str]) -> frozenset[str]:
+    """Derive reviewed optional capability names from strict MCP launch controls."""
+
+    enabled: set[str] = set()
+    if environment.get("CUMCP_BROWSER_OBSERVATION", "off").strip().lower() == "cdp":
+        enabled.add("browser_snapshot")
+    return frozenset(enabled)
+
+
+def reviewed_tools_with_optional(
+    optional_tool_names: frozenset[str] = frozenset(),
+) -> tuple[ToolSpec, ...]:
+    if not isinstance(optional_tool_names, frozenset) or not optional_tool_names.issubset(
+        OPTIONAL_TOOL_NAMES
+    ):
+        raise ToolValidationError("optional tool set is not reviewed")
+    return (
+        *REVIEWED_TOOLS,
+        *(tool for tool in OPTIONAL_REVIEWED_TOOLS if tool.name in optional_tool_names),
+    )
 
 
 def get_tool_spec(name: str) -> ToolSpec:
@@ -462,7 +527,9 @@ def reviewed_tool_schemas() -> tuple[dict[str, JSONValue], ...]:
     return tuple(to_json_value(tool.input_schema) for tool in REVIEWED_TOOLS)  # type: ignore[return-value]
 
 
-def reviewed_registry_digest() -> str:
+def reviewed_registry_digest(
+    optional_tool_names: frozenset[str] = frozenset(),
+) -> str:
     """Return a stable digest of every reviewed provider and MCP tool contract."""
 
     material = [
@@ -481,13 +548,15 @@ def reviewed_registry_digest() -> str:
             "sensitive_arguments": list(tool.sensitive_arguments),
             "required_safety_baselines": list(tool.required_safety_baselines),
         }
-        for tool in REVIEWED_TOOLS
+        for tool in reviewed_tools_with_optional(optional_tool_names)
     ]
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
 
 
-def reviewed_mcp_descriptors() -> tuple[MCPToolDescriptor, ...]:
+def reviewed_mcp_descriptors(
+    optional_tool_names: frozenset[str] = frozenset(),
+) -> tuple[MCPToolDescriptor, ...]:
     """Return immutable expected descriptors for a local MCP discovery check."""
 
     return tuple(
@@ -498,7 +567,7 @@ def reviewed_mcp_descriptors() -> tuple[MCPToolDescriptor, ...]:
                 None if tool.returns_image else _mcp_text_output_schema(tool.name)
             ),
         )
-        for tool in REVIEWED_TOOLS
+        for tool in reviewed_tools_with_optional(optional_tool_names)
     )
 
 
@@ -512,7 +581,10 @@ def _mcp_text_output_schema(tool_name: str) -> dict[str, JSONValue]:
     }
 
 
-def verify_discovered_tools(discovered_tools: Sequence[object]) -> None:
+def verify_discovered_tools(
+    discovered_tools: Sequence[object],
+    optional_tool_names: frozenset[str] = frozenset(),
+) -> None:
     """Fail closed unless local discovery exactly matches names and schemas."""
 
     descriptors = tuple(discovered_tools)
@@ -521,10 +593,13 @@ def verify_discovered_tools(discovered_tools: Sequence[object]) -> None:
     names = tuple(tool.name for tool in descriptors)
     if len(set(names)) != len(names):
         raise ToolRegistryMismatchError("MCP discovery returned duplicate tool names")
+    expected_tools = reviewed_tools_with_optional(optional_tool_names)
+    expected_by_name = {tool.name: tool for tool in expected_tools}
+    expected_names = frozenset(expected_by_name)
     actual = frozenset(names)
-    if actual != EXPECTED_TOOL_NAMES:
-        missing = sorted(EXPECTED_TOOL_NAMES - actual)
-        unexpected = sorted(actual - EXPECTED_TOOL_NAMES)
+    if actual != expected_names:
+        missing = sorted(expected_names - actual)
+        unexpected = sorted(actual - expected_names)
         details: list[str] = []
         if missing:
             details.append(f"missing={','.join(missing)}")
@@ -532,7 +607,7 @@ def verify_discovered_tools(discovered_tools: Sequence[object]) -> None:
             details.append(f"unexpected={','.join(unexpected)}")
         raise ToolRegistryMismatchError("MCP tool set mismatch: " + "; ".join(details))
     for descriptor in descriptors:
-        reviewed = _TOOLS_BY_NAME[descriptor.name]
+        reviewed = expected_by_name[descriptor.name]
         if to_json_value(descriptor.input_schema) != to_json_value(reviewed.mcp_input_schema):
             raise ToolRegistryMismatchError(f"MCP input schema mismatch for tool {descriptor.name}")
         expected_output = (
@@ -580,6 +655,16 @@ def _validate_scalar(name: str, value: object, schema: Mapping[str, object]) -> 
             raise ToolValidationError(f"{name} must be an integer")
     else:
         raise ToolValidationError(f"reviewed schema for {name} has unsupported type")
+    choices = schema.get("enum")
+    if isinstance(choices, (list, tuple)) and value not in choices:
+        raise ToolValidationError(f"{name} must be one of the reviewed choices")
+    minimum = schema.get("minimum")
+    maximum = schema.get("maximum")
+    if isinstance(value, int) and not isinstance(value, bool):
+        if isinstance(minimum, int) and value < minimum:
+            raise ToolValidationError(f"{name} is below the reviewed minimum")
+        if isinstance(maximum, int) and value > maximum:
+            raise ToolValidationError(f"{name} exceeds the reviewed maximum")
     return value
 
 

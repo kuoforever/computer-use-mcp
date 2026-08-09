@@ -16,7 +16,7 @@ The five configuration commands answer different questions:
 | `config settings [--config PATH] [--json]` | Project the strict TOML as human-first Agent Controls settings | Reads configuration plus provider SDK/credential presence only; creates no state and starts no process |
 | `config init --profile PROFILE --provider NAME --model ID --output PATH [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
-| `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact thirteen schemas |
+| `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact configured surface: thirteen core schemas plus optional `browser_snapshot` when enabled |
 
 `config setup` defaults to the reviewed `desktop-ask` / `openai` combination
 and the current project-validated model ID. Explicit profile, provider, model,
@@ -143,9 +143,9 @@ stronger claim.
 
 After a known-successful native mouse or keyboard action, the server records
 the platform input tick so its next action does not yield to its own injected
-input. This attribution is limited to successful coordinate clicks, valid
-scrolls and drags, focused-control typing without a ref, and key chords.
-Semantic UIA ref clicks and ref typing, window activation, validation failures,
+input. This attribution is limited to successful OS-input ref/coordinate
+clicks, valid scrolls and drags, focused-control typing without a ref, and key
+chords. User-enabled semantic UIA ref clicks and ref typing, window activation, validation failures,
 no-op motions, and failed driver results never claim an input tick. Concurrent
 human input therefore remains authoritative and makes the next `safe_local`
 action yield without dispatch. A failed native call is left unattributed. If it
@@ -194,7 +194,10 @@ same-desktop background control safe or parallel.
 | `CUMCP_HUMAN_MAX_WAIT_SECONDS` | `60` | Maximum time one action call may wait for a stable idle streak. The Host accepts only `1` through `300` seconds. The installed Public Web to Word profile fixes this at `15`, below its 30-second MCP bridge timeout, so extended operator activity remains a known pre-dispatch result rather than a transport timeout. |
 | `CUMCP_INTERACTION_SPEED` | unset | Optional Host-owned presentation profile: `fast`, `normal`, or `deliberate`. It changes only bounded pointer motion, pre/post-action dwell, and the default typing delay. Unset preserves native timing. Delay is never authority: every later native mutation still revalidates. The profile never changes observation, approval, readiness, policy, budgets, or verification. |
 | `CUMCP_ACTION_FEEDBACK` | Raw MCP default `0`; generated product profiles write `1` | Shows a passive, click-through, non-activating, capture-excluded mouse halo and content-free `AGENT TYPING` / `AGENT KEY` badge. During visible typing, a pulsing caret, cycling dots, and progress bar follow the foreground editor's native caret using bounded geometry plus length/timing metadata. If no native caret exists, the badge stays at its last safe fallback. It never receives typed text or key values. |
-| `CUMCP_TYPE_WAIT_SECONDS` | profile value or `0` | Optional explicit delay between literal Unicode scalars for the focused-control `type` fallback. Accepted range is `0` to `0.1`; it overrides the selected presentation profile. Braces are literal; chords use `key`. Ref-based ValuePattern writes remain one opaque UIA mutation rather than per-character. |
+| `CUMCP_TYPE_WAIT_SECONDS` | profile value or `0` | Optional explicit delay between literal Unicode scalars for focused-control OS typing. Accepted range is `0` to `0.1`; it overrides the selected presentation profile. Braces are literal; chords use `key`. User-enabled ref-based ValuePattern writes remain one opaque UIA mutation rather than per-character. |
+| `CUMCP_BROWSER_OBSERVATION` | `off` | `off` exposes the thirteen core tools. `cdp` adds the reviewed read-only `browser_snapshot` tool and makes the Agent Host advertise it to the model. |
+| `CUMCP_BROWSER_CDP_ENDPOINT` | `http://127.0.0.1:9222` | Existing Chromium debugging endpoint used only when browser observation is `cdp`. It must be loopback `http`/`ws`, include a port, and contain no credentials, query, or fragment. The Runtime neither launches nor closes the browser. |
+| `CUMCP_UIA_ACTIONS` | `0` | OS pointer/keyboard input is the default action route. Set to `1` only when the user wants ref clicks to use UIA Invoke/SelectionItem and ref typing to use ValuePattern. A failed UIA call never falls back to OS input. |
 | `CUMCP_DANGEROUS_CONFIRM` | on in safe mode; off in full-control mode | Enables confirmation for dangerous `click(ref=...)` targets. |
 | `CUMCP_ESTOP` | `ctrl+alt+q` | Global hotkey that latches all actions off until the server restarts. |
 | `CUMCP_AUDIT` | `audit/actions.jsonl` | JSONL audit-log path. |
@@ -225,6 +228,23 @@ $env:CUMCP_DANGEROUS_CONFIRM = "1"
 .\.venv\Scripts\guarded-desktop-mcp.exe
 ~~~
 
+For an Agent Host configuration, the optional rendered-browser route is user
+owned and may point at any explicitly started local Chromium debugging port:
+
+~~~toml
+[mcp]
+environment = { CUMCP_ALLOWLIST = "chrome.exe", CUMCP_BROWSER_OBSERVATION = "cdp", CUMCP_BROWSER_CDP_ENDPOINT = "http://127.0.0.1:9222" }
+~~~
+
+Install the `browser` extra (for example `.[agent-openai,browser]`) in that
+environment. The model may choose `browser_snapshot`, UIA, document text, OCR,
+or pixels per scene, but cannot change the endpoint, enable UIA actions, or add
+authority: those remain trusted user configuration. Browser observation reads
+the already rendered page, which addresses JavaScript pages whose raw HTTP
+body is empty; it does not navigate or bypass login, CAPTCHA, anti-automation,
+or other site challenges. Those conditions require cooperative user takeover
+or a different authorized source.
+
 ## What the safeguards do not cover
 
 - Dangerous-action confirmation currently applies to keyword-matched
@@ -234,6 +254,9 @@ $env:CUMCP_DANGEROUS_CONFIRM = "1"
   perform general sensitive-data detection.
 - Screenshot redaction blackens visible windows only when their titles match a
   configured substring. It does not inspect the pixels or redact every secret.
+- Browser observation strips URL credentials/query/fragment but does not
+  classify or redact rendered page text. Enable it only for a CDP session whose
+  visible content may be sent to the configured provider.
 - The safe-mode allowlist is a local guardrail, not an operating-system
   security boundary.
 - A single desktop still has shared focus, pointer, keyboard, and screenshot

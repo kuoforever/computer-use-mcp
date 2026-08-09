@@ -21,10 +21,14 @@ desktop execution authority, and durable evidence that outlives a crash.
 
 ## What this proves
 
-- **13 reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
+- **13 core reviewed MCP tools** over stdio — `ui_snapshot`, `find`, `list_windows`,
   `screenshot`, `capture_region`, `ocr`, `document_text`, `activate_window`,
   `click`, `scroll`, `drag`, `type`, and `key` — with
   fixed schemas, argument validation, and discovery-mismatch checks.
+- **Optional rendered-browser observation.** A user-configured 14th
+  `browser_snapshot` tool can read bounded ARIA/text from an existing loopback
+  Chromium CDP session. It has no browser action, script, cookie, or storage
+  authority; desktop effects remain on the ordinary Runner/MCP/Win32 path.
 - **Two provider paths** (OpenAI and Claude) behind one provider-neutral tool
   contract, with [retained dual-provider evidence](docs/E3_EVIDENCE.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
@@ -88,7 +92,8 @@ flowchart TB
     AR[Agent Runner<br/>sole dispatch boundary] --> PG
     PG[Policy · approval · grounding] --> SRV
     SRV[MCP server<br/>SOLE DESKTOP EXECUTION AUTHORITY] --> WD
-    WD[Windows driver<br/>UIA · capture · input]
+    BA[Optional Playwright CDP<br/>read-only rendered observation] --> SRV
+    WD[Windows driver<br/>UIA · capture · OS input]
     AR -. evidence .-> DS[(Durable state<br/>checkpoint · WAL · ledger · trace)]
     SRV -. evidence .-> DS
 ```
@@ -102,9 +107,10 @@ same policy, grounding, and audit boundary exactly once.
 - **Least privilege by default.** `safe_local` gates actions on the foreground
   window's *process ancestry*, not just its executable name, and yields while a
   human is typing.
-- **A ref is intent, not a coordinate.** A `ref` action never silently degrades
-  into a center-point click: a stale or occluded element fails loudly instead of
-  clicking whatever moved into that pixel.
+- **The backend is chosen before dispatch.** OS pointer/keyboard input is the
+  default. A ref click is explicitly routed to its observed center; user-enabled
+  UIA keeps semantic Invoke/SelectionItem. A failed UIA action never silently
+  degrades into a coordinate click.
 - **Uncertainty is a first-class state.** Known-completed, known-not-dispatched,
   and unknown are distinct outcomes. Only the first two may proceed on their own.
 - **Evidence integrity is maintained by CI, not by hand.** Dated records keep the
@@ -158,6 +164,10 @@ $env:OPENAI_API_KEY = "<provider credential>"
 .\.venv\Scripts\guarded-desktop-agent.exe config settings
 ~~~
 
+To enable the optional existing-browser observer, install
+`.[agent-openai,browser]` instead and add the documented loopback CDP settings
+to `[mcp].environment`. It does not launch a browser or enable browser actions.
+
 `config setup` prints the exact `config doctor --config ...` command for its
 user-local configuration. Run that command before asking the first question.
 The safe-pause chord defaults to `ctrl+alt+p`; setup may choose another letter,
@@ -207,7 +217,9 @@ both registered shortcuts. See [Quick Setup and Agent Controls](docs/AGENT_CONTR
 `config doctor` is the installed-runtime readiness check. It validates the
 configuration, provider extra and documented credential variable, MCP
 executable and working directory, then starts the installed MCP child long
-enough to verify the exact thirteen-tool `initialize` / `list_tools` contract.
+enough to verify the exact configured `initialize` / `list_tools` contract:
+thirteen core tools, or those thirteen plus `browser_snapshot` when CDP
+observation is enabled.
 It prints fixed JSON and exits `0` only when every check passes (`2` for one
 actionable failure). It sends no provider request, invokes no MCP tool, reads no
 desktop content, and performs no desktop action. MCP startup can still create
@@ -356,13 +368,14 @@ aliases for existing integrations. New configurations should use
 1. Call `ui_snapshot()` to obtain a flat list of interactive controls and
    their `ref_N` handles, call `ocr(x, y, w, h)` for bounded static text, call
    `capture_region(x, y, w, h)` for one cropped image, or call `screenshot()`
-   for whole-display visual inspection.
-2. Prefer `click(ref="ref_N")` and `type(text, ref="ref_N")` when UIA
-   exposes the target. These use accessibility patterns rather than synthetic
-   coordinate clicks.
-3. Use `click(x=..., y=...)` only for visual/canvas-style targets that UIA
-   cannot expose. Coordinates share the primary-display pixel space shown by
-   `screenshot()`.
+   for whole-display visual inspection. If the user configured it, use
+   `browser_snapshot()` as bounded rendered-page assistance.
+2. By default, `click(ref="ref_N")`, coordinate clicks, focused `type(text)`,
+   and `key(combo)` act through visible OS pointer/keyboard input. A ref binds
+   the observed target; it does not grant a browser-native action.
+3. Set `CUMCP_UIA_ACTIONS=1` only when the user wants semantic ref clicks and
+   ref-addressed ValuePattern writes. The Runtime never switches to OS input
+   after a failed UIA attempt.
 4. Inspect the returned result and audit log before proceeding with another
    action.
 
@@ -377,11 +390,12 @@ aliases for existing integrations. New configurations should use
 | `capture_region(x, y, w, h)` | Returns a grounding envelope plus a PNG of one explicit primary-display region. |
 | `ocr(x, y, w, h)` | Recognizes bounded text runs in one explicit primary-display region. |
 | `document_text(scope="foreground")` | Reads bounded ordered semantic text through UIA TextPattern. |
+| `browser_snapshot(page_index=0, detail="both")` | Optional read-only rendered ARIA/text from a configured loopback Chromium CDP session; no browser refs or actions. |
 | `activate_window(window_id)` | Attempts to restore and activate a listed window; success requires the driver to verify that it became foreground. |
-| `click(ref=...)` / `click(x=..., y=...)` | Invokes an accessible control or performs a coordinate click. |
+| `click(ref=...)` / `click(x=..., y=...)` | Uses OS pointer input by default; a user-enabled UIA mode makes ref clicks semantic. |
 | `scroll(x, y, delta_x=0, delta_y=0)` | Scrolls at one screenshot-grounded point. |
 | `drag(x, y, to_x, to_y, duration_ms=250)` | Drags between two screenshot-grounded points. |
-| `type(text, ref=None)` | Sets an accessible value when a ref is supplied, otherwise types into focus. |
+| `type(text, ref=None)` | Types into focus through OS keyboard input; ref-addressed UIA ValuePattern requires user opt-in. |
 | `key(combo)` | Sends a key chord to the foreground window. |
 
 See the exact parameters, ref lifecycle, safeguards, and errors in
@@ -393,8 +407,10 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
   multi-monitor grounding, and isolated-worker orchestration are roadmap items,
   not current capabilities.
 - **Foreground desktop, primary display.** This is not a background worker.
-- **Not a browser automation framework.** Chromium-family UIA trees may be
-  incomplete until accessibility content is exposed; verify per application.
+- **Not a browser-action or stealth framework.** Optional Playwright CDP is
+  Chromium-only read assistance. It does not navigate, bypass login or
+  anti-automation challenges, or replace visible OS input; verify per
+  application.
 - **No application acceptance.** The retained BOSS records cover bounded
   read-only observation of specific pages. They do not support any claim about
   automated applications, messages, or a general campaign worker.

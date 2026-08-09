@@ -30,7 +30,7 @@ server boundary when no driver is explicitly supplied.
 
 | Component | Responsibility |
 | --- | --- |
-| `server.py` | Exposes thirteen MCP tools and applies runtime guard behavior. |
+| `server.py` | Exposes thirteen core MCP tools, conditionally adds one reviewed read-only browser observation, and applies runtime guard behavior. |
 | `core.py` | Maintains session-scoped `ref_N` handles, serializes snapshots, and retries one eligible explicit-window stale ref relocation. |
 | `contract.py` | Defines the typed Driver boundary and shared data structures. |
 | `drivers/windows.py` | Uses UIA/Win32, screen capture, and process inspection to implement the contract. |
@@ -48,33 +48,42 @@ The server exposes MCP tools rather than model-specific prompts or browser
 automation APIs. A client can use screenshot-based visual grounding or
 UIA-based refs without changing the core tool semantics.
 
-### Two observation paths
+### Observation paths
 
 - `screenshot()` gives vision-capable clients a primary-display PNG.
 - `ui_snapshot()` provides a flat UIA control list for text-first clients.
 - `find(query)` narrows a snapshot to reduce context cost.
 - `list_windows()` reports top-level window ids and direct owners. A completely
   successful call atomically replaces the MCP instance's activation bindings.
+- Optional `browser_snapshot()` reads bounded rendered ARIA/text from one
+  user-configured loopback Chromium CDP session. It adds no action or ref path.
 
 The current MCP screenshot surface is deliberately narrower than the internal
 driver contract: it has no region argument and captures only the primary
 display.
 
-### Two action paths
+### Explicit action backends
 
-- `click(ref=...)` uses the target's accessibility pattern where available:
-  invoke, selection, or value-setting.
-- `click(x=..., y=...)` uses a physical coordinate click in the current
-  primary-display pixel space.
+- OS input is the default: `click(ref=...)` resolves the observed ref box and
+  clicks its center through Win32; `click(x=..., y=...)` uses the supplied
+  primary-display point; focused type and key use native key events.
+- Trusted user configuration `CUMCP_UIA_ACTIONS=1` changes ref clicks to
+  Invoke/SelectionItem and permits ref typing through ValuePattern. The model
+  cannot enable this setting.
 
-Ref actions must not be silently converted to center-of-bounding-box clicks.
-If a native control is stale, the session makes at most one role-and-name
+The backend is selected before dispatch and never changes after a failure.
+Within user-enabled UIA execution, ref actions must not be silently converted
+to center-of-bounding-box clicks. If a native control is stale, the session
+makes at most one role-and-name
 relocation attempt inside the explicit window-id scope token that first minted
 that ref, then returns an explainable error. Later snapshot/find calls do not
 replace this per-ref relocation scope. A successful relocation updates the
 cached Node and both directions of the native/ref binding together; a candidate
 already owned by another ref fails closed without a second semantic action. The
-ref path never falls back to coordinates.
+UIA ref path never falls back to coordinates. The OS-input default accepts the
+normal timing/occlusion risk of observed geometry and therefore requires fresh
+grounding and post-action observation at the Agent Host boundary. See
+[ADR-011](adr/011-os-input-default-with-read-only-browser-assist.md).
 
 `foreground` and `all` are dynamic selectors, not resolved physical-window
 identities. A ref minted through either token fails `STALE_ELEMENT` immediately

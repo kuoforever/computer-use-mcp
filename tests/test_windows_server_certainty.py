@@ -150,6 +150,7 @@ def test_uia_callback_effect_then_raise_is_central_redacted_unknown(
         dangerous_confirmation=False,
         control_mode="full_control_local",
         audit_path=str(audit_path),
+        uia_actions_enabled=True,
     )
     snapshot = _tool_text(asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"})))
     assert "ref_1" in snapshot
@@ -157,7 +158,12 @@ def test_uia_callback_effect_then_raise_is_central_redacted_unknown(
     result = asyncio.run(
         server.call_tool(
             "click",
-            {"ref": "ref_1", "x": None, "y": None, "button": "left"},
+            {
+                "ref": "ref_1",
+                "x": None,
+                "y": None,
+                "button": "left",
+            },
         )
     )
     record = _assert_fixed_unknown(result, audit_path, secret=UIA_SECRET)

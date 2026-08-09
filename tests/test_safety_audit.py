@@ -602,12 +602,16 @@ def test_semantic_ref_click_preserves_concurrent_human_input_authority(
         start_estop=False,
         dangerous_confirmation=False,
         audit_path=str(tmp_path / "actions.jsonl"),
+        uia_actions_enabled=True,
     )
     asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
 
     semantic = tool_text(
         asyncio.run(
-            server.call_tool("click", {"ref": "ref_1", "x": None, "y": None})
+            server.call_tool(
+                "click",
+                {"ref": "ref_1", "x": None, "y": None},
+            )
         )
     )
     native = tool_text(
@@ -619,6 +623,56 @@ def test_semantic_ref_click_preserves_concurrent_human_input_authority(
     assert semantic == "ok"
     assert native.startswith("HUMAN_ACTIVE:")
     assert driver.action_calls == ["invoke"]
+
+
+def test_ref_click_defaults_to_attributed_os_pointer_input(tmp_path: Path) -> None:
+    activity = NoteTrackingActivity()
+    driver = AttributionDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        human_activity=activity,
+        start_estop=False,
+        dangerous_confirmation=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    result = tool_text(
+        asyncio.run(
+            server.call_tool("click", {"ref": "ref_1", "x": None, "y": None})
+        )
+    )
+
+    assert result == "ok"
+    assert driver.action_calls == ["click:left"]
+    assert activity.note_calls == 1
+
+
+def test_ref_type_is_denied_until_user_configuration_enables_uia(
+    tmp_path: Path,
+) -> None:
+    driver = AttributionDriver()
+    server = build_server(
+        allowlist=["notepad.exe"],
+        driver=driver,
+        start_estop=False,
+        dangerous_confirmation=False,
+        audit_path=str(tmp_path / "actions.jsonl"),
+    )
+    asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
+
+    result = tool_text(
+        asyncio.run(
+            server.call_tool(
+                "type",
+                {"text": "safe text", "ref": "ref_2"},
+            )
+        )
+    )
+
+    assert result == "DENIED by gate: UIA actions disabled"
+    assert driver.action_calls == []
 
 
 def test_successful_native_input_is_attributed_without_self_blocking(
@@ -747,9 +801,24 @@ def test_invalid_noop_or_failed_input_does_not_claim_an_agent_tick(
         ),
         ("type", {"text": SECRET, "ref": None}, "type", False),
         ("key", {"combo": "Ctrl+S"}, "key", False),
-        ("click", {"ref": "ref_1", "x": None, "y": None}, "invoke", True),
-        ("click", {"ref": "ref_2", "x": None, "y": None}, "select", True),
-        ("type", {"text": SECRET, "ref": "ref_3"}, "set_value", True),
+        (
+            "click",
+            {"ref": "ref_1", "x": None, "y": None},
+            "invoke",
+            True,
+        ),
+        (
+            "click",
+            {"ref": "ref_2", "x": None, "y": None},
+            "select",
+            True,
+        ),
+        (
+            "type",
+            {"text": SECRET, "ref": "ref_3"},
+            "set_value",
+            True,
+        ),
     ],
 )
 def test_failed_windows_action_after_attempt_is_fixed_redacted_unknown(
@@ -769,6 +838,7 @@ def test_failed_windows_action_after_attempt_is_fixed_redacted_unknown(
         start_estop=False,
         dangerous_confirmation=False,
         audit_path=str(audit_path),
+        uia_actions_enabled=True,
     )
     if snapshot_first:
         asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
@@ -870,6 +940,7 @@ def test_zero_attempt_ref_and_argument_failures_keep_existing_certainty(
         start_estop=False,
         dangerous_confirmation=False,
         audit_path=str(audit_path),
+        uia_actions_enabled=True,
     )
     if snapshot_first:
         asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
@@ -958,11 +1029,17 @@ def test_semantic_ref_type_is_not_attributed_and_stays_redacted(
         human_activity=activity,
         start_estop=False,
         audit_path=str(audit_path),
+        uia_actions_enabled=True,
     )
     asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
 
     result = tool_text(
-        asyncio.run(server.call_tool("type", {"text": SECRET, "ref": "ref_2"}))
+        asyncio.run(
+            server.call_tool(
+                "type",
+                {"text": SECRET, "ref": "ref_2"},
+            )
+        )
     )
     raw, record = _read_single_record(audit_path)
 
@@ -1624,11 +1701,17 @@ def test_dangerous_confirmation_cannot_outlive_foreground_authority(
         confirmer=confirm_and_change_foreground,
         start_estop=False,
         audit_path=str(tmp_path / "actions.jsonl"),
+        uia_actions_enabled=True,
     )
     asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
 
     result = tool_text(
-        asyncio.run(server.call_tool("click", {"ref": "ref_1", "x": None, "y": None}))
+        asyncio.run(
+            server.call_tool(
+                "click",
+                {"ref": "ref_1", "x": None, "y": None},
+            )
+        )
     )
 
     assert result.startswith("DENIED by gate:")
@@ -1663,11 +1746,17 @@ def test_dangerous_confirmation_tick_is_allowed_once_for_its_click(
         confirmer=confirm,
         start_estop=False,
         audit_path=str(tmp_path / "actions.jsonl"),
+        uia_actions_enabled=True,
     )
     asyncio.run(server.call_tool("ui_snapshot", {"scope": "foreground"}))
 
     confirmed = tool_text(
-        asyncio.run(server.call_tool("click", {"ref": "ref_1", "x": None, "y": None}))
+        asyncio.run(
+            server.call_tool(
+                "click",
+                {"ref": "ref_1", "x": None, "y": None},
+            )
+        )
     )
     next_action = tool_text(
         asyncio.run(server.call_tool("key", {"combo": "Ctrl+S"}))

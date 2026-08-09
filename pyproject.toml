@@ -37,6 +37,7 @@ dev = ["pytest>=8", "ruff>=0.5,<0.16", "mypy>=1.11", "build>=1.2", "setuptools>=
 agent-openai = ["openai>=1.68,<3"]
 agent-anthropic = ["anthropic>=0.77,<1"]
 agent = ["openai>=1.68,<3", "anthropic>=0.77,<1"]
+browser = ["playwright>=1.60,<2"]
 # Observability is opt-in. Without it the telemetry port stays a no-op and
 # opens no connection, so offline runs and CI never depend on a collector.
 observability = ["opentelemetry-sdk>=1.25", "opentelemetry-exporter-otlp>=1.25"]

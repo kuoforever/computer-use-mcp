@@ -38,6 +38,7 @@ from .tool_registry import (
     validate_tool_arguments,
     validate_tool_result,
     verify_discovered_tools,
+    configured_optional_tool_names,
 )
 from .types import (
     MAX_IMAGE_BYTES,
@@ -87,7 +88,7 @@ _SERVER_ERROR_PREFIXES = (
     ("NATIVE_AUTHORITY_LOST:", "NATIVE_AUTHORITY_LOST"),
 )
 _STRUCTURED_OBSERVATION_ERROR_TOOLS = frozenset(
-    {"capture_region", "document_text", "ocr"}
+    {"browser_snapshot", "capture_region", "document_text", "ocr"}
 )
 
 
@@ -436,6 +437,7 @@ class StdioDesktopMCP:
         if not callable(session_factory):
             raise ValueError("session_factory must be callable")
         self._launch = launch
+        self._optional_tool_names = configured_optional_tool_names(launch.environment)
         self._timeout_seconds = _validate_timeout(timeout_seconds, "timeout_seconds")
         self._close_timeout_seconds = _validate_timeout(
             close_timeout_seconds,
@@ -659,7 +661,7 @@ class StdioDesktopMCP:
                             output_schema=json_output_schema,
                         )
                     )
-                verify_discovered_tools(descriptors)
+                verify_discovered_tools(descriptors, self._optional_tool_names)
                 self._verified_generation = self._generation
                 return tuple(descriptors)
         except TimeoutError:

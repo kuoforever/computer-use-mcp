@@ -22,9 +22,12 @@
 - Windows；Python 3.11 至 3.13。
 - stdio MCP transport。
 - 主显示器截图和 UIA 控件发现。
-- 13 个 MCP 工具：`ui_snapshot`、`find`、`list_windows`、`screenshot`、
+- 13 个核心 MCP 工具：`ui_snapshot`、`find`、`list_windows`、`screenshot`、
   `capture_region`、`ocr`、`document_text`、`activate_window`、`click`、
   `scroll`、`drag`、`type`、`key`。
+- 用户显式配置后，可增加第 14 个只读 `browser_snapshot`：通过本机
+  Chromium CDP 读取有界的已渲染 ARIA/文字，但不能导航、点击、执行脚本、
+  读取 cookie/storage，也不会产生浏览器 action ref。
 - 默认安全模式：进程白名单、检测到人类输入时让路、危险 ref 点击确认、审计
   日志和急停热键。
 
@@ -69,6 +72,8 @@ $env:OPENAI_API_KEY = "<provider credential>"
 `config setup` 会为用户本地配置打印准确的 `config doctor --config ...`
 命令；首次提问前请执行该命令。安全暂停默认是 `ctrl+alt+p`；可用例如
 `config setup --pause-shortcut ctrl+alt+k` 选择另一个字母，G/Q 保持保留。
+若要启用已有浏览器的只读辅助，请安装 `.[agent-openai,browser]`，并按英文
+配置文档在 `[mcp].environment` 中设置 loopback CDP endpoint；默认仍关闭。
 
 打开一个不敏感的 Notepad、Word 或浏览器测试文档并保持在前台，然后执行：
 
@@ -107,7 +112,8 @@ MCP 急停。没有全局 approve/resume，关闭 host 即释放两个注册。�
 
 `config doctor` 是安装后 readiness 检查：它依次验证配置、provider extra、
 文档约定的凭据环境变量、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP
-子进程，通过 `initialize` / `list_tools` 核对完整的 13-tool 契约。它输出固定
+子进程，通过 `initialize` / `list_tools` 核对完整的已配置契约：默认 13 个
+核心工具，启用 CDP 时为核心工具加 `browser_snapshot`。它输出固定
 JSON；全部通过时退出码为 `0`，遇到一个可操作故障时为 `2`。它不会请求
 provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP 启动期间仍可能
 创建配置的 audit 目录并启动急停按键轮询，随后子进程会被关闭。
@@ -225,19 +231,23 @@ Runner 一定仍然存活。生成的产品配置还会启用只有固定文案�
 私密任务内容的 Windows 通知；真正的决定仍必须回到绑定的 Decision Card。
 完整边界见 [Approval Inbox 与通知契约](docs/APPROVAL_INBOX.md)。
 
-1. 使用 `ui_snapshot()` 获取控件及 `ref_N` 引用，或用 `screenshot()`
-   观察界面。
-2. UIA 可识别控件时，优先使用 `click(ref="ref_N")` 和
-   `type(text, ref="ref_N")`。
-3. 仅在 canvas 或其他 UIA 无法访问的目标上使用坐标点击
-   `click(x=..., y=...)`。
+1. 使用 `ui_snapshot()` 获取控件及 `ref_N`，用 `screenshot()`/OCR 观察
+   界面；如用户已配置，也可让模型按场景选择 `browser_snapshot()` 辅助读取
+   JavaScript 渲染后的页面。
+2. 默认 `click(ref=...)`、坐标点击、focused `type(text)` 和 `key(combo)`
+   都走可见的 Windows OS 鼠标/键盘输入；这是 Win32 生成的 input，不是字面
+   意义上的硬件信号。
+3. 只有用户显式设置 `CUMCP_UIA_ACTIONS=1` 时，ref 点击/输入才走 UIA
+   Invoke/ValuePattern；UIA 失败后绝不自动降级成坐标点击。
 4. 每次动作后查看返回结果和审计日志。
 
 ## 已知限制
 
 - `screenshot()` 只截取主显示器，目前没有 MCP 区域截图参数。
 - 同一桌面共享前台窗口、鼠标和键盘，不能承诺安全的并行后台控制。
-- Chromium 浏览器的 UIA 内容可能不完整，需要按实际应用验证。
+- Chromium 浏览器的 UIA 内容可能不完整；可选 Playwright CDP 只读观察没有
+  真实浏览器/应用验收证据，也不会绕过登录、CAPTCHA 或反自动化挑战，遇到时
+  应暂停并交还用户。
 - VMware 辅助脚本只能启动已有虚拟机，不会创建系统、启动 guest MCP server
   或提供 host-to-guest 传输。
 

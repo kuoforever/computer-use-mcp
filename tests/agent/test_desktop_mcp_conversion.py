@@ -83,7 +83,7 @@ def test_unstructured_observation_text_is_bounded_but_not_an_action_error() -> N
         )
 
 
-@pytest.mark.parametrize("tool_name", ["document_text", "ocr"])
+@pytest.mark.parametrize("tool_name", ["browser_snapshot", "document_text", "ocr"])
 def test_structured_observation_error_is_a_redacted_failure(tool_name: str) -> None:
     result = convert_mcp_result(
         _call(tool_name),

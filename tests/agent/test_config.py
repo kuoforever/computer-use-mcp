@@ -526,6 +526,54 @@ def test_launch_config_rejects_relative_executable_and_unreviewed_environment() 
         )
 
 
+def test_browser_and_uia_controls_are_reviewed_user_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    path = tmp_path / "agent.toml"
+    path.write_text(
+        _config_text(
+            tmp_path,
+            environment=(
+                'CUMCP_ALLOWLIST = "chrome.exe", '
+                'CUMCP_BROWSER_OBSERVATION = "cdp", '
+                'CUMCP_BROWSER_CDP_ENDPOINT = "http://127.0.0.1:9222", '
+                'CUMCP_UIA_ACTIONS = "1"'
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    child = load_agent_config(path).mcp.child_environment()
+
+    assert child["CUMCP_BROWSER_OBSERVATION"] == "cdp"
+    assert child["CUMCP_BROWSER_CDP_ENDPOINT"] == "http://127.0.0.1:9222"
+    assert child["CUMCP_UIA_ACTIONS"] == "1"
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("CUMCP_BROWSER_OBSERVATION", "auto", "must be off or cdp"),
+        ("CUMCP_BROWSER_CDP_ENDPOINT", "https://example.com:9222", "loopback"),
+        ("CUMCP_BROWSER_CDP_ENDPOINT", "http://user:pass@127.0.0.1:9222", "credentials"),
+        ("CUMCP_UIA_ACTIONS", "maybe", "boolean"),
+    ],
+)
+def test_browser_and_uia_controls_fail_closed(
+    key: str,
+    value: str,
+    message: str,
+) -> None:
+    with pytest.raises(ConfigError, match=message):
+        MCPLaunchConfig(
+            executable=Path.cwd() / "computer-use-mcp.exe",
+            args=(),
+            cwd=Path.cwd(),
+            environment={key: value},
+        )
+
+
 def test_default_state_directory_is_user_local() -> None:
     path = default_state_dir({"LOCALAPPDATA": "C:/Users/example/AppData/Local"})
 

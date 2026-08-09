@@ -124,6 +124,15 @@ events inside `click`, `scroll`, `drag`, `key`, `type`, and
 with one server-owned `NativeActionBoundary`; see
 [ADR-009](adr/009-native-action-authority-and-partial-dispatch.md).
 
+The public MCP Session selects one backend before entering that boundary. OS
+pointer/keyboard input is the default: ref clicks use the center of the bound
+observed Node, coordinate clicks use the supplied primary-display point, and
+focused typing/key chords use native key events. User configuration may opt ref
+clicks and ref typing into `invoke`/`select`/`set_value`; a failed UIA primitive
+never falls back to `click(x, y)`. This routing does not add a Driver primitive
+or change contract version `1.0.0`; see
+[ADR-011](adr/011-os-input-default-with-read-only-browser-assist.md).
+
 Immediately before every driver-controlled pointer, mouse, keyboard, UIA, or
 activation mutation, the bound controller calls a non-waiting server-owned
 authority probe. The driver receives only allow/reject. It does not receive or

@@ -119,7 +119,7 @@ def test_explicit_scope_relocation_finds_an_unnamed_target_after_snapshot_cap(
         for index in range(200)
     ] + [_Control(_node(200, name="", native_id="needle-new"))]
 
-    result = session.click(ref=ref)
+    result = session.click(ref=ref, backend="uia")
 
     assert result.ok is True
     assert invoked == ["needle-old", "needle-new"]

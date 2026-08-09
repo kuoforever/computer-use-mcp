@@ -1,7 +1,8 @@
 # MCP tool reference
 
-> **Status: implemented on Windows.** These are the thirteen tools currently
-> exposed by the stdio MCP server.
+> **Status: implemented on Windows.** The stdio MCP server exposes thirteen
+> core tools. User-configured Playwright CDP adds one optional read-only
+> `browser_snapshot` tool; exact discovery verifies either configured surface.
 
 ## Read tools
 
@@ -14,6 +15,16 @@
 | `capture_region` | `x, y, w, h` | Captures exactly one primary-display region and returns a grounding envelope followed by the cropped PNG. The region is limited to 4,000,000 pixels and the encoding to 4 MiB. |
 | `ocr` | `x, y, w, h` | Captures exactly one primary-display region and returns bounded Windows OCR text runs with crop-local and screen-relative boxes. The region is limited to 4,000,000 pixels. |
 | `document_text` | `scope="foreground"` | Returns bounded ordered text blocks read through a real UIA text channel for the scope, with a content digest and truncation metadata. Password fields are skipped; a backend without a semantic text channel fails closed. |
+| `browser_snapshot` (optional) | `page_index=0, detail="both"` | Reads bounded rendered ARIA and/or visible text from one page in an existing loopback Chromium CDP session. It strips URL credentials/query/fragment, marks content untrusted, and provides no action refs, navigation, script evaluation, cookies, storage, or downloads. |
+
+`browser_snapshot` is absent unless the user configures
+`CUMCP_BROWSER_OBSERVATION=cdp` and installs the `browser` package extra. Its
+endpoint is loopback-only and the adapter never launches or closes the user's
+browser. `page_index` is bounded to `0..31`; `detail` is `semantic`, `text`, or
+`both`; page/frame counts, ARIA depth, text, and total result size are bounded.
+If one browser observation fails, the Agent Host stops advertising it for the
+rest of that run and switches observation source. Browser refs and viewport
+coordinates are never desktop refs or primary-display coordinates.
 
 `capture_region` is the cropped rung between `ocr` and `screenshot`: the caller
 pays for the pixels it names. Its envelope reports the source, scope, crop
@@ -56,10 +67,10 @@ controls, not unrelated controls omitted from a broad snapshot.
 | Tool | Parameters | Behavior |
 | --- | --- | --- |
 | `activate_window` | `window_id` | Attempts to restore and activate a window whose id and direct-owner PID/executable were bound by a successful `list_windows`. The owner is rechecked before each native mutation and after the Driver returns; a missing, disappeared, ambiguous, or changed target requires a fresh list. Success also requires the Driver to verify the target is foreground. In safe mode activation is e-stop/human-activity guarded and audited, but not foreground-allowlist gated. |
-| `click` | `ref` **or** `x, y` | Invokes an accessible control by ref, or clicks a primary-display coordinate. Supply one form only. |
+| `click` | `ref` **or** `x, y` | Uses OS pointer input by default. A ref selects the center of its currently observed box; explicit `CUMCP_UIA_ACTIONS=1` instead uses UIA Invoke/SelectionItem for refs. Supply one form only. |
 | `scroll` | `x, y, delta_x=0, delta_y=0` | Sends bounded horizontal or vertical wheel movement at a screenshot-grounded primary-display coordinate. At least one delta must be non-zero. |
 | `drag` | `x, y, to_x, to_y, duration_ms=250` | Holds the left mouse button along one bounded path between two screenshot-grounded primary-display coordinates. Both endpoints must differ and remain in the current screenshot. |
-| `type` | `text, ref=None` | With a ref, uses one UIA ValuePattern mutation; without one, types literal Unicode scalars into the current focus. Braces are text, not a key-command grammar. |
+| `type` | `text, ref=None` | Without a ref, types literal Unicode scalars through OS input into current focus. Ref-addressed UIA ValuePattern is denied unless the user sets `CUMCP_UIA_ACTIONS=1`. Braces are text, not a key-command grammar. |
 | `key` | `combo` | Sends a key chord such as `Ctrl+S` to the foreground window. |
 
 In `safe_local`, `click`, `scroll`, `drag`, `type`, and `key` require an allowlisted
@@ -69,10 +80,12 @@ for the complete guard behavior.
 ## Refs and stale elements
 
 `ui_snapshot` and `find` return session-scoped names such as `ref_7`.
+`browser_snapshot` deliberately does not return actionable refs.
 Refs are kept across later snapshots when the driver still recognizes the same
 native UIA element. Each ref also retains the exact scope token from the
 snapshot or find call that first minted it; later observations in another scope
-do not change its relocation domain. If that token is an explicit window id and
+do not change its relocation domain. In user-enabled UIA action mode, if that
+token is an explicit window id and
 the native element becomes stale, the server makes one best-effort role-bounded
 name query across the full Windows traversal before applying the 200 matching-
 result cap, only in that window scope. It then requires the original exact role
@@ -80,17 +93,24 @@ and name. A candidate already owned by another ref is a conflict and fails
 closed without acting on the candidate. Successful relocation updates the ref's
 node and both native/ref bindings together.
 
-The tokens `foreground` and `all` remain dynamic driver selectors, not frozen
+For user-enabled UIA actions, the tokens `foreground` and `all` remain dynamic
+driver selectors, not frozen
 physical-window identities. A stale ref first observed through either selector
 returns `STALE_ELEMENT` without another tree query or candidate action; take a
 fresh snapshot before acting again. Only an explicit window-id scope is eligible
 for relocation. This fail-closed distinction requires no new resolved-window
 identity evidence and does not change Driver contract `1.0.0`.
 
-Prefer refs whenever possible:
+For the OS-input default, a ref is an explicit target-to-observed-geometry
+binding, not a semantic UIA fallback. The pointer follows the ordinary Windows
+input path; layout or occlusion can change after observation, so use fresh
+grounding and post-action observation. Enabling UIA changes ref dispatch before
+the attempt; a failed UIA attempt never falls back to OS coordinates.
+
+Example default route:
 
 ~~~text
-ui_snapshot() -> choose ref_12 -> click(ref="ref_12")
+ui_snapshot() -> choose ref_12 -> OS click at the observed ref center
 ~~~
 
 Coordinate click, scroll, and drag are necessary for canvas/game-style surfaces
@@ -99,9 +119,10 @@ foreground risks.
 
 Newly generated installed product profiles enable action feedback; legacy or
 hand-written MCP configuration can still disable it. When enabled, coordinate motion gets a
-high-contrast halo and fixed action label. Ref actions retain their semantic
-UIA dispatch: the overlay pulses at the last observed element bounds without
-converting the ref into a coordinate click. Keyboard feedback says only
+high-contrast halo and fixed action label. User-enabled UIA ref actions retain
+semantic dispatch and pulse the overlay at the last observed bounds without
+converting a failed semantic call into a coordinate click. Default ref clicks
+use the ordinary pointer animation. Keyboard feedback says only
 `AGENT TYPING` or `AGENT KEY`; it receives neither typed content nor the key
 combination. The overlay is passive, click-through, non-activating, and excluded
 from capture. Visible typing animates a caret, cycling dots, and an estimated
@@ -124,7 +145,8 @@ specific reason where available, for example:
 | `DENIED by gate` | The safe-mode foreground allowlist did not match. |
 | `HUMAN_ACTIVE` | Recent local input caused safe mode to yield. |
 | `ABORTED` | The e-stop is engaged; restart the server to clear it. |
-| `STALE_ELEMENT` | The requested ref no longer resolves; dynamic-scope refs require a fresh snapshot, while explicit-window refs permit one bounded relocation attempt. |
+| `STALE_ELEMENT` | In user-enabled UIA mode, the requested ref no longer resolves; dynamic-scope refs require a fresh snapshot, while explicit-window refs permit one bounded relocation attempt. |
+| `BROWSER_OBSERVATION_*` | Optional rendered-browser observation is disabled, unavailable, invalid, disconnected, oversized, or missing the selected page. The Host does not keep retrying that browser source in the same run. |
 | `OUT_OF_BOUNDS` | A coordinate lies outside the current supported capture space. |
 | `DRIVER_ERROR` | The platform driver could not perform the operation. |
 | `NATIVE_AUTHORITY_LOST` | Authority changed or the native boundary was unavailable. Before any native attempt this is rejected/not-dispatched; after a partial attempt it is unknown-outcome/dispatched, stops the Runner, and is never replayed. |

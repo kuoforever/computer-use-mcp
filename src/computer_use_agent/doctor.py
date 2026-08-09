@@ -14,7 +14,11 @@ from .provider_setup import (
     SetupIssue,
     inspect_provider_setup,
 )
-from .tool_registry import ToolRegistryMismatchError, verify_discovered_tools
+from .tool_registry import (
+    ToolRegistryMismatchError,
+    configured_optional_tool_names,
+    verify_discovered_tools,
+)
 from .types import MCPToolDescriptor
 
 
@@ -200,7 +204,10 @@ async def diagnose_config(
     try:
         desktop = desktop_factory(config.mcp)
         descriptors = await desktop.discover_tools()
-        verify_discovered_tools(descriptors)
+        verify_discovered_tools(
+            descriptors,
+            configured_optional_tool_names(config.mcp.environment),
+        )
     except ToolRegistryMismatchError:
         discovery_failure = _mcp_failure("SCHEMA_MISMATCH")
     except MCPBridgeError as exc:
