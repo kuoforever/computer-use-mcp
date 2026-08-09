@@ -72,6 +72,8 @@ def test_linear_plan_projects_to_an_inert_digest_bound_sequence() -> None:
     assert tree.task_digest == plan.task_digest
     assert tree.registry_digest == plan.registry_digest
     assert len(tree.digest) == 64
+    assert tree.digest == "ea5961dfbc75e9e2a64e4ef84f16c5386aa55cc48ec129d9550002d616459898"
+    assert "parallel_batches" not in tree.to_payload()
     assert "Inspect the active window" not in repr(tree)
     assert not hasattr(tree, "dispatch")
     assert not hasattr(tree, "authorized")
@@ -237,7 +239,9 @@ def test_schema_supports_each_closed_node_kind_without_executable_content() -> N
         nodes=nodes,
     )
 
-    assert {node.kind for node in tree.nodes} == set(TreeNodeKind)
+    assert {node.kind for node in tree.nodes} == set(TreeNodeKind) - {
+        TreeNodeKind.PARALLEL
+    }
     assert all("arguments" not in node.to_payload() for node in tree.nodes)
 
 

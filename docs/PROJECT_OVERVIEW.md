@@ -26,8 +26,9 @@ four distinct maturity layers:
    exist. Three fixed campaign CLI commands exercise one exact synthetic path;
    no general campaign worker or complete application workflow is connected.
 4. **Complete-product layers — initial contract work active:** hierarchical
-   H1-H7 and continual-learning L0-L3 are implemented through offline observation-runtime composition,
-   typed freshness-bound facts, and one pinned reviewed behavior template;
+   H1-H7 plus H8A and continual-learning L0-L4 are implemented through offline
+   observation-runtime composition, typed freshness-bound facts, one pinned
+   reviewed behavior template, and bounded local condition evaluation;
    multi-source observation,
    operator UI, mobile-completion projection, broad application campaigns,
    isolated workers, additional platforms, and verified continual learning
@@ -215,7 +216,7 @@ surfaces rather than one automatic general-product loop.
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
 | Final-response reconciliation | Preflight implemented/internal | Pure reconstruction of exact completed evidence; applying CAS/cleanup and CLI exposure remain next | [Planning](PLANNING.md) |
 | Bounded Planner/Executor CLI | Implemented/read-only | `ask` and `plan run` compose one Planner call, one to four reviewed observations through Runner, and one tool-free final answer; side effects remain unavailable | [Capability status](CAPABILITY_STATUS.md) |
-| Hierarchical task and behavior trees | H1-H7 implemented/offline; H8 planned | Immutable versioned nodes, canonical tree/envelope digests, structural/budget limits, pure state reduction, private `RunLock`-bound exact CAS, next-leaf compilation, typed fresh facts, one exact BOSS observation template, and one separately gated observation/action/verification-observation sequence reuse the existing Runtime Executor and sole Runner boundary | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md), [H7 evidence](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md) |
+| Hierarchical task and behavior trees | H1-H7 and H8A implemented/offline; H8B-H8C planned | Immutable versioned nodes, canonical tree/envelope digests, structural/budget limits, pure state reduction, private `RunLock`-bound exact CAS, next-leaf compilation, typed fresh facts, one exact BOSS observation template, one separately gated observation/action/verification-observation sequence, and contract-v2 bounded local H5 condition batches preserve the existing Runtime Executor and sole Runner boundary | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md), [H7 evidence](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md), [H8A evidence](H8A_PARALLEL_CONDITION_EVIDENCE.md) |
 
 ### Long-running campaigns
 
@@ -285,6 +286,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_agent/hierarchical_runtime.py` | Port-free H4 plan/tree identity binding, exact leaf status projection, and local-only reconciliation around the existing Runtime Executor |
 | `src/computer_use_agent/world_state.py` | Pure H5 content-free observation evidence, typed facts, exact freshness/window invalidation, and unavailable-not-false condition evaluation |
 | `src/computer_use_agent/behavior_templates.py` | Immutable H6 exact-version template registry, pinned BOSS observation ladder, inert request binding, and no-fallback reducer compatibility |
+| `src/computer_use_agent/hierarchical_parallel_contract.py`, `hierarchical_parallel.py` | H8A content-free batch evidence plus bounded four-worker local H5 evaluation and one exact tree-store CAS; no external port |
 | `src/computer_use_agent/executor*.py`, `planned_observation_runtime.py` | Observation/final runtimes, WALs, reconciliation, and bounded read-only CLI composition |
 | `src/computer_use_agent/campaign*.py`, `batch*.py`, lease/heartbeat modules | Internal long-running control plane |
 | `src/computer_use_agent/evaluation.py`, `release.py` | Deterministic evidence and release preflight |

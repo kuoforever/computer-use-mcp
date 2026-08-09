@@ -426,8 +426,9 @@ The current `TaskPlan` remains deliberately flat, strictly ordered, and
 bounded. H1-H7 project that exact linear plan into a durable tree, add typed
 facts and one pinned observation template, and compose observation/final plus
 one separately gated action/verification sequence with this existing runtime.
-General conditional execution, bounded iteration, and richer graph
-dependencies are not implemented.
+H8A adds only a bounded local batch over typed H5 condition leaves. General
+conditional branch execution, bounded iteration, and richer graph dependencies
+are not implemented.
 
 The continuing design is described in
 [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md).

@@ -123,7 +123,8 @@ not a line-by-line mirror of every reference page.
 | Continual learning | L0-L4 redacted outcomes, quarantined typed facts, verified procedure/shadow evaluation, bounded LOW-only canary routing, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
 | Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `ask` / `plan run` composition |
-| Hierarchical task and behavior trees | H1-H7 hierarchy, persistence, typed conditions, exact templates, and separately gated approval-preserving side-effect leaves; H8 remains planned |
+| Hierarchical task and behavior trees | H1-H7 hierarchy plus H8A contract-v2 bounded local condition batches; H8B all-of DAG/join and H8C safe choice remain planned |
+| H8A parallel-condition evidence | Offline worker-overlap, four-worker ceiling, deterministic digest binding, atomic CAS, zero-write fail-closed, and restart evidence |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, deterministic cross-session handoff, and the planned host-terminal polling contract |
 | Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |
 | Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |

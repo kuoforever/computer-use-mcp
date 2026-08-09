@@ -13,11 +13,22 @@ from enum import Enum
 from hashlib import sha256
 from typing import Mapping, Sequence
 
+from .hierarchical_parallel_contract import (
+    MAX_PARALLEL_CONDITIONS,
+    MIN_PARALLEL_CONDITIONS,
+    ParallelBatchDisposition,
+    ParallelConditionBatch,
+)
 from .planning import PlanStepAction, PlanStepStatus, TaskPlan
 from .types import ToolEffect
+from .world_state import ConditionOutcome
 
 
 TREE_CONTRACT_VERSION = 1
+TREE_CONTRACT_VERSION_V2 = 2
+SUPPORTED_TREE_CONTRACT_VERSIONS = frozenset(
+    {TREE_CONTRACT_VERSION, TREE_CONTRACT_VERSION_V2}
+)
 MAX_TREE_NODES = 128
 MAX_TREE_DEPTH = 12
 MAX_TREE_CHILDREN = 32
@@ -44,10 +55,16 @@ class TreeNodeKind(str, Enum):
     VERIFY = "verify"
     SUBTREE = "subtree"
     FINAL_RESPONSE = "final_response"
+    PARALLEL = "parallel"
 
 
 _INTERNAL_KINDS = frozenset(
-    {TreeNodeKind.GOAL, TreeNodeKind.SEQUENCE, TreeNodeKind.CHOICE}
+    {
+        TreeNodeKind.GOAL,
+        TreeNodeKind.SEQUENCE,
+        TreeNodeKind.CHOICE,
+        TreeNodeKind.PARALLEL,
+    }
 )
 
 
@@ -327,6 +344,7 @@ class TaskTree:
     limits: TreeLimits = field(default_factory=TreeLimits)
     aggregate_budget: TreeBudget = field(default_factory=TreeBudget)
     contract_version: int = TREE_CONTRACT_VERSION
+    parallel_batches: tuple[ParallelConditionBatch, ...] = ()
 
     def __post_init__(self) -> None:
         _require_identifier(self.tree_id, "tree_id")
@@ -338,7 +356,7 @@ class TaskTree:
         if (
             not isinstance(self.contract_version, int)
             or isinstance(self.contract_version, bool)
-            or self.contract_version != TREE_CONTRACT_VERSION
+            or self.contract_version not in SUPPORTED_TREE_CONTRACT_VERSIONS
         ):
             raise TreeValidationError("tree contract version is unsupported")
         if not isinstance(self.limits, TreeLimits):
@@ -349,6 +367,10 @@ class TaskTree:
             isinstance(node, TreeNode) for node in self.nodes
         ):
             raise TreeValidationError("nodes must be an immutable TreeNode tuple")
+        if not isinstance(self.parallel_batches, tuple) or not all(
+            isinstance(batch, ParallelConditionBatch) for batch in self.parallel_batches
+        ):
+            raise TreeValidationError("parallel_batches must be immutable H8A evidence")
         if not 2 <= len(self.nodes) <= self.limits.max_nodes:
             raise TreeValidationError("tree node count is outside the bound limits")
 
@@ -357,6 +379,14 @@ class TaskTree:
         by_id = {node.node_id: node for node in ordered}
         if len(by_id) != len(ordered):
             raise TreeValidationError("tree node identifiers must be unique")
+        parallel_nodes = tuple(
+            node for node in ordered if node.kind is TreeNodeKind.PARALLEL
+        )
+        if self.contract_version == TREE_CONTRACT_VERSION:
+            if parallel_nodes or self.parallel_batches:
+                raise TreeValidationError("tree v1 cannot carry H8A fields")
+        elif not parallel_nodes:
+            raise TreeValidationError("tree v2 requires a parallel node")
         root = by_id.get(self.root_id)
         if root is None or root.parent_id is not None or root.kind not in _INTERNAL_KINDS:
             raise TreeValidationError("tree root is invalid")
@@ -378,11 +408,67 @@ class TaskTree:
             if parent is None or node.node_id not in parent.child_ids:
                 raise TreeValidationError("node parent binding is invalid")
 
+        for parallel in parallel_nodes:
+            if (
+                not MIN_PARALLEL_CONDITIONS
+                <= len(parallel.child_ids)
+                <= MAX_PARALLEL_CONDITIONS
+                or parallel.child_ids != tuple(sorted(parallel.child_ids))
+            ):
+                raise TreeValidationError("parallel condition children are not canonical")
+            children = tuple(by_id.get(child_id) for child_id in parallel.child_ids)
+            if any(
+                child is None or child.kind is not TreeNodeKind.CONDITION
+                for child in children
+            ):
+                raise TreeValidationError("tree v2 parallel children must be conditions")
+            condition_ids = tuple(
+                child.condition_id for child in children if child is not None
+            )
+            if len(set(condition_ids)) != len(condition_ids):
+                raise TreeValidationError("parallel condition identifiers must be unique")
+
+        canonical_batches = tuple(
+            sorted(self.parallel_batches, key=lambda batch: batch.parallel_node_id)
+        )
+        if canonical_batches != self.parallel_batches:
+            raise TreeValidationError("parallel_batches are not canonical")
+        if len({batch.parallel_node_id for batch in canonical_batches}) != len(
+            canonical_batches
+        ):
+            raise TreeValidationError("a parallel node can have only one committed batch")
+        for batch in canonical_batches:
+            bound_parallel = by_id.get(batch.parallel_node_id)
+            if (
+                bound_parallel is None
+                or bound_parallel.kind is not TreeNodeKind.PARALLEL
+            ):
+                raise TreeValidationError("parallel batch node binding is invalid")
+            if batch.disposition is ParallelBatchDisposition.BLOCKED:
+                raise TreeValidationError("blocked parallel batches are not persisted")
+            results = {item.node_id: item for item in batch.results}
+            if set(results) != set(bound_parallel.child_ids):
+                raise TreeValidationError("parallel batch child binding is invalid")
+            for child_id in bound_parallel.child_ids:
+                child = by_id[child_id]
+                result = results[child_id]
+                if result.condition_id != child.condition_id:
+                    raise TreeValidationError("parallel batch condition binding is invalid")
+                expected_status = (
+                    PlanStepStatus.COMPLETED
+                    if result.outcome is ConditionOutcome.TRUE
+                    else PlanStepStatus.FAILED
+                    if result.outcome is ConditionOutcome.FALSE
+                    else PlanStepStatus.PENDING
+                )
+                if child.status is not expected_status:
+                    raise TreeValidationError("parallel batch leaf status is not canonical")
+
         referenced: list[str] = []
         for parent in ordered:
             for child_id in parent.child_ids:
-                child = by_id.get(child_id)
-                if child is None or child.parent_id != parent.node_id:
+                bound_child = by_id.get(child_id)
+                if bound_child is None or bound_child.parent_id != parent.node_id:
                     raise TreeValidationError("child binding is invalid")
                 referenced.append(child_id)
         if len(referenced) != len(set(referenced)):
@@ -422,7 +508,7 @@ class TaskTree:
         return next(node.status for node in self.nodes if node.node_id == self.root_id)
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "contract_version": self.contract_version,
             "tree_id": self.tree_id,
             "run_id": self.run_id,
@@ -434,6 +520,11 @@ class TaskTree:
             "aggregate_budget": self.aggregate_budget.to_payload(),
             "nodes": [node.to_payload() for node in self.nodes],
         }
+        if self.contract_version >= TREE_CONTRACT_VERSION_V2:
+            payload["parallel_batches"] = [
+                batch.to_payload() for batch in self.parallel_batches
+            ]
+        return payload
 
     @property
     def digest(self) -> str:
@@ -564,6 +655,8 @@ __all__ = [
     "MAX_TREE_VISITS",
     "MAX_TREE_WALL_CLOCK_SECONDS",
     "TREE_CONTRACT_VERSION",
+    "TREE_CONTRACT_VERSION_V2",
+    "SUPPORTED_TREE_CONTRACT_VERSIONS",
     "TaskTree",
     "TreeBudget",
     "TreeLimits",
