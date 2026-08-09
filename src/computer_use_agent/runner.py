@@ -42,6 +42,7 @@ from .tool_registry import (
     reviewed_registry_digest,
 )
 from .trace import RunPhase, RunRecorder, TraceError
+from .tree_store import TaskTreeStore
 from .types import (
     ApprovalPort,
     ApprovalBinding,
@@ -242,6 +243,13 @@ class PreparedRun:
         if self._closed:
             raise RuntimeError("prepared run is already closed")
         return CampaignStore(state_dir, self._lock)
+
+    def tree_store(self, state_dir: Path) -> TaskTreeStore:
+        """Create a tree store bound to this run's still-live application lock."""
+
+        if self._closed:
+            raise RuntimeError("prepared run is already closed")
+        return TaskTreeStore(state_dir, self._lock)
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
         self.close()
@@ -519,20 +527,6 @@ class AgentRunner:
                 },
             }
         )
-        policy = self.policy.config
-        policy_digest = digest(
-            {
-                "version": self.policy.version,
-                "mode": policy.mode,
-                "require_approval_for_actions": policy.require_approval_for_actions,
-                "action_approval_policy": policy.action_approval_policy,
-                "max_model_turns": policy.max_model_turns,
-                "max_tool_calls": policy.max_tool_calls,
-                "max_side_effects": policy.max_side_effects,
-                "max_context_events": policy.max_context_events,
-                "max_input_tokens": policy.max_input_tokens,
-            }
-        )
         evidence_digest = digest(
             {
                 "generation": grounding.generation,
@@ -546,7 +540,7 @@ class AgentRunner:
         return ApprovalBinding(
             run_id=state.run_id,
             state_digest=state_digest,
-            policy_digest=policy_digest,
+            policy_digest=self.policy.digest,
             task_digest=digest({"task": state.task}),
             registry_digest=reviewed_registry_digest(),
             object_digest=call.digest,

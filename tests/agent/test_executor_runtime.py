@@ -18,6 +18,7 @@ from computer_use_agent.config import (
 from computer_use_agent.continuation import continuation_path, read_continuation
 from computer_use_agent.executor_runtime import (
     ExecutorRuntimeError,
+    open_hierarchical_runtime_executor_session,
     open_runtime_executor_session,
 )
 from computer_use_agent import executor_runtime as executor_runtime_module
@@ -30,6 +31,10 @@ from computer_use_agent.executor_final_store import (
     FinalResponseStore,
 )
 from computer_use_agent.fakes import FakeApprovalPort, FakeDesktopMCP, FakeModelProvider
+from computer_use_agent.hierarchical_runtime import (
+    LinearTaskTreeProjection,
+    runtime_policy_digest,
+)
 from computer_use_agent.plan_store import PlanStoreError, TaskPlanStore
 from computer_use_agent.planning import (
     PlanStepStatus,
@@ -40,6 +45,7 @@ from computer_use_agent.presence_lifecycle import PresenceLifecyclePort
 from computer_use_agent.run_lock import RunLock
 from computer_use_agent.runner import AgentRunner, RunnerPorts
 from computer_use_agent.trace import RunPhase, read_run_record
+from computer_use_agent.tree_store import TaskTreeStore, TreeStoreError
 from computer_use_agent.types import (
     DispatchCertainty,
     LedgerEventKind,
@@ -173,6 +179,15 @@ def _read_final_after_close(config: AgentConfig):
     lock.acquire()
     try:
         return FinalResponseStore(config.state_dir, lock).read("run_1")
+    finally:
+        lock.release()
+
+
+def _read_tree_after_close(config: AgentConfig):
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        return TaskTreeStore(config.state_dir, lock).read("run_1")
     finally:
         lock.release()
 
@@ -715,3 +730,410 @@ def test_runtime_final_preflight_before_observations_is_inert(
     assert snapshot.sequence == 0
     assert all(step.status is PlanStepStatus.PENDING for step in snapshot.plan.steps)
     asyncio.run(session.cancel())
+
+
+def test_h4_observation_marks_exact_tree_leaf_before_sole_runner_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+    assert session.tree_projection is not None
+
+    def inspect_dispatch(call: ToolCall) -> None:
+        plan = session.store.read("run_1")
+        tree = session.tree_projection.snapshot()
+        active = tuple(
+            node
+            for node in tree.tree.nodes
+            if node.status is PlanStepStatus.IN_PROGRESS and node.is_leaf
+        )
+        assert plan.plan.steps[0].status is PlanStepStatus.IN_PROGRESS
+        assert [(node.step_id, node.kind.value) for node in active] == [
+            ("step_1", "tool_step")
+        ]
+        assert read_continuation(config.state_dir, "run_1").payload["boundary"][
+            "stage"
+        ] == "dispatch_intent"
+        assert call.status is ToolCallStatus.AUTHORIZED
+
+    desktop.on_call = inspect_dispatch
+    outcome = asyncio.run(session.execute_next_observation())
+
+    tree = session.tree_projection.snapshot()
+    assert outcome.tree_sequence == 2
+    assert outcome.tree_digest == tree.tree.digest
+    assert tree.sequence == 2
+    assert {
+        node.step_id: node.status
+        for node in tree.tree.nodes
+        if node.step_id is not None
+    } == {
+        "step_1": PlanStepStatus.COMPLETED,
+        "step_2": PlanStepStatus.PENDING,
+    }
+    assert len(desktop.tool_calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+    asyncio.run(session.cancel())
+
+
+def test_h4_final_response_completes_tree_after_dedicated_wal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+    asyncio.run(session.execute_next_observation())
+    assert session.tree_projection is not None
+    final = FakeFinalResponsePort(
+        FinalResponseResult(
+            run_id="run_1",
+            turn_id="executor_final_1",
+            provider_response_id="response_1",
+            text="The current UI is ready.",
+            usage=ModelUsage(3, 2),
+        )
+    )
+
+    def inspect_final(request: FinalResponseRequest) -> None:
+        plan = session.store.read("run_1")
+        tree = session.tree_projection.snapshot()
+        active = tuple(
+            node
+            for node in tree.tree.nodes
+            if node.status is PlanStepStatus.IN_PROGRESS and node.is_leaf
+        )
+        wal = session.prepared_run.final_response_store(config.state_dir).read("run_1")
+        assert plan.plan.steps[-1].status is PlanStepStatus.IN_PROGRESS
+        assert [(node.step_id, node.kind.value) for node in active] == [
+            ("step_2", "final_response")
+        ]
+        assert wal.stage is FinalResponseStage.DISPATCH_INTENT
+        assert wal.request_digest == request.request_digest
+
+    final.on_call = inspect_final
+    outcome = asyncio.run(session.execute_final_response(final))
+
+    tree = _read_tree_after_close(config)
+    assert outcome.tree_sequence == 4
+    assert outcome.tree_digest == tree.tree.digest
+    assert tree.sequence == 4
+    assert tree.tree.status is PlanStepStatus.COMPLETED
+    assert session.closed
+    assert len(desktop.tool_calls) == 1
+    assert len(final.calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+
+
+def test_h4_rejects_side_effect_plan_before_store_or_external_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+
+    with pytest.raises(ExecutorRuntimeError, match="^EXECUTOR_TREE_PLAN_UNSAFE$"):
+        asyncio.run(
+            open_hierarchical_runtime_executor_session(
+                runner,
+                task=TASK,
+                plan=_plan(tool="click", arguments='{"ref":"ref_1"}'),
+                tree_id="tree_1",
+            )
+        )
+
+    assert desktop.discovery_calls == 0
+    assert desktop.tool_calls == []
+    assert provider.calls == []
+    assert approvals.requests == []
+    assert not config.state_dir.exists()
+
+
+def test_h4_rejects_invalid_tree_identity_before_store_or_external_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+
+    with pytest.raises(ExecutorRuntimeError, match="^EXECUTOR_TREE_INPUT_INVALID$"):
+        asyncio.run(
+            open_hierarchical_runtime_executor_session(
+                runner,
+                task=TASK,
+                plan=_plan(),
+                tree_id="../unsafe",
+            )
+        )
+
+    assert desktop.discovery_calls == 0
+    assert desktop.tool_calls == []
+    assert provider.calls == []
+    assert approvals.requests == []
+    assert not config.state_dir.exists()
+
+
+def test_h4_unknown_outcome_keeps_both_states_active_and_reconcile_is_inert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop(
+        result_status=ToolResultStatus.UNKNOWN_OUTCOME,
+        result_dispatch=DispatchCertainty.UNKNOWN,
+    )
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+
+    with pytest.raises(ExecutorRuntimeError, match="^UNKNOWN_OUTCOME$"):
+        asyncio.run(session.execute_next_observation())
+
+    plan = _read_plan_after_close(config)
+    tree = _read_tree_after_close(config)
+    assert plan.plan.steps[0].status is PlanStepStatus.IN_PROGRESS
+    assert next(
+        node for node in tree.tree.nodes if node.step_id == "step_1"
+    ).status is PlanStepStatus.IN_PROGRESS
+    assert tree.sequence == 1
+    assert continuation_path(config.state_dir, "run_1").exists()
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        projection = LinearTaskTreeProjection(
+            TaskPlanStore(config.state_dir, lock),
+            TaskTreeStore(config.state_dir, lock),
+            "run_1",
+            "tree_1",
+            runtime_policy_digest(runner.policy),
+        )
+        reconciled = projection.reconcile_from_plan()
+    finally:
+        lock.release()
+    assert reconciled.sequence == tree.sequence
+    assert reconciled.tree.digest == tree.tree.digest
+    assert len(desktop.tool_calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+
+
+def test_h4_known_failure_commits_matching_terminal_tree_leaf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop(
+        result_status=ToolResultStatus.TRANSPORT_ERROR,
+        result_dispatch=DispatchCertainty.NOT_DISPATCHED,
+    )
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+
+    with pytest.raises(ExecutorRuntimeError, match="^EXECUTOR_TOOL_FAILED$"):
+        asyncio.run(session.execute_next_observation())
+
+    plan = _read_plan_after_close(config)
+    tree = _read_tree_after_close(config)
+    assert plan.plan.steps[0].status is PlanStepStatus.FAILED
+    assert tree.tree.status is PlanStepStatus.FAILED
+    assert next(
+        node for node in tree.tree.nodes if node.step_id == "step_1"
+    ).status is PlanStepStatus.FAILED
+    assert tree.sequence == 2
+    assert len(desktop.tool_calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+
+
+def test_h4_tree_start_failure_has_zero_dispatch_and_leaves_plan_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, _provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+    assert session.tree_projection is not None
+
+    def fail_tree_write(*_args: object, **_kwargs: object):
+        raise TreeStoreError("TREE_STORE_WRITE_FAILED")
+
+    monkeypatch.setattr(
+        session.tree_projection.tree_store,
+        "compare_and_swap",
+        fail_tree_write,
+    )
+    with pytest.raises(
+        ExecutorRuntimeError, match="^EXECUTOR_TREE_PREPARE_FAILED$"
+    ):
+        asyncio.run(session.execute_next_observation())
+
+    assert _read_plan_after_close(config).plan.steps[0].status is PlanStepStatus.PENDING
+    assert _read_tree_after_close(config).tree.status is PlanStepStatus.PENDING
+    assert desktop.tool_calls == []
+    assert approvals.requests == []
+    assert not continuation_path(config.state_dir, "run_1").exists()
+
+
+def test_h4_plan_start_failure_repairs_pre_boundary_tree_without_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, _provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+    original_transition = session.store.transition
+
+    def fail_plan_start(*args: object, **kwargs: object):
+        if args[2] is PlanStepStatus.IN_PROGRESS:
+            raise PlanStoreError("PLAN_STORE_WRITE_FAILED")
+        return original_transition(*args, **kwargs)
+
+    monkeypatch.setattr(session.store, "transition", fail_plan_start)
+    with pytest.raises(
+        ExecutorRuntimeError, match="^EXECUTOR_PLAN_PREPARE_FAILED$"
+    ):
+        asyncio.run(session.execute_next_observation())
+
+    tree = _read_tree_after_close(config)
+    assert _read_plan_after_close(config).plan.steps[0].status is PlanStepStatus.PENDING
+    assert tree.tree.status is PlanStepStatus.PENDING
+    assert tree.sequence == 2
+    assert desktop.tool_calls == []
+    assert approvals.requests == []
+    assert not continuation_path(config.state_dir, "run_1").exists()
+
+
+def test_h4_post_result_tree_failure_preserves_wal_for_local_only_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+    assert session.tree_projection is not None
+    original_compare_and_swap = session.tree_projection.tree_store.compare_and_swap
+
+    def fail_completed_tree(_run_id, updated_tree, **kwargs):
+        first = next(node for node in updated_tree.nodes if node.step_id == "step_1")
+        if first.status is PlanStepStatus.COMPLETED:
+            raise TreeStoreError("TREE_STORE_WRITE_FAILED")
+        return original_compare_and_swap(_run_id, updated_tree, **kwargs)
+
+    monkeypatch.setattr(
+        session.tree_projection.tree_store,
+        "compare_and_swap",
+        fail_completed_tree,
+    )
+    with pytest.raises(
+        ExecutorRuntimeError, match="^EXECUTOR_TREE_COMMIT_FAILED$"
+    ):
+        asyncio.run(session.execute_next_observation())
+
+    plan = _read_plan_after_close(config)
+    tree = _read_tree_after_close(config)
+    assert plan.plan.steps[0].status is PlanStepStatus.COMPLETED
+    assert next(
+        node for node in tree.tree.nodes if node.step_id == "step_1"
+    ).status is PlanStepStatus.IN_PROGRESS
+    assert read_continuation(config.state_dir, "run_1").payload["boundary"][
+        "stage"
+    ] == "completed"
+
+    lock = RunLock(config.application_state_dir)
+    lock.acquire()
+    try:
+        repaired = LinearTaskTreeProjection(
+            TaskPlanStore(config.state_dir, lock),
+            TaskTreeStore(config.state_dir, lock),
+            "run_1",
+            "tree_1",
+            runtime_policy_digest(runner.policy),
+        ).reconcile_from_plan()
+    finally:
+        lock.release()
+    assert next(
+        node for node in repaired.tree.nodes if node.step_id == "step_1"
+    ).status is PlanStepStatus.COMPLETED
+    assert len(desktop.tool_calls) == 1
+    assert provider.calls == []
+    assert approvals.requests == []
+
+
+def test_h4_cancel_mirrors_the_exact_pending_leaf_without_external_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path, monkeypatch)
+    desktop = DynamicDesktop()
+    runner, provider, approvals = _runner(config, desktop)
+    session = asyncio.run(
+        open_hierarchical_runtime_executor_session(
+            runner,
+            task=TASK,
+            plan=_plan(),
+            tree_id="tree_1",
+        )
+    )
+
+    asyncio.run(session.cancel())
+
+    plan = _read_plan_after_close(config)
+    tree = _read_tree_after_close(config)
+    assert plan.plan.steps[0].status is PlanStepStatus.CANCELLED
+    assert tree.tree.status is PlanStepStatus.CANCELLED
+    assert next(
+        node for node in tree.tree.nodes if node.step_id == "step_1"
+    ).status is PlanStepStatus.CANCELLED
+    assert desktop.tool_calls == []
+    assert provider.calls == []
+    assert approvals.requests == []

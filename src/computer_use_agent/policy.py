@@ -1,8 +1,10 @@
 """Host policy dispositions and hard initial budgets."""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 
 from .config import (
     APPROVED_ACTIONS_MODE,
@@ -41,6 +43,26 @@ class HostPolicy:
             max_side_effects=self.config.max_side_effects,
             max_input_tokens=self.config.max_input_tokens,
         )
+
+    @property
+    def digest(self) -> str:
+        """Bind the exact reviewed policy fields used at runtime boundaries."""
+
+        payload = {
+            "version": self.version,
+            "mode": self.config.mode,
+            "require_approval_for_actions": self.config.require_approval_for_actions,
+            "action_approval_policy": self.config.action_approval_policy,
+            "max_model_turns": self.config.max_model_turns,
+            "max_tool_calls": self.config.max_tool_calls,
+            "max_side_effects": self.config.max_side_effects,
+            "max_context_events": self.config.max_context_events,
+            "max_input_tokens": self.config.max_input_tokens,
+        }
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("utf-8")
+        return sha256(encoded).hexdigest()
 
     def disposition(
         self,

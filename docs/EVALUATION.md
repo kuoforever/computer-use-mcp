@@ -204,6 +204,17 @@ and approval ports remain unused, final cancellation deletes completed WAL, and
 the runtime source contains no direct MCP dispatch site. This is not E3/E4
 evidence and does not imply a complete Executor or safety MVP.
 
+The optional H4 linear-tree projection adds offline integration evidence over
+that same runtime, not another execution path. Tests prove the exact selected
+leaf is durably `in_progress` before the plan/WAL/sole Runner boundary; known
+results terminalize the tree only after plan and ledger correlation; unknown
+outcomes retain both states plus WAL after exactly one call; side-effect plans
+and pre-boundary tree/plan failures make zero calls; and a missed post-result
+tree commit is repaired only from the durable plan with no replay. The
+tool-free final-response leaf retains its dedicated WAL ordering. All ports are
+injected fakes, so this is not provider, MCP, desktop, application, E4, or
+release evidence.
+
 Completed-observation reconciliation adds E0 evidence for the narrow crash
 window after a known tool completion but before the terminal plan CAS. Tests
 prove exact successful and known-failure repair, retained WAL, one historical
