@@ -1,0 +1,144 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "boundary": {
+          "compiler_version": 1,
+          "condition_id": null,
+          "node_id": "node_step_1",
+          "node_kind": "tool_step",
+          "run_id": "run_1",
+          "source_sequence": 7,
+          "source_tree_digest": "ea5961dfbc75e9e2a64e4ef84f16c5386aa55cc48ec129d9550002d616459898",
+          "step_id": "step_1",
+          "template_digest": null,
+          "template_id": null,
+          "template_version": null,
+          "tree_id": "tree_1",
+          "verification_id": null
+        },
+        "boundary_digest": "3766ae5ba39d593f0c49e4487acdac3ef2d1a9a757b22ee5d28d09ac368d0aa0",
+        "disposition": "boundary",
+        "reason": "boundary_ready",
+        "source_sequence": 7,
+        "source_tree_digest": "ea5961dfbc75e9e2a64e4ef84f16c5386aa55cc48ec129d9550002d616459898",
+        "tree_status": "pending"
+      },
+      "leaf_statuses": {},
+      "name": "initial",
+      "sequence": 7
+    },
+    {
+      "expected": {
+        "boundary": null,
+        "boundary_digest": null,
+        "disposition": "waiting",
+        "reason": "active_leaf_wait",
+        "source_sequence": 8,
+        "source_tree_digest": "0eca198ff31b803611c85c28c5842e94a5ec6cf81446637d4af389d144844bb4",
+        "tree_status": "in_progress"
+      },
+      "leaf_statuses": {
+        "node_step_1": "in_progress"
+      },
+      "name": "first_active",
+      "sequence": 8
+    },
+    {
+      "expected": {
+        "boundary": {
+          "compiler_version": 1,
+          "condition_id": null,
+          "node_id": "node_step_2",
+          "node_kind": "final_response",
+          "run_id": "run_1",
+          "source_sequence": 9,
+          "source_tree_digest": "023f4835a5a6616e7f33e44a8d696f1b5c01c15525fa479a2ab05b7f141c7f7a",
+          "step_id": "step_2",
+          "template_digest": null,
+          "template_id": null,
+          "template_version": null,
+          "tree_id": "tree_1",
+          "verification_id": null
+        },
+        "boundary_digest": "3ccca63094f5d60bc1037e0ba8cb798b438ebf08e6e6e056cbb914df75c04624",
+        "disposition": "boundary",
+        "reason": "boundary_ready",
+        "source_sequence": 9,
+        "source_tree_digest": "023f4835a5a6616e7f33e44a8d696f1b5c01c15525fa479a2ab05b7f141c7f7a",
+        "tree_status": "in_progress"
+      },
+      "leaf_statuses": {
+        "node_step_1": "completed"
+      },
+      "name": "first_completed",
+      "sequence": 9
+    },
+    {
+      "expected": {
+        "boundary": null,
+        "boundary_digest": null,
+        "disposition": "terminal",
+        "reason": "tree_terminal",
+        "source_sequence": 10,
+        "source_tree_digest": "78db2b825087ce145cb1640b0c22d43a4bb1910392ab00b731222a2a7bfb1ac9",
+        "tree_status": "completed"
+      },
+      "leaf_statuses": {
+        "node_step_1": "completed",
+        "node_step_2": "completed"
+      },
+      "name": "complete",
+      "sequence": 10
+    },
+    {
+      "expected": {
+        "boundary": null,
+        "boundary_digest": null,
+        "disposition": "terminal",
+        "reason": "tree_terminal",
+        "source_sequence": 11,
+        "source_tree_digest": "5b6e326c3ac03f4d34981b53f1f2abac35565a98d8364a26978ee24a9e3db2ba",
+        "tree_status": "failed"
+      },
+      "leaf_statuses": {
+        "node_step_1": "failed"
+      },
+      "name": "failed",
+      "sequence": 11
+    },
+    {
+      "expected": {
+        "boundary": null,
+        "boundary_digest": null,
+        "disposition": "terminal",
+        "reason": "tree_terminal",
+        "source_sequence": 12,
+        "source_tree_digest": "1df137c435f9004981f487c2de09bd325a980e5d9791b10ea30c5bd972c9c0ee",
+        "tree_status": "blocked"
+      },
+      "leaf_statuses": {
+        "node_step_1": "blocked"
+      },
+      "name": "blocked",
+      "sequence": 12
+    },
+    {
+      "expected": {
+        "boundary": null,
+        "boundary_digest": null,
+        "disposition": "terminal",
+        "reason": "tree_terminal",
+        "source_sequence": 13,
+        "source_tree_digest": "57fb98079b5874e0be0386665f83edc68ebfceae1ec8d3356c0f889d6c09d14b",
+        "tree_status": "cancelled"
+      },
+      "leaf_statuses": {
+        "node_step_1": "cancelled"
+      },
+      "name": "cancelled",
+      "sequence": 13
+    }
+  ],
+  "fixture_version": 1
+}

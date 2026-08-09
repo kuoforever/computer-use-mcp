@@ -1,9 +1,9 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H2 implemented and offline verified; H3 is next.**
+> **Status: H1-H3 implemented and offline verified; L0 is next.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
-> persistence are inert. No next-leaf compiler, Runner/MCP wiring,
+> persistence plus digest-bound next-leaf compilation are inert. No Runner/MCP wiring,
 > provider/desktop port, or new
 > approval, retry, replay, recovery, or campaign authority is implemented.
 
@@ -334,6 +334,29 @@ H2 intentionally does not decide whether a status transition is legal and does
 not select a leaf. Those pure control decisions belong to H3. This keeps the
 store durable evidence rather than a second execution authority.
 
+## Implemented H3 boundary
+
+`src/computer_use_agent/hierarchical_compiler.py` consumes one immutable H1
+tree plus its H2 sequence and returns exactly one of four pure results:
+
+- `boundary`: at most one inert leaf identity bound to the exact sequence,
+  tree digest, run, tree, node kind, and reviewed leaf binding;
+- `waiting`: one exact ordered leaf is already `in_progress`, so no boundary is
+  emitted again;
+- `terminal`: the canonical root is complete, failed, blocked, or cancelled;
+  or
+- `blocked`: a `choice` needs H5 typed fresh facts and cannot yet select a
+  branch.
+
+The compiler rejects multiple active leaves, an active leaf that skips earlier
+work, an active leaf inside a terminal tree, registry drift, and malformed
+sequence/binding data. Its separate pure transition reducer permits only the
+current ordered leaf to follow the existing `PlanStepStatus` transition graph;
+terminal state cannot re-enter. Boundaries contain no task text, arguments,
+tool object, callable, authority, or dispatch method. The frozen H3 trace covers
+initial selection, active waiting, ordered advancement, completion, and every
+known terminal result without executing or persisting anything.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -361,7 +384,7 @@ not a product priority sequence.
 | --- | --- | --- |
 | `H1` | **Implemented/offline verified:** versioned node schema, canonical tree digest, structural limits, deterministic state reduction, and linear-plan projection. | Passed: reduction is pure and total over the existing status vocabulary; the contract exposes no execution port. |
 | `H2` | **Implemented/offline verified:** private tree store with `RunLock`, sequence/tree-digest CAS, strict restart decoding, and no external ports. | Passed: every injected pre-commit persistence failure leaves no create snapshot or the exact prior update snapshot. |
-| `H3` | Pure next-leaf compiler and offline trace fixtures. | The compiler yields at most one boundary per tick and never dispatches. |
+| `H3` | **Implemented/offline verified:** pure digest-bound next-leaf compiler, legal ordered leaf transitions, and frozen offline trace fixtures. | Passed: every tick yields zero or one inert boundary and never persists or dispatches; unresolved choice facts fail closed. |
 | `H4` | Observation-only trees through the existing Runner boundary. | Existing policy, approval, grounding, budget, WAL, and re-observation tests pass unchanged. |
 | `H5` | Typed world-state facts and freshness invalidation. | A stale epoch or changed window fails a condition closed. |
 | `H6` | Small registry of pinned behavior templates, starting with the per-item observation ladder. | The ladder reproduces current fixed-runtime behavior with no added authority. |
@@ -382,8 +405,9 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H2 satisfy only the schema, limit, digest, state-vocabulary,
-linear-plan compatibility, private persistence, CAS, and crash-boundary subset:
+are true. H1-H3 satisfy only the schema, limit, digest, state-vocabulary,
+linear-plan compatibility, private persistence/CAS/crash boundaries, and pure
+next-leaf/transition subset:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests
