@@ -1,6 +1,6 @@
 # Continual learning and verified experience evolution
 
-> **Status: L0-L1 implemented and offline verified.** The current
+> **Status: L0-L2 implemented and offline verified.** The current
 > runtime also implements explicitly confirmed local memory. It does not automatically extract memories,
 > generate or promote workflows, optimize a cross-run strategy policy, or update
 > model weights. This document defines the complete-product direction and the
@@ -187,6 +187,50 @@ transaction rollback, tamper detection, natural and explicit expiry, and
 content deletion. It is not application, live, promotion, strategy-selection,
 training, E4, or release evidence.
 
+## Implemented L2 boundary
+
+`src/computer_use_agent/verified_procedures.py` adds a versioned, deliberately
+non-executable procedure contract plus pure isolated replay and lifecycle
+reducers:
+
+- a definition binds exact task/application/version, current reviewed tool
+  registry, policy digest, generator version, source episode digests, sorted
+  boolean/integer preconditions, and at most 32 forward-only logical steps;
+- each step retains only a logical operation ID and digest of reviewed tool
+  metadata. It contains no arguments, task text, model prose, tool result,
+  screenshot, ref, coordinates, window/object identity, approval, recipient,
+  payload, or secret;
+- action steps keep the registry's side-effect/approval metadata, require fresh
+  observation, stop on failure, and can succeed only into a verification
+  observation. Only a verified boolean/integer postcondition can end in
+  `verified_success`; observation/verification failures may use bounded
+  forward-only recovery branches;
+- strict versioned fixtures contain only logical facts, operation outcomes,
+  dispatch certainty, approval/freshness booleans, verified typed values, and a
+  visible integer cost vector. Source and held-out episode digests cannot
+  overlap, and fixture order/digests are deterministic;
+- replay is a pure in-memory reducer. Missing/drifted fixtures fail incomplete,
+  uncertain action outcome stops without replay, and a simulated dispatch
+  without approval or fresh observation is counted as both a safety escape and
+  authority regression; and
+- activation evaluation requires at least two ordered held-out fixtures, exact
+  suite equality with the baseline, complete verified success, zero safety
+  escapes, zero authority regressions, and either better verified outcomes or
+  Pareto-lower visible costs.
+
+The explicit lifecycle is `CANDIDATE -> EVALUATING -> SHADOW -> ACTIVE ->
+DEPRECATED -> RETIRED`, with pre-activation `REJECTED` and exact reviewed
+`ROLLED_BACK` paths. Every transition uses a revision, monotonic timestamp, and
+digest-linked audit event. `SHADOW`, `ACTIVE`, and rollback require explicit
+review; activation recomputes the held-out gate and rollback must match the
+definition's exact baseline pin. Candidate lifetime is capped at 365 days.
+
+These labels remain data only. No Runner, MCP, provider, desktop, policy,
+approval, explicit-memory, L1-quarantine, strategy selector, persistence, or
+runtime procedure loader imports this module. L2 therefore proves an isolated
+evaluation and rollback contract, not automatic extraction, runtime promotion,
+application success, live learning, training, E4, or release readiness.
+
 ## Candidate extraction and promotion
 
 Model-generated candidates are untrusted proposals. They cannot change policy,
@@ -313,7 +357,7 @@ evidence. One edited showcase run cannot establish a learning improvement.
 | --- | --- | --- |
 | L0. Instrumentation | **Implemented/offline verified:** normalized redacted episode outcome and fixed explicit-coverage cost vector derived only from existing trace/campaign evidence | Passed: missing/partial metrics remain explicit, costs reconcile with trace/checkpoint budgets, and outcome conflicts fail closed without live or learning authority |
 | L1. Suggested facts | **Implemented/offline verified:** fresh boolean/integer H5 facts correlated with one successful L0 episode enter an isolated private quarantine with exact revisioned lifecycle controls | Passed: no automatic injection; text, identifiers, secrets, raw content, stale/unknown evidence, and ineligible episodes are rejected; operator can list, confirm, edit, expire, or delete without creating explicit memory |
-| L2. Verified procedures | Versioned candidate workflow schema, deterministic fixtures, replay evaluator, lifecycle, and rollback | Held-out improvement and zero safety escapes before `ACTIVE` |
+| L2. Verified procedures | **Implemented/offline verified:** content-free versioned workflow data, frozen typed fixtures, pure replay/evaluation, reviewed digest-linked lifecycle, and exact rollback pins | Passed: at least two disjoint held-out fixtures, full verified success, exact baseline suite, zero safety escapes/authority regressions, and verified-outcome or Pareto-cost improvement before data-only `ACTIVE` |
 | L3. Shadow strategy policy | Offline comparison and non-executing recommendations with visible reward vector | Recommendations reproduce from frozen evidence and never alter live execution |
 | L4. Bounded adaptive routing | Context-aware selection among already approved, equivalent low-risk procedures | Canary limits, drift detection, rollback, and no regression in approval or authority gates |
 | L5. Offline model research | Separately consented, redacted dataset export and isolated fine-tuning experiment | Independent privacy, security, evaluation, deployment, and rollback approval; outside the default product claim |

@@ -196,7 +196,13 @@ confirmation remains quarantine state and never copies a candidate into this
 explicit-memory store or provider context. The explicit memory contract above
 remains the only current runtime memory behavior.
 
-Executable workflow generation, cross-run strategy selection, promotion, and
-model-weight learning remain separately gated in [Continual learning and
+The L2 verified-procedure contract is also separate from memory. Its definitions,
+fixtures, replay results, `SHADOW`/`ACTIVE` labels, and rollback events are
+content-free offline evaluation data; no runtime loader, provider-context
+builder, strategy selector, or persistence path consumes them. L1 confirmation
+cannot create an L2 procedure, and L2 activation cannot create explicit memory.
+
+Runtime workflow loading, cross-run strategy selection, automatic promotion,
+and model-weight learning remain separately gated in [Continual learning and
 verified experience evolution](CONTINUAL_LEARNING.md). They cannot be enabled
-implicitly from either store.
+implicitly from either store or the L2 data contract.
