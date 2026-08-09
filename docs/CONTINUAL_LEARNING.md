@@ -1,7 +1,7 @@
 # Continual learning and verified experience evolution
 
-> **Status: planned architecture.** The current runtime implements only
-> explicitly confirmed local memory. It does not automatically extract memories,
+> **Status: L0 instrumentation implemented and offline verified.** The current
+> runtime also implements explicitly confirmed local memory. It does not automatically extract memories,
 > generate or promote workflows, optimize a cross-run strategy policy, or update
 > model weights. This document defines the complete-product direction and the
 > gates required before any of those claims are valid.
@@ -116,6 +116,35 @@ claims. Its control record should include:
 silently relabeled as Agent success. Missing cost data is unknown, not zero.
 Raw screenshots, typed values, credentials, messages, hidden reasoning, and
 arbitrary page text do not enter the learning control plane.
+
+## Implemented L0 boundary
+
+`src/computer_use_agent/episode_outcome.py` builds one in-memory, read-only,
+versioned normalized episode from the already validated redacted Full Cycle run
+record. It may optionally associate one exact latest campaign item while the
+caller holds the existing `RunLock`; item keys and content digests are excluded.
+
+The fixed run-scoped cost vector always contains every reviewed dimension:
+model/tool/side-effect/search/OCR calls, provider tokens, observation and result
+volume, image/screenshot counts, provider/tool/run latency, retries, recovery,
+policy decisions, tool failures, human takeover time/corrections, and E-stop
+activations. Each dimension carries `value`, `observed`, and
+`complete | partial | missing` coverage. Unknown provider usage, ambiguous
+latency, unrecorded duration, and current human/E-stop metrics therefore remain
+`null`; they never become zero. Campaign batch counters are not mixed into a
+run vector or attributed to one item.
+
+Run labels come only from terminal durable phases. Exact campaign item facts
+may narrow a successful classification to `CHALLENGED` or
+`VERIFIED_FAILURE`; incompatible run/item facts become `CONFLICTED`, and
+`UNCERTAIN` is never relabeled as success. `HUMAN_COMPLETED` is not emitted
+because no current durable source proves it. Metrics reconcile against both the
+trace events and checkpoint budgets before an episode is returned.
+
+L0 writes no store or export and has no candidate generation, memory injection,
+strategy scoring/routing, provider, Runner, MCP, desktop, approval, retry,
+replay, promotion, or training port. Its output repeats the Full Cycle privacy
+declarations and is restricted to offline evaluation.
 
 ## Candidate extraction and promotion
 
@@ -241,7 +270,7 @@ evidence. One edited showcase run cannot establish a learning improvement.
 
 | Phase | Deliverable | Exit gate |
 | --- | --- | --- |
-| L0. Instrumentation | Normalized episode outcome and complete cost vector derived from existing trace/campaign evidence | Missing metrics remain explicit; outcome labels reconcile with durable state |
+| L0. Instrumentation | **Implemented/offline verified:** normalized redacted episode outcome and fixed explicit-coverage cost vector derived only from existing trace/campaign evidence | Passed: missing/partial metrics remain explicit, costs reconcile with trace/checkpoint budgets, and outcome conflicts fail closed without live or learning authority |
 | L1. Suggested facts | Read-only candidate extraction into a quarantine store | No automatic injection; secrets and forbidden content rejected; operator can confirm, edit, expire, or delete |
 | L2. Verified procedures | Versioned candidate workflow schema, deterministic fixtures, replay evaluator, lifecycle, and rollback | Held-out improvement and zero safety escapes before `ACTIVE` |
 | L3. Shadow strategy policy | Offline comparison and non-executing recommendations with visible reward vector | Recommendations reproduce from frozen evidence and never alter live execution |
