@@ -1,8 +1,10 @@
-"""Pure final-response request contract for a completed observation plan.
+"""Pure final-response request contracts for bounded completed plans.
 
 The compiler performs no provider or desktop I/O. Historical calls and results
 are validated only as input evidence and are projected into inert observation
-data; they never become executable ``ToolCall`` values on this boundary.
+data; they never become executable ``ToolCall`` values on this boundary. The
+H7 compiler validates its single action as evidence but never exposes the
+action result content to the final-response provider.
 """
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from hashlib import sha256
 from typing import Protocol, runtime_checkable
 
 from .executor import MAX_EXECUTOR_SESSION_STEPS
+from .hierarchical_side_effects import validate_bounded_side_effect_plan
 from .plan_store import PersistedTaskPlan
 from .planning import PlanStepAction, PlanStepStatus
 from .tool_registry import reviewed_registry_digest
@@ -20,11 +23,13 @@ from .types import (
     DispatchCertainty,
     ImageContent,
     LedgerEventKind,
+    ModelUsage,
+    PolicyDecisionKind,
     RecoveryStatus,
     RunState,
+    ToolCall,
     ToolEffect,
     ToolResultStatus,
-    ModelUsage,
     to_json_value,
 )
 
@@ -238,15 +243,16 @@ def _request_payload(
     }
 
 
-def compile_final_response_request(
+def _compile_final_response_request(
     snapshot: PersistedTaskPlan,
     state: RunState,
     *,
     expected_sequence: int,
     expected_plan_digest: str,
     turn_id: str,
+    allow_bounded_side_effect: bool,
 ) -> FinalResponseRequest:
-    """Compile exact completed observation evidence into inert provider input."""
+    """Compile exact completed evidence into inert provider input."""
 
     if not isinstance(snapshot, PersistedTaskPlan) or not isinstance(state, RunState):
         raise ExecutorFinalError("EXECUTOR_FINAL_INPUT_INVALID")
@@ -279,12 +285,20 @@ def compile_final_response_request(
     final_steps = tuple(
         step for step in plan.steps if step.action is PlanStepAction.FINAL_RESPONSE
     )
+    if allow_bounded_side_effect:
+        try:
+            validate_bounded_side_effect_plan(plan, require_pending=False)
+        except ValueError as exc:
+            raise ExecutorFinalError("EXECUTOR_FINAL_PLAN_NOT_READY") from exc
     if (
         not tool_steps
         or len(tool_steps) > MAX_EXECUTOR_SESSION_STEPS
         or any(
             step.status is not PlanStepStatus.COMPLETED
-            or step.effect is not ToolEffect.OBSERVATION
+            or (
+                not allow_bounded_side_effect
+                and step.effect is not ToolEffect.OBSERVATION
+            )
             for step in tool_steps
         )
         or len(final_steps) != 1
@@ -292,13 +306,17 @@ def compile_final_response_request(
         or final_steps[0].status is not PlanStepStatus.PENDING
     ):
         raise ExecutorFinalError("EXECUTOR_FINAL_PLAN_NOT_READY")
+    observation_steps = tuple(
+        step for step in tool_steps if step.effect is ToolEffect.OBSERVATION
+    )
+    expected_side_effects = 1 if allow_bounded_side_effect else 0
     if (
         state.recovery_status is not RecoveryStatus.READY
         or state.verified_observation_epoch != state.observation_epoch
-        or state.observation_epoch != len(tool_steps)
+        or state.observation_epoch != len(observation_steps)
         or state.budgets.model_turns_used != 0
         or state.budgets.tool_calls_used != len(tool_steps)
-        or state.budgets.side_effects_used != 0
+        or state.budgets.side_effects_used != expected_side_effects
         or state.budgets.input_tokens_used != 0
         or state.budgets.model_turns_used >= state.budgets.max_model_turns
         or state.budgets.input_tokens_used >= state.budgets.max_input_tokens
@@ -318,15 +336,18 @@ def compile_final_response_request(
         raise ExecutorFinalError("EXECUTOR_FINAL_LEDGER_INVALID")
 
     observations: list[FinalResponseObservation] = []
+    observation_number = 0
     for index, step in enumerate(tool_steps):
-        call_event, result_event, observation_event = events[1 + index * 3 : 4 + index * 3]
+        first_event, second_event, third_event = events[
+            1 + index * 3 : 4 + index * 3
+        ]
+        call_event = first_event
+        result_event = second_event if step.effect is ToolEffect.OBSERVATION else third_event
         if (
             call_event.kind is not LedgerEventKind.TOOL_CALL
             or result_event.kind is not LedgerEventKind.TOOL_RESULT
-            or observation_event.kind is not LedgerEventKind.OBSERVATION
             or call_event.identity is None
             or call_event.identity != result_event.identity
-            or call_event.identity != observation_event.identity
             or call_event.safe_argument_summary is None
             or call_event.payload
             or call_event.safe_argument_summary.tool_name != step.tool_name
@@ -338,9 +359,6 @@ def compile_final_response_request(
             or result_event.tool_result.tool_name != step.tool_name
             or result_event.tool_result.status is not ToolResultStatus.SUCCESS
             or result_event.tool_result.dispatch is not DispatchCertainty.DISPATCHED
-            or observation_event.payload.get("tool_name") != step.tool_name
-            or observation_event.payload.get("observation_epoch") != index + 1
-            or set(observation_event.payload) != {"tool_name", "observation_epoch"}
             or call_event.identity.run_id != state.run_id
             or call_event.identity.turn_id != f"executor_turn_{index + 1}"
         ):
@@ -348,6 +366,40 @@ def compile_final_response_request(
         latency = result_event.payload.get("latency_ms")
         if latency is not None and (
             isinstance(latency, bool) or not isinstance(latency, int) or latency < 0
+        ):
+            raise ExecutorFinalError("EXECUTOR_FINAL_LEDGER_INVALID")
+        if step.effect is ToolEffect.SIDE_EFFECT:
+            decision_event = second_event
+            decision = decision_event.policy_decision
+            reconstructed = ToolCall(
+                identity=call_event.identity,
+                name=step.tool_name or "",
+                arguments=step.arguments,
+            )
+            if (
+                not allow_bounded_side_effect
+                or decision_event.kind is not LedgerEventKind.POLICY_DECISION
+                or decision_event.identity != call_event.identity
+                or decision_event.payload
+                or decision is None
+                or decision.identity != call_event.identity
+            ):
+                raise ExecutorFinalError("EXECUTOR_FINAL_LEDGER_INVALID")
+            if (
+                decision.kind is not PolicyDecisionKind.ALLOW
+                or decision.call_digest != reconstructed.digest
+            ):
+                raise ExecutorFinalError("EXECUTOR_FINAL_LEDGER_INVALID")
+            continue
+        observation_event = third_event
+        observation_number += 1
+        if (
+            observation_event.kind is not LedgerEventKind.OBSERVATION
+            or call_event.identity != observation_event.identity
+            or observation_event.payload.get("tool_name") != step.tool_name
+            or observation_event.payload.get("observation_epoch")
+            != observation_number
+            or set(observation_event.payload) != {"tool_name", "observation_epoch"}
         ):
             raise ExecutorFinalError("EXECUTOR_FINAL_LEDGER_INVALID")
         arguments_json = _canonical(to_json_value(step.arguments)).decode("utf-8")
@@ -387,6 +439,46 @@ def compile_final_response_request(
     )
 
 
+def compile_final_response_request(
+    snapshot: PersistedTaskPlan,
+    state: RunState,
+    *,
+    expected_sequence: int,
+    expected_plan_digest: str,
+    turn_id: str,
+) -> FinalResponseRequest:
+    """Compile exact completed observation evidence into inert provider input."""
+
+    return _compile_final_response_request(
+        snapshot,
+        state,
+        expected_sequence=expected_sequence,
+        expected_plan_digest=expected_plan_digest,
+        turn_id=turn_id,
+        allow_bounded_side_effect=False,
+    )
+
+
+def compile_hierarchical_side_effect_final_response_request(
+    snapshot: PersistedTaskPlan,
+    state: RunState,
+    *,
+    expected_sequence: int,
+    expected_plan_digest: str,
+    turn_id: str,
+) -> FinalResponseRequest:
+    """Compile H7's two observations while excluding action result content."""
+
+    return _compile_final_response_request(
+        snapshot,
+        state,
+        expected_sequence=expected_sequence,
+        expected_plan_digest=expected_plan_digest,
+        turn_id=turn_id,
+        allow_bounded_side_effect=True,
+    )
+
+
 __all__ = [
     "ExecutorFinalError",
     "FinalResponseObservation",
@@ -395,4 +487,5 @@ __all__ = [
     "FinalResponseResult",
     "MAX_FINAL_RESPONSE_REQUEST_BYTES",
     "compile_final_response_request",
+    "compile_hierarchical_side_effect_final_response_request",
 ]

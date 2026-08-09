@@ -1,6 +1,6 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H6 implemented and offline verified; H7-H8 remain planned.**
+> **Status: H1-H7 implemented and offline verified; H8 remains planned.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
@@ -445,6 +445,32 @@ side-effect tools or safety-baseline drift cannot enter the template. H6 adds
 no store, provider, Runner, MCP, desktop, approval, retry, replay, learning, or
 new side-effect authority. It is not application or live evidence.
 
+## Implemented H7 boundary
+
+`src/computer_use_agent/hierarchical_side_effects.py` and the dedicated H7
+Runtime Executor entry accept only one exact pending linear sequence:
+observation, one side effect, verification observation, then final response.
+
+- The independent review gate runs before store creation or tool discovery and
+  derives effects plus approval metadata from the reviewed plan/registry.
+- H4 and the public Planner/Executor remain observation-only. H7 opts one
+  internal session into side-effect preflight without adding a dispatch site.
+- The tree leaf is durable `in_progress` before the existing plan CAS and
+  Runner boundary. Runner alone owns grounding, policy, risk classification,
+  approval, budgets, WAL, MCP dispatch, and post-action state.
+- A successful dispatched action clears verified observation state. Final
+  response remains impossible until the exact next observation restores fresh
+  verification; action-result content is excluded from final provider input.
+- Denial is terminal, defer is known blocked/paused, unknown outcome retains
+  the exact active leaf and WAL, and a dispatched known error is blocked with
+  verification debt plus retained WAL. None can become selector or retry input.
+
+The [deterministic isolated-application evidence](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md)
+covers the exact success, denial, defer, unknown, dispatched-error, malformed
+shape, and missing-verification paths. It is injected-port evidence only and
+does not claim a real provider, MCP child, Windows desktop, external
+application, E4, or release result.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -476,13 +502,14 @@ not a product priority sequence.
 | `H4` | **Implemented/offline verified:** observation-only linear trees through the existing Runtime Executor and sole Runner boundary. | Passed: policy, approval, grounding, budget, WAL, re-observation, uncertainty, and single-dispatch-site tests remain green; side effects fail before external work. |
 | `H5` | **Implemented/offline verified:** typed world-state facts, content-free observation evidence, exact window/process binding, bounded freshness, and three-valued equality conditions. | Passed: stale epochs, generation/window drift, expiry, unknown/missing/type mismatch, and clock rollback are unavailable rather than false and expose no fact value. |
 | `H6` | **Implemented/offline verified:** one exact-version reviewed template registry, starting with the per-item observation ladder. | Passed: exact tools, arguments, safety baselines, reducer outcomes, terminal handoffs, and budget reproduce the fixed runtime with no added authority. |
-| `H7` | Bounded, approval-preserving side-effect leaves. | Separate review plus isolated application evidence; not a continuation of `H6`. |
+| `H7` | **Implemented/offline verified:** one exact observation/action/verification-observation/final sequence through the existing Runtime Executor and sole Runner boundary. | Passed: separate shape/authority review plus deterministic isolated-application success, denial, defer, unknown, dispatched-error, and missing-verification evidence with zero new authority. |
 | `H8` | Read-only parallel computation or richer graph dependencies. | Only after serialized desktop authority and crash semantics remain proven. |
 
 `H1`-`H3` add no runtime behavior at all. H4 composes only the already
 supported observation/final-response plan and adds no new external authority.
-`H7` is the first phase that widens what the product can do, and it inherits
-the existing approval review rather than defining its own.
+`H7` is the first phase that widens the internal hierarchical runtime, and it
+inherits the existing approval review rather than defining its own. No public
+Planner/Executor or application workflow is widened by H7.
 
 `H1` also produces one architecture decision record for the single constraint
 here that reads as over-strict without its context: node state reuses the
@@ -494,9 +521,10 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H6 satisfy the schema, limit, digest, state-vocabulary,
+are true. H1-H7 satisfy the schema, limit, digest, state-vocabulary,
 linear-plan compatibility, private persistence/CAS/crash boundaries, pure
-next-leaf/transition subset, existing observation-runtime composition, and
+next-leaf/transition subset, existing observation-runtime composition, exact
+single-action/verification gate, and
 typed fresh-fact condition boundary plus exact pinned-template registry:
 
 - no tree code directly dispatches MCP;

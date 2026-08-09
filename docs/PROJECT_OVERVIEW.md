@@ -26,7 +26,7 @@ four distinct maturity layers:
    exist. Three fixed campaign CLI commands exercise one exact synthetic path;
    no general campaign worker or complete application workflow is connected.
 4. **Complete-product layers — initial contract work active:** hierarchical
-   H1-H6 and continual-learning L0-L3 are implemented through offline observation-runtime composition,
+   H1-H7 and continual-learning L0-L3 are implemented through offline observation-runtime composition,
    typed freshness-bound facts, and one pinned reviewed behavior template;
    multi-source observation,
    operator UI, mobile-completion projection, broad application campaigns,
@@ -215,7 +215,7 @@ surfaces rather than one automatic general-product loop.
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
 | Final-response reconciliation | Preflight implemented/internal | Pure reconstruction of exact completed evidence; applying CAS/cleanup and CLI exposure remain next | [Planning](PLANNING.md) |
 | Bounded Planner/Executor CLI | Implemented/read-only | `ask` and `plan run` compose one Planner call, one to four reviewed observations through Runner, and one tool-free final answer; side effects remain unavailable | [Capability status](CAPABILITY_STATUS.md) |
-| Hierarchical task and behavior trees | H1-H6 implemented/offline; H7-H8 planned | Immutable versioned nodes, canonical tree/envelope digests, structural/budget limits, pure state reduction, lossless linear-plan projection, private `RunLock`-bound atomic snapshots with exact CAS, digest-bound next-leaf compilation, an optional observation-only projection over the existing Runtime Executor, typed freshness/window-bound three-valued facts, and one exact-version reviewed BOSS observation-ladder template exist without a second dispatch site or new authority | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md) |
+| Hierarchical task and behavior trees | H1-H7 implemented/offline; H8 planned | Immutable versioned nodes, canonical tree/envelope digests, structural/budget limits, pure state reduction, private `RunLock`-bound exact CAS, next-leaf compilation, typed fresh facts, one exact BOSS observation template, and one separately gated observation/action/verification-observation sequence reuse the existing Runtime Executor and sole Runner boundary | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md), [H7 evidence](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md) |
 
 ### Long-running campaigns
 

@@ -1,12 +1,13 @@
 # Task planning contract
 
-> **Status: bounded observation-only CLI implemented and offline verified.**
+> **Status: observation-only CLI plus separately gated internal H7 sequence implemented and offline verified.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
 > a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
 > Claude adapters are implemented. `ask` and `plan run` compose one host-scoped Planner
 > request, one to four Runner-dispatched observations, and one stateless
-> tool-free final response. Side-effect plans remain unavailable.
+> tool-free final response. Side-effect plans remain unavailable on that public
+> path; H7 separately permits one exact internal action/verification sequence.
 
 ## Boundary
 
@@ -99,9 +100,11 @@ snapshot unchanged. The store imports no provider, policy, approval, MCP, or
 desktop port.
 
 The isolated provider adapters can only produce the already bounded candidate
-format. Runtime consumption is limited to the fixed observation-only CLI
-composition and must pass every existing policy, grounding, budget, MCP,
-write-ahead, and verification boundary.
+format. Public runtime consumption is limited to the fixed observation-only
+CLI. The separate H7 internal entry accepts only one reviewed
+observation/action/verification-observation/final shape. Both paths must pass
+every existing policy, grounding, budget, MCP, write-ahead, and verification
+boundary.
 
 ## Pure Executor step preflight
 
@@ -136,7 +139,9 @@ plans or make the preflight result executable.
 `TaskPlanStore` whose existing application `RunLock` must remain held. It still
 has no provider, policy, approval, recovery, trace, MCP, or desktop port.
 
-The session prepares observation tools only and enforces:
+The session prepares observation tools by default. Only the dedicated H7
+caller may opt this inert coordinator into a registry-reviewed side effect;
+that adds no approval, policy, WAL, MCP, or dispatch method. It enforces:
 
 - at most four prepared steps, without changing the independent recovery cap;
 - host-generated turn/call identities and exactly one outstanding request;
@@ -145,15 +150,18 @@ The session prepares observation tools only and enforces:
 - exactly one correlated tool-call and tool-result ledger event;
 - exact plan ID, step/tool/argument binding and transition sequence;
 - `completed` after success, `failed` after a known failure, and retained
-  `in_progress` plus a closed session after an unknown outcome.
+  `in_progress` plus a closed session after an unknown outcome; and
+- H7-only known defer or dispatched failure may bind an exact `blocked`
+  transition when the Runner state independently proves paused or outstanding
+  verification debt.
 
 The session only checks evidence produced elsewhere. It neither invokes the
 shared Runner boundary nor performs a plan transition, so forged plan status or
 ledger data cannot create dispatch authority. A repeated prepare while a call
-is outstanding, a released lock, history loss, drift, side effect, transition
+is outstanding, a released lock, history loss, drift, unauthorized side effect, transition
 mismatch, or fifth step fails closed.
 
-## Observation-only runtime session
+## Bounded runtime session
 
 `executor_runtime.py` is the first execution-capable plan consumer. It accepts
 a host-compiled `TaskPlan` plus its exact
@@ -162,7 +170,7 @@ application RunLock, creates the private plan snapshot and safe run record,
 verifies exact MCP discovery, and retains one recorder, continuation, grounding
 state, MCP generation, and `BoundedExecutorSession` across steps.
 
-For each observation step, ordering is fixed:
+For each permitted tool step, ordering is fixed:
 
 1. The bounded contract rereads the locked snapshot and creates a host-identified
    fresh `requested` call.
@@ -183,8 +191,9 @@ completed continuation evidence. It never infers completion from the plan and
 never repeats the call to repair bookkeeping.
 
 The runtime module contains no direct `desktop.call_tool` site and cannot bypass
-the Runner boundary. It rejects side effects before a plan transition, requires
-an explicit cancellation for a remaining untouched step, and never treats
+the Runner boundary. Its ordinary and H4 entries reject side effects before a
+plan transition; H7 alone accepts the exact separately reviewed shape. It requires
+an explicit cancellation for a remaining untouched step and never treats
 `final_response` as trusted or authoritative text. Its only model-capable path
 is the separately injected, one-shot, tool-free final-response port described
 below; it never resumes provider or plan execution implicitly.
@@ -217,14 +226,19 @@ observations would omit the observation results. `FinalResponsePort` therefore
 defines one separate tool-free method, implemented by the isolated adapters
 below and injected explicitly into the internal runtime.
 
-Compilation requires an exact snapshot with one to four successfully completed
-observation steps followed by the still-pending `final_response`. Run, task,
+Ordinary compilation requires an exact snapshot with one to four successfully
+completed observation steps followed by the still-pending `final_response`.
+H7's separate compiler accepts exactly two successful observations around one
+successful, ALLOW-correlated action. Run, task,
 registry, sequence/digest, recovery status, verified observation epoch, and
-model/input budgets are rechecked. The in-memory ledger must be exactly one
-`USER_TASK` followed by one correlated `TOOL_CALL`, successful `TOOL_RESULT`,
-and `OBSERVATION` group per plan step, with exact tool/argument/order binding.
-Provider turns, policy/recovery events, side effects, failures, unknown results,
-missing observations, redacted arguments, and drift fail closed.
+model/input budgets are rechecked. For ordinary compilation, the in-memory
+ledger must be exactly one `USER_TASK` followed by one correlated `TOOL_CALL`,
+successful `TOOL_RESULT`, and `OBSERVATION` group per plan step, with exact
+tool/argument/order binding.
+Provider turns, unexpected policy/recovery events, failures, unknown results,
+missing observations, redacted arguments, and drift fail closed. H7 validates
+the one action decision/result group but excludes its result content from final
+provider input.
 
 Success produces a digest-bound, 48 MiB-capped `FinalResponseRequest` containing
 the task and lossless text/image observation data. Historical calls exist only
@@ -409,10 +423,11 @@ evidence for that expanded scope remain unretained.
 ## Post-linear planning bridge
 
 The current `TaskPlan` remains deliberately flat, strictly ordered, and
-bounded. H1-H4 now project that exact linear plan into a durable tree and
-compose its observation/final-response leaves with this existing runtime.
-Conditional branches, hierarchical subgoals, bounded iteration, and reusable
-behavior subtrees are not implemented.
+bounded. H1-H7 project that exact linear plan into a durable tree, add typed
+facts and one pinned observation template, and compose observation/final plus
+one separately gated action/verification sequence with this existing runtime.
+General conditional execution, bounded iteration, and richer graph
+dependencies are not implemented.
 
 The continuing design is described in
 [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md).
@@ -433,4 +448,8 @@ does not add side-effect, retry, replay, or execution-resume authority.
 H5 separately defines typed observation facts and three-valued freshness
 inspection: lost epoch, generation, window/process identity, type, or time
 evidence is unavailable rather than false. It has no tree transition or branch
-selection method; reviewed template binding remains H6 work.
+selection method. H6 pins the existing BOSS observation ladder. H7's exact
+observation/action/verification-observation/final sequence retains the sole
+Runner boundary, blocks final response while verification is owed, and keeps
+H4 plus public Planner/Executor observation-only; its injected-port evidence is
+[retained separately](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md).

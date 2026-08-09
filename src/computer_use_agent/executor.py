@@ -25,6 +25,7 @@ from .types import (
     CallIdentity,
     LedgerEvent,
     LedgerEventKind,
+    RecoveryStatus,
     RunBudget,
     RunState,
     ToolCall,
@@ -188,8 +189,18 @@ class BoundedExecutorSession:
     desktop port and cannot authorize or dispatch its prepared calls.
     """
 
-    def __init__(self, store: TaskPlanStore, initial_state: RunState) -> None:
-        if not isinstance(store, TaskPlanStore) or not isinstance(initial_state, RunState):
+    def __init__(
+        self,
+        store: TaskPlanStore,
+        initial_state: RunState,
+        *,
+        allow_side_effects: bool = False,
+    ) -> None:
+        if (
+            not isinstance(store, TaskPlanStore)
+            or not isinstance(initial_state, RunState)
+            or not isinstance(allow_side_effects, bool)
+        ):
             raise ExecutorSessionError("EXECUTOR_SESSION_INPUT_INVALID")
         if not store.lock.acquired:
             raise ExecutorSessionError("EXECUTOR_SESSION_LOCK_REQUIRED")
@@ -198,6 +209,7 @@ class BoundedExecutorSession:
         self._outstanding: PreparedPlanToolCall | None = None
         self._prepared_steps = 0
         self._closed = False
+        self._allow_side_effects = allow_side_effects
 
     @property
     def prepared_steps(self) -> int:
@@ -242,7 +254,10 @@ class BoundedExecutorSession:
             )
         except ExecutorPreflightError as exc:
             raise ExecutorSessionError(str(exc)) from exc
-        if get_tool_spec(prepared.call.name).effect is not ToolEffect.OBSERVATION:
+        effect = get_tool_spec(prepared.call.name).effect
+        if effect is not ToolEffect.OBSERVATION and not (
+            effect is ToolEffect.SIDE_EFFECT and self._allow_side_effects
+        ):
             raise ExecutorSessionError("EXECUTOR_SESSION_SIDE_EFFECT_UNSUPPORTED")
 
         self._state = current_state
@@ -251,7 +266,11 @@ class BoundedExecutorSession:
         return prepared
 
     def accept_boundary_outcome(
-        self, prepared: PreparedPlanToolCall, current_state: RunState
+        self,
+        prepared: PreparedPlanToolCall,
+        current_state: RunState,
+        *,
+        expected_status: PlanStepStatus | None = None,
     ) -> None:
         """Accept exact ledger and plan evidence produced outside this contract."""
 
@@ -294,13 +313,20 @@ class BoundedExecutorSession:
         )
         if step is None:
             raise ExecutorSessionError("EXECUTOR_SESSION_PLAN_MISMATCH")
+        spec = get_tool_spec(prepared.call.name)
         if (
             step.tool_name != prepared.call.name
             or to_json_value(step.arguments) != to_json_value(prepared.call.arguments)
-            or step.effect is not ToolEffect.OBSERVATION
+            or step.effect is not spec.effect
+            or (
+                step.effect is ToolEffect.SIDE_EFFECT
+                and not self._allow_side_effects
+            )
         ):
             raise ExecutorSessionError("EXECUTOR_SESSION_PLAN_MISMATCH")
         if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
+            if expected_status is not None:
+                raise ExecutorSessionError("EXECUTOR_SESSION_TRANSITION_MISMATCH")
             if (
                 snapshot.sequence != prepared.snapshot_sequence + 1
                 or step.status is not PlanStepStatus.IN_PROGRESS
@@ -308,9 +334,26 @@ class BoundedExecutorSession:
                 raise ExecutorSessionError("EXECUTOR_SESSION_TRANSITION_MISMATCH")
             self._closed = True
         else:
-            expected = (
+            derived = (
                 PlanStepStatus.COMPLETED if result.ok else PlanStepStatus.FAILED
             )
+            expected = derived if expected_status is None else expected_status
+            if expected is PlanStepStatus.BLOCKED:
+                deferred = (
+                    result.code == "APPROVAL_DEFERRED"
+                    and current_state.recovery_status is RecoveryStatus.STOPPED
+                )
+                verification_required = (
+                    not result.ok
+                    and current_state.recovery_status
+                    is RecoveryStatus.REQUIRES_REOBSERVATION
+                )
+                if not deferred and not verification_required:
+                    raise ExecutorSessionError(
+                        "EXECUTOR_SESSION_TRANSITION_MISMATCH"
+                    )
+            elif expected is not derived:
+                raise ExecutorSessionError("EXECUTOR_SESSION_TRANSITION_MISMATCH")
             if (
                 snapshot.sequence != prepared.snapshot_sequence + 2
                 or step.status is not expected

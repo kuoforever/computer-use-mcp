@@ -1,4 +1,4 @@
-"""Bounded observation and tool-free final-response plan runtime."""
+"""Bounded tool and tool-free final-response plan runtime."""
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +12,7 @@ from .executor_final import (
     ExecutorFinalError,
     FinalResponsePort,
     compile_final_response_request,
+    compile_hierarchical_side_effect_final_response_request,
 )
 from .grounding import GroundingState
 from .hierarchical_control import TreeNodeKind, TreeValidationError, project_linear_plan
@@ -20,21 +21,25 @@ from .hierarchical_runtime import (
     LinearTaskTreeProjection,
     runtime_policy_digest,
 )
+from .hierarchical_side_effects import (
+    HierarchicalSideEffectError,
+    validate_bounded_side_effect_plan,
+)
 from .planning import PlanStepAction, PlanStepStatus, TaskPlan
 from .presence_lifecycle import FailSilentLifecycle
-from .runner import AgentRunner, PreparedRun, RunFailure
+from .runner import AgentRunner, PreparedRun, RunDeferred, RunFailure
 from .trace import RunPhase, RunRecorder
 from .tool_registry import reviewed_registry_digest, verify_discovered_tools
-from .types import ModelTurn, RunState, ToolEffect, ToolResult
+from .types import ModelTurn, RecoveryStatus, RunState, ToolEffect, ToolResult
 
 
 class ExecutorRuntimeError(RuntimeError):
-    """A fixed failure from the bounded observation-only runtime session."""
+    """A fixed failure from the bounded Runtime Executor session."""
 
 
 @dataclass(frozen=True)
 class RuntimePlanStepOutcome:
-    """One observation result plus the exact host and plan state after it."""
+    """One tool result plus the exact host and plan state after it."""
 
     state: RunState
     result: ToolResult
@@ -80,6 +85,7 @@ class RuntimeExecutorSession:
         presence: FailSilentLifecycle,
         progress: FailSilentLifecycle,
         tree_projection: LinearTaskTreeProjection | None = None,
+        allow_side_effects: bool = False,
     ) -> None:
         self.runner = runner
         self.prepared_run = prepared_run
@@ -89,6 +95,7 @@ class RuntimeExecutorSession:
         self.presence = presence
         self.progress = progress
         self.tree_projection = tree_projection
+        self.allow_side_effects = allow_side_effects
         self.store = prepared_run.plan_store(runner.config.state_dir)
         self.state = prepared_run.state
         self.grounding = GroundingState()
@@ -180,8 +187,8 @@ class RuntimeExecutorSession:
         )
         await self._shutdown(delete_continuation=True)
 
-    async def execute_next_observation(self) -> RuntimePlanStepOutcome:
-        """Execute one pending observation through the sole Runner boundary."""
+    async def execute_next_tool(self) -> RuntimePlanStepOutcome:
+        """Execute one pending reviewed tool through the sole Runner boundary."""
 
         self._require_active()
         if self.runner.ports is None:
@@ -231,6 +238,42 @@ class RuntimeExecutorSession:
                 presence=self.presence,
                 progress=self.progress,
             )
+        except RunDeferred as deferred:
+            self.state = deferred.state
+            try:
+                self.store.transition(
+                    self.state.run_id,
+                    prepared.step_id,
+                    PlanStepStatus.BLOCKED,
+                    expected_sequence=running.sequence,
+                    expected_plan_digest=running.plan.digest,
+                )
+                self.contract.accept_boundary_outcome(
+                    prepared,
+                    self.state,
+                    expected_status=PlanStepStatus.BLOCKED,
+                )
+                if self.tree_projection is not None:
+                    self.tree_projection.finish_step(
+                        prepared.step_id,
+                        PlanStepStatus.BLOCKED,
+                        node_kind=TreeNodeKind.TOOL_STEP,
+                    )
+            except BaseException as exc:
+                self.recorder.record(
+                    self.state,
+                    RunPhase.FAILED,
+                    failure_code="EXECUTOR_DEFER_COMMIT_FAILED",
+                )
+                await self._shutdown(delete_continuation=False)
+                raise ExecutorRuntimeError("EXECUTOR_DEFER_COMMIT_FAILED") from exc
+            self.recorder.record(
+                self.state,
+                RunPhase.PAUSED,
+                failure_code="APPROVAL_DEFERRED",
+            )
+            await self._shutdown(delete_continuation=True)
+            raise ExecutorRuntimeError("APPROVAL_DEFERRED") from deferred
         except RunFailure as failure:
             self.state = failure.state
             if failure.code == "UNKNOWN_OUTCOME":
@@ -305,7 +348,17 @@ class RuntimeExecutorSession:
 
         self.state = outcome.state
         self.grounding = outcome.grounding
-        target = PlanStepStatus.COMPLETED if outcome.result.ok else PlanStepStatus.FAILED
+        verification_blocked = (
+            not outcome.result.ok
+            and self.state.recovery_status is RecoveryStatus.REQUIRES_REOBSERVATION
+        )
+        target = (
+            PlanStepStatus.BLOCKED
+            if verification_blocked
+            else PlanStepStatus.COMPLETED
+            if outcome.result.ok
+            else PlanStepStatus.FAILED
+        )
         try:
             finished = self.store.transition(
                 self.state.run_id,
@@ -323,7 +376,11 @@ class RuntimeExecutorSession:
             await self._shutdown(delete_continuation=False)
             raise ExecutorRuntimeError("EXECUTOR_PLAN_COMMIT_FAILED") from exc
         try:
-            self.contract.accept_boundary_outcome(prepared, self.state)
+            self.contract.accept_boundary_outcome(
+                prepared,
+                self.state,
+                expected_status=(PlanStepStatus.BLOCKED if verification_blocked else None),
+            )
         except ExecutorSessionError as exc:
             await self._shutdown(delete_continuation=False)
             raise ExecutorRuntimeError("EXECUTOR_RUNTIME_EVIDENCE_INVALID") from exc
@@ -340,6 +397,14 @@ class RuntimeExecutorSession:
                     delete_continuation=False,
                 )
                 raise ExecutorRuntimeError("EXECUTOR_TREE_COMMIT_FAILED") from exc
+        if verification_blocked:
+            self.recorder.record(
+                self.state,
+                RunPhase.FAILED,
+                failure_code="EXECUTOR_VERIFICATION_REQUIRED",
+            )
+            await self._shutdown(delete_continuation=False)
+            raise ExecutorRuntimeError("EXECUTOR_VERIFICATION_REQUIRED")
         if not outcome.result.ok:
             self.recorder.record(
                 self.state,
@@ -357,6 +422,27 @@ class RuntimeExecutorSession:
             tree_sequence=tree_sequence,
             tree_digest=tree_digest,
         )
+
+    async def execute_next_observation(self) -> RuntimePlanStepOutcome:
+        """Execute one pending observation without accepting an action step."""
+
+        self._require_active()
+        snapshot = self.store.read(self.state.run_id)
+        step = next(
+            (
+                item
+                for item in snapshot.plan.steps
+                if item.status is not PlanStepStatus.COMPLETED
+            ),
+            None,
+        )
+        if (
+            step is None
+            or step.action is not PlanStepAction.TOOL
+            or step.effect is not ToolEffect.OBSERVATION
+        ):
+            raise ExecutorRuntimeError("EXECUTOR_SESSION_SIDE_EFFECT_UNSUPPORTED")
+        return await self.execute_next_tool()
 
     async def execute_final_response(
         self, port: FinalResponsePort
@@ -386,7 +472,12 @@ class RuntimeExecutorSession:
             raise ExecutorRuntimeError("EXECUTOR_FINAL_PLAN_NOT_READY")
         turn_id = "executor_final_1"
         try:
-            request = compile_final_response_request(
+            compile_request = (
+                compile_hierarchical_side_effect_final_response_request
+                if self.allow_side_effects
+                else compile_final_response_request
+            )
+            request = compile_request(
                 snapshot,
                 self.state,
                 expected_sequence=snapshot.sequence,
@@ -536,10 +627,15 @@ async def _open_runtime_executor_session(
     task: str,
     plan: TaskPlan,
     tree_id: str | None,
+    allow_hierarchical_side_effects: bool = False,
 ) -> RuntimeExecutorSession:
     """Open one new runtime session, optionally with the exact H4 projection."""
 
-    if not isinstance(runner, AgentRunner) or not isinstance(plan, TaskPlan):
+    if (
+        not isinstance(runner, AgentRunner)
+        or not isinstance(plan, TaskPlan)
+        or not isinstance(allow_hierarchical_side_effects, bool)
+    ):
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_INPUT_INVALID")
     if not isinstance(task, str) or not task:
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_INPUT_INVALID")
@@ -549,14 +645,19 @@ async def _open_runtime_executor_session(
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_TASK_MISMATCH") from exc
     if plan.task_digest != task_digest:
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_TASK_MISMATCH")
-    if tree_id is not None and (
-        not isinstance(tree_id, str)
-        or not tree_id
-        or any(
-            step.action is PlanStepAction.TOOL
-            and step.effect is not ToolEffect.OBSERVATION
-            for step in plan.steps
-        )
+    if tree_id is not None and (not isinstance(tree_id, str) or not tree_id):
+        raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE")
+    if tree_id is None and allow_hierarchical_side_effects:
+        raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE")
+    if tree_id is not None and allow_hierarchical_side_effects:
+        try:
+            validate_bounded_side_effect_plan(plan)
+        except HierarchicalSideEffectError as exc:
+            raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE") from exc
+    elif tree_id is not None and any(
+        step.action is PlanStepAction.TOOL
+        and step.effect is not ToolEffect.OBSERVATION
+        for step in plan.steps
     ):
         raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE")
     if tree_id is not None:
@@ -593,7 +694,12 @@ async def _open_runtime_executor_session(
         store = prepared_run.plan_store(runner.config.state_dir)
         store.create(plan)
         if tree_id is not None:
-            tree_projection = LinearTaskTreeProjection.create(
+            create_projection = (
+                LinearTaskTreeProjection.create_bounded_side_effect
+                if allow_hierarchical_side_effects
+                else LinearTaskTreeProjection.create
+            )
+            tree_projection = create_projection(
                 store,
                 prepared_run.tree_store(runner.config.state_dir),
                 plan,
@@ -616,7 +722,11 @@ async def _open_runtime_executor_session(
             mcp_generation=runner.ports.desktop.generation,
         )
         recorder.record(prepared_run.state, RunPhase.PLANNING)
-        contract = BoundedExecutorSession(store, prepared_run.state)
+        contract = BoundedExecutorSession(
+            store,
+            prepared_run.state,
+            allow_side_effects=allow_hierarchical_side_effects,
+        )
         return RuntimeExecutorSession(
             runner=runner,
             prepared_run=prepared_run,
@@ -626,6 +736,7 @@ async def _open_runtime_executor_session(
             presence=presence,
             progress=progress,
             tree_projection=tree_projection,
+            allow_side_effects=allow_hierarchical_side_effects,
         )
     except BaseException:
         try:
@@ -683,11 +794,30 @@ async def open_hierarchical_runtime_executor_session(
     )
 
 
+async def open_hierarchical_side_effect_runtime_executor_session(
+    runner: AgentRunner,
+    *,
+    task: str,
+    plan: TaskPlan,
+    tree_id: str,
+) -> RuntimeExecutorSession:
+    """Open one H7 sequence without adding an approval or dispatch path."""
+
+    return await _open_runtime_executor_session(
+        runner,
+        task=task,
+        plan=plan,
+        tree_id=tree_id,
+        allow_hierarchical_side_effects=True,
+    )
+
+
 __all__ = [
     "ExecutorRuntimeError",
     "RuntimeExecutorSession",
     "RuntimeFinalResponseOutcome",
     "RuntimePlanStepOutcome",
+    "open_hierarchical_side_effect_runtime_executor_session",
     "open_hierarchical_runtime_executor_session",
     "open_runtime_executor_session",
 ]
