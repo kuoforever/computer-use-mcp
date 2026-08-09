@@ -26,7 +26,7 @@ four distinct maturity layers:
    exist. Three fixed campaign CLI commands exercise one exact synthetic path;
    no general campaign worker or complete application workflow is connected.
 4. **Complete-product layers — initial contract work active:** hierarchical
-   H1-H7 plus H8A-H8B and continual-learning L0-L4 are implemented through offline
+   H1-H8 and continual-learning L0-L4 are implemented through offline
    observation-runtime composition, typed freshness-bound facts, one pinned
    reviewed behavior template, and bounded local condition evaluation;
    multi-source observation,
@@ -216,7 +216,7 @@ surfaces rather than one automatic general-product loop.
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
 | Final-response reconciliation | Preflight implemented/internal | Pure reconstruction of exact completed evidence; applying CAS/cleanup and CLI exposure remain next | [Planning](PLANNING.md) |
 | Bounded Planner/Executor CLI | Implemented/read-only | `ask` and `plan run` compose one Planner call, one to four reviewed observations through Runner, and one tool-free final answer; side effects remain unavailable | [Capability status](CAPABILITY_STATUS.md) |
-| Hierarchical task and behavior trees | H1-H7 plus H8A-H8B implemented/offline; H8C planned | Immutable versioned nodes, canonical tree/envelope digests, structural/budget/graph limits, pure state and join reduction, private `RunLock`-bound exact CAS, next-leaf compilation, typed fresh facts, one exact BOSS observation template, one separately gated observation/action/verification-observation sequence, contract-v2 bounded local H5 condition batches, and contract-v3 all-of dependencies with stable globally serialized external-leaf selection preserve the existing Runtime Executor and sole Runner boundary | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md), [H7 evidence](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md), [H8A evidence](H8A_PARALLEL_CONDITION_EVIDENCE.md), [H8B evidence](H8B_DEPENDENCY_JOIN_EVIDENCE.md) |
+| Hierarchical task and behavior trees | H1-H8 implemented/offline; H8C publication active | Immutable versioned nodes, canonical tree/envelope digests, structural/budget/graph limits, pure state and join reduction, private `RunLock`-bound exact CAS, next-leaf compilation, typed fresh facts, one exact BOSS observation template, one separately gated observation/action/verification-observation sequence, contract-v2 bounded H5 batches, contract-v3 all-of joins, and contract-v4 Host-ordered immutable choice plus exact verified read-only-miss fallback preserve the existing Runtime Executor and sole Runner boundary | [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md), [H7 evidence](H7_BOUNDED_SIDE_EFFECT_EVIDENCE.md), [H8A evidence](H8A_PARALLEL_CONDITION_EVIDENCE.md), [H8B evidence](H8B_DEPENDENCY_JOIN_EVIDENCE.md), [H8C evidence](H8C_SAFE_CHOICE_EVIDENCE.md) |
 
 ### Long-running campaigns
 
@@ -288,6 +288,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_agent/behavior_templates.py` | Immutable H6 exact-version template registry, pinned BOSS observation ladder, inert request binding, and no-fallback reducer compatibility |
 | `src/computer_use_agent/hierarchical_parallel_contract.py`, `hierarchical_parallel.py` | H8A content-free batch evidence plus bounded four-worker local H5 evaluation and one exact tree-store CAS; no external port |
 | `src/computer_use_agent/hierarchical_graph_contract.py`, `hierarchical_control.py`, `hierarchical_compiler.py` | H8B content-free all-of edges, bounded combined-DAG validation, local joins, stable one-ready-leaf compilation, and global external-leaf serialization; no external port |
+| `src/computer_use_agent/hierarchical_choice_contract.py`, `hierarchical_choice.py` | H8C content-free Host-order branch evidence, bounded local H5 gate evaluation, immutable selection, and exact pre-boundary-false/read-only-verified-miss fallback; no external port |
 | `src/computer_use_agent/executor*.py`, `planned_observation_runtime.py` | Observation/final runtimes, WALs, reconciliation, and bounded read-only CLI composition |
 | `src/computer_use_agent/campaign*.py`, `batch*.py`, lease/heartbeat modules | Internal long-running control plane |
 | `src/computer_use_agent/evaluation.py`, `release.py` | Deterministic evidence and release preflight |

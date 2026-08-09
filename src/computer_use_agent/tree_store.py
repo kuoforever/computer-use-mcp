@@ -21,12 +21,21 @@ from .hierarchical_control import (
     TREE_CONTRACT_VERSION,
     TREE_CONTRACT_VERSION_V2,
     TREE_CONTRACT_VERSION_V3,
+    TREE_CONTRACT_VERSION_V4,
     TaskTree,
     TreeBudget,
     TreeLimits,
     TreeNode,
     TreeNodeKind,
     TreeValidationError,
+)
+from .hierarchical_choice_contract import (
+    ChoiceContractError,
+    ChoiceDisposition,
+    ChoiceEvent,
+    ChoiceFallbackCause,
+    ChoiceFallbackEvidence,
+    ChoiceGateResult,
 )
 from .hierarchical_graph_contract import TreeDependency, TreeDependencyError
 from .hierarchical_parallel_contract import (
@@ -73,6 +82,7 @@ _TREE_FIELDS_V1 = frozenset(
 )
 _TREE_FIELDS_V2 = _TREE_FIELDS_V1 | {"parallel_batches"}
 _TREE_FIELDS_V3 = _TREE_FIELDS_V2 | {"dependencies"}
+_TREE_FIELDS_V4 = _TREE_FIELDS_V3 | {"choice_events"}
 _LIMIT_FIELDS = frozenset(
     {
         "max_depth",
@@ -123,6 +133,45 @@ _PARALLEL_RESULT_FIELDS = frozenset(
     }
 )
 _DEPENDENCY_FIELDS = frozenset({"prerequisite_id", "dependent_id"})
+_CHOICE_EVENT_FIELDS = frozenset(
+    {
+        "version",
+        "choice_node_id",
+        "source_sequence",
+        "source_tree_digest",
+        "snapshot_digest",
+        "context_digest",
+        "disposition",
+        "selected_branch_id",
+        "fallback",
+        "results",
+    }
+)
+_CHOICE_RESULT_FIELDS = frozenset(
+    {
+        "branch_id",
+        "condition_node_id",
+        "condition_id",
+        "outcome",
+        "availability",
+        "condition_digest",
+        "fact_digest",
+        "evidence_digest",
+    }
+)
+_CHOICE_FALLBACK_FIELDS = frozenset(
+    {
+        "cause",
+        "source_branch_id",
+        "failure_node_id",
+        "condition_id",
+        "condition_digest",
+        "fact_digest",
+        "evidence_digest",
+        "observation_node_id",
+        "observation_evidence_digest",
+    }
+)
 
 
 class TreeStoreError(RuntimeError):
@@ -330,6 +379,85 @@ def _decode_dependency(value: object) -> TreeDependency:
         raise TreeStoreError("TREE_STORE_INVALID") from exc
 
 
+def _decode_choice_result(value: object) -> ChoiceGateResult:
+    if not isinstance(value, Mapping) or set(value) != _CHOICE_RESULT_FIELDS:
+        raise TreeStoreError("TREE_STORE_INVALID")
+    from .world_state import ConditionOutcome, FactAvailability
+
+    try:
+        return ChoiceGateResult(
+            branch_id=_require_str(value.get("branch_id")),
+            condition_node_id=_require_str(value.get("condition_node_id")),
+            condition_id=_require_str(value.get("condition_id")),
+            outcome=ConditionOutcome(_require_str(value.get("outcome"))),
+            availability=FactAvailability(_require_str(value.get("availability"))),
+            condition_digest=_require_digest(value.get("condition_digest")),
+            fact_digest=(
+                None
+                if value.get("fact_digest") is None
+                else _require_digest(value.get("fact_digest"))
+            ),
+            evidence_digest=(
+                None
+                if value.get("evidence_digest") is None
+                else _require_digest(value.get("evidence_digest"))
+            ),
+        )
+    except (ChoiceContractError, ValueError) as exc:
+        raise TreeStoreError("TREE_STORE_INVALID") from exc
+
+
+def _decode_choice_fallback(value: object) -> ChoiceFallbackEvidence:
+    if not isinstance(value, Mapping) or set(value) != _CHOICE_FALLBACK_FIELDS:
+        raise TreeStoreError("TREE_STORE_INVALID")
+    try:
+        return ChoiceFallbackEvidence(
+            cause=ChoiceFallbackCause(_require_str(value.get("cause"))),
+            source_branch_id=_require_str(value.get("source_branch_id")),
+            failure_node_id=_require_str(value.get("failure_node_id")),
+            condition_id=_require_str(value.get("condition_id")),
+            condition_digest=_require_digest(value.get("condition_digest")),
+            fact_digest=_require_digest(value.get("fact_digest")),
+            evidence_digest=_require_digest(value.get("evidence_digest")),
+            observation_node_id=_require_optional_str(value.get("observation_node_id")),
+            observation_evidence_digest=(
+                None
+                if value.get("observation_evidence_digest") is None
+                else _require_digest(value.get("observation_evidence_digest"))
+            ),
+        )
+    except (ChoiceContractError, ValueError) as exc:
+        raise TreeStoreError("TREE_STORE_INVALID") from exc
+
+
+def _decode_choice_event(value: object) -> ChoiceEvent:
+    if not isinstance(value, Mapping) or set(value) != _CHOICE_EVENT_FIELDS:
+        raise TreeStoreError("TREE_STORE_INVALID")
+    raw_results = value.get("results")
+    if not isinstance(raw_results, list):
+        raise TreeStoreError("TREE_STORE_INVALID")
+    raw_fallback = value.get("fallback")
+    try:
+        return ChoiceEvent(
+            version=_require_int(value.get("version")),
+            choice_node_id=_require_str(value.get("choice_node_id")),
+            source_sequence=_require_sequence(value.get("source_sequence")),
+            source_tree_digest=_require_digest(value.get("source_tree_digest")),
+            snapshot_digest=_require_digest(value.get("snapshot_digest")),
+            context_digest=_require_digest(value.get("context_digest")),
+            disposition=ChoiceDisposition(_require_str(value.get("disposition"))),
+            selected_branch_id=_require_optional_str(value.get("selected_branch_id")),
+            fallback=(
+                None
+                if raw_fallback is None
+                else _decode_choice_fallback(raw_fallback)
+            ),
+            results=tuple(_decode_choice_result(item) for item in raw_results),
+        )
+    except (ChoiceContractError, ValueError) as exc:
+        raise TreeStoreError("TREE_STORE_INVALID") from exc
+
+
 def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
     if not isinstance(value, Mapping):
         raise TreeStoreError("TREE_STORE_INVALID")
@@ -341,6 +469,8 @@ def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
         if contract_version == TREE_CONTRACT_VERSION_V2
         else _TREE_FIELDS_V3
         if contract_version == TREE_CONTRACT_VERSION_V3
+        else _TREE_FIELDS_V4
+        if contract_version == TREE_CONTRACT_VERSION_V4
         else frozenset()
     )
     if not expected_fields or set(value) != expected_fields:
@@ -381,6 +511,16 @@ def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
                 )
                 if isinstance(value.get("dependencies"), list)
                 else (_raise_invalid_dependencies())
+            ),
+            choice_events=(
+                ()
+                if contract_version < TREE_CONTRACT_VERSION_V4
+                else tuple(
+                    _decode_choice_event(event)
+                    for event in value.get("choice_events", [])
+                )
+                if isinstance(value.get("choice_events"), list)
+                else (_raise_invalid_choice_events())
             ),
         )
     except TreeValidationError as exc:
@@ -438,7 +578,7 @@ def _structure_payload(tree: TaskTree) -> dict[str, object]:
     return {
         key: item
         for key, item in payload.items()
-        if key not in {"nodes", "parallel_batches"}
+        if key not in {"nodes", "parallel_batches", "choice_events"}
     } | {"nodes": structural_nodes}
 
 
@@ -450,12 +590,17 @@ def _raise_invalid_dependencies() -> tuple[TreeDependency, ...]:
     raise TreeStoreError("TREE_STORE_INVALID")
 
 
+def _raise_invalid_choice_events() -> tuple[ChoiceEvent, ...]:
+    raise TreeStoreError("TREE_STORE_INVALID")
+
+
 def _validate_parallel_batch_transition(current: TaskTree, updated: TaskTree) -> None:
     if updated.parallel_batches == current.parallel_batches:
         return
     if updated.contract_version not in {
         TREE_CONTRACT_VERSION_V2,
         TREE_CONTRACT_VERSION_V3,
+        TREE_CONTRACT_VERSION_V4,
     }:
         raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
     current_by_node = {batch.parallel_node_id: batch for batch in current.parallel_batches}
@@ -469,6 +614,21 @@ def _validate_parallel_batch_transition(current: TaskTree, updated: TaskTree) ->
         raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
     batch = updated_by_node[next(iter(added))]
     if batch.disposition is ParallelBatchDisposition.BLOCKED:
+        raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
+
+
+def _validate_choice_event_transition(current: TaskTree, updated: TaskTree) -> None:
+    if updated.choice_events == current.choice_events:
+        return
+    if updated.contract_version != TREE_CONTRACT_VERSION_V4:
+        raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
+    if (
+        len(updated.choice_events) != len(current.choice_events) + 1
+        or updated.choice_events[:-1] != current.choice_events
+    ):
+        raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
+    event = updated.choice_events[-1]
+    if event.disposition is ChoiceDisposition.BLOCKED:
         raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
 
 
@@ -620,6 +780,7 @@ class TaskTreeStore:
         if _structure_payload(updated_tree) != _structure_payload(current.tree):
             raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
         _validate_parallel_batch_transition(current.tree, updated_tree)
+        _validate_choice_event_transition(current.tree, updated_tree)
         if updated_tree.parallel_batches != current.tree.parallel_batches:
             new_batches = tuple(
                 batch
@@ -630,6 +791,13 @@ class TaskTreeStore:
                 len(new_batches) != 1
                 or new_batches[0].source_sequence != current.sequence
                 or new_batches[0].source_tree_digest != current.tree.digest
+            ):
+                raise TreeStoreError("TREE_STORE_STALE_WRITE")
+        if updated_tree.choice_events != current.tree.choice_events:
+            event = updated_tree.choice_events[-1]
+            if (
+                event.source_sequence != current.sequence
+                or event.source_tree_digest != current.tree.digest
             ):
                 raise TreeStoreError("TREE_STORE_STALE_WRITE")
         if updated_tree.digest == current.tree.digest:

@@ -13,6 +13,13 @@ from enum import Enum
 from hashlib import sha256
 from typing import Mapping, Sequence
 
+from .hierarchical_choice_contract import (
+    MAX_CHOICE_BRANCHES,
+    MIN_CHOICE_BRANCHES,
+    ChoiceDisposition,
+    ChoiceEvent,
+    ChoiceFallbackCause,
+)
 from .hierarchical_graph_contract import (
     MAX_TREE_DEPENDENCIES,
     MAX_TREE_DEPENDENCY_FAN_IN,
@@ -33,8 +40,14 @@ from .world_state import ConditionOutcome
 TREE_CONTRACT_VERSION = 1
 TREE_CONTRACT_VERSION_V2 = 2
 TREE_CONTRACT_VERSION_V3 = 3
+TREE_CONTRACT_VERSION_V4 = 4
 SUPPORTED_TREE_CONTRACT_VERSIONS = frozenset(
-    {TREE_CONTRACT_VERSION, TREE_CONTRACT_VERSION_V2, TREE_CONTRACT_VERSION_V3}
+    {
+        TREE_CONTRACT_VERSION,
+        TREE_CONTRACT_VERSION_V2,
+        TREE_CONTRACT_VERSION_V3,
+        TREE_CONTRACT_VERSION_V4,
+    }
 )
 MAX_TREE_NODES = 128
 MAX_TREE_DEPTH = 12
@@ -443,6 +456,7 @@ class TaskTree:
     contract_version: int = TREE_CONTRACT_VERSION
     parallel_batches: tuple[ParallelConditionBatch, ...] = ()
     dependencies: tuple[TreeDependency, ...] = ()
+    choice_events: tuple[ChoiceEvent, ...] = ()
 
     def __post_init__(self) -> None:
         _require_identifier(self.tree_id, "tree_id")
@@ -473,6 +487,10 @@ class TaskTree:
             isinstance(dependency, TreeDependency) for dependency in self.dependencies
         ):
             raise TreeValidationError("dependencies must be immutable H8B edges")
+        if not isinstance(self.choice_events, tuple) or not all(
+            isinstance(event, ChoiceEvent) for event in self.choice_events
+        ):
+            raise TreeValidationError("choice_events must be immutable H8C evidence")
         if not 2 <= len(self.nodes) <= self.limits.max_nodes:
             raise TreeValidationError("tree node count is outside the bound limits")
 
@@ -485,16 +503,30 @@ class TaskTree:
             node for node in ordered if node.kind is TreeNodeKind.PARALLEL
         )
         join_nodes = tuple(node for node in ordered if node.kind is TreeNodeKind.JOIN)
+        choice_nodes = tuple(
+            node for node in ordered if node.kind is TreeNodeKind.CHOICE
+        )
         if self.contract_version == TREE_CONTRACT_VERSION:
-            if parallel_nodes or join_nodes or self.parallel_batches or self.dependencies:
+            if (
+                parallel_nodes
+                or join_nodes
+                or self.parallel_batches
+                or self.dependencies
+                or self.choice_events
+            ):
                 raise TreeValidationError("tree v1 cannot carry H8 fields")
         elif self.contract_version == TREE_CONTRACT_VERSION_V2:
             if not parallel_nodes:
                 raise TreeValidationError("tree v2 requires a parallel node")
-            if join_nodes or self.dependencies:
+            if join_nodes or self.dependencies or self.choice_events:
                 raise TreeValidationError("tree v2 cannot carry H8B fields")
-        elif not join_nodes or not self.dependencies:
-            raise TreeValidationError("tree v3 requires dependencies and join")
+        elif self.contract_version == TREE_CONTRACT_VERSION_V3:
+            if self.choice_events:
+                raise TreeValidationError("tree v3 cannot carry H8C fields")
+            if not join_nodes or not self.dependencies:
+                raise TreeValidationError("tree v3 requires dependencies and join")
+        elif len(choice_nodes) != 1:
+            raise TreeValidationError("tree v4 requires exactly one choice node")
         root = by_id.get(self.root_id)
         if root is None or root.parent_id is not None or root.kind not in _INTERNAL_KINDS:
             raise TreeValidationError("tree root is invalid")
@@ -540,6 +572,39 @@ class TaskTree:
                     raise TreeValidationError(
                         "parallel condition identifiers must be unique"
                     )
+
+        if self.contract_version == TREE_CONTRACT_VERSION_V4:
+            choice = choice_nodes[0]
+            if not MIN_CHOICE_BRANCHES <= len(choice.child_ids) <= MAX_CHOICE_BRANCHES:
+                raise TreeValidationError("choice branch count is outside bound limits")
+            branches = tuple(by_id.get(branch_id) for branch_id in choice.child_ids)
+            if any(
+                branch is None
+                or branch.kind is not TreeNodeKind.SEQUENCE
+                or len(branch.child_ids) < 2
+                for branch in branches
+            ):
+                raise TreeValidationError("choice branches must be fixed sequences")
+            gates = tuple(
+                by_id.get(branch.child_ids[0])
+                for branch in branches
+                if branch is not None
+            )
+            if any(gate is None or gate.kind is not TreeNodeKind.CONDITION for gate in gates):
+                raise TreeValidationError("choice branches must start with conditions")
+            if len({gate.condition_id for gate in gates if gate is not None}) != len(gates):
+                raise TreeValidationError("choice gate identifiers must be unique")
+            for branch in branches:
+                if branch is None:
+                    continue
+                stack = list(branch.child_ids[1:])
+                while stack:
+                    descendant = by_id.get(stack.pop())
+                    if descendant is None:
+                        continue
+                    if descendant.kind is TreeNodeKind.CHOICE:
+                        raise TreeValidationError("nested choice nodes are not supported")
+                    stack.extend(descendant.child_ids)
 
         canonical_batches = tuple(
             sorted(self.parallel_batches, key=lambda batch: batch.parallel_node_id)
@@ -589,8 +654,111 @@ class TaskTree:
         if set(referenced) != set(by_id) - {self.root_id}:
             raise TreeValidationError("every non-root node must be reachable once")
 
-        if self.contract_version >= TREE_CONTRACT_VERSION_V3:
+        if self.contract_version == TREE_CONTRACT_VERSION_V3 or (
+            self.contract_version == TREE_CONTRACT_VERSION_V4
+            and (self.dependencies or join_nodes)
+        ):
+            if not self.dependencies or not join_nodes:
+                raise TreeValidationError("dependencies and joins must appear together")
             _validate_dependency_graph(by_id, self.dependencies)
+
+        choice_events = self.choice_events
+        if self.contract_version == TREE_CONTRACT_VERSION_V4:
+            choice = choice_nodes[0]
+            branch_ids = choice.child_ids
+            gate_by_branch = {
+                branch_id: by_id[by_id[branch_id].child_ids[0]]
+                for branch_id in branch_ids
+            }
+            previous_selected: str | None = None
+            previous_sequence = -1
+            evidence_leaf_statuses: dict[str, PlanStepStatus] = {}
+            for index, event in enumerate(choice_events):
+                if (
+                    event.choice_node_id != choice.node_id
+                    or event.disposition is ChoiceDisposition.BLOCKED
+                    or event.source_sequence <= previous_sequence
+                ):
+                    raise TreeValidationError("choice event chain is invalid")
+                expected_branches = (
+                    branch_ids
+                    if index == 0
+                    else branch_ids[branch_ids.index(previous_selected or "") + 1 :]
+                )
+                if tuple(result.branch_id for result in event.results) != expected_branches:
+                    raise TreeValidationError("choice result branch binding is invalid")
+                for choice_result in event.results:
+                    gate = gate_by_branch[choice_result.branch_id]
+                    if (
+                        choice_result.condition_node_id != gate.node_id
+                        or choice_result.condition_id != gate.condition_id
+                    ):
+                        raise TreeValidationError("choice gate binding is invalid")
+                if index == 0:
+                    if event.fallback is not None:
+                        raise TreeValidationError("initial choice cannot carry fallback")
+                else:
+                    fallback = event.fallback
+                    if (
+                        fallback is None
+                        or fallback.source_branch_id != previous_selected
+                    ):
+                        raise TreeValidationError("choice fallback chain is invalid")
+                    source_branch = by_id[fallback.source_branch_id]
+                    descendants: set[str] = set()
+                    stack = list(source_branch.child_ids)
+                    while stack:
+                        descendant_id = stack.pop()
+                        descendants.add(descendant_id)
+                        stack.extend(by_id[descendant_id].child_ids)
+                    failure = by_id.get(fallback.failure_node_id)
+                    if failure is None or failure.node_id not in descendants:
+                        raise TreeValidationError("choice fallback binding is invalid")
+                    if fallback.cause is ChoiceFallbackCause.PRE_BOUNDARY_FALSE:
+                        if failure.node_id != source_branch.child_ids[0]:
+                            raise TreeValidationError("choice fallback binding is invalid")
+                        expected_condition_id = failure.condition_id
+                    else:
+                        observation = by_id.get(fallback.observation_node_id or "")
+                        if (
+                            failure.kind is not TreeNodeKind.VERIFY
+                            or observation is None
+                            or observation.node_id not in descendants
+                            or observation.kind
+                            not in {TreeNodeKind.TOOL_STEP, TreeNodeKind.SUBTREE}
+                            or observation.status is not PlanStepStatus.COMPLETED
+                            or any(by_id[node_id].budget.side_effects for node_id in descendants)
+                        ):
+                            raise TreeValidationError("choice fallback is not read-only")
+                        expected_condition_id = failure.verification_id
+                    if (
+                        expected_condition_id != fallback.condition_id
+                        or failure.status is not PlanStepStatus.FAILED
+                    ):
+                        raise TreeValidationError("choice fallback evidence is invalid")
+                    evidence_leaf_statuses[failure.node_id] = PlanStepStatus.FAILED
+                for choice_result in event.results:
+                    if choice_result.outcome is ConditionOutcome.FALSE:
+                        evidence_leaf_statuses[
+                            choice_result.condition_node_id
+                        ] = PlanStepStatus.FAILED
+                        continue
+                    if choice_result.outcome is ConditionOutcome.TRUE:
+                        evidence_leaf_statuses[
+                            choice_result.condition_node_id
+                        ] = PlanStepStatus.COMPLETED
+                        break
+                previous_sequence = event.source_sequence
+                previous_selected = event.selected_branch_id
+                if event.disposition is ChoiceDisposition.FAILED:
+                    previous_selected = None
+                    if index != len(choice_events) - 1:
+                        raise TreeValidationError("failed choice event must be final")
+            if any(
+                by_id[node_id].status is not status
+                for node_id, status in evidence_leaf_statuses.items()
+            ):
+                raise TreeValidationError("choice evidence status is not canonical")
 
         visiting: set[str] = set()
         visited: set[str] = set()
@@ -607,9 +775,17 @@ class TaskTree:
             for child_id in node.child_ids:
                 visit(child_id, depth + 1)
             if node.child_ids:
-                expected = reduce_child_statuses(
-                    tuple(by_id[child_id].status for child_id in node.child_ids)
-                )
+                if node.kind is TreeNodeKind.CHOICE and choice_events:
+                    final_event = choice_events[-1]
+                    expected = (
+                        PlanStepStatus.FAILED
+                        if final_event.disposition is ChoiceDisposition.FAILED
+                        else by_id[final_event.selected_branch_id or ""].status
+                    )
+                else:
+                    expected = reduce_child_statuses(
+                        tuple(by_id[child_id].status for child_id in node.child_ids)
+                    )
                 if node.status is not expected:
                     raise TreeValidationError("control node status is not canonical")
             visiting.remove(node_id)
@@ -655,6 +831,10 @@ class TaskTree:
             payload["dependencies"] = [
                 dependency.to_payload() for dependency in self.dependencies
             ]
+        if self.contract_version >= TREE_CONTRACT_VERSION_V4:
+            payload["choice_events"] = [
+                event.to_payload() for event in self.choice_events
+            ]
         return payload
 
     @property
@@ -666,7 +846,10 @@ class TaskTree:
 
 
 def reduce_tree_statuses(
-    tree: TaskTree, leaf_statuses: Mapping[str, PlanStepStatus]
+    tree: TaskTree,
+    leaf_statuses: Mapping[str, PlanStepStatus],
+    *,
+    choice_events: tuple[ChoiceEvent, ...] | None = None,
 ) -> TaskTree:
     """Return a canonical pure projection from caller-supplied leaf evidence.
 
@@ -687,6 +870,11 @@ def reduce_tree_statuses(
         if not isinstance(status, PlanStepStatus):
             raise TreeValidationError("leaf status is invalid")
 
+    bound_choice_events = tree.choice_events if choice_events is None else choice_events
+    if not isinstance(bound_choice_events, tuple) or not all(
+        isinstance(event, ChoiceEvent) for event in bound_choice_events
+    ):
+        raise TreeValidationError("choice_events are invalid")
     prerequisites: dict[str, tuple[str, ...]] = {}
     for dependency in tree.dependencies:
         prerequisites[dependency.dependent_id] = (
@@ -703,11 +891,21 @@ def reduce_tree_statuses(
         progressed = False
         for node_id in sorted(unresolved):
             node = by_id[node_id]
-            source_ids = (
-                prerequisites.get(node_id, ())
-                if node.kind is TreeNodeKind.JOIN
-                else node.child_ids
-            )
+            source_ids: tuple[str, ...]
+            if node.kind is TreeNodeKind.CHOICE and bound_choice_events:
+                final_event = bound_choice_events[-1]
+                if final_event.disposition is ChoiceDisposition.FAILED:
+                    resolved[node_id] = PlanStepStatus.FAILED
+                    unresolved.remove(node_id)
+                    progressed = True
+                    break
+                source_ids = (final_event.selected_branch_id or "",)
+            else:
+                source_ids = (
+                    prerequisites.get(node_id, ())
+                    if node.kind is TreeNodeKind.JOIN
+                    else node.child_ids
+                )
             if not source_ids or any(source_id not in resolved for source_id in source_ids):
                 continue
             resolved[node_id] = reduce_child_statuses(
@@ -719,7 +917,7 @@ def reduce_tree_statuses(
         if not progressed:
             raise TreeValidationError("tree status reduction contains a cycle")
     nodes = tuple(replace(node, status=resolved[node.node_id]) for node in tree.nodes)
-    return replace(tree, nodes=nodes)
+    return replace(tree, nodes=nodes, choice_events=bound_choice_events)
 
 
 def project_linear_plan(
@@ -807,6 +1005,7 @@ __all__ = [
     "TREE_CONTRACT_VERSION",
     "TREE_CONTRACT_VERSION_V2",
     "TREE_CONTRACT_VERSION_V3",
+    "TREE_CONTRACT_VERSION_V4",
     "SUPPORTED_TREE_CONTRACT_VERSIONS",
     "TaskTree",
     "TreeBudget",

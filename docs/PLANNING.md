@@ -428,8 +428,9 @@ facts and one pinned observation template, and compose observation/final plus
 one separately gated action/verification sequence with this existing runtime.
 H8A adds a bounded local batch over typed H5 condition leaves. H8B adds bounded
 all-of dependencies, local joins, and stable selection of one ready external
-leaf across general parallel subtrees. Conditional branch execution and
-bounded iteration are not implemented.
+leaf across general parallel subtrees. H8C adds Host-ordered fixed branches and
+only fresh pre-boundary-false or exact verified read-only-miss fallback. Bounded
+iteration remains unimplemented.
 
 The continuing design is described in
 [Hierarchical task and behavior trees](HIERARCHICAL_TASK_AND_BEHAVIOR_TREES.md).

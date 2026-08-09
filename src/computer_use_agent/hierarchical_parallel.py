@@ -16,6 +16,7 @@ from typing import Mapping
 from .hierarchical_control import (
     TREE_CONTRACT_VERSION_V2,
     TREE_CONTRACT_VERSION_V3,
+    TREE_CONTRACT_VERSION_V4,
     TaskTree,
     TreeNode,
     TreeNodeKind,
@@ -82,6 +83,7 @@ def _parallel_node(tree: TaskTree, parallel_node_id: str) -> tuple[TreeNode, ...
     if not isinstance(tree, TaskTree) or tree.contract_version not in {
         TREE_CONTRACT_VERSION_V2,
         TREE_CONTRACT_VERSION_V3,
+        TREE_CONTRACT_VERSION_V4,
     }:
         raise ParallelConditionError("PARALLEL_CONDITION_TREE_INVALID")
     node = next((item for item in tree.nodes if item.node_id == parallel_node_id), None)
