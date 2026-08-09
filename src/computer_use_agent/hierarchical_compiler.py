@@ -14,6 +14,7 @@ from hashlib import sha256
 
 from .hierarchical_control import (
     TREE_CONTRACT_VERSION_V3,
+    TREE_CONTRACT_VERSION_V4,
     TaskTree,
     TreeNode,
     TreeNodeKind,
@@ -338,6 +339,14 @@ def _v3_ready_leaves(
                 return [], False, True
             return [node], False, False
         if node.kind is TreeNodeKind.CHOICE:
+            if (
+                tree.contract_version >= TREE_CONTRACT_VERSION_V4
+                and tree.choice_events
+            ):
+                selected = tree.choice_events[-1].selected_branch_id
+                if selected is None:
+                    raise TreeCompileError("TREE_COMPILE_STATE_INVALID")
+                return visit(by_id[selected])
             return [], True, False
         if node.kind in _INTERNAL_ORDERED_KINDS:
             for child_id in node.child_ids:

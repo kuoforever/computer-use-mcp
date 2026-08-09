@@ -1,12 +1,12 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H7 plus H8A-H8B implemented and offline verified; H8C remains planned.**
+> **Status: H1-H8 implemented and offline verified; H8C publication is active.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
-> existing observation-only Runtime Executor. H8A-H8B add only bounded local
+> existing observation-only Runtime Executor. H8A-H8C add only bounded local
 > condition evaluation, scheduling structure, and atomic tree-store
-> transitions. They add no second
+> transitions and fail-closed choice evidence. They add no second
 > Runner/MCP dispatch site or new approval, retry, replay, recovery, or campaign
 > authority. Their evidence is offline fake-port evidence only.
 
@@ -535,6 +535,38 @@ external serialization, strict cross-version decoding, structure tampering,
 and restart readability. H8B adds no external port and does not claim provider,
 real MCP/desktop/application, H8C fallback, L5, E4, or release evidence.
 
+## Implemented H8C boundary
+
+`src/computer_use_agent/hierarchical_choice_contract.py` and
+`hierarchical_choice.py` add contract v4 safe ordered choice without rewriting
+v1-v3 snapshots:
+
+- exactly one v4 `choice` contains 2-16 fixed-order branch `sequence` nodes;
+  every branch starts with one unique typed H5 `condition`, nested choice is
+  rejected, and dependency/join structure remains optional but paired;
+- up to four local workers evaluate every candidate gate over one immutable
+  snapshot/context. Results retain Host branch order: an earlier unavailable
+  gate blocks with zero write, the first true branch is selected and persisted,
+  and only all-false produces a known choice failure;
+- the selected branch is immutable evidence bound to source sequence/tree,
+  snapshot/context, condition, fact, and observation digests. The compiler
+  visits only that branch, so ordinary context drift cannot silently reselect;
+- a later branch can be considered only from fresh false before any selected
+  branch boundary, or from a successfully completed zero-side-effect reviewed
+  observation whose exact fresh verification is false. Remaining gates are
+  re-evaluated in Host order and the new event is one exact CAS append; and
+- approval/permission denial, authority or grounding loss, policy/budget
+  conflict, cancellation, dispatched error, missing verification, unknown
+  outcome, and every side-effect failure are explicit stop outcomes and have no
+  fallback constructor or transition.
+
+The [H8C offline evidence](H8C_SAFE_CHOICE_EVIDENCE.md) covers the complete
+true/false/unavailable ordering matrix, multiple-true priority, actual worker
+overlap, both eligible fallback classes, all stop outcomes, context drift,
+side-effect exclusion, atomic CAS/exception behavior, strict v1-v4
+decode/digest compatibility, tampering, and restart readability. H8C adds no
+provider, Runner, MCP, desktop, application, L5, E4, or release evidence.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -568,15 +600,15 @@ not a product priority sequence.
 | `H6` | **Implemented/offline verified:** one exact-version reviewed template registry, starting with the per-item observation ladder. | Passed: exact tools, arguments, safety baselines, reducer outcomes, terminal handoffs, and budget reproduce the fixed runtime with no added authority. |
 | `H7` | **Implemented/offline verified:** one exact observation/action/verification-observation/final sequence through the existing Runtime Executor and sole Runner boundary. | Passed: separate shape/authority review plus deterministic isolated-application success, denial, defer, unknown, dispatched-error, and missing-verification evidence with zero new authority. |
 | `H8A` | **Implemented/offline verified:** contract-v2 bounded parallel evaluation of direct H5 condition leaves. | Passed and merged: real worker overlap, deterministic digest-bound output, atomic known-result CAS, unavailable/exception/conflict zero-write, and restart semantics. |
-| `H8B` | **Implemented/offline verified:** contract-v3 bounded all-of dependency DAG, general parallel subtrees, stable one-leaf selection, and local join reduction. | Passed locally: topology bounds/cycles, join matrix, deterministic ready-leaf order, global external serialization, strict v1-v3 decode/digest, tamper rejection, and restart semantics; publication must clear before H8C. |
-| `H8C` | Safe ordered choice and exact read-only verified-miss fallback. | Only after H8B publication; denial, authority loss, uncertainty, side effects, and missing verification must never become fallback inputs. |
+| `H8B` | **Implemented/offline verified:** contract-v3 bounded all-of dependency DAG, general parallel subtrees, stable one-leaf selection, and local join reduction. | Passed and merged: topology bounds/cycles, join matrix, deterministic ready-leaf order, global external serialization, strict v1-v3 decode/digest, tamper rejection, and restart semantics. |
+| `H8C` | **Implemented/offline verified:** contract-v4 Host-ordered choice plus exact fresh pre-boundary-false and verified read-only-miss fallback. | Passed locally: ordering/unavailable/multiple-true matrix, actual worker overlap, immutable selection, eligible fallback and prohibited-stop matrices, side-effect/context-drift rejection, atomic CAS, strict v1-v4 decode/digest, tamper rejection, and restart semantics; publication must clear before H8 is complete. |
 
 `H1`-`H3` add no runtime behavior at all. H4 composes only the already
 supported observation/final-response plan and adds no new external authority.
 `H7` is the first phase that widens the internal hierarchical runtime, and it
 inherits the existing approval review rather than defining its own. No public
-Planner/Executor or application workflow is widened by H7. H8A and H8B add
-local computation and scheduling structure only; neither widens H7 or any
+Planner/Executor or application workflow is widened by H7. H8A-H8C add local
+computation, scheduling structure, and evidence-bound choice only; none widens H7 or any
 external runtime boundary.
 
 `H1` also produces one architecture decision record for the single constraint
@@ -589,11 +621,12 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H7 and H8A-H8B satisfy the schema, limit, digest, state-vocabulary,
+are true. H1-H8 satisfy the schema, limit, digest, state-vocabulary,
 linear-plan compatibility, private persistence/CAS/crash boundaries, pure
 next-leaf/transition subset, existing observation-runtime composition, exact
 single-action/verification gate, typed fresh-fact condition boundary, exact
-pinned-template registry, bounded all-of graph, and local join boundary:
+pinned-template registry, bounded all-of graph, local join boundary, and safe
+ordered-choice/fallback boundary:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests
