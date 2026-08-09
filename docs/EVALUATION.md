@@ -215,6 +215,18 @@ tool-free final-response leaf retains its dedicated WAL ordering. All ports are
 injected fakes, so this is not provider, MCP, desktop, application, E4, or
 release evidence.
 
+H5 adds E0-only typed fact evidence. Its deterministic tests cover all seven
+reviewed observation sources, fixed non-model extraction methods, raw text and
+image-byte exclusion, canonical evidence/fact/snapshot digests, exact scalar
+typing, explicit unknowns, empty/missing state, fact-count and age bounds, and
+exact run/epoch/MCP-generation/window-ID/process-ID/process-name/time pins.
+Fresh known equality is the only path to `true` or `false`; every stale,
+changed, unknown, missing, or type-mismatched case is `unavailable` and carries
+no value or fact/evidence digest. This module has no persistence, provider,
+Runner, MCP, desktop, approval, tree-transition, retry, replay, or learning
+port, so the result is not H6 template, live, E3/E4, application, or release
+evidence.
+
 Completed-observation reconciliation adds E0 evidence for the narrow crash
 window after a known tool completion but before the terminal plan CAS. Tests
 prove exact successful and known-failure repair, retained WAL, one historical
