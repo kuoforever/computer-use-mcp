@@ -47,6 +47,13 @@ and any continuation after a sufficient or terminal result. `AUTH_REQUIRED`,
 `CONTENT_UNAVAILABLE` produce a durable-handoff decision rather than another
 equivalent observation. Exhausting all five rungs also hands off.
 
+H6 registers this unchanged reducer as
+`boss.per_item_observation_ladder` version 1. The semantic runtime resolves the
+exact ID/version/digest pin, derives the same tool and argument binding from the
+reviewed template, and rejects registry or reducer drift. There is no
+latest-version fallback, dynamic template selection, or additional dispatch
+surface.
+
 An observation attempt retains only its source, fixed status/reason, and a
 content digest. It does not retain the observed text or pixels.
 
@@ -89,8 +96,9 @@ user job preference, the only permitted classification and reason are
 `INSUFFICIENT_EVIDENCE`. The exact policy digest is bound into every result.
 This proves semantic field extraction without inventing a recommendation.
 
-UIA and bounded document text are connected through the sole Runner dispatch
-boundary. OCR remains marked by the Agent Host as requiring a separately
+UIA and bounded document text remain connected through the sole Runner dispatch
+boundary. The pinned template records but does not satisfy safety baselines.
+OCR remains marked by the Agent Host as requiring a separately
 approved safety baseline. If document text is incomplete and the provider
 requests OCR, Runner records `POLICY_DENIED`, performs no OCR MCP dispatch, and
 the semantic runtime writes a retryable `CONTENT_UNAVAILABLE` failure-limit

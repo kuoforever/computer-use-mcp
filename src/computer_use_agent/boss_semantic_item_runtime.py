@@ -20,6 +20,13 @@ from typing import Mapping, Sequence
 
 from .batch_coordinator import BatchCoordinator, BatchSession
 from .batching import BatchPlan, BatchUsage
+from .behavior_templates import (
+    BOSS_PER_ITEM_OBSERVATION_TEMPLATE_PIN,
+    BehaviorTemplateError,
+    bind_boss_observation_request,
+    boss_per_item_observation_sources,
+    decide_pinned_boss_observation,
+)
 from .boss_campaign_batch_runtime import BOSS_SEMANTIC_BATCH_POLICY
 from .boss_campaign_discovery import (
     BOSS_CAMPAIGN_KIND,
@@ -28,9 +35,9 @@ from .boss_campaign_discovery import (
     parse_boss_job_identities,
 )
 from .boss_semantic_extraction import (
-    BOSS_OBSERVATION_LADDER,
     BossIncompleteReason,
     BossObservationAttempt,
+    BossObservationDecision,
     BossObservationDecisionState,
     BossObservationSource,
     BossObservationStatus,
@@ -40,7 +47,6 @@ from .boss_semantic_extraction import (
     BossSemanticResult,
     boss_initial_classification_policy_digest,
     boss_semantic_result_schema,
-    decide_next_boss_observation,
     parse_boss_semantic_result,
 )
 from .campaign import (
@@ -222,17 +228,41 @@ def _source_tool(
     *,
     region: Mapping[str, int],
 ) -> tuple[str, dict[str, object]]:
-    if source is BossObservationSource.UIA:
-        return "ui_snapshot", {"scope": "foreground"}
-    if source is BossObservationSource.DOCUMENT_TEXT:
-        return "document_text", {"scope": "foreground"}
-    if source is BossObservationSource.OCR:
-        return "ocr", dict(region)
-    if source is BossObservationSource.CROPPED_IMAGE:
-        return "capture_region", dict(region)
-    if source is BossObservationSource.SCREENSHOT:
-        return "screenshot", {}
-    raise BossSemanticItemRuntimeError("BOSS_SEMANTIC_SOURCE_INVALID")
+    try:
+        return bind_boss_observation_request(
+            BOSS_PER_ITEM_OBSERVATION_TEMPLATE_PIN,
+            source,
+            region=region,
+        )
+    except BehaviorTemplateError as exc:
+        raise BossSemanticItemRuntimeError(
+            "BOSS_SEMANTIC_BEHAVIOR_TEMPLATE_INVALID"
+        ) from exc
+
+
+def _decide_observation(
+    attempts: Sequence[BossObservationAttempt],
+) -> BossObservationDecision:
+    try:
+        return decide_pinned_boss_observation(
+            BOSS_PER_ITEM_OBSERVATION_TEMPLATE_PIN,
+            attempts,
+        )
+    except BehaviorTemplateError as exc:
+        raise BossSemanticItemRuntimeError(
+            "BOSS_SEMANTIC_BEHAVIOR_TEMPLATE_INVALID"
+        ) from exc
+
+
+def _observation_ladder() -> tuple[BossObservationSource, ...]:
+    try:
+        return boss_per_item_observation_sources(
+            BOSS_PER_ITEM_OBSERVATION_TEMPLATE_PIN
+        )
+    except BehaviorTemplateError as exc:
+        raise BossSemanticItemRuntimeError(
+            "BOSS_SEMANTIC_BEHAVIOR_TEMPLATE_INVALID"
+        ) from exc
 
 
 def _claimed_semantic_session(
@@ -449,6 +479,7 @@ async def _execute_prepared_semantic_item(
     started_ns = perf_counter_ns()
     recorder_started = False
     try:
+        observation_ladder = _observation_ladder()
         coordinator = BatchCoordinator(
             prepared.campaign_store(runner.config.state_dir)
         )
@@ -522,11 +553,11 @@ async def _execute_prepared_semantic_item(
                     "BOSS_SEMANTIC_PROVIDER_TURN_LIMIT"
                 )
             current_digest = boss_tool_result_content_digest(current_result)
-            next_index = BOSS_OBSERVATION_LADDER.index(current_source) + 1
+            next_index = observation_ladder.index(current_source) + 1
             next_source = (
                 None
-                if next_index >= len(BOSS_OBSERVATION_LADDER)
-                else BOSS_OBSERVATION_LADDER[next_index]
+                if next_index >= len(observation_ladder)
+                else observation_ladder[next_index]
             )
             tools: tuple[ToolSpec, ...] = ()
             expected_tool: str | None = None
@@ -611,7 +642,7 @@ async def _execute_prepared_semantic_item(
                     content_digest=current_digest,
                     incomplete_reason=assessment.incomplete_reason,
                 )
-                decision = decide_next_boss_observation((*attempts, attempt))
+                decision = _decide_observation((*attempts, attempt))
                 call = turn.tool_calls[0]
                 if (
                     decision.state is not BossObservationDecisionState.OBSERVE
@@ -704,7 +735,7 @@ async def _execute_prepared_semantic_item(
                     content_digest=current_digest,
                     incomplete_reason=assessment.incomplete_reason,
                 )
-                decision = decide_next_boss_observation((*attempts, attempt))
+                decision = _decide_observation((*attempts, attempt))
                 if decision.state is not BossObservationDecisionState.HANDOFF:
                     raise BossSemanticItemRuntimeError(
                         "BOSS_SEMANTIC_TERMINAL_INVALID"
@@ -770,7 +801,7 @@ async def _execute_prepared_semantic_item(
                 status=BossObservationStatus.SUFFICIENT,
                 content_digest=current_digest,
             )
-            decision = decide_next_boss_observation((*attempts, sufficient))
+            decision = _decide_observation((*attempts, sufficient))
             if decision.state is not BossObservationDecisionState.EXTRACT:
                 raise BossSemanticItemRuntimeError(
                     "BOSS_SEMANTIC_RESULT_SEQUENCE_INVALID"
