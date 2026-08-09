@@ -1,0 +1,261 @@
+{
+  "procedure_fixture_suite_version": 1,
+  "fixtures": [
+    {
+      "fixture_id": "shadow_heldout_1",
+      "split": "held_out",
+      "source_episode_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "task_scope": "dismiss_dialog",
+      "application_scope": "safe_app",
+      "application_version": "1.0",
+      "registry_digest": "3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb",
+      "policy_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "facts": [
+        {
+          "fact_id": "dialog_present",
+          "fact_type": "boolean",
+          "value": true
+        }
+      ],
+      "operations": [
+        {
+          "operation_id": "act_accept",
+          "tool_name": "click",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": true,
+          "fresh_observation": true,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 1,
+            "observation_calls": 0,
+            "input_tokens": 0,
+            "result_bytes": 100,
+            "duration_ms": 50,
+            "human_approvals": 1,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "observe_target",
+          "tool_name": "find",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 20,
+            "duration_ms": 10,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "observe_target",
+          "tool_name": "screenshot",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 1000,
+            "duration_ms": 100,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "observe_target",
+          "tool_name": "ui_snapshot",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 200,
+            "duration_ms": 20,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "verify_closed",
+          "tool_name": "ui_snapshot",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": false,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 50,
+            "duration_ms": 15,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        }
+      ],
+      "privacy": {
+        "contains_raw_task": false,
+        "contains_model_prose": false,
+        "contains_raw_tool_result": false,
+        "contains_observation_text": false,
+        "contains_arguments": false,
+        "contains_image": false,
+        "contains_secret": false
+      }
+    },
+    {
+      "fixture_id": "shadow_heldout_2",
+      "split": "held_out",
+      "source_episode_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "task_scope": "dismiss_dialog",
+      "application_scope": "safe_app",
+      "application_version": "1.0",
+      "registry_digest": "3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb",
+      "policy_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "facts": [
+        {
+          "fact_id": "dialog_present",
+          "fact_type": "boolean",
+          "value": true
+        }
+      ],
+      "operations": [
+        {
+          "operation_id": "act_accept",
+          "tool_name": "click",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": true,
+          "fresh_observation": true,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 1,
+            "observation_calls": 0,
+            "input_tokens": 0,
+            "result_bytes": 100,
+            "duration_ms": 50,
+            "human_approvals": 1,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "observe_target",
+          "tool_name": "find",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 24,
+            "duration_ms": 12,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "observe_target",
+          "tool_name": "screenshot",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 1100,
+            "duration_ms": 110,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "observe_target",
+          "tool_name": "ui_snapshot",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": null,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 220,
+            "duration_ms": 22,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        },
+        {
+          "operation_id": "verify_closed",
+          "tool_name": "ui_snapshot",
+          "outcome": "success",
+          "dispatch_certainty": "dispatched",
+          "approval_granted": false,
+          "fresh_observation": false,
+          "verified_value": false,
+          "cost": {
+            "model_turns": 0,
+            "tool_calls": 1,
+            "side_effects": 0,
+            "observation_calls": 1,
+            "input_tokens": 0,
+            "result_bytes": 55,
+            "duration_ms": 16,
+            "human_approvals": 0,
+            "retries": 0
+          }
+        }
+      ],
+      "privacy": {
+        "contains_raw_task": false,
+        "contains_model_prose": false,
+        "contains_raw_tool_result": false,
+        "contains_observation_text": false,
+        "contains_arguments": false,
+        "contains_image": false,
+        "contains_secret": false
+      }
+    }
+  ]
+}

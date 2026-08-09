@@ -26,7 +26,7 @@ four distinct maturity layers:
    exist. Three fixed campaign CLI commands exercise one exact synthetic path;
    no general campaign worker or complete application workflow is connected.
 4. **Complete-product layers — initial contract work active:** hierarchical
-   H1-H6 and continual-learning L0-L2 are implemented through offline observation-runtime composition,
+   H1-H6 and continual-learning L0-L3 are implemented through offline observation-runtime composition,
    typed freshness-bound facts, and one pinned reviewed behavior template;
    multi-source observation,
    operator UI, mobile-completion projection, broad application campaigns,
@@ -252,7 +252,7 @@ surfaces rather than one automatic general-product loop.
 | Wave 1 applications | Planned acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, then cross-application handoff | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance waves | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Complete-product demonstration | Planned/final integration gate | One chaptered campaign with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
-| Continual learning | L0-L2 implemented/offline; L3-L5 planned | Redacted outcomes and fresh typed facts remain isolated; content-free procedure definitions now have frozen held-out replay, explicit reviewed data lifecycle, and exact rollback pins. No runtime procedure loader, memory injection, strategy routing, automatic promotion, training, or live authority exists | [Continual learning](CONTINUAL_LEARNING.md) |
+| Continual learning | L0-L3 implemented/offline; L4-L5 planned | Redacted outcomes and fresh typed facts remain isolated; content-free procedure definitions have frozen held-out replay and reviewed lifecycle, while equivalent reviewed `ACTIVE`/`SHADOW` evidence can produce a visible deterministic offline recommendation. No runtime procedure loader, memory injection, strategy routing, automatic promotion, training, or live authority exists | [Continual learning](CONTINUAL_LEARNING.md) |
 | Platform expansion | Planned | macOS AX, Linux AT-SPI, an Android device driver (ADB transport, behind the same contract; see [ADR-008](adr/008-android-device-driver-behind-driver-contract.md)), multi-monitor coordinate model, isolated worker runtimes | [Tech stack](TECH_STACK.md) |
 
 ## Implementation structure
@@ -273,6 +273,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_agent/episode_outcome.py` | Read-only L0 terminal outcome normalization, explicit metric coverage, durable source reconciliation, and no learning or execution port |
 | `src/computer_use_agent/learning_quarantine.py` | Private L1 fresh-fact candidate extraction, revision-CAS lifecycle, digest-only audit events, and no memory injection or execution port |
 | `src/computer_use_agent/verified_procedures.py` | Inert L2 procedure schema, frozen fixture decoder, pure replay/held-out gate, reviewed lifecycle, and exact rollback without runtime ports |
+| `src/computer_use_agent/shadow_strategies.py` | Inert L3 exact-equivalence shadow comparison, visible reward weights/contributions, deterministic recommendation, and no runtime-selection port |
 | `src/computer_use_agent/progress_view.py`, `task_center.py`, `product_receipt.py` | Structurally validated status projection, read-only task grouping/fixed receipt wording, and strict private product completion evidence |
 | `src/computer_use_agent/public_web_word.py`, `pre_run_review.py` | Fixed workflow/profile guard plus the Host-compiled Scope Sheet, versioned JSON, and human rendering without external ports |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
