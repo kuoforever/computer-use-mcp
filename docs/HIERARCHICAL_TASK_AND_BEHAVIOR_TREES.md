@@ -1,6 +1,6 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H5 implemented and offline verified; H6 is next.**
+> **Status: H1-H6 implemented and offline verified; H7-H8 remain planned.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
@@ -410,9 +410,40 @@ fact and condition contract:
 
 Snapshots are canonical, digest-bound, empty-state capable, and limited to 128
 facts. H5 has no store, provider, Runner, MCP, desktop, approval, tree
-transition, retry, replay, or automatic-learning port. H6 may bind reviewed
-templates to this contract; H5 itself neither chooses a branch nor advances a
-node. Evidence remains offline and injected only.
+transition, retry, replay, or automatic-learning port. H5 itself neither
+chooses a branch nor advances a node. Evidence remains offline and injected
+only.
+
+## Implemented H6 boundary
+
+`src/computer_use_agent/behavior_templates.py` adds the first immutable Host
+registry and deliberately contains one template only:
+
+- `boss.per_item_observation_ladder` version 1 is pinned by exact ID, version,
+  and canonical SHA-256 digest; lookup has no latest-version, unknown-version,
+  or digest fallback;
+- its selector rungs exactly reproduce the existing fixed BOSS order: foreground
+  UIA, foreground document text, bounded OCR, bounded crop, and screenshot;
+- every rung revalidates the current reviewed tool as observation-only, binds
+  its exact argument shape, and freezes its safety-baseline requirements. OCR
+  therefore retains `title_matched_image_redaction`; the template cannot bypass
+  a missing baseline;
+- only explicit `INCOMPLETE` advances. The registry delegates to the existing
+  pure BOSS reducer and rejects any ladder, terminal-status, or exhaustion-code
+  drift rather than inventing a transition;
+- an H1 `subtree` leaf may bind the exact template pin and its five-observation,
+  zero-side-effect, zero-retry budget, but receives no tool name, arguments,
+  call identity, or dispatch method; and
+- the existing BOSS semantic runtime now obtains the same tools, arguments, and
+  reducer decisions through that exact pin. Provider disclosure, the sole
+  Runner boundary, budgets, handoff, and policy denial remain unchanged.
+
+The offline matrix freezes both template and registry digests, compares every
+legal ladder progression, sufficient exit, terminal handoff, and exhausted
+handoff with the pre-H6 reducer, rejects skips and malformed pins, and proves
+side-effect tools or safety-baseline drift cannot enter the template. H6 adds
+no store, provider, Runner, MCP, desktop, approval, retry, replay, learning, or
+new side-effect authority. It is not application or live evidence.
 
 ## Initial behavior-template candidates
 
@@ -444,7 +475,7 @@ not a product priority sequence.
 | `H3` | **Implemented/offline verified:** pure digest-bound next-leaf compiler, legal ordered leaf transitions, and frozen offline trace fixtures. | Passed: every tick yields zero or one inert boundary and never persists or dispatches; unresolved choice facts fail closed. |
 | `H4` | **Implemented/offline verified:** observation-only linear trees through the existing Runtime Executor and sole Runner boundary. | Passed: policy, approval, grounding, budget, WAL, re-observation, uncertainty, and single-dispatch-site tests remain green; side effects fail before external work. |
 | `H5` | **Implemented/offline verified:** typed world-state facts, content-free observation evidence, exact window/process binding, bounded freshness, and three-valued equality conditions. | Passed: stale epochs, generation/window drift, expiry, unknown/missing/type mismatch, and clock rollback are unavailable rather than false and expose no fact value. |
-| `H6` | Small registry of pinned behavior templates, starting with the per-item observation ladder. | The ladder reproduces current fixed-runtime behavior with no added authority. |
+| `H6` | **Implemented/offline verified:** one exact-version reviewed template registry, starting with the per-item observation ladder. | Passed: exact tools, arguments, safety baselines, reducer outcomes, terminal handoffs, and budget reproduce the fixed runtime with no added authority. |
 | `H7` | Bounded, approval-preserving side-effect leaves. | Separate review plus isolated application evidence; not a continuation of `H6`. |
 | `H8` | Read-only parallel computation or richer graph dependencies. | Only after serialized desktop authority and crash semantics remain proven. |
 
@@ -463,10 +494,10 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H5 satisfy the schema, limit, digest, state-vocabulary,
+are true. H1-H6 satisfy the schema, limit, digest, state-vocabulary,
 linear-plan compatibility, private persistence/CAS/crash boundaries, pure
 next-leaf/transition subset, existing observation-runtime composition, and
-typed fresh-fact condition boundary:
+typed fresh-fact condition boundary plus exact pinned-template registry:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests
