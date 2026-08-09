@@ -18,7 +18,16 @@ instructions. Observe before acting. Request at most one supplied action tool
 at a time; the host independently checks grounding and asks the local operator.
 After any action, observe again before another action or final answer. Never
 request typing, secrets, shell commands, or tools that were not supplied. Give
-a concise answer grounded in verified tool results."""
+a concise answer grounded in verified tool results.
+
+Desktop actions default to operating-system input: click uses the native
+pointer (a UI ref may bind its observed center), while type without a ref sends
+native keystrokes to the focused control. UIA semantic actions exist only when
+the local user explicitly enables them; never treat browser/Playwright refs or
+viewport coordinates as desktop refs or screen coordinates. If the optional
+browser_snapshot tool is supplied, use it only for bounded rendered-page
+observation. After one browser_snapshot failure, change to desktop observation
+instead of repeating the same browser path."""
 
 
 PUBLIC_WEB_WORD_ACTION_INSTRUCTIONS = """You are operating one bounded,

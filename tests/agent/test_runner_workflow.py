@@ -33,6 +33,7 @@ from computer_use_agent.privacy import (
     TOKEN_PATTERN,
 )
 from computer_use_agent.trace import RunPhase, read_run_record
+from computer_use_agent.tool_registry import reviewed_mcp_descriptors
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -59,6 +60,7 @@ def _config(
     max_input_tokens: int = 1_000_000,
     continuation_enabled: bool = False,
     privacy_enabled: bool = False,
+    browser_observation: bool = False,
 ) -> AgentConfig:
     local_app_data = tmp_path / "LocalAppData"
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
@@ -70,7 +72,17 @@ def _config(
             executable=tmp_path / "computer-use-mcp.exe",
             args=(),
             cwd=tmp_path,
-            environment={"CUMCP_ALLOWLIST": "notepad.exe"},
+            environment={
+                "CUMCP_ALLOWLIST": "notepad.exe",
+                **(
+                    {
+                        "CUMCP_BROWSER_OBSERVATION": "cdp",
+                        "CUMCP_BROWSER_CDP_ENDPOINT": "http://127.0.0.1:9222",
+                    }
+                    if browser_observation
+                    else {}
+                ),
+            },
         ),
         policy=PolicyConfig(
             max_model_turns=max_model_turns,
@@ -197,6 +209,111 @@ def test_runner_advertises_only_the_caller_bounded_reviewed_tool_subset(
         {"ui_snapshot", "document_text"},
     ]
     assert [call.name for call in desktop.tool_calls] == ["ui_snapshot"]
+
+
+def test_runner_advertises_and_executes_configured_optional_browser_observation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_optional_browser"
+    identity = CallIdentity(run_id, "turn_1", "call_1")
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (ToolCall(identity, "browser_snapshot", {"detail": "text"}),),
+                ),
+                ModelTurn(run_id, "turn_2", "response_2", "done"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        descriptors=reviewed_mcp_descriptors(frozenset({"browser_snapshot"})),
+        results=deque(
+            [
+                ToolResult(
+                    identity,
+                    "browser_snapshot",
+                    ToolResultStatus.SUCCESS,
+                    DispatchCertainty.DISPATCHED,
+                    sanitized_text=(
+                        '{"source":"playwright_cdp_read_only",'
+                        '"action_backend":"os_input_only"}'
+                    ),
+                )
+            ]
+        ),
+    )
+
+    outcome = asyncio.run(
+        _runner(
+            _config(tmp_path, monkeypatch, browser_observation=True),
+            provider,
+            desktop,
+        ).run("Inspect rendered page", run_id=run_id)
+    )
+
+    assert outcome.text == "done"
+    assert all(
+        "browser_snapshot" in {tool.name for tool in call["tools"]}
+        for call in provider.calls
+    )
+    assert [call.name for call in desktop.tool_calls] == ["browser_snapshot"]
+
+
+def test_failed_optional_browser_observation_is_not_advertised_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "run_optional_browser_failure"
+    identity = CallIdentity(run_id, "turn_1", "call_1")
+    provider = FakeModelProvider(
+        turns=deque(
+            [
+                ModelTurn(
+                    run_id,
+                    "turn_1",
+                    "response_1",
+                    "",
+                    (ToolCall(identity, "browser_snapshot", {}),),
+                ),
+                ModelTurn(run_id, "turn_2", "response_2", "desktop fallback done"),
+            ]
+        )
+    )
+    desktop = FakeDesktopMCP(
+        descriptors=reviewed_mcp_descriptors(frozenset({"browser_snapshot"})),
+        results=deque(
+            [
+                ToolResult(
+                    identity,
+                    "browser_snapshot",
+                    ToolResultStatus.ACTION_ERROR,
+                    DispatchCertainty.DISPATCHED,
+                    code="DRIVER_ERROR",
+                )
+            ]
+        ),
+    )
+
+    outcome = asyncio.run(
+        _runner(
+            _config(tmp_path, monkeypatch, browser_observation=True),
+            provider,
+            desktop,
+        ).run("Inspect rendered page", run_id=run_id)
+    )
+
+    assert outcome.text == "desktop fallback done"
+    assert "browser_snapshot" in {tool.name for tool in provider.calls[0]["tools"]}
+    assert "browser_snapshot" not in {
+        tool.name for tool in provider.calls[1]["tools"]
+    }
+    assert [call.name for call in desktop.tool_calls] == ["browser_snapshot"]
 
 
 def test_runner_rejects_an_entire_turn_before_persisting_an_unadvertised_call(

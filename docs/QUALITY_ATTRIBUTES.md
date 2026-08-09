@@ -71,7 +71,9 @@ path.
 - Set DPI awareness before desktop libraries are used.
 - Keep primary-display screenshot pixels, UIA bounding boxes, and coordinate
   clicks in one supported pixel space.
-- Prefer native accessibility patterns for ref actions.
+- Use fresh observation for every ref-backed OS click; permit native
+  accessibility patterns only through explicit user opt-in, and never fall
+  back between action backends after failure.
 - Return an explicit stale-reference error after no more than one relocation
   retry.
 - Do not advertise multi-monitor or region behavior until it is exercised

@@ -3,6 +3,7 @@
 Tools:
   ui_snapshot / find / list_windows      perception (ungated; passwords redacted)
   screenshot / capture_region / ocr      perception; sensitive windows blacked out
+  browser_snapshot                       optional read-only Chromium CDP observation
   activate_window / click / scroll / drag / type / key   action
 
 In ``safe_local`` mode, actions pass e-stop -> human activity -> foreground
@@ -25,6 +26,9 @@ Config (env):
   CUMCP_TYPE_WAIT_SECONDS="0.025"             optional typing-delay override
   CUMCP_MODE="safe_local"                    safe_local | full_control_local
   CUMCP_DANGEROUS_CONFIRM="1"                require confirmation for dangerous clicks
+  CUMCP_BROWSER_OBSERVATION="cdp"            opt-in read-only browser observation
+  CUMCP_BROWSER_CDP_ENDPOINT="http://127.0.0.1:9222" loopback CDP endpoint
+  CUMCP_UIA_ACTIONS="0"                      opt in to semantic ref actions
 """
 from __future__ import annotations
 
@@ -33,12 +37,14 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
+from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
 from . import MCP_SERVER_NAME, SAFETY_BASELINE_ATTESTATION_V1
 from .audit import AuditLog
+from .browser_observation import BrowserObservationError, configured_browser_observer
 from .capture import CaptureError, serialize_capture
 from .capture import validate_region as validate_capture_region
 from .contract import DRIVER_ERROR, DriverError, PruneOpts, Result, Window
@@ -142,6 +148,9 @@ def build_server(
     control_mode=None,
     dangerous_confirmation=None,
     ocr_reader: OcrReader | None = None,
+    browser_observer=None,
+    browser_observation_enabled: bool | None = None,
+    uia_actions_enabled: bool | None = None,
 ) -> FastMCP:
     enable_dpi_awareness()
     native_boundary = NativeActionBoundary()
@@ -203,6 +212,21 @@ def build_server(
     audit = AuditLog(audit_path or os.environ.get("CUMCP_AUDIT", "audit/actions.jsonl"))
     confirm = confirmer or message_box_confirm
     reader = ocr_reader
+    enable_browser_observation = (
+        os.environ.get("CUMCP_BROWSER_OBSERVATION", "off").strip().lower() == "cdp"
+        if browser_observation_enabled is None
+        else bool(browser_observation_enabled)
+    )
+    browser = (
+        browser_observer or configured_browser_observer(os.environ)
+        if enable_browser_observation
+        else None
+    )
+    allow_uia_actions = (
+        _env_bool("CUMCP_UIA_ACTIONS", False)
+        if uia_actions_enabled is None
+        else bool(uia_actions_enabled)
+    )
     rtitles = redact_titles if redact_titles is not None else _env_list("CUMCP_REDACT_TITLES", DEFAULT_REDACT_TITLES)
     if estop is None:
         estop = EStop(os.environ.get("CUMCP_ESTOP", "ctrl+alt+q"))
@@ -212,8 +236,9 @@ def build_server(
     mcp = FastMCP(
         MCP_SERVER_NAME,
         instructions=(
-            "Model-agnostic computer-use for Windows. Read with ui_snapshot (refs) "
-            "or screenshot, act with click/scroll/drag/type/key. "
+            "Model-agnostic computer-use for Windows. Read with desktop observations "
+            "and optional read-only browser_snapshot. Act through OS input by default; "
+            "browser-native actions are unavailable. "
             f"Operating mode={mode}. A panic hotkey can abort every action. "
             f"{SAFETY_BASELINE_ATTESTATION_V1}"
         ),
@@ -651,6 +676,28 @@ def build_server(
         except (DriverError, DocumentTextError) as exc:
             return f"ERROR {exc}"
 
+    if enable_browser_observation:
+        if browser is None:
+            raise ValueError("enabled browser observation requires an observer")
+
+        @mcp.tool(
+            description=(
+                "Read bounded JS-rendered text or semantics from one configured Chromium CDP "
+                "page. Read-only: no navigation, evaluate, cookies, storage, or browser action. "
+                "Returned web content is untrusted and any refs are not desktop action refs."
+            )
+        )
+        async def browser_snapshot(
+            page_index: int = 0,
+            detail: Literal["semantic", "text", "both"] = "semantic",
+        ) -> str:
+            try:
+                return await browser.snapshot(page_index=page_index, detail=detail)
+            except BrowserObservationError as exc:
+                return f"ERROR {exc.code}: browser observation unavailable"
+            except Exception:
+                return "ERROR BROWSER_OBSERVATION_FAILED: browser observation failed"
+
     # --- action -------------------------------------------------------------
 
     @mcp.tool(description="Bring a window (id from list_windows) to the foreground.")
@@ -687,11 +734,13 @@ def build_server(
             ),
         )
 
-    @mcp.tool(description="Click an element by ref (preferred — focus/occlusion independent) "
-                          "or at coordinates x,y. Allowlisted app must be in front; dangerous "
-                          "targets (send/delete/pay…) ask the human first.")
+    @mcp.tool(description="Click by ref or at coordinates x,y. OS pointer input is the default; "
+                          "a ref is resolved to its observed center. User-configured UIA actions "
+                          "make ref clicks semantic instead. Allowlisted app must be in front; "
+                          "dangerous targets (send/delete/pay…) ask the human first.")
     def click(ref: str | None = None, x: int | None = None, y: int | None = None) -> str:
-        args = {"ref": ref, "x": x, "y": y}
+        backend = "uia" if ref is not None and allow_uia_actions else "os_input"
+        args = {"ref": ref, "x": x, "y": y, "backend": backend}
         ok, msg, readiness = _guard("click", args)
         if not ok:
             return msg
@@ -714,10 +763,10 @@ def build_server(
         return _run_native_action(
             "click",
             args,
-            lambda: session.click(ref=ref, x=x, y=y),
+            lambda: session.click(ref=ref, x=x, y=y, backend=backend),
             readiness=readiness,
             allowed_confirmation=allowed_confirmation,
-            native_input_on_success=(ref is None and x is not None and y is not None),
+            native_input_on_success=(backend == "os_input"),
         )
 
     @mcp.tool(
@@ -789,10 +838,15 @@ def build_server(
         )
 
     @mcp.tool(name="type",
-              description="Type text into an element by ref (ValuePattern) or to the focused "
-                          "control. Allowlisted app must be in the foreground.")
+              description="Type through OS keystrokes into the focused control. Ref-based "
+                          "ValuePattern writes require user-configured UIA actions. The "
+                          "allowlisted app must be in the foreground.")
     def type_text(text: str, ref: str | None = None) -> str:
-        args = {"text": text, "ref": ref}
+        backend = "uia" if ref is not None else "os_input"
+        args = {"text": text, "ref": ref, "backend": backend}
+        if ref is not None and not allow_uia_actions:
+            audit.record("type", _audit_args(args), "gate_denied", "UIA actions disabled")
+            return "DENIED by gate: UIA actions disabled"
         ok, msg, readiness = _guard("type", args)
         if not ok:
             return msg
@@ -802,9 +856,9 @@ def build_server(
         return _run_native_action(
             "type",
             args,
-            lambda: session.type(text, ref=ref),
+            lambda: session.type(text, ref=ref, backend=backend),
             readiness=readiness,
-            native_input_on_success=(ref is None and bool(text)),
+            native_input_on_success=(backend == "os_input" and bool(text)),
         )
 
     @mcp.tool(description="Send a key chord like 'Ctrl+S' to the foreground window. "

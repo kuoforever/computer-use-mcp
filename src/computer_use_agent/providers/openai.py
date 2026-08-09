@@ -17,7 +17,7 @@ from ..provider_instructions import (
     permits_safety_baseline_tool,
 )
 from ..provider_setup import openai_client_from_environment
-from ..tool_registry import REVIEWED_TOOLS, ToolSpec, validate_tool_arguments
+from ..tool_registry import REVIEWED_TOOLS, ToolSpec, get_tool_spec, validate_tool_arguments
 from ..token_window import exceeds_token_window
 from ..types import (
     CallIdentity,
@@ -423,8 +423,8 @@ def _compile_stateless_replay_input(
             try:
                 decoded = json.loads(arguments)
                 normalized = validate_tool_arguments(name, decoded)
-                spec = next(tool for tool in REVIEWED_TOOLS if tool.name == name)
-            except (StopIteration, TypeError, ValueError, json.JSONDecodeError) as exc:
+                spec = get_tool_spec(name)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 raise _replay_error(exc)
             if spec.effect is not ToolEffect.OBSERVATION or dict(normalized) != ledger_call.get(
                 "arguments"

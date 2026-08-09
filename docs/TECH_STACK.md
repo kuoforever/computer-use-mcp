@@ -12,6 +12,7 @@
 | Capture | `mss` | Captures the current primary display. |
 | Process ownership | `psutil` | Builds foreground process ancestry for the safe-mode gate. |
 | Native desktop control | Win32 via `ctypes` | DPI awareness, input, window activation, and e-stop polling. |
+| Optional rendered-browser observation | Playwright Python over Chromium CDP | Reads bounded ARIA/visible text from an existing explicitly configured loopback session without adding browser actions. |
 | Image processing | Pillow | Draws configured screenshot blackouts in tests and runtime. |
 | Tests and linting | pytest, Ruff | Covers pure logic and checks style. |
 
@@ -26,22 +27,25 @@ The project is therefore Windows-only despite the platform-neutral core and
 contract. The current screenshot tool captures the primary display, not a full
 virtual desktop.
 
-Chromium, Chrome, and Edge receive a best-effort UIA warm-up. Their page-level
-accessibility behavior is still experimental and needs application-specific
-validation.
+Chromium, Chrome, and Edge receive a best-effort UIA warm-up. A user who
+installs the `browser` extra may instead add bounded read-only Playwright CDP
+observation for an existing loopback debugging session. Both page-level paths
+remain experimental and need application-specific validation.
 
 ## Not implemented today
 
-- A generic browser-native adapter. Browser interaction currently uses the same
-  UIA, screenshot, and input paths as other Windows applications.
+- Browser-native actions, navigation, arbitrary script evaluation, cookies,
+  storage, downloads, or anti-automation evasion. Optional Playwright support is
+  observation-only; browser interaction still uses the same visible OS input
+  path as other Windows applications.
 - `pyautogui`.
 - A claim of foreground-free ref actions on the user's desktop.
 - A default full-control mode.
 - Host-to-guest MCP transport or guest lifecycle automation.
 
-The planned universal-GUI direction may add bounded OCR, document-text, or
-browser-native observation adapters behind a shared observation contract. It
-does not require stealth automation or evasion of site security controls.
+Future observation work may compose the existing UIA, OCR, document-text,
+pixels, and rendered-browser facts behind a shared envelope. It does not
+require stealth automation or evasion of site security controls.
 
 ## Planned platform and worker options
 

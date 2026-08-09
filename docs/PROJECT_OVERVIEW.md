@@ -13,9 +13,10 @@ model-agnostic Windows desktop MCP server
 into a locally governed universal GUI Agent system. The project currently has
 four distinct maturity layers:
 
-1. **Windows desktop MCP runtime — implemented:** thirteen stdio tools combine
+1. **Windows desktop MCP runtime — implemented:** thirteen core stdio tools combine
    UI Automation, primary-display screenshots, native input/window control,
-   safety gates, audit logging, and an emergency stop.
+   safety gates, audit logging, and an emergency stop. User-configured
+   Playwright CDP can add one read-only rendered-browser observation tool.
 2. **Agent Host — experimental and partially integrated:** a CLI can run bounded
    OpenAI or Claude observation workflows through the same MCP server. It adds
    policy, grounding, budgets, explicit approval, redacted trace/reporting,
@@ -120,13 +121,13 @@ must not create a second native-action path.
 
 | Surface | Entry point | Current purpose | Boundary |
 | --- | --- | --- | --- |
-| Desktop MCP server | `guarded-desktop-mcp` | Expose thirteen Windows GUI tools over stdio | Implemented Windows runtime |
+| Desktop MCP server | `guarded-desktop-mcp` | Expose thirteen core Windows GUI tools plus one optional read-only browser observation over stdio | Implemented Windows runtime |
 | Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
 | Quick Setup | `config setup` | Create one non-overwriting recommended strict configuration | Implemented; no credential write or process start |
 | Agent Controls | `config settings` / `config settings --json` | Explain purpose, connection, safety, interface, and exact readiness command | Implemented and inert; no authority or shortcut registration |
 | ShortcutBroker | `shortcuts run` | Explicitly own fixed open-controls and a strict configurable cooperative-pause-request shortcut | Implemented/offline verified; loaded-layout guard and foreground host only, no approve/resume/provider/MCP/desktop dispatch |
 | Agent config creation | `config init` | Create a non-overwriting Desktop Ask or public-web-word installed profile | Implemented; no credential read or process start |
-| Installed readiness | `config doctor` | Check provider setup and verify the configured MCP child's exact thirteen-tool discovery contract | Implemented; real child handshake, no provider request or MCP tool call |
+| Installed readiness | `config doctor` | Check provider setup and verify the configured MCP child's exact core-plus-configured-optional discovery contract | Implemented; real child handshake, no provider request or MCP tool call |
 | Agent config validation | `config validate` | Parse strict TOML without starting external ports | Implemented and inert |
 | Agent run | `run` / `run --dry-run` | Execute bounded workflow or validate preparation only | Observations implemented; actions opt-in and fake-verified |
 | Desktop Ask | `ask` / `ask --json` | Plan one to four read-only observations, including semantic document text, and return one tool-free answer | Implemented/offline verified; the same-wheel current-candidate OpenAI/Windows/Notepad [result](CURRENT_CANDIDATE_PRODUCT_INTEGRATION_EVIDENCE.md) is retained |
@@ -154,15 +155,16 @@ surfaces rather than one automatic general-product loop.
 | --- | --- | --- | --- |
 | Model-agnostic stdio MCP | Implemented | FastMCP schemas call a platform-neutral session/driver boundary | [Tools](TOOLS.md), [Design](DESIGN.md) |
 | UIA snapshots | Implemented | Flat, 200-control-capped serialization with roles, names, bounds, states, and safe value summaries | [Tools](TOOLS.md) |
-| Session refs | Implemented | `ref_N` binds model-visible controls to native UIA elements; one role/name relocation is allowed after staleness | [Tools](TOOLS.md), [Driver Contract](DRIVER_CONTRACT.md) |
+| Session refs | Implemented | `ref_N` binds model-visible controls and observed boxes to native UIA elements; user-enabled UIA actions allow one role/name relocation after staleness | [Tools](TOOLS.md), [Driver Contract](DRIVER_CONTRACT.md) |
 | Scoped find | Implemented | Filters the same snapshot/ref model to reduce returned context | [Tools](TOOLS.md) |
 | Window enumeration | Implemented | Win32 top-level enumeration includes owned dialogs and foreground identity | [Design](DESIGN.md) |
 | Screenshot observation | Implemented / limited | `mss` returns a PNG for the primary display; configured title matches can be blacked out | [Tools](TOOLS.md), [Configuration](CONFIGURATION.md) |
 | Bounded OCR observation | Implemented / Windows primary display | `Windows.Media.Ocr` recognizes one explicit region with run/character/pixel/time limits, pre-OCR title-based blackouts, image digest, and local/screen boxes | [Tools](TOOLS.md), [Observation contract](OBSERVATION_CONTRACT.md) |
+| Rendered-browser observation | Implemented / optional, offline only | Playwright attaches read-only to one user-configured loopback Chromium CDP session and returns bounded untrusted ARIA/text; it exposes no browser actions or refs and is removed after one failed observation in a run | [Tools](TOOLS.md), [ADR-011](adr/011-os-input-default-with-read-only-browser-assist.md) |
 | Window activation | Implemented; isolated rerun pending | Win32 input-thread attachment, restore, foreground request, reverse cleanup, and postcondition verification | [Capability status](CAPABILITY_STATUS.md) |
-| Ref action | Implemented | Prefer UIA Invoke/Select/Value patterns; never silently convert a ref to a center-point click | [Design](DESIGN.md) |
+| Ref action | Implemented | OS pointer input to observed geometry is default; user-enabled UIA uses Invoke/Select and never silently falls back after failure | [Design](DESIGN.md) |
 | Coordinate action | Implemented / primary display only | Win32 pointer input uses the same supported DPI-aware pixel space as capture | [Driver Contract](DRIVER_CONTRACT.md) |
-| Text and key input | Implemented | UIA ValuePattern when addressed by ref; Win32/native key events for focused input and chords | [Tools](TOOLS.md) |
+| Text and key input | Implemented | Win32/native key events are default for focused input and chords; ref-addressed UIA ValuePattern requires user opt-in | [Tools](TOOLS.md) |
 | Chromium UIA warm-up | Experimental | Best-effort accessibility traversal without foreground theft; incomplete content remains visible | [Design](DESIGN.md) |
 | Driver abstraction | Implemented contract, one driver | Platform-free typed contract with a Windows UIA/Win32 implementation | [Driver Contract](DRIVER_CONTRACT.md), [Tech stack](TECH_STACK.md) |
 
@@ -240,7 +242,7 @@ surfaces rather than one automatic general-product loop.
 
 | Feature family | State | Intended implementation | Primary owner |
 | --- | --- | --- | --- |
-| Multi-source observation | Partial | UIA, full-screen PNG, bounded region OCR, standalone cropped images, and bounded document text exist; complete cross-source envelopes and delta observations remain | [Observation contract](OBSERVATION_CONTRACT.md), [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
+| Multi-source observation | Partial | UIA, full-screen PNG, bounded region OCR, standalone cropped images, bounded document text, and optional rendered-browser ARIA/text exist; complete cross-source envelopes and delta observations remain | [Observation contract](OBSERVATION_CONTRACT.md), [BOSS OCR evidence](BOSS_OCR_EVIDENCE.md) |
 | Token-efficient observation | Contract/planned experiments | Escalate from structured/cheap sources to pixels; retain item-local context and measured cost | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | Presence and progress UI | Partial | Passive progress is implemented and follows durable ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery phases, and validated state during fixed MCP-backed campaign execution; zero-port campaign control remains window-free. System High Contrast, reduced motion, bounded UIA status names, native automated 200%/400% text reflow, bounded English/Simplified-Chinese presentation, strict dark/light/system theme resolution, and Host-owned foreground-monitor composition are implemented and verified through the stated offline/native boundary; human assistive-technology, human large-text/visual-design, and physical two-monitor review remain open. The fixed synthetic campaign lifecycle is [desktop verified](CAMPAIGN_PROGRESS_LIFECYCLE_EVIDENCE.md); one persisted read-only observation has separate [recovery progress evidence](RECOVERY_PROGRESS_LIFECYCLE_EVIDENCE.md); and one fixed provider-free plan has separate [plan progress](PLAN_PROGRESS_LIFECYCLE_EVIDENCE.md) and [presence](PLAN_PRESENCE_LIFECYCLE_EVIDENCE.md) lifecycle evidence. The current [feature-freeze non-E4 audit](FEATURE_FREEZE_NON_E4_EVIDENCE.md) covers ten theme/locale/large-text safe-denial cases and fixed notification lifecycle. The earlier bounded primary-display halo is also [desktop verified](PRESENCE_WINDOW_EVIDENCE.md); the newer [multi-display contract](OPERATOR_MULTI_DISPLAY.md) still lacks physical two-monitor evidence. Integrated BOSS-campaign progress/presence evidence and recovery presence desktop evidence remain planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Operator accessibility](OPERATOR_ACCESSIBILITY.md), [Operator localization](OPERATOR_LOCALIZATION.md), [Operator personalization](OPERATOR_PERSONALIZATION.md), [Native operator multi-display composition](OPERATOR_MULTI_DISPLAY.md), [Progress viewer](PROGRESS_VIEWER.md) |
 | Decision Cards | Partial / configurable Windows | Pure cards compile 2-4 bounded options; generated installed profiles enable the focus-taking four-choice Win32 adapter, which yields authority and returns exact-effect approval, re-observe, durable defer, or denial through the existing ApprovalPort. Native Text/Edit/Button semantics, safe initial focus, standard keyboard traversal, bounded countdown announcements, system High Contrast/reduced motion, native automated 200%/400% reflow, English/Simplified-Chinese presentation, and strict dark/light/system theme resolution are implemented and verified through the stated offline/native boundary. Internal option IDs and authority stay locale-neutral. Human Narrator/NVDA, human large-text, and visual-design review remain open; broader current-candidate cross-application evidence remains planned | [Operator experience](OPERATOR_EXPERIENCE.md), [Operator accessibility](OPERATOR_ACCESSIBILITY.md), [Operator localization](OPERATOR_LOCALIZATION.md), [Operator personalization](OPERATOR_PERSONALIZATION.md), [Feature-freeze non-E4 evidence](FEATURE_FREEZE_NON_E4_EVIDENCE.md), [Approved actions](APPROVALS.md) |

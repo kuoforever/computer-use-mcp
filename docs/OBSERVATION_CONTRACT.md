@@ -2,7 +2,8 @@
 
 > **Status: partially implemented multi-source contract.** UIA snapshots,
 > primary-display screenshots, bounded region OCR, bounded region image
-> capture, and bounded UIA document text are implemented. Deltas remain a
+> capture, bounded UIA document text, and optional bounded rendered-browser
+> ARIA/text are implemented. Deltas remain a
 > design target, as does any image/OCR scope beyond one explicit
 > primary-display rectangle. Document text has offline evidence only.
 
@@ -15,6 +16,7 @@ accessibility tree.
 ~~~text
 structured app / browser accessibility
   -> UIA
+  -> rendered-browser ARIA/text when the user configured CDP
   -> document text when explicitly available
   -> OCR
   -> vision screenshot
@@ -31,7 +33,7 @@ All observation backends should project into:
 Observation {
   id,
   epoch,
-  source: "uia" | "document_text" | "ocr" | "image" | "delta",
+  source: "uia" | "browser_rendered" | "document_text" | "ocr" | "image" | "delta",
   scope,
   window_identity,
   coordinate_space,
@@ -88,6 +90,21 @@ partially clipped, the envelope keeps the 20,000-character prefix and reports
 case because it counts only whole source blocks omitted by a block or aggregate
 character cap.
 
+### Rendered browser
+
+The optional Playwright CDP adapter reads an already rendered Chromium page,
+so it can observe JavaScript content that is absent from a raw HTTP response.
+It returns bounded visible text and/or ARIA snapshots for at most 32 pages and
+32 frames, with fixed ARIA depth and a 50,000-character total result ceiling.
+URLs lose credentials, query, and fragment. Page text remains untrusted and is
+not generally redacted.
+
+This adapter is deliberately observation-only: no navigation, evaluation,
+click, fill, cookie, storage, download, Playwright ref, or viewport-to-desktop
+coordinate mapping exists. It attaches only to an explicitly configured
+loopback CDP endpoint and never launches or closes the browser. One failed
+result removes the tool from later provider turns in the same run.
+
 ### OCR
 
 Bounded text runs with box, confidence, reading order, language hint, and image
@@ -136,6 +153,8 @@ truncation is not allowed.
 - UIA refs remain session- and epoch-scoped.
 - OCR boxes and image coordinates declare their coordinate space and epoch.
 - Document-text offsets do not imply clickable screen coordinates.
+- Rendered-browser refs/viewport coordinates do not exist in the desktop
+  action domain; acting still requires fresh UIA or screenshot grounding.
 - An action invalidates prior grounding unless the backend proves otherwise.
 - Post-action verification uses a new observation epoch.
 
@@ -147,10 +166,11 @@ blocking. The planned fallback is:
 
 1. `find` for known controls;
 2. bounded UIA snapshot;
-3. bounded document-text channel when available;
-4. OCR over the job card or detail region;
-5. cropped image observation;
-6. full screenshot only for orientation or layout recovery.
+3. optional rendered-browser ARIA/text when user-configured;
+4. bounded document-text channel when available;
+5. OCR over the job card or detail region;
+6. cropped image observation;
+7. full screenshot only for orientation or layout recovery.
 
 ## Challenge classification
 

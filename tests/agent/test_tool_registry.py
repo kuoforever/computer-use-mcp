@@ -7,6 +7,8 @@ import pytest
 
 from computer_use_agent.tool_registry import (
     EXPECTED_TOOL_NAMES,
+    OPTIONAL_REVIEWED_TOOLS,
+    OPTIONAL_TOOL_NAMES,
     REVIEWED_TOOLS,
     ResultSensitivity,
     ToolRegistryMismatchError,
@@ -15,6 +17,7 @@ from computer_use_agent.tool_registry import (
     reviewed_mcp_descriptors,
     reviewed_registry_digest,
     reviewed_tool_schemas,
+    reviewed_tools_with_optional,
     validate_tool_arguments,
     validate_tool_result,
     verify_discovered_tools,
@@ -53,7 +56,7 @@ def _png(width: int = 1, height: int = 1) -> bytes:
     )
 
 
-def test_registry_contains_the_exact_thirteen_reviewed_mcp_tools() -> None:
+def test_registry_contains_the_exact_thirteen_core_reviewed_mcp_tools() -> None:
     assert EXPECTED_TOOL_NAMES == {
         "ui_snapshot",
         "find",
@@ -75,6 +78,20 @@ def test_registry_contains_the_exact_thirteen_reviewed_mcp_tools() -> None:
     assert (
         reviewed_registry_digest()
         == "3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb"
+    )
+
+
+def test_browser_snapshot_is_a_reviewed_optional_capability() -> None:
+    assert OPTIONAL_TOOL_NAMES == {"browser_snapshot"}
+    assert tuple(tool.name for tool in OPTIONAL_REVIEWED_TOOLS) == (
+        "browser_snapshot",
+    )
+    assert tuple(
+        tool.name
+        for tool in reviewed_tools_with_optional(frozenset({"browser_snapshot"}))
+    ) == (*tuple(tool.name for tool in REVIEWED_TOOLS), "browser_snapshot")
+    assert reviewed_registry_digest(frozenset({"browser_snapshot"})) != (
+        reviewed_registry_digest()
     )
 
 
@@ -179,6 +196,59 @@ def test_click_provider_schema_excludes_the_other_target_form_in_each_oneof_bran
 def test_click_accepts_exactly_one_valid_target_form() -> None:
     assert validate_tool_arguments("click", {"ref": "ref_1"}) == {"ref": "ref_1"}
     assert validate_tool_arguments("click", {"x": 10, "y": 20}) == {"x": 10, "y": 20}
+
+
+def test_browser_snapshot_is_read_only_bounded_and_has_no_action_ref_contract() -> None:
+    tool = get_tool_spec("browser_snapshot")
+
+    assert tool.effect is ToolEffect.OBSERVATION
+    assert tool.requires_host_approval is False
+    assert tool.invalidates_observation is False
+    assert set(tool.input_schema["properties"]) == {"page_index", "detail"}
+    assert validate_tool_arguments("browser_snapshot", {}) == {}
+    assert validate_tool_arguments(
+        "browser_snapshot", {"page_index": 3, "detail": "both"}
+    ) == {"page_index": 3, "detail": "both"}
+    for arguments in (
+        {"page_index": -1},
+        {"page_index": 32},
+        {"detail": "evaluate"},
+        {"ref": "e7"},
+    ):
+        with pytest.raises(ToolValidationError):
+            validate_tool_arguments("browser_snapshot", arguments)
+
+
+def test_optional_browser_discovery_is_exact_when_configured() -> None:
+    optional = frozenset({"browser_snapshot"})
+
+    verify_discovered_tools(
+        reviewed_mcp_descriptors(optional),
+        optional,
+    )
+
+
+def test_configured_optional_browser_schema_matches_server_generation() -> None:
+    from computer_use_mcp.server import build_server
+
+    server = build_server(
+        driver=object(),
+        start_estop=False,
+        browser_observer=object(),
+        browser_observation_enabled=True,
+    )
+    discovered = asyncio.run(server.list_tools())
+    optional = frozenset({"browser_snapshot"})
+
+    verify_discovered_tools(
+        tuple(
+            MCPToolDescriptor(tool.name, tool.inputSchema, tool.outputSchema)
+            for tool in discovered
+        ),
+        optional,
+    )
+    with pytest.raises(ToolRegistryMismatchError, match="unexpected"):
+        verify_discovered_tools(reviewed_mcp_descriptors(optional))
 
 
 @pytest.mark.parametrize(

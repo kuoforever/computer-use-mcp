@@ -1,6 +1,7 @@
 # ADR-002: A ref action never silently falls back to a coordinate click
 
-Status: Accepted
+Status: Accepted for the UIA backend; default backend selection is defined by
+[ADR-011](011-os-input-default-with-read-only-browser-assist.md)
 Date: 2026-07-20
 Clarified: 2026-08-05
 

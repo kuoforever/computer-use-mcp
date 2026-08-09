@@ -32,13 +32,14 @@ from .presence_lifecycle import FailSilentLifecycle, PresenceLifecyclePort
 from .run_lock import RunLock
 from .telemetry import MAX_ATTRIBUTE_STRING_LENGTH, NoOpTelemetry, TelemetryPort
 from .tool_registry import (
-    REVIEWED_TOOLS,
     ToolSpec,
     ToolValidationError,
     get_tool_spec,
     validate_tool_arguments,
     validate_tool_result,
     verify_discovered_tools,
+    configured_optional_tool_names,
+    reviewed_tools_with_optional,
     reviewed_registry_digest,
 )
 from .trace import RunPhase, RunRecorder, TraceError
@@ -542,7 +543,9 @@ class AgentRunner:
             state_digest=state_digest,
             policy_digest=self.policy.digest,
             task_digest=digest({"task": state.task}),
-            registry_digest=reviewed_registry_digest(),
+            registry_digest=reviewed_registry_digest(
+                configured_optional_tool_names(self.config.mcp.environment)
+            ),
             object_digest=call.digest,
             evidence_digest=evidence_digest,
         )
@@ -1185,7 +1188,11 @@ class AgentRunner:
             raise RunnerError("RUNNER_PORTS_REQUIRED")
         if self.ports.control is not None and self.config.continuation.enabled:
             raise RunnerError("COOPERATIVE_CONTROL_CONTINUATION_UNSUPPORTED")
-        reviewed_tool_names = frozenset(tool.name for tool in REVIEWED_TOOLS)
+        optional_tool_names = configured_optional_tool_names(
+            self.config.mcp.environment
+        )
+        runtime_tools = reviewed_tools_with_optional(optional_tool_names)
+        reviewed_tool_names = frozenset(tool.name for tool in runtime_tools)
         if (
             allowed_tool_names is not None
             and (
@@ -1233,7 +1240,7 @@ class AgentRunner:
         state = prepared.state
         provider_tools = tuple(
             tool
-            for tool in REVIEWED_TOOLS
+            for tool in runtime_tools
             if allowed_tool_names is None or tool.name in allowed_tool_names
             if not self.config.privacy.enabled
             or not tool.returns_image
@@ -1293,7 +1300,7 @@ class AgentRunner:
                     raise RunFailure("COOPERATIVE_CONTROL_FAILED", state) from exc
             recorder.record(state, RunPhase.OBSERVING)
             discovered = await self.ports.desktop.discover_tools()
-            verify_discovered_tools(discovered)
+            verify_discovered_tools(discovered, optional_tool_names)
             provider_tools = tuple(
                 tool
                 for tool in provider_tools
@@ -1312,7 +1319,7 @@ class AgentRunner:
                     state=state,
                     provider_name=self.config.provider.name,
                     provider_model=self.config.provider.model,
-                    registry_digest=reviewed_registry_digest(),
+                    registry_digest=reviewed_registry_digest(optional_tool_names),
                     advertised_tool_names=advertised_tool_names,
                     ttl_seconds=self.config.continuation.ttl_seconds,
                     mcp_generation=self.ports.desktop.generation,
@@ -1492,6 +1499,15 @@ class AgentRunner:
                             span.set_attributes({"result.code": outcome.result.code})
                     state = outcome.state
                     grounding = outcome.grounding
+                    if call.name == "browser_snapshot" and not outcome.result.ok:
+                        # A configured browser helper is optional observation,
+                        # never a reason to spin on one unavailable CDP path.
+                        # Later provider turns must choose a desktop source.
+                        provider_tools = tuple(
+                            tool
+                            for tool in provider_tools
+                            if tool.name != "browser_snapshot"
+                        )
                     if outcome.abandon_remaining_calls:
                         break
         except asyncio.CancelledError as cancelled:

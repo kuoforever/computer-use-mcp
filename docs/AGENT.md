@@ -11,7 +11,9 @@
 
 This is the canonical contract companion to the planned
 [Agent implementation plan](AGENT_IMPLEMENTATION_PLAN.md). It uses the current
-thirteen-tool local stdio MCP server as its sole desktop execution authority.
+thirteen-core-tool local stdio MCP server as its sole desktop execution
+authority. Trusted user configuration may add one reviewed read-only
+`browser_snapshot`; it creates no second action path.
 
 ## Scope
 
@@ -67,7 +69,7 @@ the following commands:
 - `config doctor --config PATH` performs the installed first-run checks in
   fixed fail-fast order: configuration, provider extra, documented credential
   environment variable, MCP executable, MCP working directory, and exact
-  thirteen-tool discovery. It makes no provider request and invokes no MCP
+  core-plus-configured-optional discovery. It makes no provider request and invokes no MCP
   tool, but it starts and closes the real configured MCP child for
   `initialize` / `list_tools`; normal child startup may initialize audit and
   emergency-stop polling components.
@@ -76,7 +78,10 @@ the following commands:
   releases the lock. It calls no provider, MCP, approval, or desktop port.
 - `run --config PATH --task TEXT` uses the configured optional provider and
   local stdio MCP bridge. Read-only mode exposes three text observations and
-  one bounded PNG screenshot observation.
+  one bounded PNG screenshot observation, plus read-only rendered-browser
+  observation when the user configured a loopback Chromium CDP endpoint. The
+  browser tool has no action surface and is removed from later provider turns
+  after one failed result in the same run.
   `approved_actions` additionally exposes `activate_window`, `click`, and
   `key`, then applies grounding, budgets, digest-bound console approval, MCP
   checks, and mandatory post-action observation. The CLI returns final text,
@@ -614,7 +619,8 @@ recovery rather than relying on a garbage-collection finalizer.
 fixed local stdio child. It starts the configured absolute executable and argv
 without a shell, initializes an MCP client session, follows bounded discovery
 pagination, and requires the discovered names and input schemas to equal the
-reviewed thirteen-tool registry before any call can be dispatched.
+reviewed core registry plus exactly the optional tools selected by trusted MCP
+environment configuration before any call can be dispatched.
 
 One asyncio task owns each live child generation and all calls are serialized.
 A call must be host-authorized and structurally valid. Unknown tools, bad
@@ -860,7 +866,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Acceptance case | Evidence required | Status |
 | --- | --- | --- |
 | Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
-| Exactly thirteen reviewed tools | Registry rejects discovery name, duplicate, and exact-schema mismatch | implemented contract test |
+| Exact configured reviewed tools | The thirteen-core registry retains its frozen digest; configured optional `browser_snapshot` adds one separately reviewed schema, and discovery rejects name, duplicate, optional-presence, or exact-schema mismatch | implemented contract test |
 | Invalid tool arguments fail before dispatch | Unknown fields, missing fields, bad scalar types, and all invalid `click` combinations are rejected | implemented contract test |
 | Host is stricter than server | All action specs require Host authorization and invalidate grounding; default per-effect approval, fixed low-risk classification, unknown denial, and `click` XOR are tested | implemented contract test |
 | Configuration cannot weaken or leak into MCP | Parser allowlists child variable names, pins a safe baseline, rejects unsafe server controls, and confines state to the user-local app root | implemented contract test |
@@ -871,7 +877,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | CLI offline commands | Help/config validation need no key or state write; dry-run emits safe metadata only | implemented foundation test |
 | Runner preparation is inert | Preparing state calls no provider, MCP, or approval fake | implemented foundation test |
 | One local run owns the desktop application root | OS-held lock spans state subdirectories, rejects concurrent/unknown owners, and verifies its token before writing a released marker | implemented foundation test |
-| Desktop child authority is fixed | Real stdio fixture starts an absolute executable/argv/cwd without a shell, excludes provider/cloud secrets, and must exactly match all thirteen schemas | implemented bridge test |
+| Desktop child authority is fixed | Real stdio fixture starts an absolute executable/argv/cwd without a shell, excludes provider/cloud secrets, and must exactly match all thirteen core schemas plus the configured optional browser schema | implemented bridge test |
 | Invalid bridge calls never dispatch | Requested/non-authorized status, unknown tools, and malformed arguments return reviewed rejections with zero session calls | implemented bridge test |
 | MCP failure certainty is preserved | Startup timeout is not-dispatched; timeout, EOF, exception, or cancellation after `call_tool` entry is unknown and invalidates the generation without replay | implemented bridge test |
 | Child restart is explicit | A broken generation rejects further calls until full discovery succeeds on a new incremented generation | implemented bridge test |

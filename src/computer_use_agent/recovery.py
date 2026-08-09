@@ -27,9 +27,10 @@ from .reconstruction import (
     classify_operation_state,
 )
 from .tool_registry import (
-    REVIEWED_TOOLS,
+    ALL_REVIEWED_TOOLS,
     ToolSpec,
     ToolValidationError,
+    configured_optional_tool_names,
     get_tool_spec,
     reviewed_registry_digest,
     validate_tool_arguments,
@@ -236,10 +237,19 @@ def _recovery_tools(
 ) -> tuple[ToolSpec, ...]:
     advertised = _advertised_tool_names(envelope)
     satisfied = frozenset() if desktop is None else desktop.satisfied_safety_baselines
+    browser_failed = any(
+        event.get("kind") == "tool_result"
+        and _mapping(event.get("data"), "CONTINUATION_LEDGER_INVALID").get("tool_name")
+        == "browser_snapshot"
+        and _mapping(event.get("data"), "CONTINUATION_LEDGER_INVALID").get("status")
+        != ToolResultStatus.SUCCESS.value
+        for event in _ledger(envelope)
+    )
     return tuple(
         tool
-        for tool in REVIEWED_TOOLS
+        for tool in ALL_REVIEWED_TOOLS
         if tool.name in advertised
+        and not (browser_failed and tool.name == "browser_snapshot")
         and tool.effect is ToolEffect.OBSERVATION
         and set(tool.required_safety_baselines).issubset(satisfied)
     )
@@ -1081,7 +1091,10 @@ def plan_read_only_recovery(
         and payload["task"] == task
         and provider.get("name") == config.provider.name
         and provider.get("model") == config.provider.model
-        and payload["registry_digest"] == reviewed_registry_digest()
+        and payload["registry_digest"]
+        == reviewed_registry_digest(
+            configured_optional_tool_names(config.mcp.environment)
+        )
         and all(budget.get(name) == value for name, value in expected_limits.items())
         and all(budget.get(name) == value for name, value in folded_budget.items())
         and isinstance(checkpoint_budget, Mapping)

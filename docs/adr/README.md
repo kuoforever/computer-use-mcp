@@ -19,6 +19,7 @@ implementation looks over-strict until you know what the alternative costs.
 | [008](008-android-device-driver-behind-driver-contract.md) | An Android device is a driver behind the contract, not a second MCP | Reach a phone by adding one driver, not a parallel `android.*` surface; deferred until the Windows vertical is proven |
 | [009](009-native-action-authority-and-partial-dispatch.md) | Native action authority is revalidated at each driver-controlled mutation boundary | Authority loss before mutation is not dispatched; loss after partial mutation is unknown/dispatched and never replayed |
 | [010](010-tree-uncertainty-remains-outside-node-state.md) | Tree uncertainty remains outside node state | An uncertain boundary performs no node transition and cannot become selector or retry input |
+| [011](011-os-input-default-with-read-only-browser-assist.md) | OS input is the default; browser-native access is read-only assistance | Visible desktop effects use the ordinary Windows pointer/keyboard path while browser structure improves observation only |
 
 Related: [postmortems](../postmortems/) record what actually failed, and
 [AI-assisted development](../AI_ASSISTED_DEVELOPMENT.md) records who is

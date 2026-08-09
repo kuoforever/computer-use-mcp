@@ -78,3 +78,40 @@ def test_real_stdio_child_uses_fixed_launch_and_excludes_provider_secrets(
     assert typed_secret not in repr(type_result)
     assert bridge.closed
     assert "STDERR_SECRET_SENTINEL" not in capsys.readouterr().err
+
+
+def test_stdio_child_negotiates_the_optional_browser_observation_tool(
+    tmp_path: Path,
+) -> None:
+    child = Path(__file__).parent / "fixtures" / "stdio_mcp_server.py"
+    launch = MCPLaunchConfig(
+        executable=Path(sys.executable).resolve(),
+        args=(str(child),),
+        cwd=tmp_path,
+        environment={
+            "CUMCP_ALLOWLIST": "chrome.exe",
+            "CUMCP_BROWSER_OBSERVATION": "cdp",
+            "CUMCP_BROWSER_CDP_ENDPOINT": "http://127.0.0.1:9222",
+        },
+    )
+    bridge = StdioDesktopMCP(launch, timeout_seconds=10.0)
+    call = ToolCall(
+        CallIdentity("run_browser", "turn_1", "call_1"),
+        "browser_snapshot",
+        {"page_index": 0, "detail": "both"},
+        ToolCallStatus.AUTHORIZED,
+    )
+
+    async def scenario() -> tuple[tuple[object, ...], object]:
+        async with bridge:
+            discovered = await bridge.discover_tools()
+            result = await bridge.call_tool(call)
+            return discovered, result
+
+    discovered, result = asyncio.run(scenario())
+
+    assert len(discovered) == 14
+    assert {descriptor.name for descriptor in discovered} >= {"browser_snapshot"}
+    assert result.status is ToolResultStatus.SUCCESS
+    assert '"source":"playwright_cdp_read_only"' in result.sanitized_text
+    assert '"action_backend":"os_input_only"' in result.sanitized_text

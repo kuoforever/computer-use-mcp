@@ -5,6 +5,7 @@ import base64
 import os
 import sys
 from pathlib import Path
+from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.utilities.types import Image as MCPImage
@@ -86,6 +87,20 @@ def ocr(x: int, y: int, w: int, h: int) -> str:
 @mcp.tool()
 def document_text(scope: str = "foreground") -> str:
     return f'{{"source":"document_text","scope":"{scope}","blocks":[]}}'
+
+
+if os.environ.get("CUMCP_BROWSER_OBSERVATION", "off").strip().lower() == "cdp":
+
+    @mcp.tool()
+    def browser_snapshot(
+        page_index: int = 0,
+        detail: Literal["semantic", "text", "both"] = "semantic",
+    ) -> str:
+        return (
+            f'{{"version":1,"source":"playwright_cdp_read_only",'
+            f'"page_index":{page_index},"detail":"{detail}",'
+            f'"action_backend":"os_input_only"}}'
+        )
 
 
 @mcp.tool()

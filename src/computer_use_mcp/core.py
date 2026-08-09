@@ -75,20 +75,35 @@ class Session:
     # --- action --------------------------------------------------------------
 
     def click(self, ref: str | None = None, x: int | None = None, y: int | None = None,
-              button: str = "left") -> Result:
-        """click({ref}) drives the element via its UIA pattern (focus/occlusion
-        independent); click({x,y}) is a coordinate click in the shared space."""
+              button: str = "left", backend: str = "os_input") -> Result:
+        """Use a ref only for target binding when backend is explicit OS input.
+
+        UIA Invoke/SelectionItem remains available only through ``backend=uia``;
+        there is no silent fallback between the two action mechanisms.
+        """
+        if backend not in {"os_input", "uia"}:
+            return Result.fail(DRIVER_ERROR, "unsupported click backend")
         if ref is not None:
-            return self._act_on_ref(ref, lambda nid, node: self._press(nid, node, button))
+            if backend == "uia":
+                return self._act_on_ref(ref, lambda nid, node: self._press(nid, node, button))
+            return self._act_on_ref(
+                ref,
+                lambda _nid, node: self.driver.click(node.bbox.cx, node.bbox.cy, button=button),
+            )
         if x is not None and y is not None:
+            if backend != "os_input":
+                return Result.fail(DRIVER_ERROR, "coordinate click requires os_input backend")
             return self.driver.click(int(x), int(y), button=button)
         return Result.fail(DRIVER_ERROR, "click needs a ref or (x, y)")
 
-    def type(self, text: str, ref: str | None = None) -> Result:
-        """type(text, ref) sets the value via ValuePattern (preferred); type(text)
-        sends keystrokes to whatever holds focus."""
+    def type(self, text: str, ref: str | None = None, backend: str = "os_input") -> Result:
+        """Default to native keystrokes; UIA ValuePattern requires explicit opt-in."""
         if ref is not None:
+            if backend != "uia":
+                return Result.fail(DRIVER_ERROR, "ref typing requires uia backend")
             return self._act_on_ref(ref, lambda nid, _node: self.driver.set_value(nid, text))
+        if backend != "os_input":
+            return Result.fail(DRIVER_ERROR, "focused typing requires os_input backend")
         return self.driver.type(text)
 
     def key(self, combo: str) -> Result:

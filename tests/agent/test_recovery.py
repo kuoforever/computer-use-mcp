@@ -35,7 +35,11 @@ from computer_use_agent.recovery import (
 )
 from computer_use_agent.reconstruction import OperationResult, ReconstructionAction
 from computer_use_agent.run_lock import RunLock
-from computer_use_agent.tool_registry import REVIEWED_TOOLS, reviewed_registry_digest
+from computer_use_agent.tool_registry import (
+    REVIEWED_TOOLS,
+    configured_optional_tool_names,
+    reviewed_registry_digest,
+)
 from computer_use_agent.trace import (
     RunPhase,
     RunRecorder,
@@ -99,7 +103,9 @@ def _recorder(
         state=state,
         provider_name=provider_name,
         provider_model="model-v1",
-        registry_digest=reviewed_registry_digest(),
+        registry_digest=reviewed_registry_digest(
+            configured_optional_tool_names(config.mcp.environment)
+        ),
         advertised_tool_names=advertised_tool_names,
         ttl_seconds=900,
         mcp_generation=1,
@@ -2850,6 +2856,86 @@ def test_provider_recovery_uses_only_persisted_currently_safe_observations(
     assert tuple(tool.name for tool in provider.restored_tools["run_1"]) == expected
     assert tuple(tool.name for tool in provider.calls[0]["tools"]) == expected
     assert all(tool.effect is ToolEffect.OBSERVATION for tool in provider.calls[0]["tools"])
+    assert step.model_turn is not None
+    assert step.model_turn.text == "done"
+
+
+def test_provider_recovery_keeps_failed_browser_observation_withdrawn(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    base = _config(tmp_path, monkeypatch)
+    config = replace(
+        base,
+        mcp=replace(
+            base.mcp,
+            environment={"CUMCP_BROWSER_OBSERVATION": "cdp"},
+        ),
+    )
+    state = _state()
+    call = ToolCall(
+        CallIdentity(state.run_id, "turn_1", "call_1"),
+        "browser_snapshot",
+        {},
+    )
+    recorder = _recorder(
+        config,
+        state,
+        advertised_tool_names=frozenset({"ui_snapshot", "browser_snapshot"}),
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn(state.run_id, "turn_1", "response_1", "", (call,)),
+        provider_state={
+            "response_id": "response_1",
+            "prior_context_tokens": 0,
+            "request_contract_digest": "0" * 64,
+            "memory_context_used": False,
+            "initial_input": state.task,
+            "output_batches": [{"response_id": "response_1", "items": []}],
+        },
+        checkpoint_sequence=3,
+    )
+    tool_state = replace(
+        state,
+        budgets=replace(state.budgets, tool_calls_used=1),
+    )
+    failed = ToolResult(
+        call.identity,
+        call.name,
+        ToolResultStatus.ACTION_ERROR,
+        DispatchCertainty.DISPATCHED,
+        code="DRIVER_ERROR",
+    )
+    recorder.prepare_tool(
+        tool_state,
+        call,
+        effect=ToolEffect.OBSERVATION,
+        checkpoint_sequence=4,
+    )
+    recorder.dispatch_tool(tool_state, checkpoint_sequence=5)
+    envelope = recorder.complete_tool(tool_state, failed, checkpoint_sequence=6)
+    provider = FakeModelProvider(
+        turns=deque([ModelTurn(state.run_id, "turn_2", "response_2", "done")])
+    )
+
+    step = asyncio.run(
+        execute_read_only_recovery_step(
+            _checkpoint(tool_state, 6),
+            envelope,
+            config,
+            task=state.task,
+            provider=provider,
+            desktop=None,
+            commit_intent=lambda *_args: None,
+        )
+    )
+
+    expected = ("ui_snapshot",)
+    assert tuple(tool.name for tool in provider.restored_tools[state.run_id]) == expected
+    assert tuple(tool.name for tool in provider.calls[0]["tools"]) == expected
     assert step.model_turn is not None
     assert step.model_turn.text == "done"
 
