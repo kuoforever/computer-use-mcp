@@ -1,0 +1,17 @@
+{
+  "shadow_strategy_policy_version": 1,
+  "policy_id": "visible_cost_v1",
+  "policy_version": 1,
+  "max_candidates": 8,
+  "weights": {
+    "model_turns": 1,
+    "tool_calls": 1,
+    "side_effects": 1,
+    "observation_calls": 1,
+    "input_tokens": 1,
+    "result_bytes": 1,
+    "duration_ms": 1,
+    "human_approvals": 1,
+    "retries": 1
+  }
+}

@@ -1,8 +1,8 @@
 # Continual learning and verified experience evolution
 
-> **Status: L0-L2 implemented and offline verified.** The current
+> **Status: L0-L3 implemented and offline verified.** The current
 > runtime also implements explicitly confirmed local memory. It does not automatically extract memories,
-> generate or promote workflows, optimize a cross-run strategy policy, or update
+> generate or promote workflows, route from a cross-run strategy policy, or update
 > model weights. This document defines the complete-product direction and the
 > gates required before any of those claims are valid.
 
@@ -35,7 +35,7 @@ effects.
 | --- | --- | --- | --- |
 | 1. Factual memory | Stable preferences, application constraints, and verified facts | Explicit, user-confirmed `preference` and `verified_procedure` records with scope, provenance, expiry, and deletion | Suggest bounded candidate memories from repeated evidence; require confirmation or a separately reviewed promotion policy before use |
 | 2. Procedural memory | A reusable, versioned way to perform a task | A procedure can be stored as text, but there is no executable Skill package or automatic extraction | Compile successful trajectories into candidate workflows with preconditions, invariants, recovery branches, tests, and rollback metadata; promote only after replay evaluation |
-| 3. Strategy learning | Choose among valid procedures using measured context, success, cost, and risk | The model can replan inside one run; traces and metrics exist, but no cross-run policy learns which strategy works best | Begin with offline scoring and shadow recommendations, then allow bounded contextual-bandit-style routing only for equivalent, low-risk strategies |
+| 3. Strategy learning | Choose among valid procedures using measured context, success, cost, and risk | L3 compares equivalent reviewed procedure evidence offline and emits a visible, non-executing shadow recommendation; no runtime selector consumes it | Later allow bounded contextual-bandit-style routing only for equivalent, low-risk strategies |
 | 4. Model learning | Change model parameters from accumulated episodes | No local or project-specific weight updates | Deliberately deferred offline research; any training export requires a separate consent, privacy, redaction, evaluation, and rollback boundary |
 
 The near-term differentiator is Layers 2 and 3: a verified
@@ -231,6 +231,38 @@ runtime procedure loader imports this module. L2 therefore proves an isolated
 evaluation and rollback contract, not automatic extraction, runtime promotion,
 application success, live learning, training, E4, or release readiness.
 
+## Implemented L3 boundary
+
+`src/computer_use_agent/shadow_strategies.py` adds a pure comparison layer over
+reviewed L2 evidence:
+
+- one strict versioned policy exposes a non-negative integer weight for every
+  L2 replay-cost dimension, its candidate bound, fixed hard gates, active-tie
+  behavior, canonical digest, and `runtime_selection=false`;
+- every input contains a complete digest-linked L2 lifecycle plus one current
+  frozen evaluation. Exactly one procedure must be data-only `ACTIVE`; every
+  alternative must be data-only `SHADOW`, explicitly reviewed, unexpired at
+  the supplied comparison time, and bound to its exact definition;
+- an equivalence digest requires the same task/application/version, reviewed
+  registry, Host policy, typed preconditions, ordered side-effect tool and
+  approval/fresh-observation profile, and terminal verified postconditions.
+  Observation methods may differ, but authority or verification scope may not;
+- all procedures must use the exact same ordered held-out suite. Incomplete or
+  unverified results, safety escapes, authority regressions, suite drift,
+  duplicate procedures, or zero/multiple active baselines fail before scoring;
+- the visible reward vector retains fixture count, verified successes,
+  incomplete results, safety escapes, authority regressions, and all nine L2
+  costs. Output also retains every weight, per-dimension weighted contribution,
+  total penalty, L2 evidence digest, and exact procedure pin; and
+- candidates are sorted canonically. Only a strictly lower weighted penalty
+  recommends one shadow procedure; equal or worse cost deterministically keeps
+  the active baseline. Reversing input order reproduces the same digest.
+
+The recommendation is private content-free evaluation data, not a routing
+decision. No Runner, MCP, provider, desktop, policy, approval, memory,
+L1-quarantine, persistence, CLI, procedure promotion, online exploration,
+training, application, live, E4, or release path imports or consumes L3.
+
 ## Candidate extraction and promotion
 
 Model-generated candidates are untrusted proposals. They cannot change policy,
@@ -285,10 +317,10 @@ reversibility and residual risk
 ~~~
 
 A weighted score may be used for reporting, but the underlying vector and
-weights must remain visible. Initial releases should score policies offline and
-show shadow recommendations without changing execution. Later bounded routing
-may use context such as application version, observation availability, task
-shape, and prior fixture results.
+weights must remain visible. L3 now performs that offline comparison and shows
+shadow recommendations without changing execution. Later bounded routing may
+use context such as application version, observation availability, task shape,
+and prior fixture results.
 
 Online exploration is forbidden for external communication, financial effects,
 identity or tenant changes, destructive actions, authentication challenges, and
@@ -358,7 +390,7 @@ evidence. One edited showcase run cannot establish a learning improvement.
 | L0. Instrumentation | **Implemented/offline verified:** normalized redacted episode outcome and fixed explicit-coverage cost vector derived only from existing trace/campaign evidence | Passed: missing/partial metrics remain explicit, costs reconcile with trace/checkpoint budgets, and outcome conflicts fail closed without live or learning authority |
 | L1. Suggested facts | **Implemented/offline verified:** fresh boolean/integer H5 facts correlated with one successful L0 episode enter an isolated private quarantine with exact revisioned lifecycle controls | Passed: no automatic injection; text, identifiers, secrets, raw content, stale/unknown evidence, and ineligible episodes are rejected; operator can list, confirm, edit, expire, or delete without creating explicit memory |
 | L2. Verified procedures | **Implemented/offline verified:** content-free versioned workflow data, frozen typed fixtures, pure replay/evaluation, reviewed digest-linked lifecycle, and exact rollback pins | Passed: at least two disjoint held-out fixtures, full verified success, exact baseline suite, zero safety escapes/authority regressions, and verified-outcome or Pareto-cost improvement before data-only `ACTIVE` |
-| L3. Shadow strategy policy | Offline comparison and non-executing recommendations with visible reward vector | Recommendations reproduce from frozen evidence and never alter live execution |
+| L3. Shadow strategy policy | **Implemented/offline verified:** exact-equivalence comparison of one reviewed data-only `ACTIVE` baseline and reviewed data-only `SHADOW` candidates with a complete visible reward vector, weights, contributions, and deterministic recommendation | Passed: frozen evidence reproduces independent of input order; suite/authority/verification drift, expiry, hard-outcome failure, safety escape, authority regression, duplicate/multiple baselines, forged score, and forged recommendation fail closed; output has no runtime-selection port |
 | L4. Bounded adaptive routing | Context-aware selection among already approved, equivalent low-risk procedures | Canary limits, drift detection, rollback, and no regression in approval or authority gates |
 | L5. Offline model research | Separately consented, redacted dataset export and isolated fine-tuning experiment | Independent privacy, security, evaluation, deployment, and rollback approval; outside the default product claim |
 

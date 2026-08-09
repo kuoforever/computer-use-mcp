@@ -202,7 +202,14 @@ content-free offline evaluation data; no runtime loader, provider-context
 builder, strategy selector, or persistence path consumes them. L1 confirmation
 cannot create an L2 procedure, and L2 activation cannot create explicit memory.
 
+L3 shadow recommendations remain separate as well. They retain only exact L2
+pins and evidence digests, lifecycle labels, fixed equivalence/suite digests,
+visible hard outcomes, integer costs, weights, contributions, and an offline
+recommendation. They contain no task or observation content and have no memory
+read/write, provider-context, procedure-promotion, persistence, CLI, or runtime
+routing path. Neither explicit memory nor L1 candidate state enters scoring.
+
 Runtime workflow loading, cross-run strategy selection, automatic promotion,
 and model-weight learning remain separately gated in [Continual learning and
 verified experience evolution](CONTINUAL_LEARNING.md). They cannot be enabled
-implicitly from either store or the L2 data contract.
+implicitly from either store or the L2/L3 data contracts.
