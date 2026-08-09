@@ -120,7 +120,7 @@ not a line-by-line mirror of every reference page.
 | Persisted continuation | Private v2 storage with correlated OpenAI recovery token state, opt-in write-ahead boundaries, conservative classification, and a locked 1-4 step read-only CLI gate including completed-side-effect mandatory observation |
 | Agent context and memory | Provider-view reduction, explicit SQLite memory, expiry, deletion, and rejection rules |
 | Local privacy boundary | One disabled-by-default package for run-scoped PII tokens, local screenshot redaction, non-restorable secrets, local resolution sinks, and deferred non-text visual backends |
-| Continual learning | Planned four-layer memory, verified workflow promotion, cost-aware strategy selection, rollback, and deferred model-learning boundary |
+| Continual learning | L0-L4 redacted outcomes, quarantined typed facts, verified procedure/shadow evaluation, bounded LOW-only canary routing, rollback, and deferred model-learning boundary |
 | Stateless replay | Provider continuation strategies, explicit OpenAI replay contract, and mandatory activation invariants |
 | Task planning | Strict TaskPlan/Planner contracts, local WAL/reconciliation, and the bounded observation-only `ask` / `plan run` composition |
 | Hierarchical task and behavior trees | H1-H7 hierarchy, persistence, typed conditions, exact templates, and separately gated approval-preserving side-effect leaves; H8 remains planned |
