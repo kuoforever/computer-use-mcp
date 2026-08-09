@@ -593,6 +593,10 @@ class AgentConfig:
     def memory_database(self) -> Path:
         return self.state_dir / "memory.sqlite3"
 
+    @property
+    def learning_quarantine_database(self) -> Path:
+        return self.state_dir / "learning-quarantine.sqlite3"
+
 
 def load_agent_config(path: str | Path) -> AgentConfig:
     """Load the documented TOML shape and reject credentials or unsafe child settings."""

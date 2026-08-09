@@ -187,11 +187,16 @@ request tools. The common Runner and host policy remain the only authorities.
 Memory content is not added to the canonical ledger, checkpoint, redacted
 trace, or CLI result; only the provider receives it after explicit selection.
 
-## Planned learning boundary
+## Learning quarantine boundary
 
-Automatic extraction, executable workflow generation, cross-run strategy
-selection, and model-weight learning are not extensions of this implemented
-store that may be enabled implicitly. Their candidate quarantine, evidence,
-promotion, evaluation, rollback, and consent requirements are defined in
-[Continual learning and verified experience evolution](CONTINUAL_LEARNING.md).
-The explicit memory contract above remains the only current runtime behavior.
+The separate L1 `learning-quarantine.sqlite3` accepts only fresh H5 boolean or
+integer facts correlated with a successful L0 episode. Operators can inspect,
+confirm, edit, expire, or delete those candidates through `learning candidates`;
+confirmation remains quarantine state and never copies a candidate into this
+explicit-memory store or provider context. The explicit memory contract above
+remains the only current runtime memory behavior.
+
+Executable workflow generation, cross-run strategy selection, promotion, and
+model-weight learning remain separately gated in [Continual learning and
+verified experience evolution](CONTINUAL_LEARNING.md). They cannot be enabled
+implicitly from either store.

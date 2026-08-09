@@ -1,6 +1,6 @@
 # Continual learning and verified experience evolution
 
-> **Status: L0 instrumentation implemented and offline verified.** The current
+> **Status: L0-L1 implemented and offline verified.** The current
 > runtime also implements explicitly confirmed local memory. It does not automatically extract memories,
 > generate or promote workflows, optimize a cross-run strategy policy, or update
 > model weights. This document defines the complete-product direction and the
@@ -146,6 +146,47 @@ strategy scoring/routing, provider, Runner, MCP, desktop, approval, retry,
 replay, promotion, or training port. Its output repeats the Full Cycle privacy
 declarations and is restricted to offline evaluation.
 
+## Implemented L1 boundary
+
+`src/computer_use_agent/learning_quarantine.py` adds a separate private SQLite
+quarantine and a deliberately narrow extractor:
+
+- one candidate must correlate the same `VERIFIED_SUCCESS` L0 episode, run,
+  verified observation epoch, H5 snapshot, and current H5 context;
+- ordinary H5 inspection must still find the fact fresh under the exact run,
+  epoch, MCP generation, window identity, clock, and maximum-age pins;
+- only known boolean and integer values are eligible. Text, identifiers,
+  unknown facts, stale facts, arbitrary page content, model prose, raw tool
+  results, screenshots, UI references, window titles, typed text, and obvious
+  secret-bearing identifiers are rejected before a database is created;
+- the record retains only typed value, logical fact ID, scope, exact source
+  digests, reviewed extraction method/tool, epoch/generation, optional window
+  identity digest, timestamps, and an explicit no-authority/no-injection
+  capability declaration;
+- candidate IDs are deterministic over the source episode, fact digest, and
+  extractor version. Duplicate or previously deleted source facts cannot be
+  silently re-created; and
+- the store is permission-restricted, versioned, bounded to 1,000 candidate
+  histories and 64 events per candidate with the final slot reserved for
+  deletion, and uses transactional record-plus-event writes.
+  Reads revalidate the strict record, index columns, digests, contiguous event
+  chain, revision chain, and current-record binding.
+
+The operator may list, explicitly confirm, edit, expire, or delete a candidate
+through `learning candidates`. Every mutation requires the exact revision;
+editing a confirmed value returns it to `suggested`. Expiry makes it inactive,
+and deletion removes candidate content while retaining a digest-only audit
+tombstone. These controls never write `memory.sqlite3`, and even a `confirmed`
+candidate remains quarantine-only: no provider context builder, policy,
+strategy selector, promotion path, Runner, MCP, desktop, or execution path can
+read it.
+
+L1 evidence is deterministic and offline. It proves fresh-source correlation,
+content rejection before persistence, no memory injection, exact CAS lifecycle,
+transaction rollback, tamper detection, natural and explicit expiry, and
+content deletion. It is not application, live, promotion, strategy-selection,
+training, E4, or release evidence.
+
 ## Candidate extraction and promotion
 
 Model-generated candidates are untrusted proposals. They cannot change policy,
@@ -271,7 +312,7 @@ evidence. One edited showcase run cannot establish a learning improvement.
 | Phase | Deliverable | Exit gate |
 | --- | --- | --- |
 | L0. Instrumentation | **Implemented/offline verified:** normalized redacted episode outcome and fixed explicit-coverage cost vector derived only from existing trace/campaign evidence | Passed: missing/partial metrics remain explicit, costs reconcile with trace/checkpoint budgets, and outcome conflicts fail closed without live or learning authority |
-| L1. Suggested facts | Read-only candidate extraction into a quarantine store | No automatic injection; secrets and forbidden content rejected; operator can confirm, edit, expire, or delete |
+| L1. Suggested facts | **Implemented/offline verified:** fresh boolean/integer H5 facts correlated with one successful L0 episode enter an isolated private quarantine with exact revisioned lifecycle controls | Passed: no automatic injection; text, identifiers, secrets, raw content, stale/unknown evidence, and ineligible episodes are rejected; operator can list, confirm, edit, expire, or delete without creating explicit memory |
 | L2. Verified procedures | Versioned candidate workflow schema, deterministic fixtures, replay evaluator, lifecycle, and rollback | Held-out improvement and zero safety escapes before `ACTIVE` |
 | L3. Shadow strategy policy | Offline comparison and non-executing recommendations with visible reward vector | Recommendations reproduce from frozen evidence and never alter live execution |
 | L4. Bounded adaptive routing | Context-aware selection among already approved, equivalent low-risk procedures | Canary limits, drift detection, rollback, and no regression in approval or authority gates |

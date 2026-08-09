@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import sys
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -151,6 +152,11 @@ def test_recovery_presence_closes_only_for_desktop_authority_loss(
         ["remember", "add", "--help"],
         ["remember", "list", "--help"],
         ["remember", "delete", "--help"],
+        ["learning", "candidates", "list", "--help"],
+        ["learning", "candidates", "confirm", "--help"],
+        ["learning", "candidates", "edit", "--help"],
+        ["learning", "candidates", "expire", "--help"],
+        ["learning", "candidates", "delete", "--help"],
         ["config", "validate", "--help"],
         ["config", "init", "--help"],
         ["config", "doctor", "--help"],
@@ -2505,6 +2511,165 @@ def test_remember_cli_requires_confirmation_and_supports_list_delete(
 
     assert main(["remember", "delete", added["id"], "--config", str(config_path)]) == 0
     assert json.loads(capsys.readouterr().out) == {"deleted": True, "id": added["id"]}
+
+
+def test_learning_candidate_cli_controls_quarantine_without_memory_injection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+    from computer_use_agent.learning_quarantine import (
+        CandidateFactQuarantine,
+        CandidateFactRecord,
+        CandidateFactSource,
+        CandidateFactStatus,
+    )
+    from computer_use_agent.world_state import (
+        FactExtractionMethod,
+        FactScope,
+        FactType,
+    )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    text, state_dir = _config_text(tmp_path)
+    config_path = tmp_path / "agent.toml"
+    config_path.write_text(text, encoding="utf-8")
+    config = load_agent_config(config_path)
+    source = CandidateFactSource(
+        episode_id="a" * 64,
+        source_record_digest="b" * 64,
+        manifest_digest="sha256:" + "c" * 64,
+        checkpoint_sequence=1,
+        snapshot_digest="d" * 64,
+        fact_digest="e" * 64,
+        evidence_digest="f" * 64,
+        extraction_method=FactExtractionMethod.UI_AUTOMATION,
+        source_tool="ui_snapshot",
+        observation_epoch=1,
+        mcp_generation=1,
+    )
+    candidate_material = json.dumps(
+        {
+            "candidate_fact_version": 1,
+            "episode_id": source.episode_id,
+            "fact_digest": source.fact_digest,
+            "extractor_version": source.extractor_version,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    created = datetime.now(timezone.utc).replace(microsecond=0)
+    record = CandidateFactRecord(
+        candidate_id=hashlib.sha256(candidate_material).hexdigest(),
+        status=CandidateFactStatus.SUGGESTED,
+        revision=0,
+        fact_id="dialog_present",
+        fact_type=FactType.BOOLEAN,
+        value=True,
+        scope=FactScope.RUN,
+        source=source,
+        created_at=created.isoformat().replace("+00:00", "Z"),
+        updated_at=created.isoformat().replace("+00:00", "Z"),
+        expires_at=(created + timedelta(days=1)).isoformat().replace("+00:00", "Z"),
+    )
+    store = CandidateFactQuarantine(config.learning_quarantine_database)
+    store._create_from_extractor(record)
+    base = ["--config", str(config_path)]
+
+    assert main(["learning", "candidates", "list", *base]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed["automatic_injection"] is False
+    assert listed["candidates"][0]["candidate_id"] == record.candidate_id
+    assert not (state_dir / "memory.sqlite3").exists()
+
+    assert main(
+        [
+            "learning",
+            "candidates",
+            "confirm",
+            record.candidate_id,
+            *base,
+            "--revision",
+            "0",
+        ]
+    ) == 2
+    assert "CANDIDATE_FACT_CONFIRMATION_REQUIRED" in capsys.readouterr().err
+
+    assert main(
+        [
+            "learning",
+            "candidates",
+            "confirm",
+            record.candidate_id,
+            *base,
+            "--revision",
+            "0",
+            "--confirmed",
+        ]
+    ) == 0
+    confirmed = json.loads(capsys.readouterr().out)
+    assert (confirmed["status"], confirmed["revision"]) == ("confirmed", 1)
+
+    assert main(
+        [
+            "learning",
+            "candidates",
+            "edit",
+            record.candidate_id,
+            *base,
+            "--revision",
+            "1",
+            "--value",
+            "false",
+        ]
+    ) == 0
+    edited = json.loads(capsys.readouterr().out)
+    assert (edited["status"], edited["revision"], edited["value"]) == (
+        "suggested",
+        2,
+        False,
+    )
+
+    assert main(
+        [
+            "learning",
+            "candidates",
+            "expire",
+            record.candidate_id,
+            *base,
+            "--revision",
+            "2",
+        ]
+    ) == 0
+    expired = json.loads(capsys.readouterr().out)
+    assert (expired["status"], expired["revision"]) == ("expired", 3)
+
+    assert main(["learning", "candidates", "list", *base]) == 0
+    assert json.loads(capsys.readouterr().out)["candidates"] == []
+    assert main(
+        [
+            "learning",
+            "candidates",
+            "delete",
+            record.candidate_id,
+            *base,
+            "--revision",
+            "3",
+        ]
+    ) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "candidate_id": record.candidate_id,
+        "deleted": True,
+    }
+    assert not (state_dir / "memory.sqlite3").exists()
+    assert [event.action.value for event in store.events(record.candidate_id)] == [
+        "extracted",
+        "confirmed",
+        "edited",
+        "expired",
+        "deleted",
+    ]
 
 
 @pytest.mark.parametrize(

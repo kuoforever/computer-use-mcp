@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -689,6 +690,49 @@ def build_parser() -> argparse.ArgumentParser:
     remember_delete = remember_commands.add_parser("delete", help="Delete one local memory.")
     remember_delete.add_argument("memory_id")
     remember_delete.add_argument("--config", required=True, type=Path)
+
+    learning = commands.add_parser(
+        "learning", help="Inspect and control quarantined learning candidates."
+    )
+    learning_commands = learning.add_subparsers(
+        dest="learning_command", required=True
+    )
+    candidates = learning_commands.add_parser(
+        "candidates", help="Manage private candidate facts without injecting them."
+    )
+    candidate_commands = candidates.add_subparsers(
+        dest="candidate_command", required=True
+    )
+    candidate_list = candidate_commands.add_parser("list", help="List candidates.")
+    candidate_list.add_argument("--config", required=True, type=Path)
+    candidate_list.add_argument("--include-expired", action="store_true")
+    candidate_confirm = candidate_commands.add_parser(
+        "confirm", help="Confirm one exact candidate revision inside quarantine."
+    )
+    candidate_confirm.add_argument("candidate_id")
+    candidate_confirm.add_argument("--config", required=True, type=Path)
+    candidate_confirm.add_argument("--revision", required=True, type=int)
+    candidate_confirm.add_argument("--confirmed", action="store_true")
+    candidate_edit = candidate_commands.add_parser(
+        "edit", help="Edit one value or expiry and return it to suggested state."
+    )
+    candidate_edit.add_argument("candidate_id")
+    candidate_edit.add_argument("--config", required=True, type=Path)
+    candidate_edit.add_argument("--revision", required=True, type=int)
+    candidate_edit.add_argument("--value")
+    candidate_edit.add_argument("--expires-at")
+    candidate_expire = candidate_commands.add_parser(
+        "expire", help="Expire one exact candidate revision."
+    )
+    candidate_expire.add_argument("candidate_id")
+    candidate_expire.add_argument("--config", required=True, type=Path)
+    candidate_expire.add_argument("--revision", required=True, type=int)
+    candidate_delete = candidate_commands.add_parser(
+        "delete", help="Delete candidate content and retain a digest-only tombstone."
+    )
+    candidate_delete.add_argument("candidate_id")
+    candidate_delete.add_argument("--config", required=True, type=Path)
+    candidate_delete.add_argument("--revision", required=True, type=int)
     return parser
 
 
@@ -2249,6 +2293,102 @@ def _remember(args: argparse.Namespace) -> int:
     raise RuntimeError("MEMORY_COMMAND_UNSUPPORTED")
 
 
+def _candidate_cli_time(value: str) -> datetime:
+    if not isinstance(value, str) or not value:
+        raise ValueError("CANDIDATE_FACT_TIME_INVALID")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("CANDIDATE_FACT_TIME_INVALID") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None or parsed.microsecond != 0:
+        raise ValueError("CANDIDATE_FACT_TIME_INVALID")
+    return parsed
+
+
+def _candidate_cli_value(raw: str, fact_type: object) -> bool | int:
+    from .world_state import FactType
+
+    if fact_type is FactType.BOOLEAN:
+        if raw == "true":
+            return True
+        if raw == "false":
+            return False
+    elif fact_type is FactType.INTEGER and re.fullmatch(r"-?(?:0|[1-9][0-9]*)", raw):
+        return int(raw)
+    raise ValueError("CANDIDATE_FACT_VALUE_INVALID")
+
+
+def _learning(args: argparse.Namespace) -> int:
+    from .learning_quarantine import CandidateFactError, CandidateFactQuarantine
+
+    if args.learning_command != "candidates":
+        raise RuntimeError("LEARNING_COMMAND_UNSUPPORTED")
+    config = load_agent_config(args.config)
+    store = CandidateFactQuarantine(config.learning_quarantine_database)
+    command = args.candidate_command
+    if command == "list":
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        records = store.list(include_expired=args.include_expired, now=now)
+        _print_json(
+            {
+                "candidates": [
+                    {
+                        **record.to_payload(),
+                        "effective_status": record.status_at(now).value,
+                    }
+                    for record in records
+                ],
+                "automatic_injection": False,
+            }
+        )
+        return 0
+    if command == "confirm":
+        record = store.confirm(
+            args.candidate_id,
+            expected_revision=args.revision,
+            confirmed=args.confirmed,
+        )
+        _print_json(record.to_payload())
+        return 0
+    if command == "edit":
+        record = store.get(args.candidate_id)
+        if record is None:
+            raise CandidateFactError("CANDIDATE_FACT_NOT_FOUND")
+        value = (
+            None
+            if args.value is None
+            else _candidate_cli_value(args.value, record.fact_type)
+        )
+        expires_at = (
+            None
+            if args.expires_at is None
+            else _candidate_cli_time(args.expires_at)
+        )
+        edited = store.edit(
+            args.candidate_id,
+            expected_revision=args.revision,
+            value=value,
+            expires_at=expires_at,
+        )
+        _print_json(edited.to_payload())
+        return 0
+    if command == "expire":
+        record = store.expire(
+            args.candidate_id,
+            expected_revision=args.revision,
+        )
+        _print_json(record.to_payload())
+        return 0
+    if command == "delete":
+        deleted = store.delete(
+            args.candidate_id,
+            expected_revision=args.revision,
+        )
+        _print_json({"candidate_id": args.candidate_id, "deleted": deleted})
+        return 0
+    raise RuntimeError("LEARNING_CANDIDATE_COMMAND_UNSUPPORTED")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -2492,6 +2632,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cancel(args.config, args.run_id)
         if args.command == "remember":
             return _remember(args)
+        if args.command == "learning":
+            return _learning(args)
     except (ConfigError, RunLockError, RunnerError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
