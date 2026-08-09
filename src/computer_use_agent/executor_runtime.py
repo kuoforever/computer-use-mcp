@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from time import perf_counter_ns
 
+from .adaptive_routing import AdaptiveRoutedPlan
 from .continuation import RuntimeContinuationRecorder, read_continuation
 from .executor import BoundedExecutorSession, ExecutorSessionError
 from .executor_final import (
@@ -31,6 +32,7 @@ from .runner import AgentRunner, PreparedRun, RunDeferred, RunFailure
 from .trace import RunPhase, RunRecorder
 from .tool_registry import reviewed_registry_digest, verify_discovered_tools
 from .types import ModelTurn, RecoveryStatus, RunState, ToolEffect, ToolResult
+from .verified_procedures import ProcedurePin
 
 
 class ExecutorRuntimeError(RuntimeError):
@@ -47,6 +49,8 @@ class RuntimePlanStepOutcome:
     plan_digest: str
     tree_sequence: int | None = None
     tree_digest: str | None = None
+    route_binding_digest: str | None = None
+    routed_procedure: ProcedurePin | None = None
 
 
 @dataclass(frozen=True, repr=False)
@@ -60,6 +64,8 @@ class RuntimeFinalResponseOutcome:
     plan_digest: str
     tree_sequence: int | None = None
     tree_digest: str | None = None
+    route_binding_digest: str | None = None
+    routed_procedure: ProcedurePin | None = None
 
     def __repr__(self) -> str:
         return (
@@ -67,7 +73,9 @@ class RuntimeFinalResponseOutcome:
             f"run_id={self.state.run_id!r}, text_length={len(self.text)}, "
             f"provider_response_id={self.provider_response_id!r}, "
             f"plan_sequence={self.plan_sequence}, plan_digest={self.plan_digest!r}, "
-            f"tree_sequence={self.tree_sequence}, tree_digest={self.tree_digest!r})"
+            f"tree_sequence={self.tree_sequence}, tree_digest={self.tree_digest!r}, "
+            f"route_binding_digest={self.route_binding_digest!r}, "
+            f"routed_procedure={self.routed_procedure!r})"
         )
 
 
@@ -86,6 +94,7 @@ class RuntimeExecutorSession:
         progress: FailSilentLifecycle,
         tree_projection: LinearTaskTreeProjection | None = None,
         allow_side_effects: bool = False,
+        route_binding: AdaptiveRoutedPlan | None = None,
     ) -> None:
         self.runner = runner
         self.prepared_run = prepared_run
@@ -96,6 +105,7 @@ class RuntimeExecutorSession:
         self.progress = progress
         self.tree_projection = tree_projection
         self.allow_side_effects = allow_side_effects
+        self.route_binding = route_binding
         self.store = prepared_run.plan_store(runner.config.state_dir)
         self.state = prepared_run.state
         self.grounding = GroundingState()
@@ -414,6 +424,7 @@ class RuntimeExecutorSession:
             await self._shutdown(delete_continuation=True)
             raise ExecutorRuntimeError("EXECUTOR_TOOL_FAILED")
         tree_sequence, tree_digest = self._tree_metadata()
+        route_binding = self.route_binding
         return RuntimePlanStepOutcome(
             state=self.state,
             result=outcome.result,
@@ -421,6 +432,12 @@ class RuntimeExecutorSession:
             plan_digest=finished.plan.digest,
             tree_sequence=tree_sequence,
             tree_digest=tree_digest,
+            route_binding_digest=(
+                None if route_binding is None else route_binding.digest
+            ),
+            routed_procedure=(
+                None if route_binding is None else route_binding.procedure
+            ),
         )
 
     async def execute_next_observation(self) -> RuntimePlanStepOutcome:
@@ -608,6 +625,7 @@ class RuntimeExecutorSession:
             raise ExecutorRuntimeError(code) from exc
 
         tree_sequence, tree_digest = self._tree_metadata()
+        route_binding = self.route_binding
         outcome = RuntimeFinalResponseOutcome(
             text=durable_result.text,
             state=self.state,
@@ -616,6 +634,12 @@ class RuntimeExecutorSession:
             plan_digest=finished.plan.digest,
             tree_sequence=tree_sequence,
             tree_digest=tree_digest,
+            route_binding_digest=(
+                None if route_binding is None else route_binding.digest
+            ),
+            routed_procedure=(
+                None if route_binding is None else route_binding.procedure
+            ),
         )
         await self._shutdown(delete_continuation=True)
         return outcome
@@ -628,6 +652,7 @@ async def _open_runtime_executor_session(
     plan: TaskPlan,
     tree_id: str | None,
     allow_hierarchical_side_effects: bool = False,
+    route_binding: AdaptiveRoutedPlan | None = None,
 ) -> RuntimeExecutorSession:
     """Open one new runtime session, optionally with the exact H4 projection."""
 
@@ -635,6 +660,7 @@ async def _open_runtime_executor_session(
         not isinstance(runner, AgentRunner)
         or not isinstance(plan, TaskPlan)
         or not isinstance(allow_hierarchical_side_effects, bool)
+        or (route_binding is not None and not isinstance(route_binding, AdaptiveRoutedPlan))
     ):
         raise ExecutorRuntimeError("EXECUTOR_RUNTIME_INPUT_INVALID")
     if not isinstance(task, str) or not task:
@@ -649,6 +675,16 @@ async def _open_runtime_executor_session(
         raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE")
     if tree_id is None and allow_hierarchical_side_effects:
         raise ExecutorRuntimeError("EXECUTOR_TREE_PLAN_UNSAFE")
+    if route_binding is not None and (
+        not allow_hierarchical_side_effects
+        or tree_id is None
+        or route_binding.plan_digest != plan.digest
+        or route_binding.decision.context.task_digest != plan.task_digest
+        or route_binding.decision.context.registry_digest != reviewed_registry_digest()
+        or route_binding.decision.context.policy_digest
+        != runtime_policy_digest(runner.policy)
+    ):
+        raise ExecutorRuntimeError("EXECUTOR_ADAPTIVE_ROUTE_INVALID")
     if tree_id is not None and allow_hierarchical_side_effects:
         try:
             validate_bounded_side_effect_plan(plan)
@@ -737,6 +773,7 @@ async def _open_runtime_executor_session(
             progress=progress,
             tree_projection=tree_projection,
             allow_side_effects=allow_hierarchical_side_effects,
+            route_binding=route_binding,
         )
     except BaseException:
         try:
@@ -812,11 +849,32 @@ async def open_hierarchical_side_effect_runtime_executor_session(
     )
 
 
+async def open_adaptive_routed_hierarchical_side_effect_runtime_executor_session(
+    runner: AgentRunner,
+    *,
+    task: str,
+    plan: TaskPlan,
+    tree_id: str,
+    route_binding: AdaptiveRoutedPlan,
+) -> RuntimeExecutorSession:
+    """Open one L4-selected H7 plan through the unchanged Runner boundary."""
+
+    return await _open_runtime_executor_session(
+        runner,
+        task=task,
+        plan=plan,
+        tree_id=tree_id,
+        allow_hierarchical_side_effects=True,
+        route_binding=route_binding,
+    )
+
+
 __all__ = [
     "ExecutorRuntimeError",
     "RuntimeExecutorSession",
     "RuntimeFinalResponseOutcome",
     "RuntimePlanStepOutcome",
+    "open_adaptive_routed_hierarchical_side_effect_runtime_executor_session",
     "open_hierarchical_side_effect_runtime_executor_session",
     "open_hierarchical_runtime_executor_session",
     "open_runtime_executor_session",
