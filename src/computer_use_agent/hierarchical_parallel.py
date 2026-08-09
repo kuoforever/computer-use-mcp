@@ -15,6 +15,7 @@ from typing import Mapping
 
 from .hierarchical_control import (
     TREE_CONTRACT_VERSION_V2,
+    TREE_CONTRACT_VERSION_V3,
     TaskTree,
     TreeNode,
     TreeNodeKind,
@@ -78,13 +79,18 @@ def world_state_context_digest(context: WorldStateContext) -> str:
 
 
 def _parallel_node(tree: TaskTree, parallel_node_id: str) -> tuple[TreeNode, ...]:
-    if not isinstance(tree, TaskTree) or tree.contract_version != TREE_CONTRACT_VERSION_V2:
+    if not isinstance(tree, TaskTree) or tree.contract_version not in {
+        TREE_CONTRACT_VERSION_V2,
+        TREE_CONTRACT_VERSION_V3,
+    }:
         raise ParallelConditionError("PARALLEL_CONDITION_TREE_INVALID")
     node = next((item for item in tree.nodes if item.node_id == parallel_node_id), None)
     if node is None or node.kind is not TreeNodeKind.PARALLEL:
         raise ParallelConditionError("PARALLEL_CONDITION_NODE_INVALID")
     by_id = {item.node_id: item for item in tree.nodes}
     children = tuple(by_id[child_id] for child_id in node.child_ids)
+    if any(child.kind is not TreeNodeKind.CONDITION for child in children):
+        raise ParallelConditionError("PARALLEL_CONDITION_NODE_INVALID")
     if node.status is not PlanStepStatus.PENDING or any(
         child.status is not PlanStepStatus.PENDING for child in children
     ):

@@ -11,11 +11,13 @@ import pytest
 import computer_use_agent.hierarchical_parallel as parallel_module
 from computer_use_agent.hierarchical_control import (
     TREE_CONTRACT_VERSION_V2,
+    TREE_CONTRACT_VERSION_V3,
     TaskTree,
     TreeNode,
     TreeNodeKind,
     TreeValidationError,
 )
+from computer_use_agent.hierarchical_graph_contract import TreeDependency
 from computer_use_agent.hierarchical_parallel import (
     ParallelConditionError,
     apply_parallel_condition_batch,
@@ -96,6 +98,37 @@ def _tree(*, child_ids: tuple[str, ...] = ("condition_a", "condition_b")) -> Tas
     )
 
 
+def _v3_tree() -> TaskTree:
+    base = _tree()
+    nodes = tuple(
+        replace(node, child_ids=("parallel", "join", "final"))
+        if node.node_id == "root"
+        else node
+        for node in base.nodes
+    )
+    return TaskTree(
+        contract_version=TREE_CONTRACT_VERSION_V3,
+        tree_id=base.tree_id,
+        run_id=base.run_id,
+        task_digest=base.task_digest,
+        registry_digest=base.registry_digest,
+        policy_digest=base.policy_digest,
+        root_id=base.root_id,
+        nodes=(
+            *nodes,
+            TreeNode(
+                node_id="join",
+                parent_id="root",
+                kind=TreeNodeKind.JOIN,
+            ),
+        ),
+        dependencies=(
+            TreeDependency("condition_a", "join"),
+            TreeDependency("condition_b", "join"),
+        ),
+    )
+
+
 def _evidence(fact_id: str) -> ObservationEvidence:
     result = ToolResult(
         CallIdentity("run_1", "turn_1", f"call_{fact_id}"),
@@ -168,17 +201,37 @@ def test_v2_parallel_shape_is_closed_bounded_and_canonical() -> None:
     tree = _tree()
 
     assert tree.contract_version == 2
+    assert tree.digest == "4fd8b73783d18df11f896be41052a5fa45da85fcf4d000adb522ae00ff27fd2e"
     assert tree.to_payload()["parallel_batches"] == []
+    assert "dependencies" not in tree.to_payload()
     assert next(node for node in tree.nodes if node.node_id == "parallel").child_ids == (
         "condition_a",
         "condition_b",
     )
-    with pytest.raises(TreeValidationError, match="v1 cannot carry H8A"):
+    with pytest.raises(TreeValidationError, match="v1 cannot carry H8"):
         replace(tree, contract_version=1)
     with pytest.raises(TreeValidationError, match="not canonical"):
         _tree(child_ids=("condition_b", "condition_a"))
     with pytest.raises(TreeValidationError, match="not canonical"):
         _tree(child_ids=("condition_a",))
+
+
+def test_v3_direct_condition_parallel_reuses_the_same_bounded_h8a_batch() -> None:
+    tree = _v3_tree()
+    batch = evaluate_parallel_conditions(
+        tree,
+        source_sequence=0,
+        parallel_node_id="parallel",
+        conditions=_conditions(),
+        snapshot=_snapshot(),
+        context=_context(),
+    )
+    projected = apply_parallel_condition_batch(tree, batch)
+    by_id = {node.node_id: node for node in projected.nodes}
+
+    assert batch.disposition is ParallelBatchDisposition.COMPLETED
+    assert by_id["parallel"].status is PlanStepStatus.COMPLETED
+    assert by_id["join"].status is PlanStepStatus.COMPLETED
 
 
 def test_parallel_workers_overlap_and_results_are_deterministic(

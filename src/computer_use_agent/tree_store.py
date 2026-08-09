@@ -20,6 +20,7 @@ from typing import Mapping
 from .hierarchical_control import (
     TREE_CONTRACT_VERSION,
     TREE_CONTRACT_VERSION_V2,
+    TREE_CONTRACT_VERSION_V3,
     TaskTree,
     TreeBudget,
     TreeLimits,
@@ -27,6 +28,7 @@ from .hierarchical_control import (
     TreeNodeKind,
     TreeValidationError,
 )
+from .hierarchical_graph_contract import TreeDependency, TreeDependencyError
 from .hierarchical_parallel_contract import (
     ParallelBatchDisposition,
     ParallelConditionBatch,
@@ -70,6 +72,7 @@ _TREE_FIELDS_V1 = frozenset(
     }
 )
 _TREE_FIELDS_V2 = _TREE_FIELDS_V1 | {"parallel_batches"}
+_TREE_FIELDS_V3 = _TREE_FIELDS_V2 | {"dependencies"}
 _LIMIT_FIELDS = frozenset(
     {
         "max_depth",
@@ -119,6 +122,7 @@ _PARALLEL_RESULT_FIELDS = frozenset(
         "evidence_digest",
     }
 )
+_DEPENDENCY_FIELDS = frozenset({"prerequisite_id", "dependent_id"})
 
 
 class TreeStoreError(RuntimeError):
@@ -314,6 +318,18 @@ def _decode_parallel_batch(value: object) -> ParallelConditionBatch:
         raise TreeStoreError("TREE_STORE_INVALID") from exc
 
 
+def _decode_dependency(value: object) -> TreeDependency:
+    if not isinstance(value, Mapping) or set(value) != _DEPENDENCY_FIELDS:
+        raise TreeStoreError("TREE_STORE_INVALID")
+    try:
+        return TreeDependency(
+            prerequisite_id=_require_str(value.get("prerequisite_id")),
+            dependent_id=_require_str(value.get("dependent_id")),
+        )
+    except TreeDependencyError as exc:
+        raise TreeStoreError("TREE_STORE_INVALID") from exc
+
+
 def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
     if not isinstance(value, Mapping):
         raise TreeStoreError("TREE_STORE_INVALID")
@@ -323,6 +339,8 @@ def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
         if contract_version == TREE_CONTRACT_VERSION
         else _TREE_FIELDS_V2
         if contract_version == TREE_CONTRACT_VERSION_V2
+        else _TREE_FIELDS_V3
+        if contract_version == TREE_CONTRACT_VERSION_V3
         else frozenset()
     )
     if not expected_fields or set(value) != expected_fields:
@@ -353,6 +371,16 @@ def _decode_tree(value: object, *, expected_run_id: str) -> TaskTree:
                 )
                 if isinstance(value.get("parallel_batches"), list)
                 else (_raise_invalid_parallel_batches())
+            ),
+            dependencies=(
+                ()
+                if contract_version < TREE_CONTRACT_VERSION_V3
+                else tuple(
+                    _decode_dependency(dependency)
+                    for dependency in value.get("dependencies", [])
+                )
+                if isinstance(value.get("dependencies"), list)
+                else (_raise_invalid_dependencies())
             ),
         )
     except TreeValidationError as exc:
@@ -418,10 +446,17 @@ def _raise_invalid_parallel_batches() -> tuple[ParallelConditionBatch, ...]:
     raise TreeStoreError("TREE_STORE_INVALID")
 
 
+def _raise_invalid_dependencies() -> tuple[TreeDependency, ...]:
+    raise TreeStoreError("TREE_STORE_INVALID")
+
+
 def _validate_parallel_batch_transition(current: TaskTree, updated: TaskTree) -> None:
     if updated.parallel_batches == current.parallel_batches:
         return
-    if updated.contract_version != TREE_CONTRACT_VERSION_V2:
+    if updated.contract_version not in {
+        TREE_CONTRACT_VERSION_V2,
+        TREE_CONTRACT_VERSION_V3,
+    }:
         raise TreeStoreError("TREE_STORE_STRUCTURE_MISMATCH")
     current_by_node = {batch.parallel_node_id: batch for batch in current.parallel_batches}
     updated_by_node = {batch.parallel_node_id: batch for batch in updated.parallel_batches}

@@ -1,13 +1,14 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H7 and H8A implemented and offline verified; H8B-H8C remain planned.**
+> **Status: H1-H7 plus H8A-H8B implemented and offline verified; H8C remains planned.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
-> existing observation-only Runtime Executor. H8A adds only bounded local H5
-> condition evaluation and one atomic tree-store transition. It adds no second
+> existing observation-only Runtime Executor. H8A-H8B add only bounded local
+> condition evaluation, scheduling structure, and atomic tree-store
+> transitions. They add no second
 > Runner/MCP dispatch site or new approval, retry, replay, recovery, or campaign
-> authority. Its evidence is offline fake-port evidence only.
+> authority. Their evidence is offline fake-port evidence only.
 
 ## Prior decisions this inherits
 
@@ -107,7 +108,8 @@ host-defined node kinds:
 | `verify` | Check a typed postcondition after fresh observation. |
 | `subtree` | Invoke one pinned, reviewed behavior-template version. |
 | `final_response` | Produce the single terminal, tool-free response boundary. |
-| `parallel` | In contract v2 only, evaluate 2-16 direct H5 condition leaves over one immutable snapshot/context. |
+| `parallel` | In v2, evaluate 2-16 direct H5 conditions; in v3, hold 2-16 general child subtrees while external leaves remain globally serialized. |
+| `join` | In contract v3 only, locally reduce immutable all-of prerequisites and never emit an external boundary. |
 
 Every node uses the existing durable step vocabulary unchanged. It is the exact
 `PlanStepStatus` set already persisted by the plan store:
@@ -503,6 +505,36 @@ compatibility, unavailable zero-write behavior, exception/CAS zero-commit
 behavior, and restart readability. H8A performs no provider, Runner, MCP,
 desktop, application, approval, side effect, retry, replay, E4, or release work.
 
+## Implemented H8B boundary
+
+`src/computer_use_agent/hierarchical_graph_contract.py` and contract v3 add a
+bounded all-of dependency graph without rewriting v1/v2 snapshots:
+
+- 1-128 immutable prerequisite-to-dependent edges are canonical and
+  content-free. A dependent has at most 16 prerequisites, must be a leaf, and
+  receives no any-of, retry, compensation, argument, callable, provider,
+  Runner, MCP, desktop, approval, or dispatch field;
+- graph validation rejects missing endpoints, self/duplicate/non-canonical
+  edges, control-node dependents, fan-in/edge/depth overflow, and cycles formed
+  by dependencies together with structural, ordered-sibling, or reduction
+  edges before any state can be stored;
+- a v3 `parallel` node may contain general child subtrees. Ready leaves are
+  selected by stable node ID, exactly one inert boundary is returned per tick,
+  and any `in_progress` external leaf blocks a second external boundary;
+- a `join` is local state reduction only. Its all-of prerequisites use the
+  existing deterministic failure/blocked/cancelled precedence, complete only
+  when every prerequisite completes, and never compile or transition as a
+  leaf boundary; and
+- the unchanged envelope-v1 store strictly decodes tree contracts v1-v3,
+  treats dependencies as immutable structure under CAS, preserves frozen
+  v1/v2 payload/digests, and rejects malformed or rehashed-invalid graph data.
+
+The [H8B offline evidence](H8B_DEPENDENCY_JOIN_EVIDENCE.md) covers the topology
+limits and cycle matrix, join status matrix, stable ready-leaf order, global
+external serialization, strict cross-version decoding, structure tampering,
+and restart readability. H8B adds no external port and does not claim provider,
+real MCP/desktop/application, H8C fallback, L5, E4, or release evidence.
+
 ## Initial behavior-template candidates
 
 The first reviewed templates should exercise useful universal-GUI mechanisms
@@ -535,16 +567,17 @@ not a product priority sequence.
 | `H5` | **Implemented/offline verified:** typed world-state facts, content-free observation evidence, exact window/process binding, bounded freshness, and three-valued equality conditions. | Passed: stale epochs, generation/window drift, expiry, unknown/missing/type mismatch, and clock rollback are unavailable rather than false and expose no fact value. |
 | `H6` | **Implemented/offline verified:** one exact-version reviewed template registry, starting with the per-item observation ladder. | Passed: exact tools, arguments, safety baselines, reducer outcomes, terminal handoffs, and budget reproduce the fixed runtime with no added authority. |
 | `H7` | **Implemented/offline verified:** one exact observation/action/verification-observation/final sequence through the existing Runtime Executor and sole Runner boundary. | Passed: separate shape/authority review plus deterministic isolated-application success, denial, defer, unknown, dispatched-error, and missing-verification evidence with zero new authority. |
-| `H8A` | **Implemented/offline verified:** contract-v2 bounded parallel evaluation of direct H5 condition leaves. | Passed locally: real worker overlap, deterministic digest-bound output, atomic known-result CAS, unavailable/exception/conflict zero-write, and restart semantics; publication must clear before H8B. |
-| `H8B` | Bounded all-of dependency DAG and local join reduction. | Only after H8A publication; every tick still emits at most one external boundary and foreground desktop authority remains serialized. |
+| `H8A` | **Implemented/offline verified:** contract-v2 bounded parallel evaluation of direct H5 condition leaves. | Passed and merged: real worker overlap, deterministic digest-bound output, atomic known-result CAS, unavailable/exception/conflict zero-write, and restart semantics. |
+| `H8B` | **Implemented/offline verified:** contract-v3 bounded all-of dependency DAG, general parallel subtrees, stable one-leaf selection, and local join reduction. | Passed locally: topology bounds/cycles, join matrix, deterministic ready-leaf order, global external serialization, strict v1-v3 decode/digest, tamper rejection, and restart semantics; publication must clear before H8C. |
 | `H8C` | Safe ordered choice and exact read-only verified-miss fallback. | Only after H8B publication; denial, authority loss, uncertainty, side effects, and missing verification must never become fallback inputs. |
 
 `H1`-`H3` add no runtime behavior at all. H4 composes only the already
 supported observation/final-response plan and adds no new external authority.
 `H7` is the first phase that widens the internal hierarchical runtime, and it
 inherits the existing approval review rather than defining its own. No public
-Planner/Executor or application workflow is widened by H7. H8A is local-only
-computation and does not widen H7 or any external runtime boundary.
+Planner/Executor or application workflow is widened by H7. H8A and H8B add
+local computation and scheduling structure only; neither widens H7 or any
+external runtime boundary.
 
 `H1` also produces one architecture decision record for the single constraint
 here that reads as over-strict without its context: node state reuses the
@@ -556,11 +589,11 @@ the rule most likely to be relaxed by someone who has not read it.
 ## Acceptance conditions
 
 The complete hierarchical runtime is not accepted until all of the following
-are true. H1-H7 and H8A satisfy the schema, limit, digest, state-vocabulary,
+are true. H1-H7 and H8A-H8B satisfy the schema, limit, digest, state-vocabulary,
 linear-plan compatibility, private persistence/CAS/crash boundaries, pure
 next-leaf/transition subset, existing observation-runtime composition, exact
-single-action/verification gate, and
-typed fresh-fact condition boundary plus exact pinned-template registry:
+single-action/verification gate, typed fresh-fact condition boundary, exact
+pinned-template registry, bounded all-of graph, and local join boundary:
 
 - no tree code directly dispatches MCP;
 - existing policy, approval, grounding, budget, WAL, and re-observation tests

@@ -13,6 +13,12 @@ from enum import Enum
 from hashlib import sha256
 from typing import Mapping, Sequence
 
+from .hierarchical_graph_contract import (
+    MAX_TREE_DEPENDENCIES,
+    MAX_TREE_DEPENDENCY_FAN_IN,
+    MAX_TREE_GRAPH_DEPTH,
+    TreeDependency,
+)
 from .hierarchical_parallel_contract import (
     MAX_PARALLEL_CONDITIONS,
     MIN_PARALLEL_CONDITIONS,
@@ -26,8 +32,9 @@ from .world_state import ConditionOutcome
 
 TREE_CONTRACT_VERSION = 1
 TREE_CONTRACT_VERSION_V2 = 2
+TREE_CONTRACT_VERSION_V3 = 3
 SUPPORTED_TREE_CONTRACT_VERSIONS = frozenset(
-    {TREE_CONTRACT_VERSION, TREE_CONTRACT_VERSION_V2}
+    {TREE_CONTRACT_VERSION, TREE_CONTRACT_VERSION_V2, TREE_CONTRACT_VERSION_V3}
 )
 MAX_TREE_NODES = 128
 MAX_TREE_DEPTH = 12
@@ -56,6 +63,7 @@ class TreeNodeKind(str, Enum):
     SUBTREE = "subtree"
     FINAL_RESPONSE = "final_response"
     PARALLEL = "parallel"
+    JOIN = "join"
 
 
 _INTERNAL_KINDS = frozenset(
@@ -282,6 +290,9 @@ class TreeNode:
                 for value in (self.step_id, self.condition_id, self.verification_id)
             ):
                 raise TreeValidationError("subtree node contains conflicting bindings")
+        elif self.kind is TreeNodeKind.JOIN:
+            if any(value is not None for value in binding_fields):
+                raise TreeValidationError("join node cannot carry leaf bindings")
 
     @property
     def is_leaf(self) -> bool:
@@ -330,6 +341,92 @@ def reduce_child_statuses(statuses: Sequence[PlanStepStatus]) -> PlanStepStatus:
     return PlanStepStatus.PENDING
 
 
+def _validate_acyclic_graph(
+    node_ids: frozenset[str], edges: set[tuple[str, str]], *, label: str
+) -> None:
+    adjacency: dict[str, set[str]] = {node_id: set() for node_id in node_ids}
+    indegree = {node_id: 0 for node_id in node_ids}
+    for source, target in edges:
+        if target not in adjacency[source]:
+            adjacency[source].add(target)
+            indegree[target] += 1
+    ready = sorted(node_id for node_id, degree in indegree.items() if degree == 0)
+    depths = {node_id: 1 for node_id in ready}
+    visited = 0
+    while ready:
+        node_id = ready.pop(0)
+        visited += 1
+        node_depth = depths[node_id]
+        if node_depth > MAX_TREE_GRAPH_DEPTH:
+            raise TreeValidationError(f"{label} depth exceeds bound limits")
+        for target in sorted(adjacency[node_id]):
+            depths[target] = max(depths.get(target, 1), node_depth + 1)
+            indegree[target] -= 1
+            if indegree[target] == 0:
+                ready.append(target)
+                ready.sort()
+    if visited != len(node_ids):
+        raise TreeValidationError(f"{label} contains a cycle")
+
+
+def _validate_dependency_graph(
+    by_id: Mapping[str, TreeNode], dependencies: tuple[TreeDependency, ...]
+) -> None:
+    if not 1 <= len(dependencies) <= MAX_TREE_DEPENDENCIES:
+        raise TreeValidationError("dependency count is outside bound limits")
+    if dependencies != tuple(sorted(dependencies)):
+        raise TreeValidationError("dependencies are not canonical")
+    if len(set(dependencies)) != len(dependencies):
+        raise TreeValidationError("dependencies contain duplicates")
+    incoming: dict[str, list[str]] = {}
+    dependency_edges: set[tuple[str, str]] = set()
+    for dependency in dependencies:
+        if (
+            dependency.prerequisite_id not in by_id
+            or dependency.dependent_id not in by_id
+        ):
+            raise TreeValidationError("dependency node binding is invalid")
+        if not by_id[dependency.dependent_id].is_leaf:
+            raise TreeValidationError("dependency dependent must be a leaf node")
+        incoming.setdefault(dependency.dependent_id, []).append(
+            dependency.prerequisite_id
+        )
+        dependency_edges.add(
+            (dependency.prerequisite_id, dependency.dependent_id)
+        )
+    if any(
+        len(prerequisites) > MAX_TREE_DEPENDENCY_FAN_IN
+        for prerequisites in incoming.values()
+    ):
+        raise TreeValidationError("dependency fan-in exceeds bound limits")
+
+    join_ids = {
+        node.node_id for node in by_id.values() if node.kind is TreeNodeKind.JOIN
+    }
+    if not join_ids or any(join_id not in incoming for join_id in join_ids):
+        raise TreeValidationError("join nodes require dependency prerequisites")
+
+    structural_forward: set[tuple[str, str]] = set()
+    structural_reverse: set[tuple[str, str]] = set()
+    for node in by_id.values():
+        for child_id in node.child_ids:
+            structural_forward.add((node.node_id, child_id))
+            structural_reverse.add((child_id, node.node_id))
+        if node.kind in {TreeNodeKind.GOAL, TreeNodeKind.SEQUENCE}:
+            structural_forward.update(zip(node.child_ids, node.child_ids[1:]))
+    node_ids = frozenset(by_id)
+    _validate_acyclic_graph(
+        node_ids,
+        structural_forward | dependency_edges,
+        label="tree dependency graph",
+    )
+    _validate_acyclic_graph(
+        node_ids,
+        structural_reverse | dependency_edges,
+        label="tree dependency reduction graph",
+    )
+
+
 @dataclass(frozen=True)
 class TaskTree:
     """Canonical immutable H1 tree snapshot; state and limits are not authority."""
@@ -345,6 +442,7 @@ class TaskTree:
     aggregate_budget: TreeBudget = field(default_factory=TreeBudget)
     contract_version: int = TREE_CONTRACT_VERSION
     parallel_batches: tuple[ParallelConditionBatch, ...] = ()
+    dependencies: tuple[TreeDependency, ...] = ()
 
     def __post_init__(self) -> None:
         _require_identifier(self.tree_id, "tree_id")
@@ -371,6 +469,10 @@ class TaskTree:
             isinstance(batch, ParallelConditionBatch) for batch in self.parallel_batches
         ):
             raise TreeValidationError("parallel_batches must be immutable H8A evidence")
+        if not isinstance(self.dependencies, tuple) or not all(
+            isinstance(dependency, TreeDependency) for dependency in self.dependencies
+        ):
+            raise TreeValidationError("dependencies must be immutable H8B edges")
         if not 2 <= len(self.nodes) <= self.limits.max_nodes:
             raise TreeValidationError("tree node count is outside the bound limits")
 
@@ -382,11 +484,17 @@ class TaskTree:
         parallel_nodes = tuple(
             node for node in ordered if node.kind is TreeNodeKind.PARALLEL
         )
+        join_nodes = tuple(node for node in ordered if node.kind is TreeNodeKind.JOIN)
         if self.contract_version == TREE_CONTRACT_VERSION:
-            if parallel_nodes or self.parallel_batches:
-                raise TreeValidationError("tree v1 cannot carry H8A fields")
-        elif not parallel_nodes:
-            raise TreeValidationError("tree v2 requires a parallel node")
+            if parallel_nodes or join_nodes or self.parallel_batches or self.dependencies:
+                raise TreeValidationError("tree v1 cannot carry H8 fields")
+        elif self.contract_version == TREE_CONTRACT_VERSION_V2:
+            if not parallel_nodes:
+                raise TreeValidationError("tree v2 requires a parallel node")
+            if join_nodes or self.dependencies:
+                raise TreeValidationError("tree v2 cannot carry H8B fields")
+        elif not join_nodes or not self.dependencies:
+            raise TreeValidationError("tree v3 requires dependencies and join")
         root = by_id.get(self.root_id)
         if root is None or root.parent_id is not None or root.kind not in _INTERNAL_KINDS:
             raise TreeValidationError("tree root is invalid")
@@ -416,17 +524,22 @@ class TaskTree:
                 or parallel.child_ids != tuple(sorted(parallel.child_ids))
             ):
                 raise TreeValidationError("parallel condition children are not canonical")
-            children = tuple(by_id.get(child_id) for child_id in parallel.child_ids)
-            if any(
-                child is None or child.kind is not TreeNodeKind.CONDITION
-                for child in children
-            ):
-                raise TreeValidationError("tree v2 parallel children must be conditions")
-            condition_ids = tuple(
-                child.condition_id for child in children if child is not None
-            )
-            if len(set(condition_ids)) != len(condition_ids):
-                raise TreeValidationError("parallel condition identifiers must be unique")
+            if self.contract_version == TREE_CONTRACT_VERSION_V2:
+                children = tuple(by_id.get(child_id) for child_id in parallel.child_ids)
+                if any(
+                    child is None or child.kind is not TreeNodeKind.CONDITION
+                    for child in children
+                ):
+                    raise TreeValidationError(
+                        "tree v2 parallel children must be conditions"
+                    )
+                condition_ids = tuple(
+                    child.condition_id for child in children if child is not None
+                )
+                if len(set(condition_ids)) != len(condition_ids):
+                    raise TreeValidationError(
+                        "parallel condition identifiers must be unique"
+                    )
 
         canonical_batches = tuple(
             sorted(self.parallel_batches, key=lambda batch: batch.parallel_node_id)
@@ -476,6 +589,9 @@ class TaskTree:
         if set(referenced) != set(by_id) - {self.root_id}:
             raise TreeValidationError("every non-root node must be reachable once")
 
+        if self.contract_version >= TREE_CONTRACT_VERSION_V3:
+            _validate_dependency_graph(by_id, self.dependencies)
+
         visiting: set[str] = set()
         visited: set[str] = set()
 
@@ -502,6 +618,17 @@ class TaskTree:
         visit(self.root_id, 1)
         if len(visited) != len(ordered):
             raise TreeValidationError("tree contains unreachable nodes")
+        if self.contract_version >= TREE_CONTRACT_VERSION_V3:
+            incoming: dict[str, tuple[PlanStepStatus, ...]] = {}
+            for dependency in self.dependencies:
+                incoming[dependency.dependent_id] = (
+                    *incoming.get(dependency.dependent_id, ()),
+                    by_id[dependency.prerequisite_id].status,
+                )
+            for join in join_nodes:
+                expected = reduce_child_statuses(incoming[join.node_id])
+                if join.status is not expected:
+                    raise TreeValidationError("join node status is not canonical")
 
     @property
     def status(self) -> PlanStepStatus:
@@ -523,6 +650,10 @@ class TaskTree:
         if self.contract_version >= TREE_CONTRACT_VERSION_V2:
             payload["parallel_batches"] = [
                 batch.to_payload() for batch in self.parallel_batches
+            ]
+        if self.contract_version >= TREE_CONTRACT_VERSION_V3:
+            payload["dependencies"] = [
+                dependency.to_payload() for dependency in self.dependencies
             ]
         return payload
 
@@ -551,23 +682,42 @@ def reduce_tree_statuses(
     for node_id, status in leaf_statuses.items():
         _require_identifier(node_id, "leaf node_id")
         node = by_id.get(node_id)
-        if node is None or not node.is_leaf:
+        if node is None or not node.is_leaf or node.kind is TreeNodeKind.JOIN:
             raise TreeValidationError("leaf status references a non-leaf node")
         if not isinstance(status, PlanStepStatus):
             raise TreeValidationError("leaf status is invalid")
 
-    resolved: dict[str, PlanStepStatus] = {}
-
-    def resolve(node_id: str) -> PlanStepStatus:
-        node = by_id[node_id]
-        if node.is_leaf:
-            status = leaf_statuses.get(node_id, node.status)
-        else:
-            status = reduce_child_statuses(tuple(resolve(child) for child in node.child_ids))
-        resolved[node_id] = status
-        return status
-
-    resolve(tree.root_id)
+    prerequisites: dict[str, tuple[str, ...]] = {}
+    for dependency in tree.dependencies:
+        prerequisites[dependency.dependent_id] = (
+            *prerequisites.get(dependency.dependent_id, ()),
+            dependency.prerequisite_id,
+        )
+    resolved: dict[str, PlanStepStatus] = {
+        node.node_id: leaf_statuses.get(node.node_id, node.status)
+        for node in tree.nodes
+        if node.is_leaf and node.kind is not TreeNodeKind.JOIN
+    }
+    unresolved = {node.node_id for node in tree.nodes if node.node_id not in resolved}
+    while unresolved:
+        progressed = False
+        for node_id in sorted(unresolved):
+            node = by_id[node_id]
+            source_ids = (
+                prerequisites.get(node_id, ())
+                if node.kind is TreeNodeKind.JOIN
+                else node.child_ids
+            )
+            if not source_ids or any(source_id not in resolved for source_id in source_ids):
+                continue
+            resolved[node_id] = reduce_child_statuses(
+                tuple(resolved[source_id] for source_id in source_ids)
+            )
+            unresolved.remove(node_id)
+            progressed = True
+            break
+        if not progressed:
+            raise TreeValidationError("tree status reduction contains a cycle")
     nodes = tuple(replace(node, status=resolved[node.node_id]) for node in tree.nodes)
     return replace(tree, nodes=nodes)
 
@@ -656,6 +806,7 @@ __all__ = [
     "MAX_TREE_WALL_CLOCK_SECONDS",
     "TREE_CONTRACT_VERSION",
     "TREE_CONTRACT_VERSION_V2",
+    "TREE_CONTRACT_VERSION_V3",
     "SUPPORTED_TREE_CONTRACT_VERSIONS",
     "TaskTree",
     "TreeBudget",
