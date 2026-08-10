@@ -433,9 +433,17 @@ class OpenAIChatCompletionsProvider:
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
+        region: str | None = None,
+        base_url: str | None = None,
+        legacy_credentials: bool = False,
     ) -> "OpenAIChatCompletionsProvider":
         profile = provider_profile(provider_name)
-        client = openai_client_from_environment(provider_name)
+        client = openai_client_from_environment(
+            provider_name,
+            region=region,
+            base_url=base_url,
+            legacy_credentials=legacy_credentials,
+        )
         return cls(
             model=model,
             completions=client.chat.completions,

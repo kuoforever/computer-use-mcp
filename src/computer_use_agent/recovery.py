@@ -12,6 +12,9 @@ from typing import Callable, Mapping
 
 from .config import AgentConfig
 from .continuation import (
+    CONTINUATION_VERSION,
+    LEGACY_CONTINUATION_VERSION,
+    PREVIOUS_CONTINUATION_VERSION,
     ContinuationEnvelope,
     read_continuation,
     write_continuation,
@@ -1133,12 +1136,18 @@ def plan_read_only_recovery(
         and provider.get("model") == config.provider.model
         and (
             (
-                continuation_version == 6
+                continuation_version == LEGACY_CONTINUATION_VERSION
                 and config.provider.name in {"openai", "anthropic"}
             )
             or (
-                continuation_version == 7
+                continuation_version == PREVIOUS_CONTINUATION_VERSION
                 and provider.get("protocol") == config.provider.protocol.value
+                and provider.get("base_url") == config.provider.effective_base_url
+            )
+            or (
+                continuation_version == CONTINUATION_VERSION
+                and provider.get("protocol") == config.provider.protocol.value
+                and provider.get("region") == config.provider.effective_region
                 and provider.get("base_url") == config.provider.effective_base_url
             )
         )

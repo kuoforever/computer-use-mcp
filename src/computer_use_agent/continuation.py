@@ -19,7 +19,7 @@ from typing import Mapping
 from .provider_catalog import (
     ProviderProtocol,
     provider_profile,
-    resolve_provider_base_url,
+    resolve_provider_route,
 )
 from .reconstruction import (
     OperationEffect,
@@ -32,7 +32,8 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 7
+CONTINUATION_VERSION = 8
+PREVIOUS_CONTINUATION_VERSION = 7
 LEGACY_CONTINUATION_VERSION = 6
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
@@ -251,7 +252,11 @@ class ContinuationEnvelope:
         version = payload.get("continuation_version")
         if isinstance(version, bool) or not isinstance(version, int):
             raise ContinuationError("CONTINUATION_INVALID")
-        if version not in {LEGACY_CONTINUATION_VERSION, CONTINUATION_VERSION}:
+        if version not in {
+            LEGACY_CONTINUATION_VERSION,
+            PREVIOUS_CONTINUATION_VERSION,
+            CONTINUATION_VERSION,
+        }:
             raise ContinuationError("CONTINUATION_VERSION_UNSUPPORTED")
         root = _object(payload, _TOP_LEVEL_FIELDS, "CONTINUATION_INVALID")
         run_id = _nonempty(root.get("run_id"), maximum=128, code="CONTINUATION_INVALID")
@@ -271,6 +276,8 @@ class ContinuationEnvelope:
             frozenset({"name", "model"})
             if version == LEGACY_CONTINUATION_VERSION
             else frozenset({"name", "model", "protocol", "base_url"})
+            if version == PREVIOUS_CONTINUATION_VERSION
+            else frozenset({"name", "model", "protocol", "region", "base_url"})
         )
         provider = _object(root.get("provider"), provider_fields, "CONTINUATION_INVALID")
         provider_name = provider.get("name")
@@ -285,20 +292,33 @@ class ContinuationEnvelope:
                 raise ContinuationError("CONTINUATION_INVALID")
         else:
             base_url = provider.get("base_url")
+            provider_region = (
+                None
+                if version == PREVIOUS_CONTINUATION_VERSION
+                else provider.get("region")
+            )
             if (
                 provider.get("protocol") != profile.protocol.value
                 or not isinstance(base_url, str)
+                or (
+                    provider_region is not None
+                    and not isinstance(provider_region, str)
+                )
             ):
                 raise ContinuationError("CONTINUATION_INVALID")
             try:
-                expected_base_url = (
-                    resolve_provider_base_url(provider_name, base_url)
-                    if profile.requires_configured_base_url
-                    else profile.fixed_base_url
+                route = resolve_provider_route(
+                    provider_name,
+                    region=provider_region,
+                    base_url=base_url,
+                    legacy_credentials=version == PREVIOUS_CONTINUATION_VERSION,
                 )
             except ValueError as exc:
                 raise ContinuationError("CONTINUATION_INVALID") from exc
-            if base_url != expected_base_url:
+            if base_url != route.base_url or (
+                version == CONTINUATION_VERSION
+                and provider_region != route.region
+            ):
                 raise ContinuationError("CONTINUATION_INVALID")
         _nonempty(provider.get("model"), maximum=256, code="CONTINUATION_INVALID")
 
@@ -631,6 +651,7 @@ class RuntimeContinuationRecorder:
         state: RunState,
         provider_name: str,
         provider_model: str,
+        provider_region: str | None = None,
         provider_base_url: str | None = None,
         registry_digest: str,
         advertised_tool_names: frozenset[str],
@@ -639,15 +660,13 @@ class RuntimeContinuationRecorder:
     ) -> None:
         try:
             profile = provider_profile(provider_name)
-            effective_base_url = (
-                resolve_provider_base_url(provider_name, provider_base_url)
-                if profile.requires_configured_base_url
-                else profile.fixed_base_url
+            route = resolve_provider_route(
+                provider_name,
+                region=provider_region,
+                base_url=provider_base_url,
             )
         except ValueError as exc:
             raise ValueError("provider identity must be reviewed") from exc
-        if effective_base_url is None:
-            raise ValueError("provider endpoint must be reviewed")
         if (
             isinstance(ttl_seconds, bool)
             or not isinstance(ttl_seconds, int)
@@ -661,7 +680,8 @@ class RuntimeContinuationRecorder:
         self.provider_name = provider_name
         self.provider_model = provider_model
         self.provider_protocol = profile.protocol
-        self.provider_base_url = effective_base_url
+        self.provider_region = route.region
+        self.provider_base_url = route.base_url
         self.registry_digest = _digest(registry_digest, "CONTINUATION_INVALID")
         if not isinstance(advertised_tool_names, frozenset) or not all(
             isinstance(name, str) for name in advertised_tool_names
@@ -761,6 +781,7 @@ class RuntimeContinuationRecorder:
                 "name": self.provider_name,
                 "model": self.provider_model,
                 "protocol": self.provider_protocol.value,
+                "region": self.provider_region,
                 "base_url": self.provider_base_url,
             },
             "registry_digest": self.registry_digest,

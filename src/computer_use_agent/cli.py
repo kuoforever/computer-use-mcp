@@ -267,8 +267,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     setup.add_argument("--model")
     setup.add_argument(
+        "--region",
+        help="Reviewed provider service region; defaults preserve legacy routing.",
+    )
+    setup.add_argument(
+        "--workspace-id",
+        help="Required for new Qwen region configurations.",
+    )
+    setup.add_argument(
         "--base-url",
-        help="Required only for Qwen workspace-compatible endpoints.",
+        help="Legacy Qwen workspace URL; cannot be combined with region/workspace-id.",
     )
     setup.add_argument("--output", type=Path)
     setup.add_argument(
@@ -302,8 +310,16 @@ def build_parser() -> argparse.ArgumentParser:
     initialize.add_argument("--provider", required=True, choices=sorted(SUPPORTED_PROVIDERS))
     initialize.add_argument("--model", required=True)
     initialize.add_argument(
+        "--region",
+        help="Reviewed provider service region; defaults preserve legacy routing.",
+    )
+    initialize.add_argument(
+        "--workspace-id",
+        help="Required for new Qwen region configurations.",
+    )
+    initialize.add_argument(
         "--base-url",
-        help="Required only for Qwen workspace-compatible endpoints.",
+        help="Legacy Qwen workspace URL; cannot be combined with region/workspace-id.",
     )
     initialize.add_argument("--output", required=True, type=Path)
     initialize.add_argument(
@@ -766,6 +782,7 @@ def _validate_config(path: Path) -> int:
         {
             "valid": True,
             "provider": config.provider.name,
+            "region": config.provider.effective_region,
             "policy_mode": config.policy.mode,
             "policy_version": config.policy_version,
         }
@@ -781,6 +798,8 @@ def _initialize_config(
     allowlist: str | None,
     mcp_executable: Path | None,
     pause_shortcut: str,
+    region: str | None = None,
+    workspace_id: str | None = None,
     base_url: str | None = None,
 ) -> int:
     from .config_init import initialize_agent_config
@@ -793,6 +812,8 @@ def _initialize_config(
         allowlist=allowlist,
         mcp_executable=mcp_executable,
         pause_shortcut=pause_shortcut,
+        region=region,
+        workspace_id=workspace_id,
         base_url=base_url,
     )
     _print_json(initialized.as_json())
@@ -809,6 +830,8 @@ def _setup_config(
     pause_shortcut: str,
     *,
     json_output: bool,
+    region: str | None = None,
+    workspace_id: str | None = None,
     base_url: str | None = None,
 ) -> int:
     from .agent_controls import create_quick_setup, render_quick_setup
@@ -821,6 +844,8 @@ def _setup_config(
         allowlist=allowlist,
         mcp_executable=mcp_executable,
         pause_shortcut=pause_shortcut,
+        region=region,
+        workspace_id=workspace_id,
         base_url=base_url,
     )
     if json_output:
@@ -2325,6 +2350,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.mcp_executable,
                 args.pause_shortcut,
                 json_output=args.json,
+                region=args.region,
+                workspace_id=args.workspace_id,
                 base_url=args.base_url,
             )
         if args.command == "config" and args.config_command == "settings":
@@ -2338,7 +2365,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.allowlist,
                 args.mcp_executable,
                 args.pause_shortcut,
-                args.base_url,
+                region=args.region,
+                workspace_id=args.workspace_id,
+                base_url=args.base_url,
             )
         if args.command == "config" and args.config_command == "validate":
             return _validate_config(args.config)

@@ -24,44 +24,118 @@ from computer_use_agent.providers import (
 
 
 PROVIDERS = (
-    ("openai", "gpt-test", None),
-    ("anthropic", "claude-test", None),
+    (
+        "openai",
+        "gpt-test",
+        {},
+        "global",
+        "https://api.openai.com/v1",
+        False,
+    ),
+    (
+        "anthropic",
+        "claude-test",
+        {},
+        "global",
+        "https://api.anthropic.com",
+        False,
+    ),
     (
         "qwen",
         "qwen3.7-plus",
+        {"region": "cn-beijing", "workspace_id": "ws1"},
+        "cn-beijing",
         "https://ws1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+        False,
     ),
-    ("doubao", "doubao-test", None),
-    ("kimi", "kimi-k2.6", None),
-    ("deepseek", "deepseek-v4-pro", None),
-    ("glm", "glm-5.2", None),
-    ("minimax", "MiniMax-M2.7", None),
+    (
+        "doubao",
+        "doubao-test",
+        {},
+        "cn-beijing",
+        "https://ark.cn-beijing.volces.com/api/v3",
+        False,
+    ),
+    (
+        "kimi",
+        "kimi-k2.6",
+        {},
+        "global",
+        "https://api.moonshot.ai/v1",
+        False,
+    ),
+    (
+        "deepseek",
+        "deepseek-v4-pro",
+        {},
+        "global",
+        "https://api.deepseek.com",
+        False,
+    ),
+    (
+        "glm",
+        "glm-5.2",
+        {},
+        "cn",
+        "https://open.bigmodel.cn/api/paas/v4",
+        False,
+    ),
+    (
+        "minimax",
+        "MiniMax-M2.7",
+        {},
+        "cn",
+        "https://api.minimaxi.com/anthropic",
+        False,
+    ),
 )
 
 
-@pytest.mark.parametrize(("name", "model", "base_url"), PROVIDERS)
+@pytest.mark.parametrize(
+    (
+        "name",
+        "model",
+        "config_kwargs",
+        "expected_region",
+        "expected_base_url",
+        "expected_legacy_credentials",
+    ),
+    PROVIDERS,
+)
 def test_factory_routes_every_provider_through_its_reviewed_protocol_family(
     monkeypatch: pytest.MonkeyPatch,
     name: str,
     model: str,
-    base_url: str | None,
+    config_kwargs: dict[str, str],
+    expected_region: str,
+    expected_base_url: str,
+    expected_legacy_credentials: bool,
 ) -> None:
     client = SimpleNamespace(
         responses=object(),
         messages=object(),
         chat=SimpleNamespace(completions=object()),
     )
-    openai_calls: list[tuple[str, str | None]] = []
-    anthropic_calls: list[str] = []
+    client_calls: list[tuple[str, str, str, bool]] = []
 
     def openai_client(
-        provider: str = "openai", *, base_url: str | None = None
+        provider: str = "openai",
+        *,
+        region: str,
+        base_url: str,
+        legacy_credentials: bool,
     ) -> object:
-        openai_calls.append((provider, base_url))
+        client_calls.append((provider, region, base_url, legacy_credentials))
         return client
 
-    def anthropic_client(provider: str = "anthropic") -> object:
-        anthropic_calls.append(provider)
+    def anthropic_client(
+        provider: str = "anthropic",
+        *,
+        region: str,
+        base_url: str,
+        legacy_credentials: bool,
+    ) -> object:
+        client_calls.append((provider, region, base_url, legacy_credentials))
         return client
 
     for module in (openai, openai_planner, openai_final):
@@ -73,16 +147,100 @@ def test_factory_routes_every_provider_through_its_reviewed_protocol_family(
             module, "anthropic_client_from_environment", anthropic_client
         )
 
-    config = ProviderConfig(name, model, base_url=base_url)
+    config = ProviderConfig(name, model, **config_kwargs)
     ordinary = create_model_provider(config, allow_actions=False)
     planner = create_planner(config)
     final = create_final_response_adapter(config)
 
     assert ordinary.name == planner.name == getattr(final, "name") == name
     assert getattr(ordinary, "supports_images") == config.supports_images
-    if name in {"anthropic", "minimax"}:
-        assert anthropic_calls == [name, name, name]
-        assert openai_calls == []
-    else:
-        assert openai_calls == [(name, base_url), (name, base_url), (name, base_url)]
-        assert anthropic_calls == []
+    expected_call = (
+        name,
+        expected_region,
+        expected_base_url,
+        expected_legacy_credentials,
+    )
+    assert client_calls == [expected_call, expected_call, expected_call]
+
+
+@pytest.mark.parametrize(
+    ("name", "model", "config_kwargs", "expected_region", "expected_base_url"),
+    (
+        (
+            "qwen",
+            "qwen3.7-plus",
+            {"region": "eu-central-1", "workspace_id": "workspace-eu"},
+            "eu-central-1",
+            "https://workspace-eu.eu-central-1.maas.aliyuncs.com/compatible-mode/v1",
+        ),
+        (
+            "doubao",
+            "doubao-test",
+            {"region": "ap-southeast-1"},
+            "ap-southeast-1",
+            "https://ark.ap-southeast.bytepluses.com/api/v3",
+        ),
+        (
+            "glm",
+            "glm-5.2",
+            {"region": "global"},
+            "global",
+            "https://api.z.ai/api/paas/v4",
+        ),
+        (
+            "minimax",
+            "MiniMax-M2.7",
+            {"region": "global"},
+            "global",
+            "https://api.minimax.io/anthropic",
+        ),
+    ),
+)
+def test_factory_resolves_nondefault_regions_before_adapter_construction(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    model: str,
+    config_kwargs: dict[str, str],
+    expected_region: str,
+    expected_base_url: str,
+) -> None:
+    captured: list[tuple[str, str, bool]] = []
+    client = SimpleNamespace(
+        responses=object(),
+        messages=object(),
+        chat=SimpleNamespace(completions=object()),
+    )
+
+    def openai_client(
+        _provider: str,
+        *,
+        region: str,
+        base_url: str,
+        legacy_credentials: bool,
+    ) -> object:
+        captured.append((region, base_url, legacy_credentials))
+        return client
+
+    def anthropic_client(
+        _provider: str,
+        *,
+        region: str,
+        base_url: str,
+        legacy_credentials: bool,
+    ) -> object:
+        captured.append((region, base_url, legacy_credentials))
+        return client
+
+    for module in (openai, openai_planner, openai_final):
+        monkeypatch.setattr(module, "openai_client_from_environment", openai_client)
+    for module in (openai_chat, openai_chat_planner, openai_chat_final):
+        monkeypatch.setattr(module, "openai_client_from_environment", openai_client)
+    for module in (anthropic, anthropic_planner, anthropic_final):
+        monkeypatch.setattr(
+            module, "anthropic_client_from_environment", anthropic_client
+        )
+
+    config = ProviderConfig(name, model, **config_kwargs)
+    create_model_provider(config, allow_actions=False)
+
+    assert captured == [(expected_region, expected_base_url, False)]

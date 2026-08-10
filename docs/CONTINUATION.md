@@ -2,7 +2,7 @@
 
 > **Status: opt-in runtime write-ahead persistence and controlled bounded
 > read-only recovery implemented.** The strict
-> bounded v7 envelope with legacy v6 read support, private atomic reader/writer, provider/MCP
+> bounded v8 envelope with strict v7 and legacy-v6 read support, private atomic reader/writer, provider/MCP
 > `prepared -> dispatch_intent -> completed` boundaries, conservative crash
 > classifier, frozen E2 boundary matrix, provider continuation export/restore,
 > strict planner, atomic sequence-checked intent/completion commits under the
@@ -41,8 +41,8 @@ The implementation must preserve these rules:
 4. A completed side-effect may resume only into mandatory read-only
    re-observation. Its result is not dispatched again, its approval is not reused,
    and no later side effect is allowed until fresh grounding is verified.
-5. Recovery never switches provider or model, relaxes budgets, changes the tool
-   registry, or treats persisted content as policy or approval.
+5. Recovery never switches provider, model, or service region, relaxes budgets,
+   changes the tool registry, or treats persisted content as policy or approval.
 6. Verification and terminal certainty are monotonic across the complete
    ledger. Provider completion, recovery intent, and failed observation cannot
    clear them; only a correlated successful ordinary observation can restore
@@ -69,17 +69,17 @@ contain task, UI, and screenshot data and that broader persistence is opt-in.
 
 The envelope is canonical JSON with sorted keys for digesting and is bounded
 independently from the 64 KiB checkpoint. Binary images remain stored as
-bounded base64 PNG blocks in v7; no arbitrary MIME type or external path is
+bounded base64 PNG blocks in v8; no arbitrary MIME type or external path is
 accepted.
 
-## Continuation envelope v7
+## Continuation envelope v8
 
 This is a shape excerpt. Placeholder identities, digests, timestamps, provider
 state, and the empty ledger are illustrative and are not accepted verbatim.
 
 ~~~json
 {
-  "continuation_version": 7,
+  "continuation_version": 8,
   "run_id": "run_...",
   "checkpoint_sequence": 7,
   "policy_version": "...",
@@ -87,6 +87,7 @@ state, and the empty ledger are illustrative and are not accepted verbatim.
     "name": "openai",
     "model": "...",
     "protocol": "openai_responses",
+    "region": "global",
     "base_url": "https://api.openai.com/v1"
   },
   "registry_digest": "<sha256>",
@@ -155,10 +156,12 @@ Required validation is exact and fail-closed:
   to belong to that immutable set;
 - reject continuation v1-v5 as unsupported rather than inferring a wider tool
   set from an older artifact, and reject missing, malformed, duplicate,
-  reordered, or unreviewed v7 scope evidence;
-- require exact v7 provider name/model/protocol/effective-endpoint identity;
-  legacy v6 is accepted only for its original OpenAI/Anthropic identity and
-  cannot be relabeled as a newly supported vendor;
+  reordered, or unreviewed v8 scope evidence;
+- require exact v8 provider name/model/protocol/region/effective-endpoint
+  identity. Strict v7 records remain readable under their original
+  name/model/protocol/endpoint identity; legacy v6 is accepted only for its
+  original OpenAI/Anthropic identity. Neither can be relabeled as a new vendor
+  or service region;
 - reject raw `type.text` entirely. Persisted scope evidence cannot make a
   sensitive typed-text call resumable;
 - reconstruct host policy and tool definitions from current reviewed code, never
@@ -219,7 +222,7 @@ until the Host commits a new dispatch intent.
 `advertised_tool_names` is Host-owned authority evidence, not provider state.
 The live Runner records the exact immutable set remaining after caller,
 privacy, connected-MCP safety-baseline, and continuation-compatibility
-filtering. Because v7 rejects raw `type.text`, enabling continuation removes
+filtering. Because v8 rejects raw `type.text`, enabling continuation removes
 `type` from both the provider schema tuple and persisted names even when the MCP
 reports `typed_text_audit_redaction`. Disabling continuation does not itself
 disable a baseline-satisfied `type` call. At a
@@ -250,7 +253,7 @@ current evidence fails with fixed `RECOVERY_SAFETY_BASELINE_UNSATISFIED`, with
 no checkpoint or continuation mutation and zero MCP tool dispatch.
 
 The Host-synthesized mandatory `ui_snapshot` is also bounded by the original
-v7 names. If the caller did not advertise `ui_snapshot`, recovery returns
+v8 names. If the caller did not advertise `ui_snapshot`, recovery returns
 `START_NEW_RUN/RECOVERY_MANDATORY_OBSERVATION_NOT_ADVERTISED` with no new intent
 or MCP call; a safety observation never becomes an implicit scope expansion.
 
@@ -353,7 +356,7 @@ conservative provider `prepared` and `dispatch_intent` records; no provider
 `completed` or tool boundary is written, and surviving intent remains unknown
 evidence rather than completed provider work.
 
-Recovered provider turns use the same ordering against the narrowed v7 scope.
+Recovered provider turns use the same ordering against the narrowed v8 scope.
 After turn identity validation, any unadvertised sibling rejects the whole turn
 with fixed `RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED` before schema validation,
 provider-state export, provider completion, or any future MCP dispatch. A valid
@@ -385,7 +388,7 @@ The conservative reconstruction matrix is:
 | `completed`, provider response | Consume the response locally; do not call provider again. A pending observation call may be dispatched once. A provider-requested side effect is validated as an input record, terminalized as a fixed failure, and never dispatched. Final text succeeds only when the complete ledger and checkpoint are `ready`; an earlier unmet verification obligation returns `VERIFICATION_REQUIRED`. |
 | `prepared`, tool call | A provider-correlated observation may be dispatched once only if no dispatch intent exists and its current required MCP safety baselines are satisfied. It advances the already charged call without another ledger entry or tool-budget increment. A forged/non-provider prepared call fails closed; a pending side effect requires a new run. |
 | `dispatch_intent`, any tool call, no completion | `UNKNOWN_OUTCOME`; do not call the tool again. |
-| `completed`, observation result | Consume the result and issue only the next new provider continuation with the original v7 scope narrowed to current-safe observations. |
+| `completed`, observation result | Consume the result and issue only the next new provider continuation with the original v8 scope narrowed to current-safe observations. |
 | `completed`, side-effect result | Consume the result, invalidate grounding, and issue only a new mandatory observation. Never repeat the side-effect. |
 | `completed`, unknown-outcome result | `UNKNOWN_OUTCOME`; require human re-observation in a new run. |
 
@@ -456,7 +459,7 @@ and consumed side-effect budget; neither fact becomes dispatch authority.
 Normal WAL completion, provider-side intent failure, post-dispatch unknown
 outcome, and result-carrying cancellation remain separate controls.
 
-Recovery semantic-binding tests recompute a valid v7 digest after replacing the
+Recovery semantic-binding tests recompute a valid current digest after replacing the
 three completed executable boundary classes' canonical `next_step` with every
 other schema-valid value. All mismatches fail as
 `CONTINUATION_LEDGER_INVALID` without intent or external I/O and leave
@@ -487,8 +490,9 @@ A separate current-tail multi-action control retains fixed
 also reject an abandoned action or observation before a later provider turn,
 while a complete pure-observation multi-call history remains finalizable. A
 locked Host-only-debt chain proves an unknown recovered observation retains
-`UNKNOWN_OUTCOME` with its verified epoch cleared. These tests cover current v7
-and bounded legacy-v6 acceptance without changing the frozen E2 case semantics.
+`UNKNOWN_OUTCOME` with its verified epoch cleared. These tests cover current v8,
+strict v7, and bounded legacy-v6 acceptance without changing the frozen E2 case
+semantics.
 
 The separately frozen `evals/e2-stateless-replay.json` matrix covers nine
 digest-bound replay artifacts. Its manifest freezes successful text and
@@ -531,16 +535,19 @@ and retains JUnit evidence without enabling provider or desktop integration.
    fixed local failures. One or more calls are correlated as input records only;
    the checkpoint advances to `FAILED`, the continuation is deleted, the CLI
    exits nonzero, and policy/approval/MCP receive zero calls.
-7. **Implemented:** continuation v7 binds exact provider/model/protocol/endpoint
-   identity and the original Host-advertised names. Legacy v6 remains readable
-   only for its original OpenAI/Anthropic identity. Provider continuation narrows them to current-safe observations, uses that
-   exact tuple for restore/replay/request construction, and rejects a returned
-   out-of-scope sibling atomically before completion or later tool dispatch.
+7. **Implemented:** continuation v8 binds exact
+   provider/model/protocol/region/endpoint identity and the original
+   Host-advertised names. Strict v7 remains readable under its original
+   endpoint identity, and legacy v6 remains readable only for its original
+   OpenAI/Anthropic identity. Provider continuation narrows names to current-safe
+   observations, uses that exact tuple for restore/replay/request construction,
+   and rejects a returned out-of-scope sibling atomically before completion or
+   later tool dispatch.
 8. **Implemented:** the live Host excludes `type` whenever continuation is
    enabled, so no advertised provider call can require persisting raw typed text.
-   The v7 validator remains strict and continuation-disabled behavior is
+   The v8 validator remains strict and continuation-disabled behavior is
    unchanged.
-9. **Implemented:** semantically bind v7 `next_step` to the complete durable
+9. **Implemented:** semantically bind current `next_step` to the complete durable
    topology before using it, reconstruct the final recovery action before
    selecting its budget dimension, and repeat that check at executor and locked
    persistence boundaries. Digest-valid semantic swaps and canonical exhausted

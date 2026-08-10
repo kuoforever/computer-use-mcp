@@ -111,6 +111,7 @@ def test_agent_controls_projects_supervised_settings_with_human_json_parity(
         "policy_mode": "approved_actions",
         "profile": "public-web-word",
         "provider": "anthropic",
+        "region": "global",
         "purpose": "Supervised browser-to-Word workflow",
         "state_dir": str(
             (local_app_data / "computer-use-agent" / "public-web-word").resolve()
