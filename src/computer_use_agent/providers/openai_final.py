@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 from base64 import b64encode
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 from ..executor_final import FinalResponseRequest, FinalResponseResult
@@ -13,6 +13,7 @@ from ..final_response_wire import (
     compile_final_response_wire,
     validate_final_response_text,
 )
+from ..provider_catalog import ProviderProtocol, provider_profile
 from ..provider_setup import openai_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
@@ -111,14 +112,22 @@ class OpenAIFinalResponseAdapter:
 
     model: str
     responses: _ResponsesPort
+    name: str = "openai"
+    supports_images: bool = True
+    store_response: bool = True
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
-    name: str = field(default="openai", init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
             raise ValueError("model must be a non-empty string")
+        if provider_profile(self.name).protocol is not ProviderProtocol.OPENAI_RESPONSES:
+            raise ValueError("name must select an OpenAI Responses provider")
+        if not isinstance(self.supports_images, bool):
+            raise ValueError("supports_images must be boolean")
+        if not isinstance(self.store_response, bool):
+            raise ValueError("store_response must be boolean")
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -147,11 +156,17 @@ class OpenAIFinalResponseAdapter:
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
+        provider_name: str = "openai",
+        base_url: str | None = None,
     ) -> "OpenAIFinalResponseAdapter":
-        client = openai_client_from_environment()
+        profile = provider_profile(provider_name)
+        client = openai_client_from_environment(provider_name, base_url=base_url)
         return cls(
             model=model,
             responses=client.responses,
+            name=provider_name,
+            supports_images=profile.supports_images,
+            store_response=provider_name == "openai",
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
@@ -166,6 +181,8 @@ class OpenAIFinalResponseAdapter:
             wire = compile_final_response_wire(request)
         except FinalResponseWireError as exc:
             raise OpenAIFinalResponseError("OPENAI_FINAL_REQUEST_INVALID") from exc
+        if wire.images and not self.supports_images:
+            raise OpenAIFinalResponseError("PROVIDER_FINAL_IMAGES_UNSUPPORTED")
         content: list[dict[str, object]] = [
             {"type": "input_text", "text": wire.manifest_json}
         ]
@@ -182,8 +199,9 @@ class OpenAIFinalResponseAdapter:
             "instructions": OPENAI_FINAL_INSTRUCTIONS,
             "input": [{"role": "user", "content": content}],
             "max_output_tokens": self.output_token_reserve,
-            "store": False,
         }
+        if self.store_response:
+            provider_request["store"] = False
         if _request_size(provider_request) > self.max_request_bytes:
             raise OpenAIFinalResponseError("OPENAI_FINAL_REQUEST_TOO_LARGE")
         if exceeds_token_window(

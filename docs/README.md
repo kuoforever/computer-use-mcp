@@ -88,6 +88,7 @@ not a line-by-line mirror of every reference page.
 | I need to execute or review isolated Agent desktop smokes | [E4 smoke runbook](E4_SMOKE.md) |
 | I need the retained sanitized isolated desktop outcomes | [E4 evidence](E4_EVIDENCE.md) |
 | I need the retained sanitized provider integration outcomes | [Provider E3 evidence](E3_EVIDENCE.md) |
+| I need supported provider names, credentials, protocols, endpoints, or live-test status | [Provider support](PROVIDERS.md) |
 | I need CI gates or the release checklist | [Release and operator checklist](RELEASE.md) |
 | I need to report a vulnerability or read the threat-model boundary | [Security policy](../SECURITY.md) |
 | I need what changed in a packaged version | [Changelog](../CHANGELOG.md) |
@@ -108,13 +109,14 @@ not a line-by-line mirror of every reference page.
 | Cooperative control | Same-process safe-boundary pause, explicit desktop authority release, explicit resume, mandatory fresh observation, and no uncertain replay |
 | Capability status | Cross-surface implementation state, retained evidence level, and next executable gate |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
+| Provider support | Eight exact provider profiles, protocol/endpoint/capability routing, setup, and deferred live gates |
 | Tool reference | Public MCP tool surface and result semantics |
 | Design | Component boundaries and long-lived technical decisions |
 | Driver Contract | The normative shared-core/driver interface |
 | Tech stack | Current dependencies and planned platform/runtime choices |
 | Quality attributes | Review and acceptance criteria |
 | Roadmap | Completed milestones and future priorities |
-| Agent implementation plan | Planned dual-provider Agent Host, safety boundaries, and release gates |
+| Agent implementation plan | Historical provider/Agent Host milestone plan; current contracts are linked from its status banner |
 | Agent Host contract / evaluation | Implemented provider-neutral foundation, desktop bridge, trust boundaries, and evaluation gates |
 | Agent traces | Atomic safe checkpoints, JSONL redaction, phase transitions, inspection, and conservative recovery |
 | Persisted continuation | Private v2 storage with correlated OpenAI recovery token state, opt-in write-ahead boundaries, conservative classification, and a locked 1-4 step read-only CLI gate including completed-side-effect mandatory observation |

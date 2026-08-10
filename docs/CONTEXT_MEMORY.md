@@ -43,7 +43,7 @@ those strategies explicitly. OpenAI read-only recovery also exposes an explicit
 [stateless replay](STATELESS_REPLAY.md) transition. It compiles only the exact
 initial input, ordered provider-output-item batches (including explicitly
 requested portable encrypted reasoning), and matching persisted tool results
-from the digest-bound continuation v6 envelope. The Host also recovers the
+from the digest-bound continuation v7 envelope. The Host also recovers the
 original `advertised_tool_names`, narrows them to current-safe observations,
 and supplies the same tuple to restore, explicit replay preflight, and the next
 provider request. Drift, old or malformed scope, or budget failure stops before

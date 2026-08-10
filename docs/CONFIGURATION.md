@@ -12,9 +12,9 @@ The five configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
-| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
+| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--base-url URL] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
 | `config settings [--config PATH] [--json]` | Project the strict TOML as human-first Agent Controls settings | Reads configuration plus provider SDK/credential presence only; creates no state and starts no process |
-| `config init --profile PROFILE --provider NAME --model ID --output PATH [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config init --profile PROFILE --provider NAME --model ID --output PATH [--base-url URL] [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
 | `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact configured surface: thirteen core schemas plus optional `browser_snapshot` when enabled |
 
@@ -41,11 +41,14 @@ and releases both on exit. `[operator].pause_shortcut` accepts only canonical
 `ctrl+alt+<a-z>`; G and Q are reserved. It has no approve/resume action and
 does not replace the independent `Ctrl+Alt+Q` emergency stop.
 
-For OpenAI, doctor requires the `agent-openai` extra and a non-empty
-`OPENAI_API_KEY`; for Claude it requires `agent-anthropic` and a non-empty
-`ANTHROPIC_API_KEY`. Credential values are neither printed nor passed to the MCP
-child. The command returns fixed JSON, exits `0` when `ready` is `true`, and
-exits `2` with one `{code, action}` failure when setup is incomplete.
+Doctor derives the exact SDK extra and credential variable from the configured
+provider. OpenAI-compatible profiles use `agent-openai`; Anthropic and MiniMax
+use `agent-anthropic`. Credential values are neither printed nor passed to the
+MCP child. Qwen alone requires `[provider].base_url`, restricted to its HTTPS
+workspace-compatible endpoint shape; every fixed-endpoint profile rejects an
+override. See [Provider support](PROVIDERS.md) for the exact matrix. The command
+returns fixed JSON, exits `0` when `ready` is `true`, and exits `2` with one
+`{code, action}` failure when setup is incomplete.
 
 Doctor sends no provider request and invokes no MCP tool, so it does not list
 windows, capture the screen, read desktop content, or perform an input action.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from base64 import b64decode, b64encode
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,7 @@ from .continuation import (
     read_continuation,
     write_continuation,
 )
+from .provider_catalog import ProviderProtocol, provider_profile
 from .reconstruction import (
     OperationEffect,
     OperationKind,
@@ -316,7 +318,11 @@ def _validate_provider_correlation(
     provider = _mapping(payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID")
     state = _mapping(payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID")
     model_turn = _last_event(_ledger(envelope), "model_turn")
-    if provider.get("name") == "openai":
+    try:
+        protocol = provider_profile(str(provider.get("name"))).protocol
+    except ValueError as exc:
+        raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID") from exc
+    if protocol is ProviderProtocol.OPENAI_RESPONSES:
         usage = _mapping(model_turn.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID")
         raw_input_tokens = usage.get("input_tokens")
         raw_output_tokens = usage.get("output_tokens")
@@ -337,6 +343,31 @@ def _validate_provider_correlation(
     if not isinstance(messages, list) or not messages:
         raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
     assistant = _mapping(messages[-1], "CONTINUATION_PROVIDER_STATE_INVALID")
+    if protocol is ProviderProtocol.OPENAI_CHAT_COMPLETIONS:
+        tool_calls = assistant.get("tool_calls")
+        if assistant.get("role") != "assistant" or not isinstance(tool_calls, list):
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+        if len(tool_calls) != len(calls):
+            raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+        for raw_call, call in zip(tool_calls, calls, strict=True):
+            item = _mapping(raw_call, "CONTINUATION_PROVIDER_STATE_INVALID")
+            function = _mapping(
+                item.get("function"), "CONTINUATION_PROVIDER_STATE_INVALID"
+            )
+            try:
+                arguments = json.loads(str(function.get("arguments")))
+            except json.JSONDecodeError as exc:
+                raise RecoveryPlanError(
+                    "CONTINUATION_PROVIDER_STATE_INVALID"
+                ) from exc
+            if (
+                item.get("id") != call.identity.call_id
+                or item.get("type") != "function"
+                or function.get("name") != call.name
+                or arguments != call.arguments
+            ):
+                raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+        return
     content = assistant.get("content")
     if assistant.get("role") != "assistant" or not isinstance(content, list):
         raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
@@ -721,7 +752,11 @@ def _completed_final_text(envelope: ContinuationEnvelope) -> str:
         raise RecoveryPlanError("CONTINUATION_LEDGER_INVALID")
     provider = _mapping(envelope.payload.get("provider"), "CONTINUATION_PROVIDER_STATE_INVALID")
     state = _mapping(envelope.payload.get("provider_state"), "CONTINUATION_PROVIDER_STATE_INVALID")
-    if provider.get("name") == "openai":
+    try:
+        protocol = provider_profile(str(provider.get("name"))).protocol
+    except ValueError as exc:
+        raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID") from exc
+    if protocol is ProviderProtocol.OPENAI_RESPONSES:
         usage = _mapping(data.get("usage"), "CONTINUATION_PROVIDER_STATE_INVALID")
         input_tokens = usage.get("input_tokens")
         output_tokens = usage.get("output_tokens")
@@ -750,6 +785,14 @@ def _completed_final_text(envelope: ContinuationEnvelope) -> str:
         if not isinstance(messages, list) or not messages:
             raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
         assistant = _mapping(messages[-1], "CONTINUATION_PROVIDER_STATE_INVALID")
+        if protocol is ProviderProtocol.OPENAI_CHAT_COMPLETIONS:
+            if (
+                assistant.get("role") != "assistant"
+                or assistant.get("tool_calls") is not None
+                or assistant.get("content") != text
+            ):
+                raise RecoveryPlanError("CONTINUATION_PROVIDER_STATE_INVALID")
+            return text
         content = assistant.get("content")
         if (
             assistant.get("role") != "assistant"
@@ -1084,13 +1127,28 @@ def plan_read_only_recovery(
         and checkpoint_status is not RecoveryStatus.READY
         and observed_verified_epoch is None
     )
+    continuation_version = payload.get("continuation_version")
+    provider_identity_matches = (
+        provider.get("name") == config.provider.name
+        and provider.get("model") == config.provider.model
+        and (
+            (
+                continuation_version == 6
+                and config.provider.name in {"openai", "anthropic"}
+            )
+            or (
+                continuation_version == 7
+                and provider.get("protocol") == config.provider.protocol.value
+                and provider.get("base_url") == config.provider.effective_base_url
+            )
+        )
+    )
     identity_matches = (
         checkpoint.get("run_id") == payload["run_id"]
         and checkpoint.get("policy_version") == payload["policy_version"] == config.policy_version
         and checkpoint.get("task_length") == len(task)
         and payload["task"] == task
-        and provider.get("name") == config.provider.name
-        and provider.get("model") == config.provider.model
+        and provider_identity_matches
         and payload["registry_digest"]
         == reviewed_registry_digest(
             configured_optional_tool_names(config.mcp.environment)

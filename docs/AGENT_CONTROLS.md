@@ -27,11 +27,13 @@ guarded-desktop-agent config doctor --config `
 
 The default is the reviewed `desktop-ask` / `openai` profile and the current
 project-validated OpenAI model ID. The bounded `--profile`, `--provider`,
-`--model`, `--output`, `--allowlist`, `--mcp-executable`, and
+`--model`, `--base-url`, `--output`, `--allowlist`, `--mcp-executable`, and
 `--pause-shortcut` overrides reuse the existing `config init` validation; an
-explicit model override remains the operator's responsibility. Existing output
-is never overwritten. Provider credentials remain environment variables and
-are never written to TOML or printed.
+explicit model override remains the operator's responsibility. `--base-url` is
+required only for the reviewed Qwen workspace endpoint and rejected for fixed
+endpoints. Existing output is never overwritten. Provider credentials remain
+environment variables and are never written to TOML or printed. See the
+[provider matrix](PROVIDERS.md).
 
 The pause chord defaults to `ctrl+alt+p`. Only exact canonical
 `ctrl+alt+<a-z>` is accepted; G remains Agent Controls and Q remains emergency

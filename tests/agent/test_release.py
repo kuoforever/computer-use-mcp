@@ -103,6 +103,12 @@ def test_release_preflight_records_sanitized_offline_evidence(
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "secret-openai")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "secret-anthropic")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "secret-qwen")
+    monkeypatch.setenv("ARK_API_KEY", "secret-doubao")
+    monkeypatch.setenv("MOONSHOT_API_KEY", "secret-kimi")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "secret-deepseek")
+    monkeypatch.setenv("ZAI_API_KEY", "secret-glm")
+    monkeypatch.setenv("MINIMAX_API_KEY", "secret-minimax")
     monkeypatch.setenv("RUN_OPENAI_INTEGRATION", "1")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-aws")
     monkeypatch.setenv("GITHUB_TOKEN", "secret-github")
@@ -178,6 +184,15 @@ def test_release_preflight_records_sanitized_offline_evidence(
     assert "SENSITIVE_SUBPROCESS_OUTPUT" not in raw
     assert all("OPENAI_API_KEY" not in environment for environment in environments)
     assert all("ANTHROPIC_API_KEY" not in environment for environment in environments)
+    for credential in (
+        "DASHSCOPE_API_KEY",
+        "ARK_API_KEY",
+        "MOONSHOT_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ZAI_API_KEY",
+        "MINIMAX_API_KEY",
+    ):
+        assert all(credential not in environment for environment in environments)
     assert all("AWS_SECRET_ACCESS_KEY" not in environment for environment in environments)
     assert all("GITHUB_TOKEN" not in environment for environment in environments)
     assert all("UNRELATED_SECRET" not in environment for environment in environments)

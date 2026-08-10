@@ -37,7 +37,13 @@ from .provider_setup import ModuleFinder, inspect_provider_setup
 RECOMMENDED_MODELS: Mapping[str, str] = MappingProxyType(
     {
         "anthropic": "claude-sonnet-5",
+        "deepseek": "deepseek-v4-pro",
+        "doubao": "doubao-seed-2-0-lite-260215",
+        "glm": "glm-5.2",
+        "kimi": "kimi-k2.6",
+        "minimax": "MiniMax-M2.7",
         "openai": "gpt-5.6-terra",
+        "qwen": "qwen3.7-plus",
     }
 )
 _PURPOSES = MappingProxyType(
@@ -227,6 +233,7 @@ def create_quick_setup(
     pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
     environ: Mapping[str, str] | None = None,
     module_finder: ModuleFinder | None = None,
+    base_url: str | None = None,
 ) -> QuickSetupResult:
     """Create one recommended config without starting any runtime port."""
 
@@ -252,6 +259,7 @@ def create_quick_setup(
         allowlist=allowlist,
         mcp_executable=mcp_executable,
         pause_shortcut=pause_shortcut,
+        base_url=base_url,
     )
     controls = load_agent_controls(
         initialized.output,

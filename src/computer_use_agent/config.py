@@ -14,6 +14,13 @@ from types import MappingProxyType
 from typing import Mapping
 from urllib.parse import urlsplit
 
+from .provider_catalog import (
+    SUPPORTED_PROVIDERS,
+    ProviderProtocol,
+    provider_profile,
+    provider_supports_images,
+    resolve_provider_base_url,
+)
 from .types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
     DEFAULT_PROVIDER_OUTPUT_TOKENS,
@@ -33,7 +40,6 @@ READ_ONLY_MODE = "read_only"
 APPROVED_ACTIONS_MODE = "approved_actions"
 ALL_SIDE_EFFECTS_APPROVAL = "all_side_effects"
 HIGH_RISK_ONLY_APPROVAL = "high_risk_only"
-SUPPORTED_PROVIDERS = frozenset({"openai", "anthropic"})
 SUPPORTED_PRIVACY_DETECTORS = frozenset(
     {"email", "phone", "ipv4", "cn_id", "bank_card", "secret"}
 )
@@ -321,6 +327,7 @@ class ProviderConfig:
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
     request_timeout_seconds: int = DEFAULT_PROVIDER_TIMEOUT_SECONDS
+    base_url: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or self.name not in SUPPORTED_PROVIDERS:
@@ -328,6 +335,22 @@ class ProviderConfig:
             raise ConfigError(f"provider name must be one of: {choices}")
         if not isinstance(self.model, str) or not self.model.strip():
             raise ConfigError("provider model must be a non-empty string")
+        if self.base_url is not None and not isinstance(self.base_url, str):
+            raise ConfigError("provider base_url must be a string or omitted")
+        try:
+            resolve_provider_base_url(self.name, self.base_url)
+        except ValueError as exc:
+            code = str(exc)
+            messages = {
+                "PROVIDER_BASE_URL_REQUIRED": (
+                    "provider base_url is required for this provider"
+                ),
+                "PROVIDER_BASE_URL_FIXED": (
+                    "provider base_url must be omitted for a fixed-endpoint provider"
+                ),
+                "PROVIDER_BASE_URL_INVALID": "provider base_url is not a reviewed endpoint",
+            }
+            raise ConfigError(messages.get(code, "provider base_url is invalid")) from exc
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -371,6 +394,18 @@ class ProviderConfig:
                 "provider request_timeout_seconds must be between "
                 f"{MIN_PROVIDER_TIMEOUT_SECONDS} and {MAX_PROVIDER_TIMEOUT_SECONDS}"
             )
+
+    @property
+    def protocol(self) -> ProviderProtocol:
+        return provider_profile(self.name).protocol
+
+    @property
+    def effective_base_url(self) -> str:
+        return resolve_provider_base_url(self.name, self.base_url)
+
+    @property
+    def supports_images(self) -> bool:
+        return provider_supports_images(self.name, self.model)
 
 
 @dataclass(frozen=True)
@@ -660,6 +695,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         {
             "name",
             "model",
+            "base_url",
             "max_request_bytes",
             "context_window_tokens",
             "output_token_reserve",
@@ -717,6 +753,7 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     provider_config = ProviderConfig(
         name=_read_nonempty_string(provider, "name", "provider"),
         model=_read_nonempty_string(provider, "model", "provider"),
+        base_url=provider.get("base_url"),
         max_request_bytes=_read_nonnegative_int(
             provider,
             "max_request_bytes",

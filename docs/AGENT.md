@@ -1,8 +1,8 @@
 # Agent Host contract and safety boundary
 
 > **Status: experimental Agent vertical slice.** The provider-neutral
-> contract, local stdio bridge, bounded runner, OpenAI Responses adapter, and
-> Claude Messages adapter are
+> contract, local stdio bridge, bounded runner, and eight exact provider
+> profiles across Responses, Chat Completions, and Messages wire families are
 > implemented. The CLI can inspect desktop structure, semantic document text,
 > bounded OCR, and bounded images through reviewed observation tools. Opt-in
 > locally approved actions are implemented and have scoped
@@ -17,8 +17,9 @@ authority. Trusted user configuration may add one reviewed read-only
 
 ## Scope
 
-The future host is a local, CLI-first process with adapters for OpenAI
-Responses and Claude Messages. It must use a local stdio MCP child and must
+The host is a local, CLI-first process with exact profiles for OpenAI,
+Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax. It must use a local
+stdio MCP child and must
 not import `computer_use_mcp.core.Session`, the Windows driver, or native
 control code.
 
@@ -58,7 +59,7 @@ the following commands:
   cooperative request. Pause is safe only after exact
   `paused/released`; `Ctrl+Alt+Q` remains independent, and global approve and
   resume do not exist.
-- `config init --provider NAME --model ID --output PATH` creates one
+- `config init --provider NAME --model ID [--base-url URL] --output PATH` creates one
   non-overwriting, immediately valid `read_only` Desktop Ask configuration. It
   locates the installed sibling MCP executable, creates the user-local state and
   child working directory, and enables the bounded continuation WAL required by
@@ -101,8 +102,8 @@ the following commands:
   and makes one stateless tool-free final-response request. It exposes no tool
   selector, action, approval, memory, recovery, or ordinary provider-loop
   option. Continuation WAL is required. [OpenAI and Claude provider evidence is retained](E3_EVIDENCE.md)
-  for the earlier bounded scope and one reviewed model per provider; the new
-  document-aware scope still needs an exact-candidate rerun. The separate [E4 record](E4_EVIDENCE.md)
+  for the earlier bounded scope and one reviewed model per provider; the six
+  added profiles are offline verified only. The separate [E4 record](E4_EVIDENCE.md)
   covers the reviewed Agent Host desktop path, not a separate Planner pass.
 - `approval inbox --config PATH [--json]` reads only strict local pending
   Decision Card records. It shows last-record/expired status, fixed action
@@ -218,15 +219,13 @@ The shared Host schema limits observation scope to exact `"foreground"`,
 `"all"`, or a positive decimal window id returned by `list_windows`; both
 Planner prompts require literal schema values, and paraphrases fail during
 compilation before plan persistence or MCP dispatch.
-`providers/openai_planner.py` implements that port as one isolated, stateless
-Responses API Structured Outputs request. It advertises no function tools,
-continuation, replay history, or reasoning payload; sets `store=false`; applies
-complete byte/token preflight before I/O; and rejects refusals, incomplete or
-ambiguous output, malformed arguments, and scope drift.
-`providers/anthropic_planner.py` provides the same boundary through one Claude
-Messages request using GA `output_config.format`, with no tools, history,
-thinking, retry, or fallback. It rejects refusal, token truncation, tool-use,
-extra content, malformed output, and scope drift. Both adapters share the
+`providers/openai_planner.py`, `anthropic_planner.py`, and
+`openai_chat_planner.py` implement that port across the three wire families.
+Native JSON Schema is used only where reviewed; JSON-object and prompt-only
+profiles receive the exact Host schema in instructions and still pass strict
+local compilation. No planner has function tools, continuation, history,
+retry, or fallback. Refusal, truncation, tool use, extra/ambiguous content,
+malformed arguments, and scope drift fail closed. All adapters share the
 bounded `planner_wire.py` envelope converter before the existing exact host
 compiler. Compiling, storing, or locally transitioning a plan performs no
 policy, approval, MCP, or desktop call and grants no tool authority.
@@ -278,7 +277,7 @@ work. Isolated tool-free adapters implement `FinalResponsePort`, while the
 compiler itself does not call a provider, consume budget, write WAL, transition
 the plan, or trust/terminalize response text.
 
-`final_response_wire.py` plus isolated OpenAI and Claude final-response adapters
+`final_response_wire.py` plus isolated final-response adapters for all three wire families
 implement that port and are selected by the bounded plan CLI composition. Canonical task
 and observation text remains untrusted JSON data; PNGs are digest/dimension
 bound and sent as ordered provider-native image blocks. Each adapter performs
@@ -380,12 +379,13 @@ or ambiguity is `UNKNOWN` and fails closed; model output cannot set risk.
 
 For each provider turn, the Host derives one final advertised tool set after the
 caller allowlist, privacy policy, current MCP safety baselines, and continuation
-persistence compatibility are applied. Continuation v6 rejects raw `type.text`,
+persistence compatibility are applied. Continuation v7 rejects raw `type.text`,
 so an enabled continuation removes `type` from both the provider tuple and the
 exact registry-ordered `advertised_tool_names`; the strict validator is not
 weakened. Continuation-disabled, baseline-satisfied typing remains governed by
 the ordinary policy/approval/grounding/verification path. V1-v5 artifacts cannot
-recover by assuming the current full registry.
+recover by assuming the current full registry; legacy v6 is accepted only for
+its original OpenAI/Anthropic identities and never widened to a new vendor.
 After validating turn identity, the Runner atomically rejects the whole returned
 turn with fixed `PROVIDER_TOOL_NOT_ADVERTISED` if any requested tool is absent
 from that exact set. It then preflights every call's reviewed schema and exact
@@ -501,36 +501,38 @@ unchanged. See [Context and memory](CONTEXT_MEMORY.md) for reducer and explicit
 SQLite-memory rules.
 Every final provider SDK request is additionally bounded by configurable
 canonical UTF-8 JSON bytes (8 MiB default, 1 KiB-48 MiB reviewed range). This
-includes task, explicit memory, tools/results, screenshots, and Claude history;
+includes task, explicit memory, tools/results, screenshots, and local provider history;
 oversize requests fail before network I/O. Required provider/model-specific
 `context_window_tokens` and `output_token_reserve` settings add a conservative
 pre-network token-window gate over the complete request. Each visible UTF-8
 request byte is charged as one input token; OpenAI continuations additionally
 carry forward the preceding provider-reported input/output usage. The gate
 fails with a fixed provider code and never splits mandatory atomic groups.
-Persisted OpenAI recovery restores that usage together with the required
+Persisted Responses recovery restores that usage together with the required
 `previous_response_id`, a canonical request-contract digest, and the safe
-memory-disclosure marker. Continuation v6 also retains the exact initial SDK
+memory-disclosure marker. Continuation v7 also retains the exact initial SDK
 input in the private sensitive artifact and binds its SHA-256 into that
 contract. It retains every bounded canonical JSON `response.output` item in
 ordered response-ID batches; missing, non-correlated, oversized, or drifted
 state fails before the next provider dispatch.
-Every OpenAI request also includes `reasoning.encrypted_content`. The include
-list is bound by request-contract version 3 and is never silently dropped, so
+Every OpenAI request also includes `reasoning.encrypted_content`; compatible
+Qwen and Doubao requests do not inherit that OpenAI-only field. The include
+choice and exact provider capability are bound by request-contract version 4, so
 persisted reasoning output can carry its portable encrypted representation.
-Claude may first remove oldest complete local tool-use/result pairs while
+Legacy OpenAI contract-v3 state is verified before one-way migration. Messages
+profiles may first remove oldest complete local tool-use/result pairs while
 preserving the task and newest complete pair, including images. A fixed notice
 marks the omission. Mandatory overflow still fails before SDK I/O, and OpenAI
 never silently breaks its remote `previous_response_id` chain.
-Both adapters expose an explicit provider-neutral continuation strategy.
-OpenAI read-only recovery can explicitly stage one stateless replay request
+All three wire families expose an explicit provider-neutral continuation
+strategy. Responses read-only recovery can explicitly stage one stateless replay request
 from the digest-bound continuation envelope. The compiler requires the exact
 initial input, every ordered provider output batch, and one matching persisted
 tool result for every historical function call. Historical calls remain input
 records and never enter policy, approval, recovery planning, or MCP dispatch;
 see [Stateless replay](STATELESS_REPLAY.md).
 
-At `CONTINUE_PROVIDER`, the Host reads the v6 `advertised_tool_names` binding
+At `CONTINUE_PROVIDER`, the Host reads the v7 `advertised_tool_names` binding
 and narrows it to current reviewed observations. Baseline-required observations
 remain only when an attached discovered desktop currently supplies their
 evidence; without a desktop they are omitted, and actions are always removed.
@@ -543,11 +545,12 @@ desktop authority.
 OpenAI continues only when that tuple preserves its adapter-visible request
 contract; action-enabled or other contract drift fails before network I/O.
 Likewise, mandatory recovery may synthesize `ui_snapshot` only when it was in
-the persisted v6 scope, otherwise the Host requires a new run with zero MCP
+the persisted v7 scope (or an accepted legacy v6 scope), otherwise the Host requires a new run with zero MCP
 dispatch.
 
-The OpenAI adapter uses Responses API function tools with
-`parallel_tool_calls=false` and `include=["reasoning.encrypted_content"]`. It
+The Responses adapter serves OpenAI, Qwen, and Doubao with exact vendor
+identity. It uses function tools with `parallel_tool_calls=false`; only OpenAI
+adds `include=["reasoning.encrypted_content"]`. It
 preserves the provider `call_id` in the
 canonical identity and returns a matching `function_call_output` with
 `previous_response_id`. Text results remain JSON strings; screenshot results
@@ -557,7 +560,8 @@ echoing task, UI, or API error text. In approved mode it advertises only reviewe
 required safety baselines are satisfied. A model-generated unadvertised tool
 fails closed.
 
-The Claude adapter uses Messages API client tools and preserves each assistant
+The Messages adapter serves Anthropic and MiniMax with exact vendor identity.
+For Anthropic it preserves each assistant
 `tool_use` block in its in-memory message history. Signed `thinking` and opaque
 `redacted_thinking` blocks are strictly validated, excluded from canonical
 model text and redacted trace, and retained unmodified only inside that private
@@ -570,8 +574,17 @@ Parallel tool use is disabled in the request and any returned calls are still
 serialized by the common Runner. Malformed reasoning blocks, unknown blocks,
 mismatched stop reasons, unadvertised tools, and malformed inputs fail closed.
 Context packing drops only complete assistant/tool-result groups, including
-their reasoning blocks. Provider message history is an active-run optimization,
-not persisted recovery state.
+their reasoning blocks. MiniMax uses the reviewed Anthropic-compatible endpoint,
+prompt-compiled Planner schema, and no image-returning tools. Both profiles bind
+their exact identity into persisted v7 recovery state.
+
+The Chat Completions adapter serves Kimi, DeepSeek, and GLM. It keeps bounded
+local message history, accepts at most one sequential tool call per turn,
+preserves compatible `reasoning_content` only as opaque continuation data, and
+validates every call before Host state changes. Kimi receives image input;
+DeepSeek is text-only; GLM image input is exposed only for reviewed `glm-*v*`
+model IDs. Text-only profiles reject image tools, results, finals, and restored
+history before network I/O.
 
 Install and run the experimental slice with:
 
@@ -583,9 +596,10 @@ $env:OPENAI_API_KEY = "..."
 .\.venv\Scripts\guarded-desktop-agent.exe run --config agent.toml --task "List the open windows"
 ~~~
 
-For Claude, install `.[agent-anthropic]`, set `ANTHROPIC_API_KEY`, and use
-`provider.name="anthropic"` plus an explicit Claude model ID. Install `.[agent]`
-when both optional provider SDKs are needed.
+Install `.[agent-anthropic]` for Anthropic or MiniMax and `.[agent-openai]` for
+the Responses/Chat-compatible profiles. Install `.[agent]` when both SDK
+families are needed. Exact provider names, credentials, endpoint rules,
+capabilities, and deferred live gates are in [Provider support](PROVIDERS.md).
 
 The task and returned desktop text are disclosed to the configured OpenAI
 model. The API key is read by the provider SDK from the host environment and is
@@ -595,9 +609,10 @@ interactive per-effect approval by default; only the fixed public-web-word
 profile has bounded Host-owned low-risk authorization. See
 [Approved actions](APPROVALS.md). Generic `run` keeps `type` disabled.
 
-Opt-in E3 tests exercise both adapters against the harmless stdio fixture
-rather than the real desktop. See [Evaluation](EVALUATION.md) for their three
-environment gates, explicit model selection, bounds, and invocation.
+Existing opt-in E3 tests exercise OpenAI and Anthropic against the harmless
+stdio fixture rather than the real desktop. Equivalent exact-profile E3 cells
+for Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax are deliberately not run or
+promoted until accounts exist. See [Evaluation](EVALUATION.md).
 
 `RunLock` holds a non-blocking OS file lock for the full lease at the canonical
 user-local application root, so different configured state subdirectories
@@ -681,7 +696,7 @@ contract. It contains no provider SDK, desktop library, or MCP-server import.
 The ports are deliberately narrow:
 
 - `ModelProviderPort` turns the canonical ledger plus reviewed tools into a
-  `ModelTurn`. OpenAI and Claude adapters compile the same registry but do not
+  `ModelTurn`. All provider adapters compile the same registry but do not
   own policy.
 - `PlannerPort` receives one bounded immutable planning request and returns only
   untrusted JSON candidate text. It has no continuation, policy, approval, MCP,
@@ -760,7 +775,7 @@ message that could echo the typed value.
 | Boundary | Trusted authority | Untrusted input | Required behavior |
 | --- | --- | --- | --- |
 | User/operator -> host | local operator and host policy | task text and approval context | Task text cannot change policy. Actions start disabled in `read_only` mode. |
-| Provider -> host | host policy, reviewed registry, and the exact live or v6-recovered Host-advertised set | model text, tool calls, response IDs | Persist the live set without widening, narrow recovered scope to current-safe observations, and atomically reject any turn containing an unadvertised, schema-invalid, or noncanonical call before ledger/continuation completion or later MCP dispatch; serialize allowed calls, apply budgets, and never grant approval from model text. |
+| Provider -> host | host policy, reviewed registry, and the exact live or v7-recovered Host-advertised set | model text, tool calls, response IDs | Persist the live set without widening, narrow recovered scope to current-safe observations, and atomically reject any turn containing an unadvertised, schema-invalid, or noncanonical call before ledger/continuation completion or later MCP dispatch; serialize allowed calls, apply budgets, and never grant approval from model text. |
 | Desktop/UI -> host | host policy only | UI text, window titles, refs, screenshots, tool output | Treat as untrusted data; never execute instructions embedded in it or promote it to memory automatically. |
 | Host -> MCP child | current MCP server safety controls | child output, discovery metadata, and authority that may age during approval | Start a fixed executable/argv/cwd without a shell; fail closed on discovery or schema mismatch; after an audited `ALLOW`, revalidate live generation/grounding and required baselines before side-effect budget, action continuation, or dispatch. |
 | MCP action guard -> desktop driver | MCP guard policy and fresh local observations | approval timing, human-idle state, foreground state | Within one action call, require the configured stable-idle streak plus a platform input capture and the initial foreground gate. Immediately before at most one driver invocation, re-check e-stop, take one non-waiting foreground observation where required, and compare a double-sampled final human-input observation to the call capture. A dangerous confirmation may contribute only its exact call-scoped tick; every rejection is known `not_dispatched` and is never replayed. |
@@ -851,7 +866,7 @@ as general secret detection.
 | Section | Purpose | Fail-closed rule |
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
-| `[provider]` | provider name (`openai` or `anthropic`), model ID, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. |
+| `[provider]` | one of eight exact provider names, model ID, optional Qwen-only `base_url`, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. Fixed providers reject endpoint overrides. |
 | `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, out-of-range stable-sample/poll/wait values, audit redirection, and custom redaction controls are rejected. |
 | `[policy]` | read-only/approved-actions choice, action-approval policy, and fixed budgets | `all_side_effects` is the default; `high_risk_only` requires `approved_actions` plus a Host classifier, and unknown risk is denied. |
 
@@ -865,7 +880,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 
 | Acceptance case | Evidence required | Status |
 | --- | --- | --- |
-| Same contract supports both providers | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports | implemented contract |
+| Same contract supports all profiles | Provider-neutral `ModelTurn`, `ToolCall`, and `ToolResult` ports have no SDK imports; exact vendor identity is catalog-bound | implemented contract |
 | Exact configured reviewed tools | The thirteen-core registry retains its frozen digest; configured optional `browser_snapshot` adds one separately reviewed schema, and discovery rejects name, duplicate, optional-presence, or exact-schema mismatch | implemented contract test |
 | Invalid tool arguments fail before dispatch | Unknown fields, missing fields, bad scalar types, and all invalid `click` combinations are rejected | implemented contract test |
 | Host is stricter than server | All action specs require Host authorization and invalidate grounding; default per-effect approval, fixed low-risk classification, unknown denial, and `click` XOR are tested | implemented contract test |
@@ -884,22 +899,22 @@ sequencing is in [Evaluation](EVALUATION.md).
 | MCP results are bounded and converted | Text size, fixed action error codes, typed-text erasure, exact structured mirrors, full PNG integrity, dimensions, pixels, MIME, and content cardinality are tested | implemented bridge test |
 | OpenAI call/result correlation | Fixture proves function call normalization and matching `function_call_output` continuation with the original call ID | implemented adapter test |
 | Claude call/result correlation | Fixture proves `tool_use` normalization, adjacent matching `tool_result`, strict signed/opaque reasoning-block preservation, atomic message-history packing, and stop-reason validation | implemented adapter test |
-| Screenshot provider continuation | Both adapters advertise the reviewed screenshot tool; adapter fixtures plus full common-Runner tests prove exact bounded PNG wire blocks without retaining images in trace output | implemented workflow test |
+| Screenshot provider continuation | Image-capable profiles advertise the reviewed screenshot tool; text-only profiles withdraw it. Adapter fixtures plus common-Runner tests prove exact bounded PNG wire blocks without retaining images in trace output | implemented workflow test |
 | Read-only workflow is bounded | Fake provider/desktop tests prove observe-continue-answer, exact ledger order, budget stop, identity mismatch, cleanup, and zero action dispatch | implemented workflow test |
 | Offline E1/E2 gate is reproducible | Thirteen versioned cases plus a canonical manifest freeze semantic traces for success, model/token budgets, identity mismatch, unknown tools, denied/injected actions, human/gate/e-stop/driver results, mandatory re-observation, and post-dispatch unknown outcome; all require zero safety escapes | implemented evaluation suite |
 | Run records are safe and conservative | Atomic checkpoints, append-only bounded JSONL, legal phase transitions, typed-text redaction, strict reading, success-after-close, and no automatic resume/replay are tested | implemented trace baseline |
 | Run metrics are inspectable | Checkpoints aggregate model/tool calls, tokens, provider/tool/run latency, failures, images, and zero automatic retries without retaining sensitive content or estimating unversioned cost | implemented metrics test |
 | Cross-run reports are bounded | `agent report` reads only strict atomic checkpoints and aggregates phase, success, fixed failure codes, metric coverage, totals, and averages; corrupt or path-unsafe records fail the whole report | implemented report test |
 | Context and memory are bounded and explicit | Provider-only reduction preserves mandatory atomic groups; SQLite add/list/expiry/delete requires user confirmation and rejects reviewed secret/UI/image patterns | implemented management baseline |
-| Provider requests have a byte gate | Both adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or Claude-history requests before network I/O | implemented request-budget test |
-| Provider requests have a token-window gate | Both adapters conservatively bound the complete final request plus output reserve before SDK I/O; OpenAI also carries forward reported remote-context usage across live and persisted recovery, and no atomic tool/result/image group is split | implemented provider token-window and recovery-state tests |
-| OpenAI stateless replay is explicitly gated | `recover --stateless-replay` compiles only a complete digest-bound read-only transcript, rejects unknown/missing/reordered/mismatched or over-budget state before provider dispatch, and commits a new remote response ID only after a valid response | implemented explicit recovery capability; no automatic fallback |
+| Provider requests have a byte gate | All wire-family adapters count canonical UTF-8 JSON for the final SDK kwargs and reject oversized initial, memory/image/tool continuation, or local-history requests before network I/O | implemented request-budget test |
+| Provider requests have a token-window gate | All adapters conservatively bound the complete final request plus output reserve before SDK I/O; Responses profiles also carry forward reported remote-context usage across live and persisted recovery, and no atomic tool/result/image group is split | implemented provider token-window and recovery-state tests |
+| Responses stateless replay is explicitly gated | `recover --stateless-replay` is protocol-limited and compiles only a complete digest-bound read-only transcript, rejects unknown/missing/reordered/mismatched or over-budget state before provider dispatch, and commits a new remote response ID only after a valid response | implemented explicit recovery capability; no automatic fallback; compatible-vendor live behavior unverified |
 | OpenAI stateless replay evaluation is frozen | A canonical nine-case fixture and SHA-256 manifest freeze exact text/screenshot input order, rejected transcript classes, provider-call counts, remote-chain preservation, and zero historical MCP dispatch through the recovery executor | implemented E2 replay matrix |
 | OpenAI stateless replay release evidence is explicit | Release preflight and each CI Python job run the replay module as a separate fail-closed gate; preflight v5 records its case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Crash reconstruction release evidence is explicit | Release preflight and each CI Python job run the classifier plus 15-case exact-call runtime matrix as a separate fail-closed gate; preflight v5 records case/test counts plus canonical fixture and manifest SHA-256 values | implemented offline release gate |
 | Recovered observation authority is current | Before persisting either an observation or mandatory re-observation intent, the executor rechecks the reviewed tool's required safety baselines against the connected MCP generation. Missing evidence has a fixed failure, byte-stable checkpoint/continuation state, and zero MCP dispatch | implemented locked recovery tests |
-| Recovery action owns its budget dimension | Continuation v6 `next_step` must agree with the complete boundary/ledger topology before budget selection. The final reconstructed action selects model-plus-input or new-tool capacity at the planner, executor, and locked-persistence gates; digest-valid semantic swaps, forged non-provider prepared calls, and canonical exhaustion leave bytes unchanged with zero provider/MCP calls, while a provider-correlated prepared observation reuses its already charged call | implemented semantic-binding and formal persistence tests |
-| Recovered provider scope cannot widen | Continuation v6 binds the original final Host names; v1-v5 or malformed scope fails closed. Recovery retains only observations with current baseline evidence, uses one identical tuple for restore/replay/create, and rejects a mixed unadvertised response before completion or any valid-prefix/MCP execution | implemented provider-neutral recovery and real-adapter tests |
+| Recovery action owns its budget dimension | Continuation v7 `next_step` must agree with the complete boundary/ledger topology before budget selection. The final reconstructed action selects model-plus-input or new-tool capacity at the planner, executor, and locked-persistence gates; digest-valid semantic swaps, forged non-provider prepared calls, and canonical exhaustion leave bytes unchanged with zero provider/MCP calls, while a provider-correlated prepared observation reuses its already charged call | implemented semantic-binding and formal persistence tests |
+| Recovered provider scope cannot widen | Continuation v7 binds exact provider/model/protocol/endpoint plus the original final Host names; legacy v6 is old-provider-only and v1-v5 or malformed scope fails closed. Recovery retains only observations with current baseline evidence, uses one identical tuple for restore/replay/create, and rejects a mixed unadvertised response before completion or any valid-prefix/MCP execution | implemented provider-neutral recovery and real-adapter tests |
 | Completed final recovery is local-only | A correlated provider completion with no tool calls advances the checkpoint to `SUCCESS` and removes its continuation under the run lock with zero provider/MCP calls only when the complete ledger and checkpoint are both `ready`; hidden call output, prior verification debt, terminal unknown certainty, counter/status drift, and sequence mismatch fail closed | implemented complete-ledger terminal recovery boundary |
 | Recovery certainty cannot regress | Complete-ledger folding preserves dispatched-action, exact human/gate-yield, and unknown certainty across intent, failed observation, provider completion, and finalization. Historical side-effect-bearing multi-call turns and abandoned calls before a later turn are invalid; a current completed-provider tail retains fixed blocked terminalization with zero dispatch. Only a correlated successful ordinary observation from a complete serial/pure-observation history restores `ready`, and a stricter Host-only clear survives unknown/stopped outcomes. OpenAI/Claude result matrices, three non-serial call orders, abandoned-call refusal, colluding counter swaps, byte-stable refusal, and locked persistence are covered | implemented monotonic-certainty tests |
 | Recovered action requests terminate without dispatch | One or more correlated action calls from a completed recovery provider turn advance the checkpoint to fixed `FAILED/RECOVERED_ACTION_REQUESTED`, remove the continuation, and cause a nonzero CLI exit with zero policy/approval/MCP calls | implemented blocked terminal boundary |
@@ -907,14 +922,14 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
-| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. The isolated OpenAI and Claude adapters use one tool-free stateless Structured Outputs request each with complete byte/token preflight and strict refusal/output-shape handling. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port, offline fake-client dual-provider adapter tests, and bounded CLI composition; [retained dual-provider E3 evidence](E3_EVIDENCE.md) for one reviewed model per provider predates the document-aware scope, and the Agent Host E4 record is not a separate Planner desktop pass |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. Every profile uses one tool-free stateless request with complete byte/token preflight and strict local output compilation; provider-native JSON Schema, JSON object, and prompt-only modes are explicit capability choices. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port and offline fake-client eight-profile routing; [retained OpenAI/Claude E3 evidence](E3_EVIDENCE.md) predates the added profiles, which remain live-unverified |
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; consumed by the bounded observation runtime |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented bounded contract used by the runtime wrapper |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
 | Pre-dispatch tool-WAL failure retains certainty | A `prepare_tool` or `dispatch_tool` continuation failure is caught only before the sole MCP call, recorded as a correlated `REJECTED/not_dispatched` result, and terminalized as fixed `FAILED/CONTINUATION_WRITE_FAILED` from the latest ledger. It is not retried or treated as unknown; post-dispatch `complete_tool` failures remain outside this mapping | implemented observation/action x prepared/intent failure matrix plus unchanged success, unknown-outcome, and cancellation controls |
 | Side effects reserve mandatory verification capacity | After the action request is recorded and ordinary authority checks pass, the Runner projects the approved action result and requires model, input-token, reducible-context, and tool-call capacity for one post-action observation before constructing approval or action continuation state. Fixed-priority insufficiency is rejected without dispatch and preserves the prior verified observation; the exact one-lane boundary is not over-reserved for final response | implemented approved-workflow budget, ledger, checkpoint, continuation, and recovery tests |
 | Approval cannot outlive MCP authority facts | After recording a valid `ALLOW`, the Runner revalidates ref/window/screenshot grounding against the live MCP generation and required safety baselines against live child evidence before side-effect budget, action continuation, or MCP. Drift retains the audited decision but appends a rejected/not-dispatched result with zero action authority | implemented approved-workflow generation/baseline drift, ledger, checkpoint, continuation, and unchanged-success tests |
-| Advertised tool scope is Host authority | Every live returned provider turn is checked atomically against the final caller/privacy/safety-baseline/continuation-compatible tool set before response consumption or continuation completion, and v6 preserves that set for narrowing across recovery. Continuation-enabled runs omit raw-text-incompatible `type`; an unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow and continuation-compatibility tests |
+| Advertised tool scope is Host authority | Every live returned provider turn is checked atomically against the final caller/privacy/safety-baseline/continuation-compatible tool set before response consumption or continuation completion, and v7 preserves that set for narrowing across recovery. Continuation-enabled runs omit raw-text-incompatible `type`; an unadvertised observation or action has a fixed failure, zero approval/MCP calls, zero model/tool budget consumption, and cannot execute a valid prefix from the same turn | implemented common-Runner workflow and continuation-compatibility tests |
 | Returned tool schemas are whole-turn atomic | After advertised-name validation, every returned call's reviewed schema and canonical arguments are preflighted before response consumption or continuation completion. One malformed sibling has fixed `SCHEMA_MISMATCH`, zero approval/MCP calls, zero model/tool/side-effect budget consumption, and cannot execute a valid observation or action prefix; valid observation-only multi-call ordering remains sequential | implemented common-Runner and approved-action workflow tests |
 | Side-effect provider turns are single-call | After reviewed-schema preflight, action/action, observation/action, and action/observation returns fail whole-turn with fixed `PROVIDER_SIDE_EFFECT_TURN_NOT_SERIAL` before privacy, model/tool budget, provider completion, policy, approval, action continuation, or MCP. The prior verified observation remains ready, and a provider sibling cannot strand an already-dispatched action without its reserved verification turn | implemented provider-neutral continuation-ordering, approved-workflow state-preservation, pure-observation, and single-action verification tests |
 | Plan runtime executes observations through the same boundary | WAL is mandatory; a fresh plan step is CAS-marked `in_progress` before dispatch intent, then sent only through the shared Runner boundary. Success/known failure commit exact transitions; uncertainty keeps `in_progress`, preserves WAL, closes, and produces one call with zero replay. Product-facing `ask` and metadata-oriented `plan run` expose only this observation/final-response composition; side effects remain absent | implemented offline runtime and public CLI composition; live document-aware evidence remains open |
@@ -930,7 +945,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Adaptive routing selects data, never authority | L4 accepts only one strict reviewed L3 recommendation, exact current equivalent evidence/context, and action-argument-bound LOW classifications. A persistent prefix-safe canary keeps one pending decision, rolls every non-success/unknown/gate regression or candidate drift back to the exact active pin, and never retries or promotes. One selected logical sequence must bind a separately compiled H7 plan before the unchanged Runtime opens | implemented policy/limit, atomic OS-lock/CAS store, pending/crash stop, drift/rollback, tamper, forged outcome, action substitution, and isolated real-Runner composition tests; no arguments/approval/dispatch port, general procedure compiler, provider/real MCP/desktop/application, memory, automatic promotion, online training, E4, or release claim |
 | Completed observation reconciliation is local-only | A revalidated completed WAL must exactly match the current `in_progress` observation step, snapshot, task, registry, identity, arguments, call digest, and known result. Only the missed terminal plan CAS is applied; WAL remains and provider/MCP/approval paths stay absent. Dispatch intent and unknown outcomes never reconcile | implemented explicit local repair; execution resume remains unavailable |
 | Final-response input is tool-free and non-executable | One to four completed plan observations must exactly match a successful canonical ledger and verified recovery/budget state. The compiler emits a bounded digest-bound task plus lossless observation data, never executable historical calls; compilation itself grants no authority | implemented pure request contract consumed only by the internal final runtime and isolated adapters |
-| Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. OpenAI and Claude each make one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output | implemented offline fake-client adapters and bounded CLI selection; no retained real-provider evidence |
+| Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. Every profile makes one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output; text-only profiles fail before I/O on images | implemented offline fake-client adapters and bounded CLI selection; new-provider live evidence absent |
 | Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime and CLI composition tests |
 | Completed final-response reconciliation is local-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence and reconstructs the original request and canonical terminal state. A separate same-lock writer rereads those pins, idempotently CAS-completes the final plan step, writes or reuses one terminal event and `SUCCESS` checkpoint, retains final WAL, and deletes only the ordinary continuation. Prepared/intent state, drift, malformed evidence, and commit failure fail closed without provider/MCP/approval/recovery paths | implemented offline preflight, application, retry, no-mutation, and real runtime-failure artifact tests; no automatic CLI recovery |
 | Host completion projection is evidence-only | The internal read-only projection validates durable campaign control state under the run lock; running continues, waiting/stale/malformed states request attention, uncertainty forbids replay, and only digest-identified validated terminal state can complete once across host restart | implemented and offline fake-host verified; the public status tool, notification bridge, mobile adapter, and general worker remain unimplemented |

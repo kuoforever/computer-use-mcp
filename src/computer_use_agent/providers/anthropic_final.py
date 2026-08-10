@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 from base64 import b64encode
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 from ..executor_final import FinalResponseRequest, FinalResponseResult
@@ -13,6 +13,7 @@ from ..final_response_wire import (
     compile_final_response_wire,
     validate_final_response_text,
 )
+from ..provider_catalog import ProviderProtocol, provider_profile
 from ..provider_setup import anthropic_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
@@ -99,14 +100,19 @@ class AnthropicFinalResponseAdapter:
 
     model: str
     messages: _MessagesPort
+    name: str = "anthropic"
+    supports_images: bool = True
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
-    name: str = field(default="anthropic", init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
             raise ValueError("model must be a non-empty string")
+        if provider_profile(self.name).protocol is not ProviderProtocol.ANTHROPIC_MESSAGES:
+            raise ValueError("name must select an Anthropic Messages provider")
+        if not isinstance(self.supports_images, bool):
+            raise ValueError("supports_images must be boolean")
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -135,11 +141,15 @@ class AnthropicFinalResponseAdapter:
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
+        provider_name: str = "anthropic",
     ) -> "AnthropicFinalResponseAdapter":
-        client = anthropic_client_from_environment()
+        profile = provider_profile(provider_name)
+        client = anthropic_client_from_environment(provider_name)
         return cls(
             model=model,
             messages=client.messages,
+            name=provider_name,
+            supports_images=profile.supports_images,
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
@@ -154,6 +164,8 @@ class AnthropicFinalResponseAdapter:
             wire = compile_final_response_wire(request)
         except FinalResponseWireError as exc:
             raise AnthropicFinalResponseError("ANTHROPIC_FINAL_REQUEST_INVALID") from exc
+        if wire.images and not self.supports_images:
+            raise AnthropicFinalResponseError("PROVIDER_FINAL_IMAGES_UNSUPPORTED")
         content: list[dict[str, object]] = [
             {"type": "text", "text": wire.manifest_json}
         ]

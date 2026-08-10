@@ -30,6 +30,10 @@
   读取 cookie/storage，也不会产生浏览器 action ref。
 - 默认安全模式：进程白名单、检测到人类输入时让路、危险 ref 点击确认、审计
   日志和急停热键。
+- Agent Host 已离线实现 8 个精确 provider profile：OpenAI、Anthropic、
+  Qwen、Doubao、Kimi、DeepSeek、GLM 和 MiniMax。只有此前 OpenAI/Claude
+  范围有留存的真实 API 证据；新增国产 provider 尚未连接账号。详见
+  [provider 支持矩阵（英文）](docs/PROVIDERS.md)。
 
 macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图中，尚未实现。
 
@@ -118,10 +122,15 @@ JSON；全部通过时退出码为 `0`，遇到一个可操作故障时为 `2`�
 provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP 启动期间仍可能
 创建配置的 audit 目录并启动急停按键轮询，随后子进程会被关闭。
 
-如使用 Claude，将安装 extra、provider 名和环境变量分别替换为
-`agent-anthropic`、`anthropic` 和 `ANTHROPIC_API_KEY`。当前 Desktop Ask
-已有一次 OpenAI/Windows/Notepad exact-candidate 结果；它不证明其他
-provider、application、desktop action 或 release artifact。
+`config setup --provider NAME [--model ID]` 支持 `openai`、`anthropic`、
+`qwen`、`doubao`、`kimi`、`deepseek`、`glm` 和 `minimax`。Anthropic 与
+MiniMax 使用 `agent-anthropic`，其余国产 profile 使用 `agent-openai`；若两类
+都需要则安装 `agent`。Qwen 还必须通过 `--base-url` 提供账号自己的受审核
+workspace-compatible endpoint，固定 endpoint 的 provider 会拒绝该覆盖。
+当前 Desktop Ask 已有一次 OpenAI/Windows/Notepad exact-candidate 结果；它不
+证明其他 provider、application、desktop action 或 release artifact。各家的
+凭据变量、图片能力和真实测试状态见
+[provider 支持矩阵（英文）](docs/PROVIDERS.md)。
 
 ## 只读 Task Center
 

@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from importlib.util import find_spec
 from typing import Any
 
+from .provider_catalog import (
+    ProviderProtocol,
+    provider_profile,
+    resolve_provider_base_url,
+)
 
 class ProviderSetupError(RuntimeError):
     """A fixed, actionable provider installation or initialization failure."""
@@ -56,11 +61,6 @@ class ProviderSetup:
         )
 
 
-_PROVIDER_REQUIREMENTS = {
-    "openai": ("openai", "agent-openai", "OPENAI_API_KEY"),
-    "anthropic": ("anthropic", "agent-anthropic", "ANTHROPIC_API_KEY"),
-}
-
 ModuleFinder = Callable[[str], object | None]
 
 
@@ -72,10 +72,13 @@ def inspect_provider_setup(
 ) -> ProviderSetup:
     """Inspect only package presence and the documented credential variable."""
 
-    requirement = _PROVIDER_REQUIREMENTS.get(provider)
-    if requirement is None:
-        raise ProviderSetupError("PROVIDER_NOT_IMPLEMENTED")
-    sdk_module, install_extra, credential_environment = requirement
+    try:
+        profile = provider_profile(provider)
+    except ValueError as exc:
+        raise ProviderSetupError("PROVIDER_NOT_IMPLEMENTED") from exc
+    sdk_module = profile.sdk_module
+    install_extra = profile.install_extra
+    credential_environment = profile.credential_environment
     finder = find_spec if module_finder is None else module_finder
     try:
         sdk_installed = finder(sdk_module) is not None
@@ -117,38 +120,60 @@ def _client_initialization_error(provider: str) -> ProviderSetupError:
     )
 
 
-def openai_client_from_environment() -> Any:
-    """Construct the documented OpenAI client with fixed setup failures."""
+def openai_client_from_environment(
+    provider: str = "openai", *, base_url: str | None = None
+) -> Any:
+    """Construct an OpenAI-SDK client bound to one reviewed provider."""
 
-    require_provider_setup("openai")
+    profile = provider_profile(provider)
+    if profile.protocol not in {
+        ProviderProtocol.OPENAI_RESPONSES,
+        ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+    }:
+        raise ProviderSetupError("PROVIDER_PROTOCOL_MISMATCH")
+    setup = require_provider_setup(provider)
     try:
         from openai import AsyncOpenAI
     except ImportError as exc:
-        setup = inspect_provider_setup("openai", module_finder=lambda _name: None)
+        setup = inspect_provider_setup(provider, module_finder=lambda _name: None)
         raise ProviderSetupError(
             f"{setup.sdk_issue.code}: {setup.sdk_issue.action}"
         ) from exc
     try:
-        return AsyncOpenAI()
+        endpoint = (
+            resolve_provider_base_url(provider, base_url)
+            if profile.requires_configured_base_url
+            else profile.fixed_base_url
+        )
+        return AsyncOpenAI(
+            api_key=os.environ[setup.credential_environment],
+            base_url=endpoint,
+        )
     except Exception as exc:
-        raise _client_initialization_error("openai") from exc
+        raise _client_initialization_error(provider) from exc
 
 
-def anthropic_client_from_environment() -> Any:
-    """Construct the documented Anthropic client with fixed setup failures."""
+def anthropic_client_from_environment(provider: str = "anthropic") -> Any:
+    """Construct an Anthropic-SDK client bound to one reviewed provider."""
 
-    require_provider_setup("anthropic")
+    profile = provider_profile(provider)
+    if profile.protocol is not ProviderProtocol.ANTHROPIC_MESSAGES:
+        raise ProviderSetupError("PROVIDER_PROTOCOL_MISMATCH")
+    setup = require_provider_setup(provider)
     try:
         from anthropic import AsyncAnthropic
     except ImportError as exc:
-        setup = inspect_provider_setup("anthropic", module_finder=lambda _name: None)
+        setup = inspect_provider_setup(provider, module_finder=lambda _name: None)
         raise ProviderSetupError(
             f"{setup.sdk_issue.code}: {setup.sdk_issue.action}"
         ) from exc
     try:
-        return AsyncAnthropic()
+        return AsyncAnthropic(
+            api_key=os.environ[setup.credential_environment],
+            base_url=profile.fixed_base_url,
+        )
     except Exception as exc:
-        raise _client_initialization_error("anthropic") from exc
+        raise _client_initialization_error(provider) from exc
 
 
 __all__ = [

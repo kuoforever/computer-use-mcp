@@ -16,8 +16,8 @@ and expected safety outcome.
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated/non-serial side-effect turns, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
-| E3: provider integration | opt-in provider API plus fake MCP server | one low-cost read -> tool -> result -> final-answer cycle and one bounded observation-plan CLI cycle per provider | [OpenAI and Claude passed both cases](E3_EVIDENCE.md) with one reviewed model per provider; tests remain opt-in and outside default CI |
-| E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | four-cell [E4 runbook](E4_SMOKE.md): both providers x read-only/low-risk action, plus post-action verification | [passed with retained sanitized evidence](E4_EVIDENCE.md) for the reviewed models and Windows revision |
+| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude passed](E3_EVIDENCE.md) the earlier cases; Qwen/Doubao/Kimi/DeepSeek/GLM/MiniMax are `NOT RUN` until accounts exist |
+| E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and reviewed low-risk-action/post-observation cells for each provider profile selected for desktop promotion | `PARTIAL`: [retained sanitized evidence](E4_EVIDENCE.md) covers only the earlier OpenAI/Claude models and Windows revision; added profiles are `NOT RUN` |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
 | E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, then cross-application campaigns | planned |
 | E7: enterprise workflows | dedicated synthetic tenant, least-privilege identities, test business records, and reviewed human approvers | object-scoped authority, RBAC and tenant isolation, data classification, maker-checker separation, concurrent-edit detection, SLA handoff, cross-system transaction reconciliation, and evidence-linked audit | planned |
@@ -63,8 +63,8 @@ provider credentials, a child process, or a desktop.
 | A provider requests the reviewed screenshot tool | Return the status and the single bridge-validated PNG using the provider's native image content block; never place image bytes in trace or error text. |
 | A planner candidate contains unknown fields/tools, invalid arguments, sensitive tool input, excessive bytes/steps, reordered final response, or spoofed status/effect/approval metadata | Reject it before constructing a TaskPlan; call zero provider, policy, approval, MCP, or desktop ports. |
 | OpenAI stateless replay is compiled offline | Freeze exact initial-input, reasoning/message/function-call/output order and reject unknown, missing, reordered, mismatched, side-effecting, or over-budget history with zero provider/MCP dispatch. Request failure preserves the existing remote response ID. |
-| A restricted run reaches recovered provider continuation | Require continuation v6's exact `advertised_tool_names`, reject v1-v5 or malformed scope, narrow to current-safe observations, and use the identical tuple for restore/replay/create. Reject a mixed unadvertised response atomically before provider completion or future MCP dispatch. |
-| Continuation is enabled while the MCP reports the typed-text audit baseline | Remove `type` from the final provider schemas and persisted scope because strict v6 forbids raw `type.text`. If a returned turn still contains `type`, reject the whole turn as `PROVIDER_TOOL_NOT_ADVERTISED` before model/tool budget, completion, approval, or MCP; a valid sibling must not execute first. |
+| A restricted run reaches recovered provider continuation | Require continuation v7's exact provider/model/protocol/endpoint and `advertised_tool_names`, accept legacy v6 only for original OpenAI/Anthropic identity, reject v1-v5 or malformed scope, narrow to current-safe observations, and use the identical tuple for restore/replay/create. Reject a mixed unadvertised response atomically before provider completion or future MCP dispatch. |
+| Continuation is enabled while the MCP reports the typed-text audit baseline | Remove `type` from the final provider schemas and persisted scope because strict v7 forbids raw `type.text`. If a returned turn still contains `type`, reject the whole turn as `PROVIDER_TOOL_NOT_ADVERTISED` before model/tool budget, completion, approval, or MCP; a valid sibling must not execute first. |
 | Read-only model requests an observation then answers | Serialize one authorized call, append the exact canonical event sequence, consume budgets, and always close the bridge and run lock. |
 | Read-only model requests an action | Record a policy denial and dispatch zero desktop calls. |
 | Model budget is exhausted or response identity mismatches | Stop before another provider/desktop call and release resources. |
@@ -134,7 +134,8 @@ completion or MCP dispatch.
 Offline wire fixtures also require
 `include=["reasoning.encrypted_content"]` on both initial and continued OpenAI
 requests and freeze the encrypted reasoning payload in the persisted output
-batch. Request-contract version 3 binds that include list; no fallback request
+batch. Request-contract version 4 binds exact provider identity, image/reasoning
+capabilities, and that include list; no fallback request
 may silently omit it.
 That encrypted-reasoning requirement does not add an E1/E2 case or change
 action authority.
@@ -364,7 +365,7 @@ observation and audited `ALLOW`. Existing normal completion, provider-intent
 failure, unknown outcome, and result-carrying cancellation tests prove the
 mapping does not cross the MCP boundary.
 
-Continuation v6 persists that exact name set without making it executable.
+Continuation v7 persists exact provider identity plus that name set without making it executable.
 Recovery tests separately prove monotonic narrowing to current-safe
 observations, identical restore/replay/create inputs for OpenAI and Claude, and
 fixed `RECOVERY_PROVIDER_TOOL_NOT_ADVERTISED` ordering before schema or
@@ -417,8 +418,8 @@ frozen nine-case OpenAI stateless-replay matrix cover:
   order, plus unknown, missing, mismatched, reordered, side-effecting,
   over-budget, and provider-failure cases. Every preflight rejection freezes
   zero provider/MCP calls and the original remote response ID;
-- provider-neutral v6 scope persistence plus restricted OpenAI and Claude
-  recovery, including old/malformed evidence, missing current baseline
+- provider-neutral v7 identity/scope persistence plus bounded legacy-v6 and
+  three-wire-family recovery, including old/malformed evidence, missing current baseline
   evidence, and mixed unadvertised response rejection before completion;
 - live observation/action tool-WAL failures at both `prepared` and
   `dispatch_intent`, with exact ledger, budget, checkpoint, cleanup, and zero

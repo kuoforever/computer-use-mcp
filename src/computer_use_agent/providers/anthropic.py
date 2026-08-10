@@ -12,6 +12,7 @@ from ..provider_instructions import (
     action_instructions,
     permits_safety_baseline_tool,
 )
+from ..provider_catalog import ProviderProtocol, provider_profile
 from ..provider_setup import anthropic_client_from_environment
 from ..tool_registry import ToolSpec, validate_tool_arguments
 from ..token_window import exceeds_token_window
@@ -75,10 +76,13 @@ def _tool_definitions(
     action_instruction_profile: ActionInstructionProfile = (
         ActionInstructionProfile.GENERAL
     ),
+    supports_images: bool = True,
 ) -> list[dict[str, object]]:
     definitions: list[dict[str, object]] = []
     for tool in tools:
         if tool.effect is not ToolEffect.OBSERVATION and not allow_actions:
+            continue
+        if tool.returns_image and not supports_images:
             continue
         if tool.required_safety_baselines and not permits_safety_baseline_tool(
             action_instruction_profile,
@@ -104,7 +108,9 @@ def _tool_definitions(
     return definitions
 
 
-def _tool_results(ledger: Sequence[LedgerEvent]) -> list[dict[str, object]]:
+def _tool_results(
+    ledger: Sequence[LedgerEvent], *, supports_images: bool = True
+) -> list[dict[str, object]]:
     last_model_turn = -1
     for index, event in enumerate(ledger):
         if event.kind is LedgerEventKind.MODEL_TURN:
@@ -125,6 +131,8 @@ def _tool_results(ledger: Sequence[LedgerEvent]) -> list[dict[str, object]]:
         serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
         content: object = serialized
         if result.images:
+            if not supports_images:
+                raise AnthropicProviderError("PROVIDER_IMAGES_UNSUPPORTED")
             if result.tool_name != "screenshot" or len(result.images) != 1:
                 raise AnthropicProviderError("INVALID_IMAGE_TOOL_RESULT")
             image = result.images[0]
@@ -339,6 +347,8 @@ class AnthropicMessagesProvider:
 
     model: str
     messages: _MessagesPort
+    name: str = "anthropic"
+    supports_images: bool = True
     max_tokens: int = DEFAULT_MAX_TOKENS
     allow_actions: bool = False
     action_instruction_profile: ActionInstructionProfile = (
@@ -346,7 +356,6 @@ class AnthropicMessagesProvider:
     )
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
-    name: str = field(default="anthropic", init=False)
     continuation_strategy: ProviderContinuationStrategy = field(
         default=ProviderContinuationStrategy.LOCAL_MESSAGE_HISTORY, init=False
     )
@@ -357,6 +366,14 @@ class AnthropicMessagesProvider:
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
             raise ValueError("model must be a non-empty string")
+        try:
+            profile = provider_profile(self.name)
+        except ValueError as exc:
+            raise ValueError("name must select an Anthropic Messages provider") from exc
+        if profile.protocol is not ProviderProtocol.ANTHROPIC_MESSAGES:
+            raise ValueError("name must select an Anthropic Messages provider")
+        if not isinstance(self.supports_images, bool):
+            raise ValueError("supports_images must be boolean")
         if not isinstance(self.allow_actions, bool):
             raise ValueError("allow_actions must be boolean")
         if not isinstance(self.action_instruction_profile, ActionInstructionProfile):
@@ -393,11 +410,15 @@ class AnthropicMessagesProvider:
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
+        provider_name: str = "anthropic",
     ) -> "AnthropicMessagesProvider":
-        client = anthropic_client_from_environment()
+        profile = provider_profile(provider_name)
+        client = anthropic_client_from_environment(provider_name)
         return cls(
             model=model,
             messages=client.messages,
+            name=provider_name,
+            supports_images=profile.supports_images,
             allow_actions=allow_actions,
             action_instruction_profile=action_instruction_profile,
             max_request_bytes=max_request_bytes,
@@ -419,6 +440,7 @@ class AnthropicMessagesProvider:
             tools,
             allow_actions=self.allow_actions,
             action_instruction_profile=self.action_instruction_profile,
+            supports_images=self.supports_images,
         )
         advertised_names = {definition["name"] for definition in definitions}
         stored_history = self._history.get(run_id)
@@ -426,7 +448,7 @@ class AnthropicMessagesProvider:
             {"role": "user", "content": _initial_input(task, memories)}
         ]
         if len(history) > 1:
-            results = _tool_results(ledger)
+            results = _tool_results(ledger, supports_images=self.supports_images)
             if not results:
                 raise AnthropicProviderError("MISSING_TOOL_RESULT")
             history.append({"role": "user", "content": results})

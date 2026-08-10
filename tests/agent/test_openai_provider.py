@@ -1218,6 +1218,38 @@ def test_openai_restore_rejects_contract_drift_before_state_or_network(
     assert scripted.calls == []
 
 
+def test_openai_restore_migrates_legacy_request_contract_digest() -> None:
+    provider = OpenAIResponsesProvider(
+        model="test-model",
+        responses=ScriptedResponses([]),
+    )
+    state = _continuation_state(provider)
+    state["request_contract_digest"] = _request_contract_digest(
+        model=provider.model,
+        instructions=_instructions(
+            allow_actions=False,
+            memory_context_used=False,
+            action_instruction_profile=provider.action_instruction_profile,
+        ),
+        tools=_tool_definitions(
+            REVIEWED_TOOLS,
+            allow_actions=False,
+            action_instruction_profile=provider.action_instruction_profile,
+        ),
+        allow_actions=False,
+        memory_context_used=False,
+        initial_input_digest=sha256(b"Inspect").hexdigest(),
+        max_request_bytes=provider.max_request_bytes,
+        context_window_tokens=provider.context_window_tokens,
+        output_token_reserve=provider.output_token_reserve,
+        contract_version=3,
+    )
+
+    provider.restore_continuation("run_legacy", state)
+
+    migrated = provider.export_continuation("run_legacy")
+    assert migrated["request_contract_digest"] != state["request_contract_digest"]
+
 def test_openai_restore_rejects_initial_input_tampering_before_state() -> None:
     provider = OpenAIResponsesProvider(
         model="test-model", responses=ScriptedResponses([])

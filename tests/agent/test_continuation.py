@@ -92,6 +92,49 @@ def test_private_continuation_round_trip_is_canonical_and_bounded(tmp_path: Path
     assert operation.result is OperationResult.SUCCESS
 
 
+def test_v7_qwen_identity_binds_protocol_and_workspace_endpoint(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["continuation_version"] = 7
+    payload["provider"] = {
+        "name": "qwen",
+        "model": "qwen3.7-plus",
+        "protocol": "openai_responses",
+        "base_url": (
+            "https://ws1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+    }
+    written = write_continuation(tmp_path.resolve(), payload)
+    assert written.payload["provider"] == payload["provider"]
+
+    for field, value in (
+        ("protocol", "openai_chat_completions"),
+        ("base_url", "https://example.com/compatible-mode/v1"),
+    ):
+        tampered = json.loads(json.dumps(payload))
+        tampered["provider"][field] = value
+        with pytest.raises(ContinuationError, match="CONTINUATION_INVALID"):
+            write_continuation(tmp_path.resolve(), tampered)
+
+
+def test_v7_chat_provider_uses_local_message_state(tmp_path: Path) -> None:
+    payload = _payload("run_kimi")
+    payload["continuation_version"] = 7
+    payload["provider"] = {
+        "name": "kimi",
+        "model": "kimi-k2.6",
+        "protocol": "openai_chat_completions",
+        "base_url": "https://api.moonshot.ai/v1",
+    }
+    payload["provider_state"] = {
+        "messages": [
+            {"role": "user", "content": "Inspect the window"},
+            {"role": "assistant", "content": "done"},
+        ]
+    }
+    written = write_continuation(tmp_path.resolve(), payload)
+    assert written.payload["provider_state"] == payload["provider_state"]
+
+
 @pytest.mark.parametrize("unsupported_version", [1, 2, 3, 4])
 def test_v1_to_v4_continuations_are_rejected_after_schema_upgrades(
     tmp_path: Path,

@@ -1242,6 +1242,8 @@ class AgentRunner:
             tool
             for tool in runtime_tools
             if allowed_tool_names is None or tool.name in allowed_tool_names
+            if bool(getattr(self.ports.provider, "supports_images", True))
+            or not tool.returns_image
             if not self.config.privacy.enabled
             or not tool.returns_image
             or (
@@ -1319,6 +1321,7 @@ class AgentRunner:
                     state=state,
                     provider_name=self.config.provider.name,
                     provider_model=self.config.provider.model,
+                    provider_base_url=self.config.provider.base_url,
                     registry_digest=reviewed_registry_digest(optional_tool_names),
                     advertised_tool_names=advertised_tool_names,
                     ttl_seconds=self.config.continuation.ttl_seconds,

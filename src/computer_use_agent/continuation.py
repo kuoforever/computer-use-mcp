@@ -16,6 +16,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Mapping
 
+from .provider_catalog import (
+    ProviderProtocol,
+    provider_profile,
+    resolve_provider_base_url,
+)
 from .reconstruction import (
     OperationEffect,
     OperationKind,
@@ -27,7 +32,8 @@ from .reconstruction import (
 from .types import JSONValue, ModelTurn, RunState, ToolCall, ToolEffect, ToolResult, to_json_value
 
 
-CONTINUATION_VERSION = 6
+CONTINUATION_VERSION = 7
+LEGACY_CONTINUATION_VERSION = 6
 MAX_CONTINUATION_BYTES = 48 * 1024 * 1024
 MAX_LEDGER_EVENTS = 512
 MAX_JSON_DEPTH = 32
@@ -186,7 +192,7 @@ def _is_unsafe_path(path: Path) -> bool:
 
 @dataclass(frozen=True)
 class ContinuationEnvelope:
-    """Validated v6 recovery data, still non-authoritative and non-executable."""
+    """Validated v7 or legacy v6 recovery data; never executable authority."""
 
     payload: Mapping[str, JSONValue]
 
@@ -245,7 +251,7 @@ class ContinuationEnvelope:
         version = payload.get("continuation_version")
         if isinstance(version, bool) or not isinstance(version, int):
             raise ContinuationError("CONTINUATION_INVALID")
-        if version != CONTINUATION_VERSION:
+        if version not in {LEGACY_CONTINUATION_VERSION, CONTINUATION_VERSION}:
             raise ContinuationError("CONTINUATION_VERSION_UNSUPPORTED")
         root = _object(payload, _TOP_LEVEL_FIELDS, "CONTINUATION_INVALID")
         run_id = _nonempty(root.get("run_id"), maximum=128, code="CONTINUATION_INVALID")
@@ -261,11 +267,39 @@ class ContinuationEnvelope:
             root.get("task"), maximum=1_000_000, code="CONTINUATION_INVALID"
         )
 
-        provider = _object(
-            root.get("provider"), frozenset({"name", "model"}), "CONTINUATION_INVALID"
+        provider_fields = (
+            frozenset({"name", "model"})
+            if version == LEGACY_CONTINUATION_VERSION
+            else frozenset({"name", "model", "protocol", "base_url"})
         )
-        if provider.get("name") not in {"openai", "anthropic"}:
+        provider = _object(root.get("provider"), provider_fields, "CONTINUATION_INVALID")
+        provider_name = provider.get("name")
+        if not isinstance(provider_name, str):
             raise ContinuationError("CONTINUATION_INVALID")
+        try:
+            profile = provider_profile(provider_name)
+        except ValueError as exc:
+            raise ContinuationError("CONTINUATION_INVALID") from exc
+        if version == LEGACY_CONTINUATION_VERSION:
+            if provider_name not in {"openai", "anthropic"}:
+                raise ContinuationError("CONTINUATION_INVALID")
+        else:
+            base_url = provider.get("base_url")
+            if (
+                provider.get("protocol") != profile.protocol.value
+                or not isinstance(base_url, str)
+            ):
+                raise ContinuationError("CONTINUATION_INVALID")
+            try:
+                expected_base_url = (
+                    resolve_provider_base_url(provider_name, base_url)
+                    if profile.requires_configured_base_url
+                    else profile.fixed_base_url
+                )
+            except ValueError as exc:
+                raise ContinuationError("CONTINUATION_INVALID") from exc
+            if base_url != expected_base_url:
+                raise ContinuationError("CONTINUATION_INVALID")
         _nonempty(provider.get("model"), maximum=256, code="CONTINUATION_INVALID")
 
         budget = _object(root.get("budget"), _BUDGET_FIELDS, "CONTINUATION_INVALID")
@@ -355,7 +389,7 @@ class ContinuationEnvelope:
         if not isinstance(provider_state, Mapping):
             raise ContinuationError("CONTINUATION_INVALID")
         _validate_json(provider_state)
-        if provider["name"] == "openai":
+        if profile.protocol is ProviderProtocol.OPENAI_RESPONSES:
             openai_state = _object(
                 provider_state,
                 frozenset(
@@ -597,13 +631,23 @@ class RuntimeContinuationRecorder:
         state: RunState,
         provider_name: str,
         provider_model: str,
+        provider_base_url: str | None = None,
         registry_digest: str,
         advertised_tool_names: frozenset[str],
         ttl_seconds: int,
         mcp_generation: int,
     ) -> None:
-        if provider_name not in {"openai", "anthropic"}:
-            raise ValueError("provider_name must be openai or anthropic")
+        try:
+            profile = provider_profile(provider_name)
+            effective_base_url = (
+                resolve_provider_base_url(provider_name, provider_base_url)
+                if profile.requires_configured_base_url
+                else profile.fixed_base_url
+            )
+        except ValueError as exc:
+            raise ValueError("provider identity must be reviewed") from exc
+        if effective_base_url is None:
+            raise ValueError("provider endpoint must be reviewed")
         if (
             isinstance(ttl_seconds, bool)
             or not isinstance(ttl_seconds, int)
@@ -616,6 +660,8 @@ class RuntimeContinuationRecorder:
         self.policy_version = state.policy_version
         self.provider_name = provider_name
         self.provider_model = provider_model
+        self.provider_protocol = profile.protocol
+        self.provider_base_url = effective_base_url
         self.registry_digest = _digest(registry_digest, "CONTINUATION_INVALID")
         if not isinstance(advertised_tool_names, frozenset) or not all(
             isinstance(name, str) for name in advertised_tool_names
@@ -647,7 +693,7 @@ class RuntimeContinuationRecorder:
                 "initial_input": None,
                 "output_batches": [],
             }
-            if provider_name == "openai"
+            if profile.protocol is ProviderProtocol.OPENAI_RESPONSES
             else {"messages": []}
         )
         self._current: OperationState | None = None
@@ -711,7 +757,12 @@ class RuntimeContinuationRecorder:
             "run_id": state.run_id,
             "checkpoint_sequence": checkpoint_sequence,
             "policy_version": state.policy_version,
-            "provider": {"name": self.provider_name, "model": self.provider_model},
+            "provider": {
+                "name": self.provider_name,
+                "model": self.provider_model,
+                "protocol": self.provider_protocol.value,
+                "base_url": self.provider_base_url,
+            },
             "registry_digest": self.registry_digest,
             "advertised_tool_names": list(self.advertised_tool_names),
             "task": state.task,
