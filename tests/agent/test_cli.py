@@ -359,6 +359,53 @@ def test_config_init_writes_typed_qwen_region_without_arbitrary_base_url(
     assert "base_url" not in rendered
 
 
+def test_config_init_writes_kimi_cn_route_without_storing_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    monkeypatch.setenv("MOONSHOT_CN_API_KEY", "must-not-be-written")
+    mcp_executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
+    mcp_executable.parent.mkdir()
+    mcp_executable.write_bytes(b"")
+    output = tmp_path / "kimi-cn.toml"
+
+    assert (
+        main(
+            [
+                "config",
+                "init",
+                "--provider",
+                "kimi",
+                "--model",
+                "kimi-k2.6",
+                "--region",
+                "cn",
+                "--mcp-executable",
+                str(mcp_executable),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+
+    result = json.loads(capsys.readouterr().out)
+    config = load_agent_config(output)
+    rendered = output.read_text(encoding="utf-8")
+    assert result["region"] == "cn"
+    assert config.provider.effective_region == "cn"
+    assert config.provider.credential_environment == "MOONSHOT_CN_API_KEY"
+    assert config.provider.effective_base_url == "https://api.moonshot.cn/v1"
+    assert 'region = "cn"' in rendered
+    assert "base_url" not in rendered
+    assert "must-not-be-written" not in rendered
+    assert "MOONSHOT_CN_API_KEY" not in rendered
+
+
 def test_config_init_writes_strict_local_openai_endpoint_and_blocks_action_profile(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

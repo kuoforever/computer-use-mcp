@@ -15,6 +15,7 @@ from ..planner_wire import (
 from ..provider_catalog import (
     ProviderProtocol,
     StructuredOutputMode,
+    provider_disables_one_shot_thinking,
     provider_profile,
 )
 from ..provider_setup import openai_client_from_environment
@@ -69,6 +70,7 @@ class OpenAIChatPlanner:
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
+    thinking_disabled: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
@@ -79,6 +81,8 @@ class OpenAIChatPlanner:
             raise ValueError("structured_output must be reviewed")
         if self.max_tokens_parameter not in {"max_tokens", "max_completion_tokens"}:
             raise ValueError("max_tokens_parameter must be reviewed")
+        if not isinstance(self.thinking_disabled, bool):
+            raise ValueError("thinking_disabled must be boolean")
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -122,6 +126,9 @@ class OpenAIChatPlanner:
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
+            thinking_disabled=provider_disables_one_shot_thinking(
+                provider_name, model, region
+            ),
         )
 
     async def create_candidate(self, request: PlannerRequest) -> str:
@@ -155,6 +162,8 @@ class OpenAIChatPlanner:
             }
         elif self.structured_output is StructuredOutputMode.JSON_OBJECT:
             provider_request["response_format"] = {"type": "json_object"}
+        if self.thinking_disabled:
+            provider_request["extra_body"] = {"thinking": {"type": "disabled"}}
         if _request_size(provider_request) > self.max_request_bytes:
             raise OpenAIChatPlannerError("OPENAI_CHAT_PLANNER_REQUEST_TOO_LARGE")
         if exceeds_token_window(

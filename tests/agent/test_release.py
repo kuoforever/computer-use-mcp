@@ -106,6 +106,7 @@ def test_release_preflight_records_sanitized_offline_evidence(
     monkeypatch.setenv("DASHSCOPE_API_KEY", "secret-qwen")
     monkeypatch.setenv("ARK_API_KEY", "secret-doubao")
     monkeypatch.setenv("MOONSHOT_API_KEY", "secret-kimi")
+    monkeypatch.setenv("MOONSHOT_CN_API_KEY", "secret-kimi-cn")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "secret-deepseek")
     monkeypatch.setenv("ZAI_API_KEY", "secret-glm")
     monkeypatch.setenv("MINIMAX_API_KEY", "secret-minimax")
@@ -188,6 +189,7 @@ def test_release_preflight_records_sanitized_offline_evidence(
         "DASHSCOPE_API_KEY",
         "ARK_API_KEY",
         "MOONSHOT_API_KEY",
+        "MOONSHOT_CN_API_KEY",
         "DEEPSEEK_API_KEY",
         "ZAI_API_KEY",
         "MINIMAX_API_KEY",
@@ -200,6 +202,7 @@ def test_release_preflight_records_sanitized_offline_evidence(
     assert all(
         environment["RUN_ANTHROPIC_INTEGRATION"] == "0" for environment in environments
     )
+    assert all(environment["RUN_KIMI_INTEGRATION"] == "0" for environment in environments)
     assert all(environment["PIP_NO_INDEX"] == "1" for environment in environments)
     assert all(environment["PIP_NO_INPUT"] == "1" for environment in environments)
     assert all(environment["PYTHONNOUSERSITE"] == "1" for environment in environments)

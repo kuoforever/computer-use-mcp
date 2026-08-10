@@ -84,6 +84,7 @@ def _offline_environment() -> dict[str, str]:
             "PYTHONNOUSERSITE": "1",
             "PYTHONUTF8": "1",
             "RUN_ANTHROPIC_INTEGRATION": "0",
+            "RUN_KIMI_INTEGRATION": "0",
             "RUN_OPENAI_INTEGRATION": "0",
         }
     )

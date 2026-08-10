@@ -22,6 +22,7 @@ def test_real_stdio_child_uses_fixed_launch_and_excludes_provider_secrets(
         "DASHSCOPE_API_KEY",
         "ARK_API_KEY",
         "MOONSHOT_API_KEY",
+        "MOONSHOT_CN_API_KEY",
         "DEEPSEEK_API_KEY",
         "ZAI_API_KEY",
         "MINIMAX_API_KEY",

@@ -65,6 +65,14 @@ PROVIDERS = (
         False,
     ),
     (
+        "kimi",
+        "kimi-k2.6",
+        {"region": "cn"},
+        "cn",
+        "https://api.moonshot.cn/v1",
+        False,
+    ),
+    (
         "deepseek",
         "deepseek-v4-pro",
         {},
@@ -154,6 +162,11 @@ def test_factory_routes_every_provider_through_its_reviewed_protocol_family(
 
     assert ordinary.name == planner.name == getattr(final, "name") == name
     assert getattr(ordinary, "supports_images") == config.supports_images
+    expected_thinking_disabled = (
+        name == "kimi" and model == "kimi-k2.6" and expected_region == "cn"
+    )
+    assert getattr(planner, "thinking_disabled", False) is expected_thinking_disabled
+    assert getattr(final, "thinking_disabled", False) is expected_thinking_disabled
     expected_call = (
         name,
         expected_region,
