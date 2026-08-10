@@ -6,6 +6,7 @@ that vendor's credential, endpoint, continuation, or evidence identity.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import Enum
 from types import MappingProxyType
@@ -37,16 +38,31 @@ class ProviderProfile:
     protocol: ProviderProtocol
     sdk_module: str
     install_extra: str
-    credential_environment: str
-    fixed_base_url: str | None
     structured_output: StructuredOutputMode
     supports_images: bool
     include_responses_reasoning: bool = False
     chat_max_tokens_parameter: str = "max_tokens"
 
-    @property
-    def requires_configured_base_url(self) -> bool:
-        return self.fixed_base_url is None
+
+@dataclass(frozen=True)
+class ProviderRegionProfile:
+    """One reviewed service region and its credential/endpoint boundary."""
+
+    region: str
+    credential_environment: str
+    fixed_base_url: str | None
+    qwen_workspace: bool = False
+
+
+@dataclass(frozen=True)
+class ProviderRoute:
+    """One resolved provider/region route safe to hand to an SDK client."""
+
+    name: str
+    region: str
+    credential_environment: str
+    base_url: str
+    workspace_id: str | None = None
 
 
 _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
@@ -56,8 +72,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.OPENAI_RESPONSES,
             sdk_module="openai",
             install_extra="agent-openai",
-            credential_environment="OPENAI_API_KEY",
-            fixed_base_url="https://api.openai.com/v1",
             structured_output=StructuredOutputMode.JSON_SCHEMA,
             supports_images=True,
             include_responses_reasoning=True,
@@ -67,8 +81,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.ANTHROPIC_MESSAGES,
             sdk_module="anthropic",
             install_extra="agent-anthropic",
-            credential_environment="ANTHROPIC_API_KEY",
-            fixed_base_url="https://api.anthropic.com",
             structured_output=StructuredOutputMode.JSON_SCHEMA,
             supports_images=True,
         ),
@@ -77,8 +89,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.OPENAI_RESPONSES,
             sdk_module="openai",
             install_extra="agent-openai",
-            credential_environment="DASHSCOPE_API_KEY",
-            fixed_base_url=None,
             structured_output=StructuredOutputMode.PROMPT_ONLY,
             supports_images=True,
         ),
@@ -87,8 +97,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.OPENAI_RESPONSES,
             sdk_module="openai",
             install_extra="agent-openai",
-            credential_environment="ARK_API_KEY",
-            fixed_base_url="https://ark.cn-beijing.volces.com/api/v3",
             structured_output=StructuredOutputMode.PROMPT_ONLY,
             supports_images=True,
         ),
@@ -97,8 +105,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             sdk_module="openai",
             install_extra="agent-openai",
-            credential_environment="MOONSHOT_API_KEY",
-            fixed_base_url="https://api.moonshot.ai/v1",
             structured_output=StructuredOutputMode.JSON_OBJECT,
             supports_images=True,
             chat_max_tokens_parameter="max_completion_tokens",
@@ -108,8 +114,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             sdk_module="openai",
             install_extra="agent-openai",
-            credential_environment="DEEPSEEK_API_KEY",
-            fixed_base_url="https://api.deepseek.com",
             structured_output=StructuredOutputMode.JSON_OBJECT,
             supports_images=False,
         ),
@@ -118,8 +122,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             sdk_module="openai",
             install_extra="agent-openai",
-            credential_environment="ZAI_API_KEY",
-            fixed_base_url="https://open.bigmodel.cn/api/paas/v4",
             structured_output=StructuredOutputMode.JSON_OBJECT,
             supports_images=False,
         ),
@@ -128,8 +130,6 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             protocol=ProviderProtocol.ANTHROPIC_MESSAGES,
             sdk_module="anthropic",
             install_extra="agent-anthropic",
-            credential_environment="MINIMAX_API_KEY",
-            fixed_base_url="https://api.minimaxi.com/anthropic",
             structured_output=StructuredOutputMode.PROMPT_ONLY,
             supports_images=False,
         ),
@@ -137,6 +137,123 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
 )
 
 SUPPORTED_PROVIDERS = frozenset(_PROFILES)
+
+
+def _region(
+    region: str,
+    credential_environment: str,
+    fixed_base_url: str | None = None,
+    *,
+    qwen_workspace: bool = False,
+) -> ProviderRegionProfile:
+    return ProviderRegionProfile(
+        region=region,
+        credential_environment=credential_environment,
+        fixed_base_url=fixed_base_url,
+        qwen_workspace=qwen_workspace,
+    )
+
+
+_REGIONS: Mapping[str, Mapping[str, ProviderRegionProfile]] = MappingProxyType(
+    {
+        "openai": MappingProxyType(
+            {"global": _region("global", "OPENAI_API_KEY", "https://api.openai.com/v1")}
+        ),
+        "anthropic": MappingProxyType(
+            {
+                "global": _region(
+                    "global", "ANTHROPIC_API_KEY", "https://api.anthropic.com"
+                )
+            }
+        ),
+        "qwen": MappingProxyType(
+            {
+                "cn-beijing": _region(
+                    "cn-beijing", "DASHSCOPE_API_KEY", qwen_workspace=True
+                ),
+                "ap-southeast-1": _region(
+                    "ap-southeast-1",
+                    "DASHSCOPE_AP_SOUTHEAST_1_API_KEY",
+                    qwen_workspace=True,
+                ),
+                "ap-northeast-1": _region(
+                    "ap-northeast-1",
+                    "DASHSCOPE_AP_NORTHEAST_1_API_KEY",
+                    qwen_workspace=True,
+                ),
+                "eu-central-1": _region(
+                    "eu-central-1",
+                    "DASHSCOPE_EU_CENTRAL_1_API_KEY",
+                    qwen_workspace=True,
+                ),
+            }
+        ),
+        "doubao": MappingProxyType(
+            {
+                "cn-beijing": _region(
+                    "cn-beijing",
+                    "ARK_API_KEY",
+                    "https://ark.cn-beijing.volces.com/api/v3",
+                ),
+                "ap-southeast-1": _region(
+                    "ap-southeast-1",
+                    "BYTEPLUS_ARK_API_KEY",
+                    "https://ark.ap-southeast.bytepluses.com/api/v3",
+                ),
+            }
+        ),
+        "kimi": MappingProxyType(
+            {
+                "global": _region(
+                    "global", "MOONSHOT_API_KEY", "https://api.moonshot.ai/v1"
+                )
+            }
+        ),
+        "deepseek": MappingProxyType(
+            {
+                "global": _region(
+                    "global", "DEEPSEEK_API_KEY", "https://api.deepseek.com"
+                )
+            }
+        ),
+        "glm": MappingProxyType(
+            {
+                "cn": _region(
+                    "cn", "ZAI_API_KEY", "https://open.bigmodel.cn/api/paas/v4"
+                ),
+                "global": _region(
+                    "global", "ZAI_GLOBAL_API_KEY", "https://api.z.ai/api/paas/v4"
+                ),
+            }
+        ),
+        "minimax": MappingProxyType(
+            {
+                "cn": _region(
+                    "cn", "MINIMAX_API_KEY", "https://api.minimaxi.com/anthropic"
+                ),
+                "global": _region(
+                    "global",
+                    "MINIMAX_GLOBAL_API_KEY",
+                    "https://api.minimax.io/anthropic",
+                ),
+            }
+        ),
+    }
+)
+
+_DEFAULT_REGIONS: Mapping[str, str] = MappingProxyType(
+    {
+        "openai": "global",
+        "anthropic": "global",
+        "qwen": "cn-beijing",
+        "doubao": "cn-beijing",
+        "kimi": "global",
+        "deepseek": "global",
+        "glm": "cn",
+        "minimax": "cn",
+    }
+)
+_WORKSPACE_ID = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
 
 
 def provider_profile(name: str) -> ProviderProfile:
@@ -148,7 +265,33 @@ def provider_profile(name: str) -> ProviderProfile:
         raise ValueError("PROVIDER_NOT_IMPLEMENTED") from exc
 
 
-def _validated_qwen_base_url(value: str) -> str:
+def supported_provider_regions(name: str) -> tuple[str, ...]:
+    """Return reviewed region names in stable catalog order."""
+
+    provider_profile(name)
+    return tuple(_REGIONS[name])
+
+
+def default_provider_region(name: str) -> str:
+    """Return the legacy-compatible default region for one provider."""
+
+    provider_profile(name)
+    return _DEFAULT_REGIONS[name]
+
+
+def provider_credential_environment(name: str, region: str | None = None) -> str:
+    """Return the documented credential variable for one reviewed region."""
+
+    selected = default_provider_region(name) if region is None else region
+    try:
+        return _REGIONS[name][selected].credential_environment
+    except (KeyError, TypeError) as exc:
+        raise ValueError("PROVIDER_REGION_INVALID") from exc
+
+
+def _validated_qwen_base_url(
+    value: str, *, expected_region: str | None = None
+) -> tuple[str, str, str]:
     try:
         parsed = urlsplit(value)
         port = parsed.port
@@ -163,28 +306,100 @@ def _validated_qwen_base_url(value: str) -> str:
         or port not in {None, 443}
         or parsed.query
         or parsed.fragment
-        or len(labels) < 5
-        or not hostname.endswith(".maas.aliyuncs.com")
-        or not labels[0]
+        or len(labels) != 5
+        or labels[2:] != ["maas", "aliyuncs", "com"]
+        or _WORKSPACE_ID.fullmatch(labels[0]) is None
+        or labels[1] not in _REGIONS["qwen"]
+        or (expected_region is not None and labels[1] != expected_region)
         or parsed.path.rstrip("/") != "/compatible-mode/v1"
     ):
         raise ValueError("PROVIDER_BASE_URL_INVALID")
-    return f"https://{hostname}/compatible-mode/v1"
+    return f"https://{hostname}/compatible-mode/v1", labels[0], labels[1]
 
 
-def resolve_provider_base_url(name: str, configured: str | None = None) -> str:
+def resolve_provider_route(
+    name: str,
+    *,
+    region: str | None = None,
+    workspace_id: str | None = None,
+    base_url: str | None = None,
+    legacy_credentials: bool = False,
+) -> ProviderRoute:
+    """Resolve one reviewed region, endpoint, and credential identity."""
+
+    provider_profile(name)
+    if region is not None and (not isinstance(region, str) or not region):
+        raise ValueError("PROVIDER_REGION_INVALID")
+    inferred_workspace: str | None = None
+    if name == "qwen" and region is None and base_url is not None:
+        _, inferred_workspace, selected_region = _validated_qwen_base_url(base_url)
+    else:
+        selected_region = default_provider_region(name) if region is None else region
+    try:
+        region_profile = _REGIONS[name][selected_region]
+    except KeyError as exc:
+        raise ValueError("PROVIDER_REGION_INVALID") from exc
+
+    effective_workspace: str | None
+    if region_profile.qwen_workspace:
+        if workspace_id is not None and (
+            not isinstance(workspace_id, str)
+            or _WORKSPACE_ID.fullmatch(workspace_id) is None
+        ):
+            raise ValueError("PROVIDER_WORKSPACE_INVALID")
+        if base_url is not None:
+            endpoint, endpoint_workspace, _ = _validated_qwen_base_url(
+                base_url, expected_region=selected_region
+            )
+            if workspace_id is not None and workspace_id != endpoint_workspace:
+                raise ValueError("PROVIDER_WORKSPACE_INVALID")
+            effective_workspace = endpoint_workspace
+        else:
+            effective_workspace = workspace_id or inferred_workspace
+            if effective_workspace is None:
+                raise ValueError("PROVIDER_WORKSPACE_REQUIRED")
+            endpoint = (
+                f"https://{effective_workspace}.{selected_region}.maas.aliyuncs.com"
+                "/compatible-mode/v1"
+            )
+    else:
+        if workspace_id is not None:
+            raise ValueError("PROVIDER_WORKSPACE_INVALID")
+        fixed_base_url = region_profile.fixed_base_url
+        if fixed_base_url is None:
+            raise ValueError("PROVIDER_BASE_URL_INVALID")
+        endpoint = fixed_base_url
+        if base_url is not None and base_url.rstrip("/") != endpoint:
+            raise ValueError("PROVIDER_BASE_URL_INVALID")
+        effective_workspace = None
+
+    credential_environment = region_profile.credential_environment
+    if legacy_credentials and name == "qwen":
+        credential_environment = _REGIONS["qwen"]["cn-beijing"].credential_environment
+    return ProviderRoute(
+        name=name,
+        region=selected_region,
+        credential_environment=credential_environment,
+        base_url=endpoint,
+        workspace_id=effective_workspace,
+    )
+
+
+def resolve_provider_base_url(
+    name: str,
+    configured: str | None = None,
+    *,
+    region: str | None = None,
+    workspace_id: str | None = None,
+) -> str:
     """Resolve one effective endpoint without permitting arbitrary rerouting."""
 
-    profile = provider_profile(name)
-    if profile.fixed_base_url is not None:
-        if configured is not None:
-            raise ValueError("PROVIDER_BASE_URL_FIXED")
-        return profile.fixed_base_url
-    if not isinstance(configured, str) or not configured.strip():
-        raise ValueError("PROVIDER_BASE_URL_REQUIRED")
-    if name == "qwen":
-        return _validated_qwen_base_url(configured.strip())
-    raise ValueError("PROVIDER_BASE_URL_INVALID")
+    return resolve_provider_route(
+        name,
+        region=region,
+        workspace_id=workspace_id,
+        base_url=configured,
+    ).base_url
 
 
 def provider_supports_images(name: str, model: str) -> bool:
@@ -199,10 +414,16 @@ def provider_supports_images(name: str, model: str) -> bool:
 
 __all__ = [
     "ProviderProfile",
+    "ProviderRegionProfile",
+    "ProviderRoute",
     "ProviderProtocol",
     "StructuredOutputMode",
     "SUPPORTED_PROVIDERS",
+    "default_provider_region",
     "provider_profile",
+    "provider_credential_environment",
     "provider_supports_images",
     "resolve_provider_base_url",
+    "resolve_provider_route",
+    "supported_provider_regions",
 ]

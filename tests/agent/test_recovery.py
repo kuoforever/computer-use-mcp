@@ -1091,6 +1091,61 @@ def test_completed_provider_reconstructs_exactly_one_pending_observation(
     assert plan.decision.automatic_resume is False
 
 
+def test_v8_recovery_requires_the_same_provider_region(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    global_config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig("minimax", "model-v1", region="global"),
+    )
+    state = _state()
+    recorder = RuntimeContinuationRecorder(
+        state_dir=global_config.state_dir,
+        state=state,
+        provider_name="minimax",
+        provider_model="model-v1",
+        provider_region="global",
+        provider_base_url="https://api.minimax.io/anthropic",
+        registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
+        ttl_seconds=900,
+        mcp_generation=1,
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "message_1", "done"),
+        provider_state={
+            "messages": [
+                {"role": "user", "content": state.task},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "done"}],
+                },
+            ]
+        },
+        checkpoint_sequence=3,
+    )
+    envelope = read_continuation(global_config.state_dir, state.run_id)
+    checkpoint = _checkpoint(state, 3)
+
+    matching = plan_read_only_recovery(
+        checkpoint, envelope, global_config, task=state.task
+    )
+    cn_config = replace(
+        global_config,
+        provider=ProviderConfig("minimax", "model-v1", region="cn"),
+    )
+    mismatched = plan_read_only_recovery(
+        checkpoint, envelope, cn_config, task=state.task
+    )
+
+    assert matching.decision.action is ReconstructionAction.FINALIZE_SUCCESS
+    assert mismatched.decision.action is ReconstructionAction.START_NEW_RUN
+    assert mismatched.decision.reason == "CHECKPOINT_MISMATCH"
+
+
 def test_completed_observation_reconstructs_result_without_mcp_replay(
     tmp_path: Path, monkeypatch: object
 ) -> None:

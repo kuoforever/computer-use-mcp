@@ -11,6 +11,8 @@ from computer_use_agent.provider_catalog import (
     ProviderProtocol,
     SUPPORTED_PROVIDERS,
     provider_profile,
+    resolve_provider_route,
+    supported_provider_regions,
 )
 import computer_use_agent.provider_setup as provider_setup
 from computer_use_agent.provider_setup import inspect_provider_setup
@@ -65,6 +67,9 @@ def test_qwen_requires_one_reviewed_workspace_https_endpoint() -> None:
     )
     config = ProviderConfig("qwen", "qwen3.7-plus", base_url=endpoint)
     assert config.effective_base_url == endpoint.rstrip("/")
+    assert config.effective_region == "cn-beijing"
+    assert config.effective_workspace_id == "workspace123"
+    assert config.uses_legacy_credentials is True
     assert config.protocol is ProviderProtocol.OPENAI_RESPONSES
 
     with pytest.raises(ConfigError, match="required"):
@@ -77,6 +82,75 @@ def test_qwen_requires_one_reviewed_workspace_https_endpoint() -> None:
     ):
         with pytest.raises(ConfigError, match="reviewed endpoint"):
             ProviderConfig("qwen", "qwen3.7-plus", base_url=invalid)
+
+
+def test_region_catalog_is_strict_and_constructs_only_reviewed_routes() -> None:
+    assert supported_provider_regions("qwen") == (
+        "cn-beijing",
+        "ap-southeast-1",
+        "ap-northeast-1",
+        "eu-central-1",
+    )
+    assert supported_provider_regions("doubao") == (
+        "cn-beijing",
+        "ap-southeast-1",
+    )
+    assert supported_provider_regions("glm") == ("cn", "global")
+    assert supported_provider_regions("minimax") == ("cn", "global")
+
+    routes = (
+        resolve_provider_route(
+            "qwen", region="ap-northeast-1", workspace_id="workspace-jp"
+        ),
+        resolve_provider_route("doubao", region="ap-southeast-1"),
+        resolve_provider_route("glm", region="global"),
+        resolve_provider_route("minimax", region="global"),
+    )
+    assert [(route.region, route.credential_environment, route.base_url) for route in routes] == [
+        (
+            "ap-northeast-1",
+            "DASHSCOPE_AP_NORTHEAST_1_API_KEY",
+            "https://workspace-jp.ap-northeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        ),
+        (
+            "ap-southeast-1",
+            "BYTEPLUS_ARK_API_KEY",
+            "https://ark.ap-southeast.bytepluses.com/api/v3",
+        ),
+        ("global", "ZAI_GLOBAL_API_KEY", "https://api.z.ai/api/paas/v4"),
+        (
+            "global",
+            "MINIMAX_GLOBAL_API_KEY",
+            "https://api.minimax.io/anthropic",
+        ),
+    ]
+
+    with pytest.raises(ConfigError, match="region is not reviewed"):
+        ProviderConfig("minimax", "MiniMax-M2.7", region="eu")
+    with pytest.raises(ConfigError, match="workspace_id is invalid"):
+        ProviderConfig(
+            "qwen",
+            "qwen3.7-plus",
+            region="cn-beijing",
+            workspace_id="not_a_dns_label",
+        )
+    with pytest.raises(ConfigError, match="reviewed endpoint"):
+        ProviderConfig(
+            "qwen",
+            "qwen3.7-plus",
+            base_url=(
+                "https://ws1.us-east-1.maas.aliyuncs.com/compatible-mode/v1"
+            ),
+        )
+    with pytest.raises(ConfigError, match="cannot be combined"):
+        ProviderConfig(
+            "qwen",
+            "qwen3.7-plus",
+            region="cn-beijing",
+            base_url=(
+                "https://ws1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+            ),
+        )
 
 
 def test_fixed_provider_rejects_config_endpoint_override() -> None:
@@ -115,7 +189,11 @@ environment = {{ CUMCP_ALLOWLIST = "notepad.exe" }}
 ''',
         encoding="utf-8",
     )
-    assert load_agent_config(path).provider.effective_base_url == endpoint
+    provider = load_agent_config(path).provider
+    assert provider.effective_base_url == endpoint
+    assert provider.effective_region == "ap-southeast-1"
+    assert provider.credential_environment == "DASHSCOPE_API_KEY"
+    assert provider.uses_legacy_credentials is True
 
 
 def test_model_aware_glm_image_capability_is_conservative() -> None:
@@ -140,19 +218,21 @@ def test_compatible_clients_receive_vendor_key_and_reviewed_endpoint(
     monkeypatch.setitem(sys.modules, "openai", openai_module)
     monkeypatch.setitem(sys.modules, "anthropic", anthropic_module)
     monkeypatch.setattr(provider_setup, "find_spec", lambda _name: object())
-    monkeypatch.setenv("DASHSCOPE_API_KEY", "qwen-secret")
-    monkeypatch.setenv("MINIMAX_API_KEY", "minimax-secret")
+    monkeypatch.setenv("DASHSCOPE_AP_SOUTHEAST_1_API_KEY", "qwen-secret")
+    monkeypatch.setenv("MINIMAX_GLOBAL_API_KEY", "minimax-secret")
 
     qwen_endpoint = (
-        "https://ws1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+        "https://ws1.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
     )
-    provider_setup.openai_client_from_environment("qwen", base_url=qwen_endpoint)
-    provider_setup.anthropic_client_from_environment("minimax")
+    provider_setup.openai_client_from_environment(
+        "qwen", region="ap-southeast-1", base_url=qwen_endpoint
+    )
+    provider_setup.anthropic_client_from_environment("minimax", region="global")
 
     assert constructed == [
         {"api_key": "qwen-secret", "base_url": qwen_endpoint},
         {
             "api_key": "minimax-secret",
-            "base_url": "https://api.minimaxi.com/anthropic",
+            "base_url": "https://api.minimax.io/anthropic",
         },
     ]

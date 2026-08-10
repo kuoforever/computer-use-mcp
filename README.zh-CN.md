@@ -31,7 +31,8 @@
 - 默认安全模式：进程白名单、检测到人类输入时让路、危险 ref 点击确认、审计
   日志和急停热键。
 - Agent Host 已离线实现 8 个精确 provider profile：OpenAI、Anthropic、
-  Qwen、Doubao、Kimi、DeepSeek、GLM 和 MiniMax。只有此前 OpenAI/Claude
+  Qwen、Doubao、Kimi、DeepSeek、GLM 和 MiniMax，并配置化支持已列入白名单
+  的服务区路由。只有此前 OpenAI/Claude
   范围有留存的真实 API 证据；新增国产 provider 尚未连接账号。详见
   [provider 支持矩阵（英文）](docs/PROVIDERS.md)。
 
@@ -125,8 +126,9 @@ provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP �
 `config setup --provider NAME [--model ID]` 支持 `openai`、`anthropic`、
 `qwen`、`doubao`、`kimi`、`deepseek`、`glm` 和 `minimax`。Anthropic 与
 MiniMax 使用 `agent-anthropic`，其余国产 profile 使用 `agent-openai`；若两类
-都需要则安装 `agent`。Qwen 还必须通过 `--base-url` 提供账号自己的受审核
-workspace-compatible endpoint，固定 endpoint 的 provider 会拒绝该覆盖。
+都需要则安装 `agent`。可用 `--region` 显式选择受审核服务区；Qwen 还必须
+提供 `--workspace-id`，由 Host 构造对应区域 endpoint。`--base-url` 仅保留给
+旧 Qwen 配置迁移，固定 endpoint 的 provider 会拒绝该覆盖。
 当前 Desktop Ask 已有一次 OpenAI/Windows/Notepad exact-candidate 结果；它不
 证明其他 provider、application、desktop action 或 release artifact。各家的
 凭据变量、图片能力和真实测试状态见

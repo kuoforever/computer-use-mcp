@@ -40,6 +40,7 @@ class InitializedConfig:
     mcp_executable: Path
     provider: str
     model: str
+    region: str
     profile: str
     policy_mode: str
 
@@ -51,6 +52,7 @@ class InitializedConfig:
             "mcp_executable": str(self.mcp_executable),
             "provider": self.provider,
             "model": self.model,
+            "region": self.region,
             "profile": self.profile,
             "policy_mode": self.policy_mode,
             "config_valid": True,
@@ -102,8 +104,10 @@ def resolve_mcp_executable(explicit: Path | None) -> Path:
 
 def _render_config(config: AgentConfig, *, profile: str) -> str:
     provider = config.provider
-    provider_base_url = (
-        "" if provider.base_url is None else f"base_url = {_toml_string(provider.base_url)}\n"
+    provider_workspace = (
+        ""
+        if provider.effective_workspace_id is None
+        else f"workspace_id = {_toml_string(provider.effective_workspace_id)}\n"
     )
     policy = config.policy
     continuation = config.continuation
@@ -123,7 +127,8 @@ policy_version = {_toml_string(config.policy_version)}
 [provider]
 name = {_toml_string(provider.name)}
 model = {_toml_string(provider.model)}
-{provider_base_url}max_request_bytes = {provider.max_request_bytes}
+region = {_toml_string(provider.effective_region)}
+{provider_workspace}max_request_bytes = {provider.max_request_bytes}
 context_window_tokens = {provider.context_window_tokens}
 output_token_reserve = {provider.output_token_reserve}
 request_timeout_seconds = {provider.request_timeout_seconds}
@@ -172,6 +177,8 @@ def initialize_desktop_ask_config(
     allowlist: str = "notepad.exe",
     mcp_executable: Path | None = None,
     pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
+    region: str | None = None,
+    workspace_id: str | None = None,
     base_url: str | None = None,
 ) -> InitializedConfig:
     """Create one non-overwriting, immediately valid read-only configuration."""
@@ -187,7 +194,13 @@ def initialize_desktop_ask_config(
     config = AgentConfig(
         state_dir=state_dir,
         policy_version="readonly-v1",
-        provider=ProviderConfig(name=provider, model=model, base_url=base_url),
+        provider=ProviderConfig(
+            name=provider,
+            model=model,
+            region=region,
+            workspace_id=workspace_id,
+            base_url=base_url,
+        ),
         mcp=MCPLaunchConfig(
             executable=executable,
             args=(),
@@ -215,6 +228,7 @@ def initialize_desktop_ask_config(
         mcp_executable=executable,
         provider=config.provider.name,
         model=config.provider.model,
+        region=config.provider.effective_region,
         profile=DESKTOP_ASK_PROFILE,
         policy_mode=config.policy.mode,
     )
@@ -227,6 +241,8 @@ def initialize_public_web_word_config(
     output: Path,
     mcp_executable: Path | None = None,
     pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
+    region: str | None = None,
+    workspace_id: str | None = None,
     base_url: str | None = None,
 ) -> InitializedConfig:
     """Create one supervised action config for the installed fixed workflow."""
@@ -245,6 +261,8 @@ def initialize_public_web_word_config(
         provider=ProviderConfig(
             name=provider,
             model=model,
+            region=region,
+            workspace_id=workspace_id,
             request_timeout_seconds=90,
             base_url=base_url,
         ),
@@ -286,6 +304,7 @@ def initialize_public_web_word_config(
         mcp_executable=executable,
         provider=config.provider.name,
         model=config.provider.model,
+        region=config.provider.effective_region,
         profile=PUBLIC_WEB_WORD_PROFILE,
         policy_mode=config.policy.mode,
     )
@@ -300,6 +319,8 @@ def initialize_agent_config(
     allowlist: str | None = None,
     mcp_executable: Path | None = None,
     pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
+    region: str | None = None,
+    workspace_id: str | None = None,
     base_url: str | None = None,
 ) -> InitializedConfig:
     """Route one closed product profile without widening its defaults."""
@@ -312,6 +333,8 @@ def initialize_agent_config(
             allowlist=allowlist or "notepad.exe",
             mcp_executable=mcp_executable,
             pause_shortcut=pause_shortcut,
+            region=region,
+            workspace_id=workspace_id,
             base_url=base_url,
         )
     if profile == PUBLIC_WEB_WORD_PROFILE:
@@ -323,6 +346,8 @@ def initialize_agent_config(
             output=output,
             mcp_executable=mcp_executable,
             pause_shortcut=pause_shortcut,
+            region=region,
+            workspace_id=workspace_id,
             base_url=base_url,
         )
     raise ConfigInitError("CONFIG_PROFILE_NOT_IMPLEMENTED")

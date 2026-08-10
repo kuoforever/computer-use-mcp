@@ -307,6 +307,58 @@ def test_config_init_creates_an_immediately_valid_desktop_ask_config(
     assert capsys.readouterr().err.strip() == "error: CONFIG_OUTPUT_EXISTS"
 
 
+def test_config_init_writes_typed_qwen_region_without_arbitrary_base_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    mcp_executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
+    mcp_executable.parent.mkdir()
+    mcp_executable.write_bytes(b"")
+    output = tmp_path / "qwen-sg.toml"
+
+    assert (
+        main(
+            [
+                "config",
+                "init",
+                "--provider",
+                "qwen",
+                "--model",
+                "qwen3.7-plus",
+                "--region",
+                "ap-southeast-1",
+                "--workspace-id",
+                "workspace-sg",
+                "--mcp-executable",
+                str(mcp_executable),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+
+    result = json.loads(capsys.readouterr().out)
+    config = load_agent_config(output)
+    rendered = output.read_text(encoding="utf-8")
+    assert result["region"] == "ap-southeast-1"
+    assert config.provider.effective_region == "ap-southeast-1"
+    assert config.provider.effective_workspace_id == "workspace-sg"
+    assert config.provider.credential_environment == (
+        "DASHSCOPE_AP_SOUTHEAST_1_API_KEY"
+    )
+    assert config.provider.effective_base_url == (
+        "https://workspace-sg.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    )
+    assert 'region = "ap-southeast-1"' in rendered
+    assert 'workspace_id = "workspace-sg"' in rendered
+    assert "base_url" not in rendered
+
+
 def test_config_init_creates_the_public_web_word_product_profile(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

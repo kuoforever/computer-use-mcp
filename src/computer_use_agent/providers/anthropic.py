@@ -411,9 +411,17 @@ class AnthropicMessagesProvider:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
         provider_name: str = "anthropic",
+        region: str | None = None,
+        base_url: str | None = None,
+        legacy_credentials: bool = False,
     ) -> "AnthropicMessagesProvider":
         profile = provider_profile(provider_name)
-        client = anthropic_client_from_environment(provider_name)
+        client = anthropic_client_from_environment(
+            provider_name,
+            region=region,
+            base_url=base_url,
+            legacy_credentials=legacy_credentials,
+        )
         return cls(
             model=model,
             messages=client.messages,

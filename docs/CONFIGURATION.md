@@ -12,9 +12,9 @@ The five configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
-| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--base-url URL] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
+| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--region REGION] [--workspace-id ID] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
 | `config settings [--config PATH] [--json]` | Project the strict TOML as human-first Agent Controls settings | Reads configuration plus provider SDK/credential presence only; creates no state and starts no process |
-| `config init --profile PROFILE --provider NAME --model ID --output PATH [--base-url URL] [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config init --profile PROFILE --provider NAME --model ID --output PATH [--region REGION] [--workspace-id ID] [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
 | `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact configured surface: thirteen core schemas plus optional `browser_snapshot` when enabled |
 
@@ -41,14 +41,17 @@ and releases both on exit. `[operator].pause_shortcut` accepts only canonical
 `ctrl+alt+<a-z>`; G and Q are reserved. It has no approve/resume action and
 does not replace the independent `Ctrl+Alt+Q` emergency stop.
 
-Doctor derives the exact SDK extra and credential variable from the configured
-provider. OpenAI-compatible profiles use `agent-openai`; Anthropic and MiniMax
-use `agent-anthropic`. Credential values are neither printed nor passed to the
-MCP child. Qwen alone requires `[provider].base_url`, restricted to its HTTPS
-workspace-compatible endpoint shape; every fixed-endpoint profile rejects an
-override. See [Provider support](PROVIDERS.md) for the exact matrix. The command
-returns fixed JSON, exits `0` when `ready` is `true`, and exits `2` with one
-`{code, action}` failure when setup is incomplete.
+Doctor derives the exact SDK extra and region-specific credential variable from
+the configured provider route. OpenAI-compatible profiles use `agent-openai`;
+Anthropic and MiniMax use `agent-anthropic`. Credential values are neither
+printed nor passed to the MCP child. `[provider].region` must be a reviewed
+catalog value. Qwen also requires `[provider].workspace_id`, from which the Host
+constructs the exact regional workspace endpoint. Every fixed-endpoint profile
+rejects an override. A Qwen-only `base_url` remains accepted solely for strict
+legacy migration and cannot be combined with the new fields. See
+[Provider support](PROVIDERS.md) for the exact matrix. The command returns fixed
+JSON, exits `0` when `ready` is `true`, and exits `2` with one `{code, action}`
+failure when setup is incomplete.
 
 Doctor sends no provider request and invokes no MCP tool, so it does not list
 windows, capture the screen, read desktop content, or perform an input action.
@@ -78,6 +81,22 @@ authority. See the
 [workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md). Its allowlist is closed:
 `config init --profile public-web-word` rejects `--allowlist`, and the runtime
 rejects a hand-edited value instead of failing later during Chrome or Word use.
+
+The generated provider block always records the effective region. For example,
+a new Qwen Singapore workspace is expressed as typed identity, not an endpoint
+override:
+
+~~~toml
+[provider]
+name = "qwen"
+model = "qwen3.7-plus"
+region = "ap-southeast-1"
+workspace_id = "your-workspace-id"
+~~~
+
+Changing `region` changes endpoint, credential variable, and continuation
+identity together. The Host does not retry another region when setup, network,
+quota, model, or provider calls fail.
 
 `[provider].request_timeout_seconds` defaults to `120` and accepts integers from
 `1` through `600`. The public-web-word generated profile uses `90`. Expiry

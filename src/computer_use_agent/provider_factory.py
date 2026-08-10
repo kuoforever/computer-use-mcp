@@ -25,7 +25,9 @@ def create_model_provider(
         return OpenAIResponsesProvider.from_environment(
             config.model,
             provider_name=config.name,
-            base_url=config.base_url,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
             allow_actions=allow_actions,
             action_instruction_profile=action_instruction_profile,
             max_request_bytes=config.max_request_bytes,
@@ -38,6 +40,9 @@ def create_model_provider(
         return AnthropicMessagesProvider.from_environment(
             config.model,
             provider_name=config.name,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
             allow_actions=allow_actions,
             action_instruction_profile=action_instruction_profile,
             max_request_bytes=config.max_request_bytes,
@@ -50,6 +55,9 @@ def create_model_provider(
         return OpenAIChatCompletionsProvider.from_environment(
             config.model,
             provider_name=config.name,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
             supports_images=config.supports_images,
             allow_actions=allow_actions,
             action_instruction_profile=action_instruction_profile,
@@ -63,19 +71,18 @@ def create_model_provider(
 def create_planner(config: ProviderConfig) -> PlannerPort:
     """Create one tool-free Planner adapter from the strict provider profile."""
 
-    common = {
-        "max_request_bytes": config.max_request_bytes,
-        "context_window_tokens": config.context_window_tokens,
-        "output_token_reserve": config.output_token_reserve,
-    }
     if config.protocol is ProviderProtocol.OPENAI_RESPONSES:
         from .providers.openai_planner import OpenAIPlanner
 
         return OpenAIPlanner.from_environment(
             config.model,
             provider_name=config.name,
-            base_url=config.base_url,
-            **common,
+            max_request_bytes=config.max_request_bytes,
+            context_window_tokens=config.context_window_tokens,
+            output_token_reserve=config.output_token_reserve,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
         )
     if config.protocol is ProviderProtocol.ANTHROPIC_MESSAGES:
         from .providers.anthropic_planner import AnthropicPlanner
@@ -83,7 +90,12 @@ def create_planner(config: ProviderConfig) -> PlannerPort:
         return AnthropicPlanner.from_environment(
             config.model,
             provider_name=config.name,
-            **common,
+            max_request_bytes=config.max_request_bytes,
+            context_window_tokens=config.context_window_tokens,
+            output_token_reserve=config.output_token_reserve,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
         )
     if config.protocol is ProviderProtocol.OPENAI_CHAT_COMPLETIONS:
         from .providers.openai_chat_planner import OpenAIChatPlanner
@@ -91,7 +103,12 @@ def create_planner(config: ProviderConfig) -> PlannerPort:
         return OpenAIChatPlanner.from_environment(
             config.model,
             provider_name=config.name,
-            **common,
+            max_request_bytes=config.max_request_bytes,
+            context_window_tokens=config.context_window_tokens,
+            output_token_reserve=config.output_token_reserve,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
         )
     raise ValueError("PROVIDER_NOT_IMPLEMENTED")
 
@@ -99,19 +116,18 @@ def create_planner(config: ProviderConfig) -> PlannerPort:
 def create_final_response_adapter(config: ProviderConfig) -> FinalResponsePort:
     """Create one tool-free final-response adapter from the strict profile."""
 
-    common = {
-        "max_request_bytes": config.max_request_bytes,
-        "context_window_tokens": config.context_window_tokens,
-        "output_token_reserve": config.output_token_reserve,
-    }
     if config.protocol is ProviderProtocol.OPENAI_RESPONSES:
         from .providers.openai_final import OpenAIFinalResponseAdapter
 
         return OpenAIFinalResponseAdapter.from_environment(
             config.model,
             provider_name=config.name,
-            base_url=config.base_url,
-            **common,
+            max_request_bytes=config.max_request_bytes,
+            context_window_tokens=config.context_window_tokens,
+            output_token_reserve=config.output_token_reserve,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
         )
     if config.protocol is ProviderProtocol.ANTHROPIC_MESSAGES:
         from .providers.anthropic_final import AnthropicFinalResponseAdapter
@@ -119,7 +135,12 @@ def create_final_response_adapter(config: ProviderConfig) -> FinalResponsePort:
         return AnthropicFinalResponseAdapter.from_environment(
             config.model,
             provider_name=config.name,
-            **common,
+            max_request_bytes=config.max_request_bytes,
+            context_window_tokens=config.context_window_tokens,
+            output_token_reserve=config.output_token_reserve,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
         )
     if config.protocol is ProviderProtocol.OPENAI_CHAT_COMPLETIONS:
         from .providers.openai_chat_final import OpenAIChatFinalResponseAdapter
@@ -128,7 +149,12 @@ def create_final_response_adapter(config: ProviderConfig) -> FinalResponsePort:
             config.model,
             provider_name=config.name,
             supports_images=config.supports_images,
-            **common,
+            max_request_bytes=config.max_request_bytes,
+            context_window_tokens=config.context_window_tokens,
+            output_token_reserve=config.output_token_reserve,
+            region=config.effective_region,
+            base_url=config.effective_base_url,
+            legacy_credentials=config.uses_legacy_credentials,
         )
     raise ValueError("PROVIDER_NOT_IMPLEMENTED")
 

@@ -155,6 +155,10 @@ async def diagnose_config(
 
     setup = inspect_provider_setup(
         config.provider.name,
+        region=config.provider.region,
+        workspace_id=config.provider.workspace_id,
+        base_url=config.provider.base_url,
+        legacy_credentials=config.provider.uses_legacy_credentials,
         environ=environ,
         module_finder=module_finder,
     )

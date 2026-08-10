@@ -116,6 +116,63 @@ def test_v7_qwen_identity_binds_protocol_and_workspace_endpoint(tmp_path: Path) 
             write_continuation(tmp_path.resolve(), tampered)
 
 
+def test_v8_provider_identity_binds_region_to_the_reviewed_endpoint(
+    tmp_path: Path,
+) -> None:
+    payload = _payload("run_qwen_region")
+    payload["continuation_version"] = 8
+    payload["provider"] = {
+        "name": "qwen",
+        "model": "qwen3.7-plus",
+        "protocol": "openai_responses",
+        "region": "ap-southeast-1",
+        "base_url": (
+            "https://workspace-sg.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+    }
+
+    written = write_continuation(tmp_path.resolve(), payload)
+
+    assert written.payload["provider"] == payload["provider"]
+    for field, value in (
+        ("region", "cn-beijing"),
+        (
+            "base_url",
+            "https://workspace-sg.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+        ),
+    ):
+        tampered = json.loads(json.dumps(payload))
+        tampered["provider"][field] = value
+        with pytest.raises(ContinuationError, match="CONTINUATION_INVALID"):
+            write_continuation(tmp_path.resolve(), tampered)
+
+
+def test_v8_fixed_endpoint_region_identity_rejects_cross_region_recovery(
+    tmp_path: Path,
+) -> None:
+    payload = _payload("run_minimax_global")
+    payload["continuation_version"] = 8
+    payload["provider"] = {
+        "name": "minimax",
+        "model": "MiniMax-M2.7",
+        "protocol": "anthropic_messages",
+        "region": "global",
+        "base_url": "https://api.minimax.io/anthropic",
+    }
+    payload["provider_state"] = {"messages": []}
+
+    assert write_continuation(tmp_path.resolve(), payload).payload["provider"] == payload[
+        "provider"
+    ]
+
+    payload["provider"] = {
+        **payload["provider"],
+        "region": "cn",
+    }
+    with pytest.raises(ContinuationError, match="CONTINUATION_INVALID"):
+        write_continuation(tmp_path.resolve(), payload)
+
+
 def test_v7_chat_provider_uses_local_message_state(tmp_path: Path) -> None:
     payload = _payload("run_kimi")
     payload["continuation_version"] = 7

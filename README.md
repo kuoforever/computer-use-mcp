@@ -31,7 +31,8 @@ desktop execution authority, and durable evidence that outlives a crash.
   authority; desktop effects remain on the ordinary Runner/MCP/Win32 path.
 - **Eight exact provider profiles** behind one provider-neutral tool contract:
   OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax. All eight
-  are offline verified; only the earlier OpenAI/Claude scopes have
+  and their allowlisted service-region routes are offline verified; only the
+  earlier OpenAI/Claude scopes have
   [retained live evidence](docs/E3_EVIDENCE.md). See the
   [provider matrix](docs/PROVIDERS.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
@@ -219,9 +220,11 @@ emergency stop. There is no global approve or resume; closing the host releases
 both registered shortcuts. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
 
 `config setup --provider NAME [--model ID]` supports `openai`, `anthropic`,
-`qwen`, `doubao`, `kimi`, `deepseek`, `glm`, and `minimax`. Qwen additionally
-requires `--base-url` with the account's reviewed workspace-compatible URL;
-fixed-endpoint providers reject that override. Exact credentials, SDK extras,
+`qwen`, `doubao`, `kimi`, `deepseek`, `glm`, and `minimax`. Use `--region` for
+an explicit reviewed service route. Qwen additionally requires
+`--workspace-id`; the Host constructs its allowlisted regional URL. Its
+`--base-url` option is retained only for strict legacy migration, and
+fixed-endpoint providers reject it. Exact regional credentials, SDK extras,
 image capability, continuation behavior, and deferred live-test status are in
 the [provider support matrix](docs/PROVIDERS.md).
 

@@ -134,6 +134,7 @@ class AgentControlsSnapshot:
                 "policy_mode": self.config.policy.mode,
                 "profile": self.profile,
                 "provider": self.config.provider.name,
+                "region": self.config.provider.effective_region,
                 "purpose": self.purpose,
                 "state_dir": str(self.config.state_dir),
             },
@@ -209,6 +210,10 @@ def load_agent_controls(
     config = load_agent_config(config_path)
     setup = inspect_provider_setup(
         config.provider.name,
+        region=config.provider.region,
+        workspace_id=config.provider.workspace_id,
+        base_url=config.provider.base_url,
+        legacy_credentials=config.provider.uses_legacy_credentials,
         environ=environ,
         module_finder=module_finder,
     )
@@ -233,6 +238,8 @@ def create_quick_setup(
     pause_shortcut: str = DEFAULT_PAUSE_SHORTCUT,
     environ: Mapping[str, str] | None = None,
     module_finder: ModuleFinder | None = None,
+    region: str | None = None,
+    workspace_id: str | None = None,
     base_url: str | None = None,
 ) -> QuickSetupResult:
     """Create one recommended config without starting any runtime port."""
@@ -259,6 +266,8 @@ def create_quick_setup(
         allowlist=allowlist,
         mcp_executable=mcp_executable,
         pause_shortcut=pause_shortcut,
+        region=region,
+        workspace_id=workspace_id,
         base_url=base_url,
     )
     controls = load_agent_controls(
@@ -303,6 +312,7 @@ def render_agent_controls(snapshot: AgentControlsSnapshot) -> str:
             "",
             "CONNECTION",
             f"  Provider: {config.provider.name}",
+            f"  Region: {config.provider.effective_region}",
             f"  Model: {config.provider.model}",
             f"  SDK: {sdk}",
             f"  Credential: {credential} ({snapshot.credential_environment})",
@@ -358,7 +368,10 @@ def render_quick_setup(result: QuickSetupResult) -> str:
             "SETUP CREATED",
             "",
             f"Purpose: {snapshot.purpose}",
-            f"Provider / model: {snapshot.config.provider.name} / {snapshot.config.provider.model}",
+            "Provider / region / model: "
+            f"{snapshot.config.provider.name} / "
+            f"{snapshot.config.provider.effective_region} / "
+            f"{snapshot.config.provider.model}",
             f"Configuration: {result.initialized.output}",
             "No credential was written to the configuration.",
             "",

@@ -9,8 +9,9 @@ from typing import Any
 
 from .provider_catalog import (
     ProviderProtocol,
+    provider_credential_environment,
     provider_profile,
-    resolve_provider_base_url,
+    resolve_provider_route,
 )
 
 class ProviderSetupError(RuntimeError):
@@ -67,6 +68,10 @@ ModuleFinder = Callable[[str], object | None]
 def inspect_provider_setup(
     provider: str,
     *,
+    region: str | None = None,
+    workspace_id: str | None = None,
+    base_url: str | None = None,
+    legacy_credentials: bool = False,
     environ: Mapping[str, str] | None = None,
     module_finder: ModuleFinder | None = None,
 ) -> ProviderSetup:
@@ -78,7 +83,20 @@ def inspect_provider_setup(
         raise ProviderSetupError("PROVIDER_NOT_IMPLEMENTED") from exc
     sdk_module = profile.sdk_module
     install_extra = profile.install_extra
-    credential_environment = profile.credential_environment
+    try:
+        credential_environment = (
+            provider_credential_environment(provider, region)
+            if provider == "qwen" and workspace_id is None and base_url is None
+            else resolve_provider_route(
+                provider,
+                region=region,
+                workspace_id=workspace_id,
+                base_url=base_url,
+                legacy_credentials=legacy_credentials,
+            ).credential_environment
+        )
+    except ValueError as exc:
+        raise ProviderSetupError("PROVIDER_ROUTE_INVALID") from exc
     finder = find_spec if module_finder is None else module_finder
     try:
         sdk_installed = finder(sdk_module) is not None
@@ -96,10 +114,23 @@ def inspect_provider_setup(
     )
 
 
-def require_provider_setup(provider: str) -> ProviderSetup:
+def require_provider_setup(
+    provider: str,
+    *,
+    region: str | None = None,
+    workspace_id: str | None = None,
+    base_url: str | None = None,
+    legacy_credentials: bool = False,
+) -> ProviderSetup:
     """Require the documented local setup before constructing an SDK client."""
 
-    setup = inspect_provider_setup(provider)
+    setup = inspect_provider_setup(
+        provider,
+        region=region,
+        workspace_id=workspace_id,
+        base_url=base_url,
+        legacy_credentials=legacy_credentials,
+    )
     issue = (
         setup.sdk_issue
         if not setup.sdk_installed
@@ -112,8 +143,21 @@ def require_provider_setup(provider: str) -> ProviderSetup:
     return setup
 
 
-def _client_initialization_error(provider: str) -> ProviderSetupError:
-    setup = inspect_provider_setup(provider)
+def _client_initialization_error(
+    provider: str,
+    *,
+    region: str | None,
+    workspace_id: str | None,
+    base_url: str | None,
+    legacy_credentials: bool,
+) -> ProviderSetupError:
+    setup = inspect_provider_setup(
+        provider,
+        region=region,
+        workspace_id=workspace_id,
+        base_url=base_url,
+        legacy_credentials=legacy_credentials,
+    )
     return ProviderSetupError(
         f"{provider.upper()}_CLIENT_INIT_FAILED: check "
         f"{setup.credential_environment} and the provider environment."
@@ -121,7 +165,12 @@ def _client_initialization_error(provider: str) -> ProviderSetupError:
 
 
 def openai_client_from_environment(
-    provider: str = "openai", *, base_url: str | None = None
+    provider: str = "openai",
+    *,
+    region: str | None = None,
+    workspace_id: str | None = None,
+    base_url: str | None = None,
+    legacy_credentials: bool = False,
 ) -> Any:
     """Construct an OpenAI-SDK client bound to one reviewed provider."""
 
@@ -131,49 +180,99 @@ def openai_client_from_environment(
         ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
     }:
         raise ProviderSetupError("PROVIDER_PROTOCOL_MISMATCH")
-    setup = require_provider_setup(provider)
+    route = resolve_provider_route(
+        provider,
+        region=region,
+        workspace_id=workspace_id,
+        base_url=base_url,
+        legacy_credentials=legacy_credentials,
+    )
+    setup = require_provider_setup(
+        provider,
+        region=route.region,
+        workspace_id=route.workspace_id,
+        base_url=route.base_url,
+        legacy_credentials=legacy_credentials,
+    )
     try:
         from openai import AsyncOpenAI
     except ImportError as exc:
-        setup = inspect_provider_setup(provider, module_finder=lambda _name: None)
+        setup = inspect_provider_setup(
+            provider,
+            region=route.region,
+            workspace_id=route.workspace_id,
+            base_url=route.base_url,
+            legacy_credentials=legacy_credentials,
+            module_finder=lambda _name: None,
+        )
         raise ProviderSetupError(
             f"{setup.sdk_issue.code}: {setup.sdk_issue.action}"
         ) from exc
     try:
-        endpoint = (
-            resolve_provider_base_url(provider, base_url)
-            if profile.requires_configured_base_url
-            else profile.fixed_base_url
-        )
         return AsyncOpenAI(
             api_key=os.environ[setup.credential_environment],
-            base_url=endpoint,
+            base_url=route.base_url,
         )
     except Exception as exc:
-        raise _client_initialization_error(provider) from exc
+        raise _client_initialization_error(
+            provider,
+            region=route.region,
+            workspace_id=route.workspace_id,
+            base_url=route.base_url,
+            legacy_credentials=legacy_credentials,
+        ) from exc
 
 
-def anthropic_client_from_environment(provider: str = "anthropic") -> Any:
+def anthropic_client_from_environment(
+    provider: str = "anthropic",
+    *,
+    region: str | None = None,
+    base_url: str | None = None,
+    legacy_credentials: bool = False,
+) -> Any:
     """Construct an Anthropic-SDK client bound to one reviewed provider."""
 
     profile = provider_profile(provider)
     if profile.protocol is not ProviderProtocol.ANTHROPIC_MESSAGES:
         raise ProviderSetupError("PROVIDER_PROTOCOL_MISMATCH")
-    setup = require_provider_setup(provider)
+    route = resolve_provider_route(
+        provider,
+        region=region,
+        base_url=base_url,
+        legacy_credentials=legacy_credentials,
+    )
+    setup = require_provider_setup(
+        provider,
+        region=route.region,
+        base_url=route.base_url,
+        legacy_credentials=legacy_credentials,
+    )
     try:
         from anthropic import AsyncAnthropic
     except ImportError as exc:
-        setup = inspect_provider_setup(provider, module_finder=lambda _name: None)
+        setup = inspect_provider_setup(
+            provider,
+            region=route.region,
+            base_url=route.base_url,
+            legacy_credentials=legacy_credentials,
+            module_finder=lambda _name: None,
+        )
         raise ProviderSetupError(
             f"{setup.sdk_issue.code}: {setup.sdk_issue.action}"
         ) from exc
     try:
         return AsyncAnthropic(
             api_key=os.environ[setup.credential_environment],
-            base_url=profile.fixed_base_url,
+            base_url=route.base_url,
         )
     except Exception as exc:
-        raise _client_initialization_error(provider) from exc
+        raise _client_initialization_error(
+            provider,
+            region=route.region,
+            workspace_id=None,
+            base_url=route.base_url,
+            legacy_credentials=legacy_credentials,
+        ) from exc
 
 
 __all__ = [

@@ -151,10 +151,17 @@ class OpenAIPlanner:
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
         provider_name: str = "openai",
+        region: str | None = None,
         base_url: str | None = None,
+        legacy_credentials: bool = False,
     ) -> "OpenAIPlanner":
         profile = provider_profile(provider_name)
-        client = openai_client_from_environment(provider_name, base_url=base_url)
+        client = openai_client_from_environment(
+            provider_name,
+            region=region,
+            base_url=base_url,
+            legacy_credentials=legacy_credentials,
+        )
         return cls(
             model=model,
             responses=client.responses,

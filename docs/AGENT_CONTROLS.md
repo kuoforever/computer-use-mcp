@@ -27,11 +27,13 @@ guarded-desktop-agent config doctor --config `
 
 The default is the reviewed `desktop-ask` / `openai` profile and the current
 project-validated OpenAI model ID. The bounded `--profile`, `--provider`,
-`--model`, `--base-url`, `--output`, `--allowlist`, `--mcp-executable`, and
-`--pause-shortcut` overrides reuse the existing `config init` validation; an
-explicit model override remains the operator's responsibility. `--base-url` is
-required only for the reviewed Qwen workspace endpoint and rejected for fixed
-endpoints. Existing output is never overwritten. Provider credentials remain
+`--model`, `--region`, Qwen-only `--workspace-id`, `--output`, `--allowlist`,
+`--mcp-executable`, and `--pause-shortcut` overrides reuse the existing
+`config init` validation; an explicit model override remains the operator's
+responsibility. New Qwen configurations use `region + workspace_id`; its
+`--base-url` option exists only for strict legacy migration and cannot be
+combined with either typed field. Fixed-endpoint providers reject it. Existing
+output is never overwritten. Region-specific provider credentials remain
 environment variables and are never written to TOML or printed. See the
 [provider matrix](PROVIDERS.md).
 
@@ -53,7 +55,7 @@ either command for automation. Human and JSON views come from the same strict
 
 Agent Controls may show only bounded configuration and local setup facts:
 
-- purpose, profile, provider, and model;
+- purpose, profile, provider, region, and model;
 - policy mode, approval policy, allowlisted applications, and `Ctrl+Alt+Q`
   emergency stop;
 - configured presentation preferences and the effective pause shortcut;

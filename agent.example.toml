@@ -16,9 +16,14 @@ policy_version = "readonly-v1"
 # docs/PROVIDERS.md for the exact mapping and evidence state.
 name = "openai"
 model = "your-model-id"
-# Only Qwen accepts base_url, and requires its account workspace endpoint:
-# base_url = "https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
-# Every fixed-endpoint provider rejects a configured base_url.
+# Select only a reviewed route from docs/PROVIDERS.md. Omitting this field keeps
+# the provider's legacy-compatible default region.
+region = "global"
+# New Qwen configurations also require the account workspace identifier; the
+# Host constructs the exact allowlisted regional endpoint:
+# workspace_id = "your-workspace-id"
+# Qwen-only base_url is accepted solely for legacy migration. It cannot be
+# combined with region/workspace_id; fixed-endpoint providers reject it.
 # Exact UTF-8 JSON byte cap for each outbound provider SDK request. This covers
 # task, selected memory, tool schemas/results, images, and local message history.
 max_request_bytes = 8388608

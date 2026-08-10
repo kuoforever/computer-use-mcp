@@ -16,10 +16,11 @@ from urllib.parse import urlsplit
 
 from .provider_catalog import (
     SUPPORTED_PROVIDERS,
+    ProviderRoute,
     ProviderProtocol,
     provider_profile,
     provider_supports_images,
-    resolve_provider_base_url,
+    resolve_provider_route,
 )
 from .types import (
     DEFAULT_PROVIDER_CONTEXT_TOKENS,
@@ -328,6 +329,8 @@ class ProviderConfig:
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
     request_timeout_seconds: int = DEFAULT_PROVIDER_TIMEOUT_SECONDS
     base_url: str | None = None
+    region: str | None = None
+    workspace_id: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or self.name not in SUPPORTED_PROVIDERS:
@@ -337,20 +340,39 @@ class ProviderConfig:
             raise ConfigError("provider model must be a non-empty string")
         if self.base_url is not None and not isinstance(self.base_url, str):
             raise ConfigError("provider base_url must be a string or omitted")
+        if self.region is not None and not isinstance(self.region, str):
+            raise ConfigError("provider region must be a string or omitted")
+        if self.workspace_id is not None and not isinstance(self.workspace_id, str):
+            raise ConfigError("provider workspace_id must be a string or omitted")
+        if self.base_url is not None and self.name != "qwen":
+            raise ConfigError(
+                "provider base_url must be omitted for a reviewed-region provider"
+            )
+        if self.base_url is not None and (
+            self.region is not None or self.workspace_id is not None
+        ):
+            raise ConfigError(
+                "legacy Qwen base_url cannot be combined with region or workspace_id"
+            )
         try:
-            resolve_provider_base_url(self.name, self.base_url)
+            resolve_provider_route(
+                self.name,
+                region=self.region,
+                workspace_id=self.workspace_id,
+                base_url=self.base_url,
+                legacy_credentials=self.region is None and self.base_url is not None,
+            )
         except ValueError as exc:
             code = str(exc)
             messages = {
-                "PROVIDER_BASE_URL_REQUIRED": (
-                    "provider base_url is required for this provider"
-                ),
-                "PROVIDER_BASE_URL_FIXED": (
-                    "provider base_url must be omitted for a fixed-endpoint provider"
-                ),
                 "PROVIDER_BASE_URL_INVALID": "provider base_url is not a reviewed endpoint",
+                "PROVIDER_REGION_INVALID": "provider region is not reviewed",
+                "PROVIDER_WORKSPACE_INVALID": "provider workspace_id is invalid",
+                "PROVIDER_WORKSPACE_REQUIRED": (
+                    "provider workspace_id is required for this provider region"
+                ),
             }
-            raise ConfigError(messages.get(code, "provider base_url is invalid")) from exc
+            raise ConfigError(messages.get(code, "provider routing is invalid")) from exc
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -401,7 +423,33 @@ class ProviderConfig:
 
     @property
     def effective_base_url(self) -> str:
-        return resolve_provider_base_url(self.name, self.base_url)
+        return self.route.base_url
+
+    @property
+    def effective_region(self) -> str:
+        return self.route.region
+
+    @property
+    def effective_workspace_id(self) -> str | None:
+        return self.route.workspace_id
+
+    @property
+    def credential_environment(self) -> str:
+        return self.route.credential_environment
+
+    @property
+    def uses_legacy_credentials(self) -> bool:
+        return self.region is None and self.base_url is not None
+
+    @property
+    def route(self) -> ProviderRoute:
+        return resolve_provider_route(
+            self.name,
+            region=self.region,
+            workspace_id=self.workspace_id,
+            base_url=self.base_url,
+            legacy_credentials=self.region is None and self.base_url is not None,
+        )
 
     @property
     def supports_images(self) -> bool:
@@ -696,6 +744,8 @@ def load_agent_config(path: str | Path) -> AgentConfig:
             "name",
             "model",
             "base_url",
+            "region",
+            "workspace_id",
             "max_request_bytes",
             "context_window_tokens",
             "output_token_reserve",
@@ -754,6 +804,8 @@ def load_agent_config(path: str | Path) -> AgentConfig:
         name=_read_nonempty_string(provider, "name", "provider"),
         model=_read_nonempty_string(provider, "model", "provider"),
         base_url=provider.get("base_url"),
+        region=provider.get("region"),
+        workspace_id=provider.get("workspace_id"),
         max_request_bytes=_read_nonnegative_int(
             provider,
             "max_request_bytes",
