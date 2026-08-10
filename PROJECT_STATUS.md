@@ -9,14 +9,11 @@
 > verified continual learning as the next complete-product programs. PR #299
 > merged H1 as `0dd9f1e`, H2 as `98c597f`, H3 as `16a170d`, L0 as `c1b3159`, H4 as `d1ca601`, H5 as `30ab5c4`, H6 as `26e1c8f`, L1 as `6950a26`, L2 as `db7bd65`, L3 as `8938e6e`, H7 as `4877f7c`, L4 as `390c659`, H8A as `a4598dd`, H8B as `b78e517`, and H8C as `784eabf`; H8 is complete. `GDA-PRODUCT-022` merged through PR #322 as `b783feb` after its full local and four-job GitHub gates passed. On 2026-08-09 the user opened `GDA-PROVIDER-001` for broad domestic-model API coverage; eight exact profiles are now implemented and fully offline-validated, while every added-provider live API gate is explicitly deferred until accounts exist.
 > `GDA-PRODUCT-007` merged its Host-fixed Pre-run Review through PR #274.
-> `GDA-PRODUCT-005` completed its functional UI-default
-> scope through PR #270; its draft release checkpoint in PR #272 and all final
-> exact-candidate gates, including E4, are deferred until feature freeze.
-> `GDA-DEMO-006` is paused at checkpoint `d74201f` in draft PR #231 with
-> its exact live-acceptance resume point retained below. The Full Cycle Runtime
-> baseline remains frozen at
-> `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
-> remains paused.
+> `GDA-PRODUCT-005` completed its functional UI-default scope through PR #270.
+> On 2026-08-10 the user retired draft PR #272 and its stale release branch; tag `archive/gda-product-005-release-dea9b96` preserves the old tip only for reference.
+> Any future release candidate must be rebuilt from current `main` and rerun every required gate, including E4.
+> The user also retired draft PR #231 and the dormant `GDA-DEMO-006` branch; tag `archive/gda-demo-006-pr231-5c403a5` preserves its tip. No Demo acceptance item is active.
+> The Full Cycle Runtime baseline remains frozen at `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work remains paused.
 > Updated: 2026-08-10.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
@@ -58,11 +55,11 @@ Those are post-MVP programs, not blockers for the first honest release.
 | `GDA-PRODUCT-002` | Complete; merged | Readiness and error UX: `config doctor`, actionable provider/setup failures, truthful Driver `scroll`/`drag` capability metadata, and a stronger clean-wheel first-run contract | Commit `f0e78cd`, merged through PR #267 as `d94d5f9` after all four GitHub checks passed; both branch copies were removed |
 | `GDA-PRODUCT-003` | Complete; merged | One exact-candidate real Windows/provider document-aware Desktop Ask result, with functional hardening only for defects actually observed | Commit `8bf139f`, wheel `54ec7077...a7a3`, and run `2699db750c314b178e1f2fb400e233bf` passed from fresh state; PR #268 merged all four green checks as `5eb9182`, and both branch copies were removed |
 | `GDA-PRODUCT-004` | Complete; merged | Installed `workflow public-web-word` product path with real-model step choice, packaged disposable DOCX template, installed sibling-MCP discovery, durable reopen/render verification, and exact fixture lifecycle; selectively port only required work from draft PR #231 | Clean candidate `74544d8`, wheel `b9eef298...e9ab22`, and run `public-web-word-e713ae032a3eb8ebf9923cc4eeeca02d` passed with a 518-character three-bullet brief, exact save/OOXML/reopen verification, real-Word visual QA, exact window cleanup, bounded output, and [retained evidence](docs/PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md); PR #269 merged as `0275f25` after all four checks passed and both branch copies were removed |
-| `GDA-PRODUCT-005` | Functional scope complete; release deferred | Every generated installed UI/UX boolean default-on, with the exact-candidate release gate retained for feature freeze | PR #270 merged as `4a1acb3` after all four CI jobs passed. Both generated product profiles explicitly write `CUMCP_ACTION_FEEDBACK=1` plus `[operator].presence_enabled`, `progress_enabled`, `reduced_motion`, `high_contrast`, and `decision_cards_enabled` as `true`; existing passive/read-only/approval/no-authority boundaries remain fixed. Draft PR #272 at `dea9b96` is a preserved release-preparation checkpoint only: E4 was not run, no release was approved, and its wheel/E3 evidence cannot satisfy future exact-candidate gates after further feature work |
+| `GDA-PRODUCT-005` | Functional scope complete; stale release branch retired | Every generated installed UI/UX boolean default-on; any future exact release candidate starts from current `main` | PR #270 merged as `4a1acb3` after all four CI jobs passed. Both generated product profiles explicitly write `CUMCP_ACTION_FEEDBACK=1` plus `[operator].presence_enabled`, `progress_enabled`, `reduced_motion`, `high_contrast`, and `decision_cards_enabled` as `true`; existing passive/read-only/approval/no-authority boundaries remain fixed. The user retired unmerged draft PR #272 on 2026-08-10; archive tag `archive/gda-product-005-release-dea9b96` preserves the obsolete tip, whose wheel/E3 evidence cannot satisfy any future exact-candidate gate |
 | `GDA-PRODUCT-006` | Complete; merged | Read-only Task Center plus human-readable Completion/Failure Receipt | Commit `1806091`, merged through PR #273 as `62fff669` after all four GitHub checks passed. CLI-first human/JSON views reuse the existing structurally redacted run/campaign projection; the strict immutable public-web-word receipt gates artifact success claims after save, digest, reopen, and cleanup verification. Complete gate: `1897 passed, 8 skipped`, Ruff, mypy over 129 source files, docs consistency, diff check, a fresh Python 3.13 installed-wheel Task Center smoke, independent contract review, and both branch copies removed. No provider, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-007` | Complete; merged | Host-compiled Pre-run Review Scope Sheet before the installed side-effect workflow | Commit `480d9d3`, merged through PR #274 as `a0e24782` after all four GitHub checks passed. Human/JSON review, shared fixed validator, exact `START`, explicit non-interactive acknowledgement, cancel/EOF zero-work behavior, same-object config/request handoff, and installed-wheel rejection of whitespace-wrapped acknowledgement passed `1912 passed, 8 skipped`, Ruff, mypy over 130 source files, docs consistency, diff check, and a clean Python 3.13 wheel smoke; both branch copies were removed. No provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-008` | Publication-cleared; PR #275 | Cooperative Pause/Takeover/Resume for the installed side-effect workflow | Commit `6ccdee7` and PR #275 passed all four required GitHub checks after the local gate: `1923 passed, 8 skipped`, Ruff, mypy over 131 source files, docs consistency, diff check, and fresh Python 3.13 wheel `C6CEB16C...E49F33` cross-process `pause_requested -> paused/released -> resume_requested -> closed` smoke. The strict Host-owned lifecycle covers both public-web-word Runner loops and the product Decision Card takeover choice; pause releases authority only at a durable safe boundary, explicit resume invalidates old authority and requires fresh observation, and possibly dispatched work remains terminal `UNKNOWN_OUTCOME`. No provider, MCP tool, desktop, application, E4, or release evidence is claimed |
-| `GDA-PRODUCT-009` | Complete; merged | Approval Inbox plus fixed-content local notifications | Commit `236ce46`, merged through PR #276 as `50aebdf` after the complete local gate and all four GitHub checks; both published branch copies were removed. Strict expiring records and fixed notifications remain attention-only, with no liveness, approval, control, retry, replay, or dispatch port. No provider, MCP tool, application, visual, assistive-technology, E4, or release evidence is claimed |
+| `GDA-PRODUCT-009` | Complete; merged | Approval Inbox plus fixed-content local notifications | PR #276 merged as `50aebdf` after the complete local gate and all four GitHub checks; both published branch copies were removed. Later local refactor `236ce46` was never part of PR #276 or `main` and is preserved only by `archive/gda-product-009-simplify-236ce46`; it is not capability evidence. Strict expiring records and fixed notifications remain attention-only, with no liveness, approval, control, retry, replay, or dispatch port. No provider, MCP tool, application, visual, assistive-technology, E4, or release evidence is claimed |
 | `GDA-PRODUCT-010` | Complete; merged | Accessibility closure for the composed operator experience | Commit `87de32d`, merged through PR #277 as `205d30d` after `1965 passed, 8 skipped`, Ruff, mypy over 134 source files, docs consistency, diff check, clean Python 3.13 wheel `008D26E1...15AEEA19`, bounded native UIA/no-activation smoke, and all four GitHub checks. The smoke safely returned `option_deny`; no Narrator/NVDA, live large-text, application, provider, MCP, E4, or release evidence is claimed |
 | `GDA-PRODUCT-011` | Complete; merged | Plain-language English and Simplified Chinese native operator UI | Commit `e40eb7e`, merged through PR #278 as `c58d768` after the complete local gate and all four GitHub jobs passed; both branch copies were removed. Strict locale resolution and reviewed Decision Card/Progress/Presence/fixed-notification resources preserve stable IDs, persisted contracts, safe denial, and sole Runner/MCP dispatch. No Narrator/NVDA, live large-text, application/provider/MCP action, E4, or release evidence is claimed |
 | `GDA-PRODUCT-012` | Complete; merged | Multi-display composition for native operator surfaces | Commit `6a1297f`, merged through PR #279 as `d467169` after the complete local gate and all four GitHub jobs passed; both feature-branch copies were removed. One immutable Host-selected foreground-monitor bounds/work-area/effective-DPI snapshot composes Presence, Progress, and Decision Card without changing desktop dispatch, coordinate authority, capture scope, or the primary-display MVP claim. The available machine had one physical monitor, so physical cross-monitor usability remains unclaimed |
@@ -160,9 +157,10 @@ the Full Cycle resume point, and `GDA-FC-004` subsequently closed the Runtime
 freeze. On 2026-08-03 the user explicitly reopened only `GDA-DEMO-004` for
 operator-selectable action pacing and more visible mouse/keyboard activity.
 The user then reopened `GDA-DEMO-006` for a model-driven bounded Demo. Its
-offline implementation is preserved at checkpoint `d74201f` in draft PR #231,
-but repository consolidation pauses live acceptance while core Runtime work is
-active.
+offline implementation was checkpointed at `d74201f` in draft PR #231. On
+2026-08-10 the user retired that draft and its dormant branch during repository
+pruning; archive tag `archive/gda-demo-006-pr231-5c403a5` retains the former PR
+tip for reference. It is not an active resume point.
 
 Continue to exclude:
 
@@ -172,8 +170,8 @@ Continue to exclude:
 - additional desktop tools or platform drivers;
 - Multi-Agent coordination;
 - automatic continual learning;
-- operator-UI work beyond the closed Demo surfaces and the paused
-  `GDA-DEMO-006` live-acceptance checkpoint;
+- operator-UI work beyond the closed Demo surfaces; the retired
+  `GDA-DEMO-006` archive is not active scope;
 - broad refactors unrelated to the bridge.
 
 Existing planned documents remain valid design records, but they are not active
@@ -188,11 +186,11 @@ delivery work.
 | `GDA-PRODUCT-002` | Complete; merged | Runtime doctor, actionable setup errors, truthful capability metadata, and installed-wheel first-run contract | Commit `f0e78cd`, merged through PR #267 as `d94d5f9`; fixed JSON doctor checks config, SDK, documented key, executable, cwd, and exact names/schemas; six OpenAI/Claude provider/planner/final constructors share one-line actionable setup errors; Driver metadata exposes all 15 implemented primitives. Complete gate: `1853 passed, 8 skipped`, Ruff, mypy over 124 source files, docs consistency, diff check, clean Python 3.13 wheel installation with both provider extras, two real sibling-MCP `ready=true` / 13-tool handshakes, independent functional review, and all four GitHub checks on 2026-08-06; both feature-branch copies were removed and no provider request, MCP tool call, desktop content read/action, application, or release evidence is claimed |
 | `GDA-PRODUCT-003` | Complete; merged | Current-candidate real document-aware Desktop Ask evidence | Attempt 1 retained the scope-paraphrase failure. Commit `8bf139f` repaired only that observed contract; its clean Python 3.13 wheel passed `config init` / `doctor` / `validate` and one installed OpenAI `gpt-5.6-terra` Windows/Notepad `ask --json` run with correct fixture-only facts, one successful semantic observation, one final response, zero side effects/retries/failures, and [retained bounded evidence](docs/DESKTOP_ASK_EVIDENCE.md). Complete gate: `1857 passed, 8 skipped`, Ruff, mypy over 124 source files, docs consistency, diff check, independent functional review, all four GitHub checks, and PR #268 merged as `5eb9182`; both branch copies were removed |
 | `GDA-PRODUCT-004` | Complete; merged | Model-driven public-browser-to-disposable-Word product workflow | Candidate `74544d8` and clean wheel `b9eef298...e9ab22` passed one OpenAI/Chrome/Word run with fresh source observations, non-prewritten three-bullet brief, durable save/OOXML/reopen verification, real-Word visual QA, exact cleanup, and [retained bounded evidence](docs/PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md); PR #269 merged as `0275f25` with all four checks green and both branch copies removed |
-| `GDA-PRODUCT-005` | Functional scope complete; release deferred | Installed product profiles default every current UI/UX boolean on; final exact-candidate release waits for feature freeze | PR #270 merged as `4a1acb3` with all four checks green. Draft PR #272 preserves candidate `dea9b96`, preflight/wheel/E3 review, and explicit `E4 NOT RUN`, but is not merged, tagged, released, waived, or reusable as future current-candidate evidence |
+| `GDA-PRODUCT-005` | Functional scope complete; stale release branch retired | Installed product profiles default every current UI/UX boolean on; any future release candidate is rebuilt from current `main` | PR #270 merged as `4a1acb3` with all four checks green. The user retired unmerged draft PR #272 on 2026-08-10; tag `archive/gda-product-005-release-dea9b96` preserves its obsolete tip, while its preflight/wheel/E3 result and explicit `E4 NOT RUN` remain unusable as future current-candidate evidence |
 | `GDA-PRODUCT-006` | Complete; merged | Read-only Task Center plus Completion/Failure Receipt | Commit `1806091`, merged through PR #273 as `62fff669`; existing validated run/campaign projection remains the only status source. The CLI-first surface and strict public-web-word receipt passed `1897 passed, 8 skipped`, Ruff, mypy over 129 source files, docs consistency, diff check, a fresh Python 3.13 installed-wheel smoke, independent contract review, and all four GitHub checks; both branch copies were removed and no provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-007` | Complete; merged | Host-compiled Pre-run Review Scope Sheet | Commit `480d9d3`, merged through PR #274 as `a0e24782`; the complete local gate and all four GitHub checks passed, both branch copies were removed, and no provider, MCP, desktop, application, E4, or release evidence is claimed |
 | `GDA-PRODUCT-008` | Publication-cleared; PR #275 | Cooperative Pause/Takeover/Resume | Strict versioned local record, live-lease and exact-checkpoint binding, CLI human/JSON control, Decision Card takeover, safe-boundary acknowledgement, authority release, explicit resume, observation-only reacquisition, fresh-evidence acknowledgement, continuation separation, nested verifier state, and unknown-outcome precedence passed the complete local, installed-wheel, and four-job GitHub gates. Native timing remains deferred with E4/release until feature freeze |
-| `GDA-PRODUCT-009` | Complete; merged | Approval Inbox plus fixed-content local notifications | Commit `236ce46`, merged through PR #276 as `50aebdf`; complete local and four-job GitHub gates passed, both published branch copies were removed, and no provider/MCP/application/accessibility/release claim is made |
+| `GDA-PRODUCT-009` | Complete; merged | Approval Inbox plus fixed-content local notifications | PR #276 merged as `50aebdf`; complete local and four-job GitHub gates passed, both published branch copies were removed, and no provider/MCP/application/accessibility/release claim is made. Unpublished follow-up `236ce46` is archived separately and is not merged evidence |
 | `GDA-PRODUCT-010` | Complete; merged | Accessibility closure | Commit `87de32d`, merged through PR #277 as `205d30d`; complete local, clean-wheel, native UIA/no-activation, and four-job GitHub gates passed. Human assistive-technology/live-large-text, application/provider/MCP, E4, and release remain unclaimed |
 | `GDA-PRODUCT-011` | Complete; merged | Plain-language English and Simplified Chinese native operator UI | Commit `e40eb7e`, merged through PR #278 as `c58d768`; complete local, clean-wheel, two-locale native UIA/no-activation, and four-job GitHub gates passed. Stable machine contracts and authority are unchanged; broader CLI, personalization, and human assistive-technology evidence remain separate |
 | `GDA-PRODUCT-012` | Complete; merged | Multi-display composition | Commit `6a1297f`, merged through PR #279 as `d467169`; complete local, clean-wheel, installed, single-monitor native, and four-job GitHub gates passed. Host-owned foreground-window monitor selection supplies one validated bounds/work-area/DPI snapshot to native operator placement without changing desktop-action coordinates, capture scope, authority, or replay behavior. Physical cross-monitor evidence remains open |
@@ -217,7 +215,7 @@ delivery work.
 | `GDA-DEMO-003` | Complete locally | Operator HUD visual hierarchy, step status, safe lock interaction, and live reliability | [Demo evidence](docs/OPERATOR_HUD_DEMO_EVIDENCE_2026-08-03.md); [100%/125% DPI evidence](docs/OPERATOR_HUD_DPI_EVIDENCE_2026-08-03.md); [physical Alt+Tab evidence](docs/OPERATOR_HUD_KEYBOARD_EVIDENCE_2026-08-03.md) |
 | `GDA-DEMO-004` | Complete locally | Operator-selectable Demo action pacing plus visible mouse and content-free keyboard feedback | [Native probe and retained Demo evidence](docs/DEMO_ACTION_PRESENTATION_EVIDENCE_2026-08-03.md) |
 | `GDA-DEMO-005` | Proposed; not active | Native cooperative desktop authority handoff and complete Decision Card consequences | PRODUCT-008 now supplies the separate control lifecycle without `BlockInput`; the integrated human-operated desktop timing/evidence run remains deferred until the feature-freeze gate |
-| `GDA-DEMO-006` | Paused; implemented offline; live agentic acceptance pending | Model-driven bounded public-web-to-disposable-Word Demo | Checkpoint `d74201f` in draft PR #231; exact fresh live-run resume point is retained below |
+| `GDA-DEMO-006` | Retired; former implementation archived | Model-driven bounded public-web-to-disposable-Word Demo | The user retired unmerged draft PR #231 and its branch on 2026-08-10. Tag `archive/gda-demo-006-pr231-5c403a5` preserves the former tip; no live acceptance or resume action is active |
 | `GDA-CORE-001` | Complete; merged | Make a ref without a supported accessibility action fail with `NOT_INVOKABLE`, never a coordinate click | Commit `1727a26`, merged through PR #230; `tests/test_core.py` proves zero coordinate calls; complete gate: `1578 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-002` | Complete; merged | Revalidate e-stop and foreground authority at the final MCP-to-driver action boundary | Commit `aa7d5a7`, merged through PR #230 as `d52ffb2`; six-action e-stop and five-action foreground-drift zero-dispatch tests plus confirmation/activation boundary tests; complete gate: `1592 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
 | `GDA-CORE-003` | Complete; merged | Preserve post-dispatch MCP cancellation certainty through the Runner | Commit `647a9ef`, merged through PR #232 as `5d19157`; result-aware cancellation persists the validated/privacy-protected unknown result and completed WAL boundary before re-propagation; task cancellation, generation invalidation, zero replay, persistence-failure chaining, and shared-caller terminal-state guards are regression tested; complete gate: `1597 passed, 8 skipped`, Ruff, mypy, docs consistency, and diff check passed on 2026-08-04 |
@@ -279,29 +277,29 @@ as `3ddc8f8`. `GDA-PRODUCT-016` merged through PR #283 as `7184dee`.
 its human-evidence update merged through PR #287 into baseline `9c13844`, and
 its modern-notification repair merged through PR #288 as `7b30385`; available named PRODUCT-017 gates are complete.
 Unavailable AT/hardware and deferred E4/release do not imply an automatic next item.
-`GDA-DEMO-006` is paused at its exact resume point, and no `GDA-HUD-*` item is
-active. The historical Full Cycle freeze remains the handoff baseline; it no
+`GDA-DEMO-006` is retired with its former tip archived, and no `GDA-HUD-*` item
+is active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
 
 
-## Paused resume point: `GDA-DEMO-006`
+## Retired archive record: `GDA-DEMO-006`
 
-Checkpoint `d74201f` in draft PR #231 preserves the offline implementation.
-Keep `CrossAppDemoProvider` as the deterministic E1 regression baseline. The
-live path uses the real public Microsoft Support co-authoring page and a
-disposable Word document; the configured provider chooses observations and
-actions and authors a two-to-four-bullet source brief. Host constraints do not
-substitute fixed prose. Nine 2026-08-03 live diagnostics failed and are not
-evidence.
+Checkpoint `d74201f` in former draft PR #231 preserved the offline
+implementation. The user retired that PR and its branch on 2026-08-10; archive tag `archive/gda-demo-006-pr231-5c403a5` preserves the former tip.
+The following acceptance description is historical context, not an active task or permission to resume the archived implementation.
+Keep `CrossAppDemoProvider` as the deterministic E1 regression baseline. The live path uses the real public Microsoft Support co-authoring page and a
+disposable Word document; the configured provider chooses observations and actions and authors a two-to-four-bullet source brief.
+Host constraints do not substitute fixed prose. Nine 2026-08-03 live diagnostics failed and are not evidence.
 
-The exact resume action is one fresh `gpt-5.6-terra` run in default
+The former exact resume action was one fresh `gpt-5.6-terra` run in default
 `agentic_actions` mode using fresh public-page and Word observations. It must
 author a non-prewritten brief, durably verify the complete saved brief, and
 resolve exact fixture cleanup without reusing prior observations, approvals, or
 generated content. Per-action cards remain skipped while MCP `safe_local`,
 human-input yielding, E-stop, audit, grounding, budgets, mandatory
-  post-observation, and unknown-outcome no-replay remain enforced. This Demo item
-  must not displace `GDA-CORE-029` after the user explicitly resumes it.
+  post-observation, and unknown-outcome no-replay remain enforced. Any future
+  Demo proposal requires new explicit scope from current `main`; it must not
+  treat this archive as a validated or automatically resumable candidate.
 
 The user proposed `GDA-DEMO-005` after observing a known pre-dispatch gate
 rejection. If explicitly resumed, implement a cooperative lease rather than a
@@ -381,6 +379,7 @@ Durable policy and active-scope decisions only. Earlier chronology is in the
 
 | Date | Decision |
 | --- | --- |
+| 2026-08-10 | The user instructed a full local/remote branch audit and pruning so `main` is the only persistent development branch. Unmerged draft PRs #231 and #272 are explicitly retired rather than merged; their exact tips, plus unpublished local refactor `236ce46`, are retained under the three named `archive/*` tags and are not capability evidence. Future bounded work starts on a new feature branch, merges only through a clear PR, and deletes both branch copies after merge. Full Cycle state and Runtime/data-lane boundaries remain unchanged; provider live acceptance and L5 remain inactive. |
 | 2026-08-07 | PR #279 passed all four required GitHub jobs with no review, comment, unresolved thread, or conflict, then merged `GDA-PRODUCT-012` as `d467169`; both feature-branch copies were removed without touching the peer-owned original checkout changes. The user continued delivery, so `GDA-PRODUCT-013` became the sole bounded presentation-personalization item. |
 | 2026-08-07 | `GDA-PRODUCT-013` selected one strict presentation-only contract after auditing theme, accent, density, layout, and accessibility precedence: `[operator].theme = dark | light | auto`. Absent or failed auto lookup retains legacy dark; generated profiles write auto; configured or detected High Contrast always wins. Shared palette/semantic accents compose Presence, Progress, and Decision Card without adding learned/per-application/model-controlled preferences or any authority. The local gate passed `2026 passed, 8 skipped`, Ruff, mypy over 138 source files, docs consistency, diff check, clean Python 3.13 wheel `41EC020B...C5AADE`, installed init/validate/import smoke, and valid dark/light/High-Contrast-over-light two-locale native smoke returning safe denial six times. Publication is the sole active action; the non-E4 feature-freeze evidence audit is exact next, while E4 and release remain deferred. |
 | 2026-08-07 | PR #280 passed wheel plus Python 3.11/3.12/3.13 jobs with no review, comment, unresolved thread, or conflict, then merged `GDA-PRODUCT-013` as `f3c4705`; GitHub removed the remote branch and the local branch was deleted without touching peer-owned original-checkout changes. The user continued delivery, so `GDA-PRODUCT-014` became the sole non-E4 feature-freeze evidence audit. |
