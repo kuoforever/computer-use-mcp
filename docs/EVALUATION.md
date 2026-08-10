@@ -431,8 +431,10 @@ frozen nine-case OpenAI stateless-replay matrix cover:
 - post-dispatch unknown outcome stopping immediately without replay.
 
 The [isolated E4 runbook](E4_SMOKE.md) defines the environment preconditions,
-four-cell acceptance matrix, fail-closed rules, and sanitized evidence record;
-execution evidence remains pending. Approval denial, stale/mismatched approval,
+four-cell acceptance matrix, fail-closed rules, and sanitized evidence record.
+The earlier OpenAI/Claude matrix has [retained bounded evidence](E4_EVIDENCE.md);
+every added profile and any future exact release candidate still requires its
+own current E4 decision and run. Approval denial, stale/mismatched approval,
 grounding drift, repeated actions, and post-action verification also retain
 their deterministic unit-level fake-port coverage.
 

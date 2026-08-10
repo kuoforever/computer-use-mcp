@@ -1,6 +1,7 @@
 # H8C safe choice evidence
 
-> **Status: implemented and offline verified on 2026-08-09; publication active.**
+> **Status: implemented, offline verified, and merged through PR #320 on
+> 2026-08-09.**
 
 ## Scope
 
