@@ -33,6 +33,7 @@ def _initialized_config(
     monkeypatch: pytest.MonkeyPatch,
     *,
     provider: str,
+    base_url: str | None = None,
 ) -> tuple[Path, Path]:
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
     executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
@@ -44,6 +45,7 @@ def _initialized_config(
         model="doctor-model",
         output=output,
         mcp_executable=executable,
+        base_url=base_url,
     )
     return output, executable
 
@@ -105,6 +107,33 @@ def test_doctor_reports_exact_installed_readiness_without_calling_a_tool(
         "failure": None,
     }
     assert constructed == 1
+    assert desktop.discover_calls == 1
+    assert desktop.close_calls == 1
+
+
+def test_doctor_accepts_missing_optional_local_key_without_provider_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path, _executable = _initialized_config(
+        tmp_path,
+        monkeypatch,
+        provider="local_openai",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    desktop = _RecordingDesktop()
+
+    report = asyncio.run(
+        diagnose_config(
+            config_path,
+            environ={},
+            module_finder=lambda _name: object(),
+            desktop_factory=lambda _launch: desktop,
+        )
+    )
+
+    assert report.ready is True
+    assert report.checks["provider_credential"] == "pass"
     assert desktop.discover_calls == 1
     assert desktop.close_calls == 1
 

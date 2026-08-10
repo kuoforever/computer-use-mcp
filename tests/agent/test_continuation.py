@@ -173,6 +173,29 @@ def test_v8_fixed_endpoint_region_identity_rejects_cross_region_recovery(
         write_continuation(tmp_path.resolve(), payload)
 
 
+def test_v8_local_openai_identity_accepts_only_a_loopback_v1_endpoint(
+    tmp_path: Path,
+) -> None:
+    payload = _payload("run_local")
+    payload["continuation_version"] = 8
+    payload["provider"] = {
+        "name": "local_openai",
+        "model": "qwen3:8b",
+        "protocol": "openai_chat_completions",
+        "region": "local",
+        "base_url": "http://127.0.0.1:11434/v1",
+    }
+    payload["provider_state"] = {"messages": []}
+
+    written = write_continuation(tmp_path.resolve(), payload)
+    assert written.payload["provider"] == payload["provider"]
+
+    tampered = json.loads(json.dumps(payload))
+    tampered["provider"]["base_url"] = "http://192.168.1.20:11434/v1"
+    with pytest.raises(ContinuationError, match="CONTINUATION_INVALID"):
+        write_continuation(tmp_path.resolve(), tampered)
+
+
 def test_v7_chat_provider_uses_local_message_state(tmp_path: Path) -> None:
     payload = _payload("run_kimi")
     payload["continuation_version"] = 7

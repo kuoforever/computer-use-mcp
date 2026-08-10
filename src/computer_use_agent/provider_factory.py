@@ -19,6 +19,9 @@ def create_model_provider(
 ) -> ModelProviderPort:
     """Create one ordinary provider adapter from the strict provider profile."""
 
+    if not config.supports_tool_calling:
+        raise ValueError("PROVIDER_TOOL_CALLING_UNVERIFIED")
+
     if config.protocol is ProviderProtocol.OPENAI_RESPONSES:
         from .providers.openai import OpenAIResponsesProvider
 

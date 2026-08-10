@@ -244,3 +244,41 @@ def test_factory_resolves_nondefault_regions_before_adapter_construction(
     create_model_provider(config, allow_actions=False)
 
     assert captured == [(expected_region, expected_base_url, False)]
+
+
+def test_local_openai_constructs_only_planner_and_final_before_tool_e3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    endpoint = "http://127.0.0.1:11434/v1"
+    client = SimpleNamespace(chat=SimpleNamespace(completions=object()))
+    calls: list[tuple[str, str, str, bool]] = []
+
+    def openai_client(
+        provider: str,
+        *,
+        region: str,
+        base_url: str,
+        legacy_credentials: bool,
+    ) -> object:
+        calls.append((provider, region, base_url, legacy_credentials))
+        return client
+
+    for module in (openai_chat, openai_chat_planner, openai_chat_final):
+        monkeypatch.setattr(module, "openai_client_from_environment", openai_client)
+
+    config = ProviderConfig(
+        "local_openai",
+        "qwen3:8b",
+        base_url=endpoint,
+    )
+    with pytest.raises(ValueError, match="PROVIDER_TOOL_CALLING_UNVERIFIED"):
+        create_model_provider(config, allow_actions=False)
+    planner = create_planner(config)
+    final = create_final_response_adapter(config)
+
+    assert planner.name == final.name == "local_openai"
+    assert final.supports_images is False
+    assert calls == [
+        ("local_openai", "local", endpoint, False),
+        ("local_openai", "local", endpoint, False),
+    ]

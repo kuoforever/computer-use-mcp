@@ -3,11 +3,14 @@
 > **Status: observation-only CLI plus separately gated internal H7 sequence implemented and offline verified.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
-> a one-shot provider-neutral PlannerPort contract with eight exact profiles
+> a one-shot provider-neutral PlannerPort contract with nine exact profiles
 > across three wire families are implemented. `ask` and `plan run` compose one host-scoped Planner
 > request, one to four Runner-dispatched observations, and one stateless
 > tool-free final response. Side-effect plans remain unavailable on that public
 > path; H7 separately permits one exact internal action/verification sequence.
+> The ninth profile is loopback-only `local_openai`: text-only prompt-schema
+> Planner/final construction is offline verified, while native ordinary tool
+> calling remains unavailable pending an exact local E3.
 
 ## Boundary
 

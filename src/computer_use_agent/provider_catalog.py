@@ -40,6 +40,8 @@ class ProviderProfile:
     install_extra: str
     structured_output: StructuredOutputMode
     supports_images: bool
+    supports_tool_calling: bool = True
+    credential_required: bool = True
     include_responses_reasoning: bool = False
     chat_max_tokens_parameter: str = "max_tokens"
 
@@ -132,6 +134,16 @@ _PROFILES: Mapping[str, ProviderProfile] = MappingProxyType(
             install_extra="agent-anthropic",
             structured_output=StructuredOutputMode.PROMPT_ONLY,
             supports_images=False,
+        ),
+        "local_openai": ProviderProfile(
+            name="local_openai",
+            protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+            sdk_module="openai",
+            install_extra="agent-openai",
+            structured_output=StructuredOutputMode.PROMPT_ONLY,
+            supports_images=False,
+            supports_tool_calling=False,
+            credential_required=False,
         ),
     }
 )
@@ -238,6 +250,9 @@ _REGIONS: Mapping[str, Mapping[str, ProviderRegionProfile]] = MappingProxyType(
                 ),
             }
         ),
+        "local_openai": MappingProxyType(
+            {"local": _region("local", "LOCAL_OPENAI_API_KEY")}
+        ),
     }
 )
 
@@ -251,6 +266,7 @@ _DEFAULT_REGIONS: Mapping[str, str] = MappingProxyType(
         "deepseek": "global",
         "glm": "cn",
         "minimax": "cn",
+        "local_openai": "local",
     }
 )
 _WORKSPACE_ID = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
@@ -317,6 +333,29 @@ def _validated_qwen_base_url(
     return f"https://{hostname}/compatible-mode/v1", labels[0], labels[1]
 
 
+def _validated_local_openai_base_url(value: str) -> str:
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except (TypeError, ValueError) as exc:
+        raise ValueError("PROVIDER_BASE_URL_INVALID") from exc
+    hostname = parsed.hostname
+    if (
+        parsed.scheme != "http"
+        or hostname not in {"127.0.0.1", "::1"}
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is None
+        or port < 1
+        or parsed.query
+        or parsed.fragment
+        or parsed.path.rstrip("/") != "/v1"
+    ):
+        raise ValueError("PROVIDER_BASE_URL_INVALID")
+    authority = f"[{hostname}]:{port}" if hostname == "::1" else f"{hostname}:{port}"
+    return f"http://{authority}/v1"
+
+
 def resolve_provider_route(
     name: str,
     *,
@@ -341,7 +380,14 @@ def resolve_provider_route(
         raise ValueError("PROVIDER_REGION_INVALID") from exc
 
     effective_workspace: str | None
-    if region_profile.qwen_workspace:
+    if name == "local_openai":
+        if workspace_id is not None:
+            raise ValueError("PROVIDER_WORKSPACE_INVALID")
+        if base_url is None:
+            raise ValueError("PROVIDER_BASE_URL_REQUIRED")
+        endpoint = _validated_local_openai_base_url(base_url)
+        effective_workspace = None
+    elif region_profile.qwen_workspace:
         if workspace_id is not None and (
             not isinstance(workspace_id, str)
             or _WORKSPACE_ID.fullmatch(workspace_id) is None
@@ -412,6 +458,12 @@ def provider_supports_images(name: str, model: str) -> bool:
     return profile.supports_images
 
 
+def provider_supports_tool_calling(name: str) -> bool:
+    """Return whether ordinary native tool calling is reviewed for this profile."""
+
+    return provider_profile(name).supports_tool_calling
+
+
 __all__ = [
     "ProviderProfile",
     "ProviderRegionProfile",
@@ -423,6 +475,7 @@ __all__ = [
     "provider_profile",
     "provider_credential_environment",
     "provider_supports_images",
+    "provider_supports_tool_calling",
     "resolve_provider_base_url",
     "resolve_provider_route",
     "supported_provider_regions",

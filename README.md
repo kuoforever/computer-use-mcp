@@ -29,10 +29,11 @@ desktop execution authority, and durable evidence that outlives a crash.
   `browser_snapshot` tool can read bounded ARIA/text from an existing loopback
   Chromium CDP session. It has no browser action, script, cookie, or storage
   authority; desktop effects remain on the ordinary Runner/MCP/Win32 path.
-- **Eight exact provider profiles** behind one provider-neutral tool contract:
-  OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax. All eight
-  and their allowlisted service-region routes are offline verified; only the
-  earlier OpenAI/Claude scopes have
+- **Nine exact provider profiles** behind one provider-neutral contract: eight
+  cloud identities (OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and
+  MiniMax) plus one loopback-only `local_openai` profile. Cloud routing and the
+  local Planner/final boundary are offline verified; local native tool calling
+  is unavailable pending an exact E3. Only the earlier OpenAI/Claude scopes have
   [retained live evidence](docs/E3_EVIDENCE.md). See the
   [provider matrix](docs/PROVIDERS.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
@@ -156,7 +157,8 @@ tools.
 
 Use Python 3.11, 3.12, or 3.13. The example below installs the OpenAI-compatible
 SDK family. Use `agent-anthropic` for Anthropic or MiniMax, or `agent` for both
-SDK families. Provider credentials always remain environment variables.
+SDK families. Cloud credentials always remain environment variables; the
+loopback profile has one optional environment-only key.
 
 ~~~powershell
 py -3.13 -m venv .venv
@@ -200,8 +202,8 @@ desktop authority, and every surface remains explicitly configurable.
 
 `config settings` is the CLI-first Agent Controls view. It explains purpose,
 provider/model, safety, interface preferences, and exact next commands from the
-same strict TOML source. It only reports provider SDK and credential-variable
-presence, opens no external port, registers no shortcut, and grants no
+same strict TOML source. It only reports provider SDK plus credential
+requirement/presence, opens no external port, registers no shortcut, and grants no
 approval, control, retry/replay, or dispatch authority. Use `--json` for the
 same bounded facts.
 
@@ -220,16 +222,18 @@ emergency stop. There is no global approve or resume; closing the host releases
 both registered shortcuts. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
 
 `config setup --provider NAME [--model ID]` supports `openai`, `anthropic`,
-`qwen`, `doubao`, `kimi`, `deepseek`, `glm`, and `minimax`. Use `--region` for
-an explicit reviewed service route. Qwen additionally requires
+`qwen`, `doubao`, `kimi`, `deepseek`, `glm`, `minimax`, and `local_openai`.
+Use `--region` for an explicit reviewed cloud route. Qwen additionally requires
 `--workspace-id`; the Host constructs its allowlisted regional URL. Its
 `--base-url` option is retained only for strict legacy migration, and
-fixed-endpoint providers reject it. Exact regional credentials, SDK extras,
-image capability, continuation behavior, and deferred live-test status are in
-the [provider support matrix](docs/PROVIDERS.md).
+fixed-endpoint providers reject it. `local_openai` instead requires an explicit
+model and `http://127.0.0.1:<port>/v1` or `http://[::1]:<port>/v1`; it never
+starts or downloads a model server. Its optional `LOCAL_OPENAI_API_KEY`, exact
+capability boundary, continuation behavior, and deferred E3 are in the
+[provider support matrix](docs/PROVIDERS.md).
 
 `config doctor` is the installed-runtime readiness check. It validates the
-configuration, provider extra and documented credential variable, MCP
+configuration, provider extra and required-or-optional credential contract, MCP
 executable and working directory, then starts the installed MCP child long
 enough to verify the exact configured `initialize` / `list_tools` contract:
 thirteen core tools, or those thirteen plus `browser_snapshot` when CDP

@@ -1,11 +1,11 @@
 # Provider support
 
-> **Status: eight provider identities and their reviewed service-region routes
-> are implemented and offline verified; credentialed testing is retained only
-> for the earlier OpenAI and Anthropic scopes.** No new regional route made a
-> real API request in this implementation slice. Its live E3/E4 and application
-> gates remain deferred until the matching regional accounts and credentials
-> exist.
+> **Status: eight cloud identities plus one loopback-only `local_openai`
+> identity are implemented and offline verified at their named boundaries;
+> credentialed testing is retained only for the earlier OpenAI and Anthropic
+> scopes.** Local support currently covers text-only Planner/final construction,
+> not native ordinary tool calling. No cloud region or local endpoint made a
+> real API request in this slice; E3/E4 and application gates remain deferred.
 
 ## Support matrix
 
@@ -23,6 +23,7 @@ continuation identity, setup check, and evidence state.
 | `deepseek` | Chat Completions-compatible | `agent-openai` | JSON object plus Host validation | no |
 | `glm` | Chat Completions-compatible | `agent-openai` | JSON object plus Host validation | only reviewed `glm-*v*` model IDs |
 | `minimax` | Anthropic Messages-compatible | `agent-anthropic` | exact schema in prompt, then Host validation | no |
+| `local_openai` | loopback Chat Completions-compatible | `agent-openai` | exact schema in prompt, then Host validation | no |
 
 `[provider].region` selects only one catalog entry below. Every entry fixes the
 credential-variable identity and endpoint; there is no automatic cross-region
@@ -44,18 +45,21 @@ fallback.
 | `glm` | `global` | `ZAI_GLOBAL_API_KEY` | `https://api.z.ai/api/paas/v4` |
 | `minimax` | `cn` | `MINIMAX_API_KEY` | `https://api.minimaxi.com/anthropic` |
 | `minimax` | `global` | `MINIMAX_GLOBAL_API_KEY` | `https://api.minimax.io/anthropic` |
+| `local_openai` | `local` | optional `LOCAL_OPENAI_API_KEY` | required `http://127.0.0.1:<port>/v1` or `http://[::1]:<port>/v1` |
 
 Omitting `region` preserves the pre-region defaults: `global` for OpenAI,
 Anthropic, Kimi, and DeepSeek; `cn-beijing` for Qwen and Doubao; and `cn` for
-GLM and MiniMax. Kimi currently has only the reviewed global route. The catalog
-does not invent a China route merely because a vendor has a domestic product.
+GLM and MiniMax; `local` is fixed for `local_openai`. Kimi currently has only
+the reviewed global route. The catalog does not invent a China route merely
+because a vendor has a domestic product.
 
 The current `config setup` recommendations are account-dependent starting
 points, not retained live evidence: `gpt-5.6-terra`, `claude-sonnet-5`,
 `qwen3.7-plus`, `doubao-seed-2-0-lite-260215`, `kimi-k2.6`,
-`deepseek-v4-pro`, `glm-5.2`, and `MiniMax-M2.7`. An operator may pass an
-explicit model ID; they remain responsible for verifying that account's model
-access and setting accurate context/output limits.
+`deepseek-v4-pro`, `glm-5.2`, and `MiniMax-M2.7`. `local_openai` deliberately
+has no recommended model because the Host cannot infer what an operator serves;
+both model ID and endpoint are required. Operators remain responsible for model
+access and accurate context/output limits.
 
 The provider and region snapshot was reviewed on 2026-08-10 against the official
 [Kimi API and model docs](https://platform.kimi.ai/docs/api/overview),
@@ -95,7 +99,16 @@ the exact account/model behavior.
   `[provider].workspace_id`. The Host constructs the URL from those fields.
   Fixed-endpoint providers reject `[provider].base_url`; Qwen accepts it only
   as a legacy migration form with an exact reviewed workspace URL. Arbitrary
-  proxies or rerouting are never authorized.
+  cloud proxies, non-loopback local endpoints, and unreviewed rerouting are
+  never authorized.
+- `local_openai` is the sole dynamic-endpoint exception. Its parser accepts
+  only literal IPv4/IPv6 loopback over `http`, one explicit nonzero port, and
+  exact `/v1`; it rejects `localhost`, LAN/public hosts, userinfo, query,
+  fragment, and other paths. It never starts, downloads, or manages a server.
+- Local Planner/final calls reuse the Chat Completions adapters in text-only,
+  prompt-schema mode. Ordinary native tool calling fails before SDK client
+  construction as `PROVIDER_TOOL_CALLING_UNVERIFIED`; `public-web-word` setup
+  fails with the same code. This boundary stays closed until exact E3.
 
 ## Setup
 
@@ -135,6 +148,18 @@ profiles, and `agent` when both SDK families are required. `config doctor`
 checks only SDK/key presence and the configured MCP discovery contract; it
 does not send a provider request.
 
+One local text-only Planner/final configuration is created explicitly:
+
+~~~powershell
+guarded-desktop-agent config setup --provider local_openai `
+  --model "operator-selected-model" `
+  --base-url "http://127.0.0.1:11434/v1"
+~~~
+
+`LOCAL_OPENAI_API_KEY` may be set for a loopback server that enforces a key; it
+is optional otherwise. `config doctor` does not probe the endpoint, and this
+support does not claim compatibility with any named server or model.
+
 ## Deferred live gate
 
 No Kimi, Qwen, Doubao, DeepSeek, GLM, or MiniMax credential was created or used
@@ -151,3 +176,9 @@ for this slice. Before promoting any one of them beyond offline support:
 
 Passing one provider or model does not promote a sibling profile, later model,
 desktop action, application, or release.
+
+Local E3 is separately deferred by the user. Before enabling native ordinary
+tool calling for any exact local server/model candidate, retain a harmless
+fake-MCP matrix for Planner, final response, tool schema/call behavior,
+structured output, timeout, continuation, and declared modality. A different
+server, model, quantization, template, or port remains a separate candidate.

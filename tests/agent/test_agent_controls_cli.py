@@ -117,3 +117,34 @@ def test_config_setup_rejects_reserved_pause_shortcut_before_writing(
     )
     assert "operator pause_shortcut" in capsys.readouterr().err
     assert not output.exists()
+
+
+def test_config_setup_local_openai_requires_explicit_model_and_loopback_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    output = tmp_path / "local.toml"
+    common = [
+        "config",
+        "setup",
+        "--provider",
+        "local_openai",
+        "--base-url",
+        "http://127.0.0.1:8000/v1",
+        "--output",
+        str(output),
+        "--mcp-executable",
+        str(_mcp_executable(tmp_path)),
+    ]
+
+    assert main(common) == 2
+    assert capsys.readouterr().err.strip() == "error: LOCAL_MODEL_REQUIRED"
+    assert not output.exists()
+
+    assert main([*common, "--model", "served-model"]) == 0
+    assert "LOCAL_OPENAI_API_KEY is optional" in capsys.readouterr().out
+    provider = load_agent_config(output).provider
+    assert provider.model == "served-model"
+    assert provider.effective_base_url == "http://127.0.0.1:8000/v1"

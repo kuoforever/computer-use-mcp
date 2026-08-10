@@ -20,6 +20,7 @@ from .provider_catalog import (
     ProviderProtocol,
     provider_profile,
     provider_supports_images,
+    provider_supports_tool_calling,
     resolve_provider_route,
 )
 from .types import (
@@ -344,11 +345,11 @@ class ProviderConfig:
             raise ConfigError("provider region must be a string or omitted")
         if self.workspace_id is not None and not isinstance(self.workspace_id, str):
             raise ConfigError("provider workspace_id must be a string or omitted")
-        if self.base_url is not None and self.name != "qwen":
+        if self.base_url is not None and self.name not in {"qwen", "local_openai"}:
             raise ConfigError(
                 "provider base_url must be omitted for a reviewed-region provider"
             )
-        if self.base_url is not None and (
+        if self.name == "qwen" and self.base_url is not None and (
             self.region is not None or self.workspace_id is not None
         ):
             raise ConfigError(
@@ -366,6 +367,9 @@ class ProviderConfig:
             code = str(exc)
             messages = {
                 "PROVIDER_BASE_URL_INVALID": "provider base_url is not a reviewed endpoint",
+                "PROVIDER_BASE_URL_REQUIRED": (
+                    "provider base_url is required for this provider"
+                ),
                 "PROVIDER_REGION_INVALID": "provider region is not reviewed",
                 "PROVIDER_WORKSPACE_INVALID": "provider workspace_id is invalid",
                 "PROVIDER_WORKSPACE_REQUIRED": (
@@ -439,7 +443,7 @@ class ProviderConfig:
 
     @property
     def uses_legacy_credentials(self) -> bool:
-        return self.region is None and self.base_url is not None
+        return self.name == "qwen" and self.region is None and self.base_url is not None
 
     @property
     def route(self) -> ProviderRoute:
@@ -454,6 +458,10 @@ class ProviderConfig:
     @property
     def supports_images(self) -> bool:
         return provider_supports_images(self.name, self.model)
+
+    @property
+    def supports_tool_calling(self) -> bool:
+        return provider_supports_tool_calling(self.name)
 
 
 @dataclass(frozen=True)

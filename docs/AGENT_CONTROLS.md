@@ -32,9 +32,10 @@ project-validated OpenAI model ID. The bounded `--profile`, `--provider`,
 `config init` validation; an explicit model override remains the operator's
 responsibility. New Qwen configurations use `region + workspace_id`; its
 `--base-url` option exists only for strict legacy migration and cannot be
-combined with either typed field. Fixed-endpoint providers reject it. Existing
-output is never overwritten. Region-specific provider credentials remain
-environment variables and are never written to TOML or printed. See the
+combined with either typed field. Fixed-endpoint providers reject it.
+`local_openai` requires an explicit model plus a literal loopback `/v1` URL;
+its optional key remains environment-only. Existing output is never
+overwritten. Provider credentials are never written to TOML or printed. See the
 [provider matrix](PROVIDERS.md).
 
 The pause chord defaults to `ctrl+alt+p`. Only exact canonical
@@ -59,14 +60,16 @@ Agent Controls may show only bounded configuration and local setup facts:
 - policy mode, approval policy, allowlisted applications, and `Ctrl+Alt+Q`
   emergency stop;
 - configured presentation preferences and the effective pause shortcut;
-- SDK and documented credential-variable presence as booleans, never the
-  credential value;
+- SDK plus documented credential required/presence booleans, never the value;
 - configuration/state paths and the exact `config doctor` command.
 
 The JSON `authority` object is deliberately explicit: approval, task control,
 dispatch, retry/replay, and shortcut registration are all `false`. The surface
 opens no provider, MCP, application, or desktop port and does not claim runtime
 readiness or liveness.
+
+Agent Controls JSON version 2 adds `provider_setup.credential_required` so an
+absent optional local key is never mislabeled as a missing readiness secret.
 
 The settings view does not itself register a shortcut and cannot infer whether
 another process currently owns one. Its fixed `registered_by_this_view=false`

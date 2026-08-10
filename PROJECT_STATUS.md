@@ -1,6 +1,6 @@
 # Project status
 
-> **Mode: bounded career/teaching documentation and provider service-region configuration are complete; regional account creation remains exact next, live acceptance is deferred, and L5 remains inactive.**
+> **Mode: `GDA-PROVIDER-003` loopback local-model configuration is offline complete and publication-pending; regional account creation resumes as exact next after a clear merge, local E3 is deferred by the user, and L5 remains inactive.**
 > `GDA-PRODUCT-017` completed its named gates and closeout through PR #289 as `e9d8a3c`.
 > PR #290 merged `GDA-PRODUCT-018` as `453fda9`; both branch copies were removed.
 > PR #291 merged `GDA-PRODUCT-019` as `60b26cc`; both branch copies were removed.
@@ -135,10 +135,10 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Driver contract | `1.0.0` |
 | Agent contract | `0.1.0` |
 | Trace/checkpoint | Redacted `trace_version=1`, `checkpoint_version=1` |
-| Providers | Eight exact offline-implemented profiles: OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax; retained live evidence remains OpenAI/Claude-only |
+| Providers | Nine exact offline-implemented profiles: eight cloud identities plus loopback-only `local_openai` for text Planner/final; retained live evidence remains OpenAI/Claude-only, and local E3 is deferred |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-10, all green — `2491 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, and `git diff --check` |
+| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-10, all green — `2512 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, and `git diff --check` |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
 The test count is a dated working snapshot, not a permanent capability claim.
@@ -206,6 +206,7 @@ delivery work.
 | `GDA-PROVIDER-002` | Offline complete; merged; live acceptance deferred by user | Typed allowlisted service-region routing for all currently documented OpenAI, Anthropic, Qwen, Doubao/BytePlus, Kimi, DeepSeek, GLM/Z.AI, and MiniMax routes, with isolated regional credentials, generated Qwen workspace endpoints, strict legacy migration, and continuation/recovery region binding | Commit `16a46c8` passed `2500 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, and diff check. PR #326 passed all four GitHub jobs with no review, comment, unresolved thread, conflict, or head drift and merged as `417b91b`; both feature-branch copies and its worktree were removed. No account, credential, API request, MCP, desktop, application, E3, E4, release, cross-region fallback, or arbitrary proxy support is claimed. Exact next is user-created regional accounts followed by one exact provider/model/region harmless fake-MCP E3 matrix at a time |
 | `GDA-DOCS-001` | Complete; merged | Per-item career evidence plus teaching-oriented collaboration modules | Commit `2135da7` added `docs/career/`, separating 7 project-specific resume items from 3 teaching modules under shared protocol v1; every item links owner/evidence sources and states claim limits. `2500 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, link/status/index checks, and diff check passed. PR #329 passed all four GitHub jobs with no review, comment, unresolved thread, conflict, or head drift and merged as `384ff636`; both feature-branch copies and its worktree were removed. No capability or evidence level changed; regional account creation remains exact next |
 | `GDA-MAINT-001` | Complete; merged | Reproducible generated development environment without committing `.venv` | Commit `e79d06e` keeps `.venv` and named clean variants ignored. The Windows/Python 3.13 `.[dev]` lock binds the complete LF-normalized `pyproject.toml` content digest, requires package hashes, and contains no local path or index setting; the bootstrap creates or reuses a venv without activation, deletion, dependency re-resolution, provider, MCP, or desktop ports, while the pinned updater regenerates the lock under ignored `out/`. A fresh isolated bootstrap, repeat bootstrap, `pip check`, CLI help, byte-identical lock regeneration, `2502 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, diff check, PowerShell parse, and lock-contract tests passed. PR #328 passed all four GitHub jobs with no review, comment, unresolved thread, conflict, or head drift and merged as `3f74b59`; both feature-branch copies were removed. One upstream `pydantic-settings` forward-reference warning remains non-failing. Regional-account creation followed by one exact provider/model/region harmless fake-MCP E3 matrix at a time is exact next |
+| `GDA-PROVIDER-003` | Offline implementation and gate complete; publication pending; local E3 deferred by user | Explicit-model `local_openai` text Planner/final profile over one strict literal-loopback OpenAI Chat Completions `/v1` endpoint, with optional environment-only key, prompt-only structured output, no images, and native ordinary tool calling fail-closed before client construction | `2512 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, and diff check cover IPv4/IPv6 loopback validation, LAN/public/credential/query/path rejection, setup/doctor/settings v2 optional-key truthfulness, SDK sentinel construction, prompt-schema Planner/final behavior, image/tool/public-workflow denial, continuation v8 identity, and recovery port binding. No server start/download/manage behavior, named local server/model compatibility, endpoint probe, provider request, MCP tool, desktop, application, E3, E4, or release evidence is claimed. After a clear PR merge and branch/worktree cleanup, exact next remains regional account creation; local E3 stays deferred |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |
@@ -281,7 +282,6 @@ Unavailable AT/hardware and deferred E4/release do not imply an automatic next i
 `GDA-DEMO-006` is retired with its former tip archived, and no `GDA-HUD-*` item
 is active. The historical Full Cycle freeze remains the handoff baseline; it no
 longer freezes the separately reopened core Runtime scope above.
-
 
 ## Retired archive record: `GDA-DEMO-006`
 

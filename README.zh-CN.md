@@ -30,9 +30,10 @@
   读取 cookie/storage，也不会产生浏览器 action ref。
 - 默认安全模式：进程白名单、检测到人类输入时让路、危险 ref 点击确认、审计
   日志和急停热键。
-- Agent Host 已离线实现 8 个精确 provider profile：OpenAI、Anthropic、
-  Qwen、Doubao、Kimi、DeepSeek、GLM 和 MiniMax，并配置化支持已列入白名单
-  的服务区路由。只有此前 OpenAI/Claude
+- Agent Host 已离线实现 9 个精确 provider profile：8 个云端 identity
+  （OpenAI、Anthropic、Qwen、Doubao、Kimi、DeepSeek、GLM 和 MiniMax）以及
+  一个仅 loopback 的 `local_openai`。云端路由和本地 Planner/final 边界已离线
+  验证；本地 native tool-calling 在 E3 前固定不可用。只有此前 OpenAI/Claude
   范围有留存的真实 API 证据；新增国产 provider 尚未连接账号。详见
   [provider 支持矩阵（英文）](docs/PROVIDERS.md)。
 
@@ -116,7 +117,7 @@ MCP 急停。没有全局 approve/resume，关闭 host 即释放两个注册。�
 [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md)。
 
 `config doctor` 是安装后 readiness 检查：它依次验证配置、provider extra、
-文档约定的凭据环境变量、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP
+必需或可选的凭据合同、MCP 可执行文件和工作目录，然后短暂启动已安装的 MCP
 子进程，通过 `initialize` / `list_tools` 核对完整的已配置契约：默认 13 个
 核心工具，启用 CDP 时为核心工具加 `browser_snapshot`。它输出固定
 JSON；全部通过时退出码为 `0`，遇到一个可操作故障时为 `2`。它不会请求
@@ -124,11 +125,13 @@ provider、调用 MCP tool、读取桌面内容或执行桌面动作；但 MCP �
 创建配置的 audit 目录并启动急停按键轮询，随后子进程会被关闭。
 
 `config setup --provider NAME [--model ID]` 支持 `openai`、`anthropic`、
-`qwen`、`doubao`、`kimi`、`deepseek`、`glm` 和 `minimax`。Anthropic 与
-MiniMax 使用 `agent-anthropic`，其余国产 profile 使用 `agent-openai`；若两类
+`qwen`、`doubao`、`kimi`、`deepseek`、`glm`、`minimax` 和 `local_openai`。
+Anthropic 与 MiniMax 使用 `agent-anthropic`，其余 profile 使用 `agent-openai`；若两类
 都需要则安装 `agent`。可用 `--region` 显式选择受审核服务区；Qwen 还必须
-提供 `--workspace-id`，由 Host 构造对应区域 endpoint。`--base-url` 仅保留给
-旧 Qwen 配置迁移，固定 endpoint 的 provider 会拒绝该覆盖。
+提供 `--workspace-id`，由 Host 构造对应区域 endpoint。云端 `--base-url` 仅保留给
+旧 Qwen 配置迁移，固定 endpoint 的 provider 会拒绝该覆盖。`local_openai` 必须
+显式给出 model 和 `http://127.0.0.1:<port>/v1`（或 `::1`）地址；Host 不启动或
+下载模型服务，`LOCAL_OPENAI_API_KEY` 可选，native tool-calling/E3 暂不开放。
 当前 Desktop Ask 已有一次 OpenAI/Windows/Notepad exact-candidate 结果；它不
 证明其他 provider、application、desktop action 或 release artifact。各家的
 凭据变量、图片能力和真实测试状态见

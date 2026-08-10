@@ -18,7 +18,8 @@ four distinct maturity layers:
    safety gates, audit logging, and an emergency stop. User-configured
    Playwright CDP can add one read-only rendered-browser observation tool.
 2. **Agent Host — experimental and partially integrated:** a CLI can run bounded
-   workflows through eight exact provider profiles and the same MCP server. It adds
+   workflows through eight exact cloud profiles plus one loopback-only local
+   Planner/final profile and the same MCP server. It adds
    policy, grounding, budgets, explicit approval, redacted trace/reporting,
    explicit memory, and conservative crash recovery.
 3. **Planner/Executor and Campaign control plane — substantial internal/offline
@@ -272,7 +273,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_mcp/gate.py`, `human_activity.py`, `safety.py`, `audit.py` | Local action boundary and evidence |
 | `src/computer_use_agent/types.py`, `tool_registry.py`, `policy.py`, `grounding.py` | Canonical host data, reviewed capabilities, policy, and action freshness |
 | `src/computer_use_agent/runner.py`, `desktop_mcp.py`, `bounded_stdio.py` | Agent loop and sole MCP dispatch/transport boundary |
-| `src/computer_use_agent/provider_catalog.py`, `provider_factory.py`, `providers/` | Eight exact provider profiles and three wire-family ordinary, Planner, and final-response adapters |
+| `src/computer_use_agent/provider_catalog.py`, `provider_factory.py`, `providers/` | Eight exact cloud profiles, one loopback-only local Planner/final profile, and three wire-family adapters; local ordinary tool calling remains closed pending E3 |
 | `src/computer_use_agent/trace.py`, `report.py`, `memory.py` | Safe state, metrics, reporting, and explicit memory |
 | `src/computer_use_agent/episode_outcome.py` | Read-only L0 terminal outcome normalization, explicit metric coverage, durable source reconciliation, and no learning or execution port |
 | `src/computer_use_agent/learning_quarantine.py` | Private L1 fresh-fact candidate extraction, revision-CAS lifecycle, digest-only audit events, and no memory injection or execution port |
