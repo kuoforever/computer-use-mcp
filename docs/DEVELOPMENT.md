@@ -5,14 +5,55 @@
 
 ## Development installation
 
+For the canonical Windows/Python 3.13 contributor environment, run the
+repository-owned bootstrap from the repository root:
+
 ~~~powershell
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\scripts\bootstrap_dev.ps1
 ~~~
 
-The project targets Python 3.11 through 3.13 on Windows. When using a legacy
-non-UTF-8 console, set `$env:PYTHONUTF8 = "1"` before running scripts that
-emit non-ASCII text.
+The script creates or reuses `.venv`, rejects a stale lock, installs the
+Windows/Python 3.13 `.[dev]` baseline from
+`requirements/dev-py313-windows.lock` with package hashes enforced, and then
+installs this checkout in editable mode without re-resolving dependencies. It
+does not activate or delete an environment. A fresh environment is the exact
+reproducible baseline; rerunning against an existing environment converges the
+locked packages but deliberately does not remove separately installed extras.
+Use `-EnvironmentPath .venv-clean` when a separate clean environment is useful.
+
+The lock covers the same core plus `dev` dependency profile used by routine CI.
+Provider SDKs, Playwright, observability, and the Temporal proof of concept
+remain task-specific extras and are not silently installed into every
+contributor environment. Install an explicit extra only when that work is in
+scope, for example `.[agent-openai]` or `.[agent]`.
+
+The project still tests Python 3.11 through 3.13 on Windows. Python 3.11/3.12
+compatibility work may use the existing non-locked installation path and must
+rely on the CI matrix for cross-version evidence:
+
+~~~powershell
+py -3.12 -m venv .venv-312
+.\.venv-312\Scripts\python.exe -m pip install -e ".[dev]"
+~~~
+
+When using a legacy non-UTF-8 console, set `$env:PYTHONUTF8 = "1"` before
+running scripts that emit non-ASCII text.
+
+## Updating the development lock
+
+After changing project or `dev` dependencies, regenerate the lock on Windows
+with Python 3.13:
+
+~~~powershell
+.\scripts\update_dev_lock.ps1
+~~~
+
+The updater keeps its pinned `pip-tools` environment under ignored `out/`,
+emits no local index URL or machine path, and binds the result to the complete
+`pyproject.toml` content using an LF-normalized SHA-256 so Git checkout line
+endings cannot cause a false stale-lock result. Review the dependency and hash
+diff. The bootstrap and offline contract test fail closed when
+`pyproject.toml` changes without a matching lock update.
 
 ## Fast validation
 
