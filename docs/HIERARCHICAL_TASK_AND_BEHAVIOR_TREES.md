@@ -1,6 +1,7 @@
 # Hierarchical task and behavior trees
 
-> **Status: H1-H8 implemented and offline verified; H8C publication is active.**
+> **Status: H1-H8 implemented, offline verified, and merged; H8C closed through
+> PR #320 on 2026-08-09.**
 > Versioned nodes, canonical tree digests, reviewed structural limits, pure
 > status reduction, lossless linear-plan projection, and private atomic tree
 > persistence plus digest-bound next-leaf compilation now compose with the
@@ -601,7 +602,7 @@ not a product priority sequence.
 | `H7` | **Implemented/offline verified:** one exact observation/action/verification-observation/final sequence through the existing Runtime Executor and sole Runner boundary. | Passed: separate shape/authority review plus deterministic isolated-application success, denial, defer, unknown, dispatched-error, and missing-verification evidence with zero new authority. |
 | `H8A` | **Implemented/offline verified:** contract-v2 bounded parallel evaluation of direct H5 condition leaves. | Passed and merged: real worker overlap, deterministic digest-bound output, atomic known-result CAS, unavailable/exception/conflict zero-write, and restart semantics. |
 | `H8B` | **Implemented/offline verified:** contract-v3 bounded all-of dependency DAG, general parallel subtrees, stable one-leaf selection, and local join reduction. | Passed and merged: topology bounds/cycles, join matrix, deterministic ready-leaf order, global external serialization, strict v1-v3 decode/digest, tamper rejection, and restart semantics. |
-| `H8C` | **Implemented/offline verified:** contract-v4 Host-ordered choice plus exact fresh pre-boundary-false and verified read-only-miss fallback. | Passed locally: ordering/unavailable/multiple-true matrix, actual worker overlap, immutable selection, eligible fallback and prohibited-stop matrices, side-effect/context-drift rejection, atomic CAS, strict v1-v4 decode/digest, tamper rejection, and restart semantics; publication must clear before H8 is complete. |
+| `H8C` | **Implemented/offline verified and merged:** contract-v4 Host-ordered choice plus exact fresh pre-boundary-false and verified read-only-miss fallback. | Passed and merged through PR #320: ordering/unavailable/multiple-true matrix, actual worker overlap, immutable selection, eligible fallback and prohibited-stop matrices, side-effect/context-drift rejection, atomic CAS, strict v1-v4 decode/digest, tamper rejection, and restart semantics. |
 
 `H1`-`H3` add no runtime behavior at all. H4 composes only the already
 supported observation/final-response plan and adds no new external authority.
