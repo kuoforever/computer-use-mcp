@@ -1,13 +1,13 @@
 # Project status
 
-> **Mode: complete-product hierarchical control and verified learning are explicitly active.**
+> **Mode: bounded provider coverage is offline complete; live acceptance is deferred and L5 remains inactive.**
 > `GDA-PRODUCT-017` completed its named gates and closeout through PR #289 as `e9d8a3c`.
 > PR #290 merged `GDA-PRODUCT-018` as `453fda9`; both branch copies were removed.
 > PR #291 merged `GDA-PRODUCT-019` as `60b26cc`; both branch copies were removed.
 > PR #293 merged `GDA-PRODUCT-021` as `51ff2d8`; PR #295 retained the first supervised configured-G/K physical evidence as `1ab8f90`; PR #297 retained the bounded Q/K/Ctrl+C follow-up as `b96e413`. All four PR #297 jobs passed with no review, comment, unresolved thread, or conflict, and both evidence-branch copies were removed.
 > On 2026-08-09 the user explicitly selected hierarchical task/behavior trees and
 > verified continual learning as the next complete-product programs. PR #299
-> merged H1 as `0dd9f1e`, H2 as `98c597f`, H3 as `16a170d`, L0 as `c1b3159`, H4 as `d1ca601`, H5 as `30ab5c4`, H6 as `26e1c8f`, L1 as `6950a26`, L2 as `db7bd65`, L3 as `8938e6e`, H7 as `4877f7c`, L4 as `390c659`, H8A as `a4598dd`, H8B as `b78e517`, and H8C as `784eabf`; H8 is complete. `GDA-PRODUCT-022` merged through PR #322 as `b783feb` after its full local and four-job GitHub gates passed. No further implementation item is active; `L5` remains separately consented and inactive.
+> merged H1 as `0dd9f1e`, H2 as `98c597f`, H3 as `16a170d`, L0 as `c1b3159`, H4 as `d1ca601`, H5 as `30ab5c4`, H6 as `26e1c8f`, L1 as `6950a26`, L2 as `db7bd65`, L3 as `8938e6e`, H7 as `4877f7c`, L4 as `390c659`, H8A as `a4598dd`, H8B as `b78e517`, and H8C as `784eabf`; H8 is complete. `GDA-PRODUCT-022` merged through PR #322 as `b783feb` after its full local and four-job GitHub gates passed. On 2026-08-09 the user opened `GDA-PROVIDER-001` for broad domestic-model API coverage; eight exact profiles are now implemented and fully offline-validated, while every added-provider live API gate is explicitly deferred until accounts exist.
 > `GDA-PRODUCT-007` merged its Host-fixed Pre-run Review through PR #274.
 > `GDA-PRODUCT-005` completed its functional UI-default
 > scope through PR #270; its draft release checkpoint in PR #272 and all final
@@ -17,7 +17,7 @@
 > baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, and Full Cycle consumer work
 > remains paused.
-> Updated: 2026-08-09.
+> Updated: 2026-08-10.
 > This file is the single operational entry point for the next coding session.
 > It does not replace capability evidence in `docs/CAPABILITY_STATUS.md`.
 
@@ -130,7 +130,6 @@ integration surface needed for:
 The model factory, multimodal dataset pipeline, post-training, serving,
 Agentic RL, and Multi-Agent work live outside this repository.
 
-
 ## Current baseline
 
 | Fact | Current state |
@@ -140,10 +139,10 @@ Agentic RL, and Multi-Agent work live outside this repository.
 | Driver contract | `1.0.0` |
 | Agent contract | `0.1.0` |
 | Trace/checkpoint | Redacted `trace_version=1`, `checkpoint_version=1` |
-| Providers | OpenAI and Claude bounded paths |
+| Providers | Eight exact offline-implemented profiles: OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax; retained live evidence remains OpenAI/Claude-only |
 | Safety | Sole Runner/MCP dispatch, grounding, policy, approval, budgets, audit, mandatory re-observation |
 | Recovery | Conservative recovery; uncertain side effects are never replayed |
-| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-09, all green — `2407 passed, 8 skipped`, Ruff, mypy over 158 source files, docs consistency, and `git diff --check` |
+| Offline baseline | Run the current suite; CI publishes the live total. Last full gate: 2026-08-10, all green — `2491 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, and `git diff --check` |
 | Frozen commit | `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`, reachable from local `main` |
 
 The test count is a dated working snapshot, not a permanent capability claim.
@@ -207,6 +206,7 @@ delivery work.
 | `GDA-PRODUCT-020` | Complete; merged | Real Windows ShortcutBroker registration evidence | The installed `60b26cc` product passed current `zh-CN`/`en-US` layout audit, real G/P registration/message queue, cross-process conflict/atomic rollback, unregister/reacquisition, unchanged foreground, JSON `8A4B2495...EA845B5`, complete `2098 passed, 8 skipped`/Ruff/mypy-144/docs/diff, and all four PR jobs. PR #292 merged as `733e17c`; both branch copies were removed |
 | `GDA-PRODUCT-021` | Complete; merged; physical follow-up retained | Bounded configurable cooperative-pause shortcut | Default/custom/invalid/reserved configuration, both setup profiles, Settings parity, service composition, pre-registration layout rejection, atomic conflict/cleanup, full source gate, fresh installed wheel `4D531EF5...908D13`, and real non-input G/K registration/reacquisition passed. PR #293 passed all four jobs and merged as `51ff2d8`; the first configured-G/K physical run merged through PR #295 as `1ab8f90`. The follow-up passed direct-console Ctrl+C cleanup wording, installed physical-Q latching, and physical K reaching `paused/authority=released` at checkpoint 1/before-provider in a fake-only production Runner/control-record/OS-lock lifecycle with zero tool calls and side effects; the first 120-second attempt remains invalid, and harness-only resume without fresh observation failed closed with `VERIFICATION_REQUIRED`. PR #297 passed all four jobs with no review, comment, unresolved thread, or conflict, merged as `b96e413`, and both evidence-branch copies were removed. Full-MCP post-Q denial, real-provider/MCP/application pause or resume, layouts beyond installed `zh-CN`/`en-US`, E4, and release remain separate; no unambiguous executable non-E4 item remains |
 | `GDA-PRODUCT-022` | Complete; merged | OS-input default with optional rendered-browser assistance | Commit `726cda0` passed the complete local gate. PR #322 passed all four required GitHub jobs with no review, comment, unresolved thread, requested change, conflict, or head drift and merged as `b783feb`. Default core registry remains thirteen/digest-stable; configured loopback Playwright CDP is read-only/action-free; OS input is default and UIA actions require trusted opt-in. No live browser/provider/desktop/application, E4, release, Lane B, or L5 evidence is claimed |
+| `GDA-PROVIDER-001` | Offline implementation and gate complete; live acceptance deferred by user | Catalog/factory-backed OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax ordinary/Planner/final routes across Responses, Chat Completions, and Messages, with exact credentials/endpoints/capabilities and continuation v7 identity | `2491 passed, 8 skipped`, Ruff, mypy over 167 source files, docs consistency, and diff check cover eight-profile routing, strict Qwen workspace endpoint, fixed-endpoint rejection, prompt-only schema compilation, text-only image withdrawal, Chat continuation, legacy OpenAI contract migration, recovery identity, doctor/setup, credential isolation, and release-subprocess secret exclusion. No added-provider account, credential, API request, desktop, application, E3, E4, or release evidence is claimed; exact next action is to wait for user-created accounts, then run one provider/model harmless fake-MCP E3 matrix at a time and repair only observed incompatibilities |
 | `GDA-FC-000` | Complete | Closure scope, integration contract, project status, Codex/Claude entrypoints | This documentation change |
 | `GDA-FC-001` | Complete | Safe Full Cycle manifest and redacted run-export CLI | Exact schema/version tests, CLI tests, fail-closed record/output tests |
 | `GDA-FC-002` | Complete | Consumer fixture in `reliable-agent-model-lifecycle` | That repository's `FC-BRIDGE-001`: `fixtures/bridge_v1` with one valid manifest, one valid run export, and eight invalid fixtures, pinned to producer commit `8ace897`. Re-verified on 2026-08-01 (below) |

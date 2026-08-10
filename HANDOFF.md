@@ -14,9 +14,10 @@ contract.
 The codebase has two executable surfaces. The public baseline is an
 experimental Windows-only MCP server with thirteen tools, a typed Driver Contract
 v1.0.0, and one in-process Windows implementation. The second is an
-experimental `guarded-desktop-agent` Host with a dual-provider read-only loop,
+experimental `guarded-desktop-agent` Host with eight exact provider profiles
+over three wire families,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
-actions. [Dual-provider E3 evidence](docs/E3_EVIDENCE.md) is retained for both
+actions. [Historical OpenAI/Claude E3 evidence](docs/E3_EVIDENCE.md) is retained for both
 bounded fake-MCP cases with one reviewed model per provider. [Isolated desktop
 E4 evidence](docs/E4_EVIDENCE.md) is retained for the reviewed VM and one model
 per provider, including read-only and explicitly approved action cells. The
@@ -33,8 +34,8 @@ ordinary-continuation cleanup while retaining the completed final WAL. A
 bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
-response. It has offline fake-port evidence plus retained OpenAI and Claude E3
-results. The reviewed Agent Host path also has retained isolated desktop E4
+response. It has eight-profile offline fake-port coverage plus retained
+OpenAI/Claude-only E3 results. The reviewed Agent Host path also has retained isolated desktop E4
 evidence, but the Planner / Executor path has no separate desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
@@ -380,7 +381,9 @@ src/computer_use_mcp/
 
 src/computer_use_agent/
   runner.py            sole Agent tool-dispatch authority boundary
-  providers/           OpenAI and Claude adapters
+  provider_catalog.py  exact vendor/protocol/endpoint/capability profiles
+  provider_factory.py  shared ordinary/Planner/final adapter routing
+  providers/           Responses, Chat Completions, and Messages adapters
   planning.py          bounded declarative planning contracts
   fullcycle_export.py  versioned manifest and redacted run-export producer
   executor*.py         internal observation/final runtime and local reconciliation

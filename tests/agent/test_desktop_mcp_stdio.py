@@ -19,6 +19,12 @@ def test_real_stdio_child_uses_fixed_launch_and_excludes_provider_secrets(
     for name in (
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
+        "DASHSCOPE_API_KEY",
+        "ARK_API_KEY",
+        "MOONSHOT_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ZAI_API_KEY",
+        "MINIMAX_API_KEY",
         "AWS_SECRET_ACCESS_KEY",
         "UNRELATED_SECRET",
     ):

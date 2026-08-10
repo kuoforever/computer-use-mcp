@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-08-09.** This page explains the complete project shape without promoting
+> 2026-08-10.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -18,7 +18,7 @@ four distinct maturity layers:
    safety gates, audit logging, and an emergency stop. User-configured
    Playwright CDP can add one read-only rendered-browser observation tool.
 2. **Agent Host — experimental and partially integrated:** a CLI can run bounded
-   OpenAI or Claude observation workflows through the same MCP server. It adds
+   workflows through eight exact provider profiles and the same MCP server. It adds
    policy, grounding, budgets, explicit approval, redacted trace/reporting,
    explicit memory, and conservative crash recovery.
 3. **Planner/Executor and Campaign control plane — substantial internal/offline
@@ -50,7 +50,7 @@ The project is currently:
 
 - local and Windows-first;
 - model-agnostic at the MCP boundary;
-- dual-provider at the experimental Agent Host boundary;
+- eight-profile and three-wire-family at the experimental Agent Host boundary;
 - explicit about foreground ownership and human takeover;
 - conservative about replay, recovery, and capability claims; and
 - evaluated through contracts and evidence gates before promotion.
@@ -75,7 +75,7 @@ Feature state and evidence state answer different questions:
 | Internal only | Code is callable by tests/internal APIs but not a supported CLI/product path. |
 | Planned | A documented contract or direction exists; no runtime claim is made. |
 | Offline verified | Deterministic tests or fakes cover the stated boundary. |
-| Provider verified | A retained credentialed OpenAI/Claude E3 result exists. |
+| Provider verified | A retained credentialed result exists for that exact provider/model/scope; currently only the earlier OpenAI/Claude E3 cells qualify. |
 | Desktop verified | A retained isolated Windows E4 result exists. |
 | Application verified | A staged real-application acceptance case has passed with retained evidence. |
 
@@ -96,7 +96,7 @@ operator / Codex / Claude Code / another MCP client
   |                                                                |
   +-- Agent Host path ---------------------------------------------+
        guarded-desktop-agent CLI                                   |
-         -> OpenAI Responses or Claude Messages adapter             |
+         -> Responses / Chat Completions / Messages adapter         |
          -> policy / grounding / budgets / approval                 |
          -> redacted trace / explicit memory / recovery             |
          -> bounded stdio bridge -> the same MCP server ------------+
@@ -187,8 +187,9 @@ surfaces rather than one automatic general-product loop.
 | Feature | State | Implementation | Primary owner |
 | --- | --- | --- | --- |
 | Provider-neutral host contract | Implemented | Canonical immutable types and ports isolate provider, desktop, approval, policy, and state | [Agent Host](AGENT.md) |
-| OpenAI adapter | Implemented/offline verified | Responses API continuation, strict tool/result correlation, byte/token gates, bounded PNG handling | [Agent Host](AGENT.md), [Evaluation](EVALUATION.md) |
-| Claude adapter | Implemented/offline verified | Messages history, adjacent tool-use/results, atomic history packing, byte/token gates | [Agent Host](AGENT.md), [Evaluation](EVALUATION.md) |
+| Responses profiles | Implemented/offline verified | Exact OpenAI/Qwen/Doubao identity, response-ID continuation, strict tool/result correlation, byte/token gates, bounded capability flags | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md) |
+| Chat Completions profiles | Implemented/offline verified | Exact Kimi/DeepSeek/GLM identity, bounded local history, sequential tool calls, opaque compatible reasoning, image withdrawal | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md) |
+| Messages profiles | Implemented/offline verified | Exact Anthropic/MiniMax identity, adjacent tool-use/results, atomic history packing, byte/token gates | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md) |
 | Bounded runner | Implemented | One canonical loop owns budgets, ledger, provider turns, policy, dispatch, verification, and cleanup | [Agent Host](AGENT.md) |
 | Sole desktop dispatch site | Implemented/frozen | All Agent desktop execution routes through the Runner boundary and then the stdio MCP child | [Agent Host](AGENT.md) |
 | Reviewed tool registry | Implemented | Host derives effect/schema/approval facts; provider output cannot grant authority | [Agent Host](AGENT.md) |
@@ -212,7 +213,7 @@ surfaces rather than one automatic general-product loop.
 | OpenAI stateless replay | Implemented/explicit | Rebuilds only a complete digest-bound read-only transcript; never automatic fallback | [Stateless replay](STATELESS_REPLAY.md) |
 | Declarative task plan | Implemented/internal | Strict JSON compiler derives host IDs/effects/approval metadata and rejects sensitive or out-of-scope arguments | [Planning](PLANNING.md) |
 | Atomic plan store | Implemented/internal | Private `task-plan.json`, RunLock ownership, sequence/digest compare-and-swap, legal ordered transitions | [Planning](PLANNING.md) |
-| One-shot dual-provider Planner | Implemented/internal | Isolated no-tool OpenAI/Claude structured-output request; fixed one-call failure, no fallback | [Planning](PLANNING.md) |
+| One-shot eight-profile Planner | Implemented/internal | Isolated no-tool request with explicit native-schema, JSON-object, or prompt-schema mode; fixed one-call failure, no fallback | [Provider support](PROVIDERS.md), [Planning](PLANNING.md) |
 | Observation Executor | Implemented/internal | At most four observation steps; WAL before dispatch; shared Runner authority; known completion or fail-closed uncertainty | [Planning](PLANNING.md) |
 | Observation reconciliation | Implemented/internal | Repairs only the exact missed plan CAS after a known completed result; never redispatches | [Planning](PLANNING.md) |
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
@@ -271,7 +272,7 @@ surfaces rather than one automatic general-product loop.
 | `src/computer_use_mcp/gate.py`, `human_activity.py`, `safety.py`, `audit.py` | Local action boundary and evidence |
 | `src/computer_use_agent/types.py`, `tool_registry.py`, `policy.py`, `grounding.py` | Canonical host data, reviewed capabilities, policy, and action freshness |
 | `src/computer_use_agent/runner.py`, `desktop_mcp.py`, `bounded_stdio.py` | Agent loop and sole MCP dispatch/transport boundary |
-| `src/computer_use_agent/providers/` | OpenAI and Claude ordinary, Planner, and final-response adapters |
+| `src/computer_use_agent/provider_catalog.py`, `provider_factory.py`, `providers/` | Eight exact provider profiles and three wire-family ordinary, Planner, and final-response adapters |
 | `src/computer_use_agent/trace.py`, `report.py`, `memory.py` | Safe state, metrics, reporting, and explicit memory |
 | `src/computer_use_agent/episode_outcome.py` | Read-only L0 terminal outcome normalization, explicit metric coverage, durable source reconciliation, and no learning or execution port |
 | `src/computer_use_agent/learning_quarantine.py` | Private L1 fresh-fact candidate extraction, revision-CAS lifecycle, digest-only audit events, and no memory injection or execution port |
@@ -369,7 +370,7 @@ validated campaign plan
 | Resource boundedness | Limits on frames, results, images, events, requests, tokens, turns, calls, side effects, batches, and artifacts | [Context and memory](CONTEXT_MEMORY.md), [Token efficiency](TOKEN_EFFICIENCY.md) |
 | Performance and context efficiency | `find`, structured-first observation ladder, item-local context, bounded history packing, measured cost per result | [Token efficiency](TOKEN_EFFICIENCY.md) |
 | Portability and maintainability | Platform-free Driver Contract, ports/adapters, canonical owner docs, deliberate versioned state schemas | [Design](DESIGN.md), [Tech stack](TECH_STACK.md) |
-| Interoperability | Standard MCP surface and provider-neutral host types with isolated OpenAI/Claude adapters | [Agent Host](AGENT.md) |
+| Interoperability | Standard MCP surface and provider-neutral host types with isolated exact-vendor profiles over three wire families | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md) |
 
 The normative acceptance criteria live in
 [Quality attributes](QUALITY_ATTRIBUTES.md); this table is the cross-system map.
@@ -400,7 +401,7 @@ These rules explain most implementation choices:
 | E0 | Pure contracts, parsing, persistence, adapters, invariants | pytest and fake clients/ports |
 | E1 | Deterministic bounded workflow success/failure | frozen fake-provider/fake-MCP cases |
 | E2 | Safety, recovery, denial, unknown-outcome, exact replay boundaries | frozen semantic traces and exact-call matrices |
-| E3 | Real provider with harmless fake MCP | opt-in OpenAI and Claude integration tests |
+| E3 | Real provider with harmless fake MCP | retained OpenAI/Claude results; added profiles require separate opt-in exact-provider/model runs |
 | E4 | Real provider plus isolated Windows desktop | four-cell disposable Notepad/VM runbook |
 | E5 / release regression | Candidate-wide automated and human evidence | CI, preflight, retained records, explicit approval |
 

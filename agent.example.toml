@@ -1,4 +1,4 @@
-# Experimental OpenAI read-only Agent example. This file contains no API keys.
+# Experimental read-only Agent example using OpenAI. This file contains no API keys.
 # For the product-facing Desktop Ask path, prefer `guarded-desktop-agent config
 # init`, which resolves installed paths and enables the required bounded WAL.
 # Provider adapters read credentials from their own process environment and never
@@ -10,10 +10,15 @@ state_dir = "C:/Users/your-user/AppData/Local/computer-use-agent"
 policy_version = "readonly-v1"
 
 [provider]
-# Supported runnable values: "openai" or "anthropic". Install the matching
-# optional SDK extra and set its API key in the host process environment.
+# Supported runnable values: "openai", "anthropic", "qwen", "doubao", "kimi",
+# "deepseek", "glm", or "minimax". Install the matching optional SDK extra and
+# set only that provider's credential in the host process environment. See
+# docs/PROVIDERS.md for the exact mapping and evidence state.
 name = "openai"
 model = "your-model-id"
+# Only Qwen accepts base_url, and requires its account workspace endpoint:
+# base_url = "https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+# Every fixed-endpoint provider rejects a configured base_url.
 # Exact UTF-8 JSON byte cap for each outbound provider SDK request. This covers
 # task, selected memory, tool schemas/results, images, and local message history.
 max_request_bytes = 8388608

@@ -1,10 +1,10 @@
 # Full Agent Safety MVP Implementation Plan
 
-> **Status: in progress.** The dual-provider text/screenshot workflow, explicit memory,
-> state/trace baseline, E1/E2 baseline, and fake-verified approved-action
-> orchestration and initial-checkpoint crash recovery are implemented. Isolated action smoke,
-> broader resumable state, and release review remain; offline CI and local
-> release preflight are active.
+> **Status: historical milestone plan; do not use its embedded provider/version
+> snapshots as current state.** The implementation has since expanded beyond
+> the dual-provider/v5 milestones retained below. Current provider and recovery
+> contracts are owned by [Provider support](PROVIDERS.md),
+> [Agent Host](AGENT.md), and [Continuation](CONTINUATION.md).
 > This work does not weaken the MCP server's runtime safety guarantees.
 > Current cross-surface evidence and next gates are summarized in
 > [Capability status](CAPABILITY_STATUS.md).

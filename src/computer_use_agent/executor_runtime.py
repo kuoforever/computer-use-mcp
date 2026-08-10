@@ -752,6 +752,7 @@ async def _open_runtime_executor_session(
             state=prepared_run.state,
             provider_name=runner.config.provider.name,
             provider_model=runner.config.provider.model,
+            provider_base_url=runner.config.provider.base_url,
             registry_digest=reviewed_registry_digest(),
             advertised_tool_names=frozenset(),
             ttl_seconds=runner.config.continuation.ttl_seconds,

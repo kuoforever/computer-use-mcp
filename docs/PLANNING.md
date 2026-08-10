@@ -3,8 +3,8 @@
 > **Status: observation-only CLI plus separately gated internal H7 sequence implemented and offline verified.**
 > Strict provider-neutral `TaskPlan` and `PlanStep` values, a bounded JSON
 > candidate compiler, pure ordered transitions, atomic private snapshots, and
-> a one-shot provider-neutral PlannerPort contract, and isolated OpenAI and
-> Claude adapters are implemented. `ask` and `plan run` compose one host-scoped Planner
+> a one-shot provider-neutral PlannerPort contract with eight exact profiles
+> across three wire families are implemented. `ask` and `plan run` compose one host-scoped Planner
 > request, one to four Runner-dispatched observations, and one stateless
 > tool-free final response. Side-effect plans remain unavailable on that public
 > path; H7 separately permits one exact internal action/verification sequence.
@@ -16,7 +16,7 @@ A plan is untrusted declarative data, not an authorization capability:
 ~~~text
 bounded task + exact host-scoped non-sensitive schemas
   -> one-shot PlannerPort with no retry/fallback or execution methods
-  -> optional OpenAI/Claude Structured Outputs request with no tools or continuation
+  -> one exact provider profile with native-schema, JSON-object, or prompt-schema mode
   -> untrusted planner candidate
   -> exact JSON shape and byte/count bounds
   -> explicit host-scoped reviewed tools
@@ -246,11 +246,11 @@ as compiler evidence and are not included as `ToolCall` values, tool schemas,
 approval records, or dispatch authority. Sensitive task/output values are
 excluded from object representations. The compiler does not consume budgets,
 transition the final step, write WAL, call a model, validate returned text, or
-terminalize a run. A future dual-provider adapter must still apply its exact
+terminalize a run. Every provider adapter must still apply its exact
 configured byte/token gates and one-shot no-tool/no-retry contract before I/O.
 
-`final_response_wire.py` and the isolated `providers/openai_final.py` and
-`providers/anthropic_final.py` adapters now implement that tool-free provider
+`final_response_wire.py` and the isolated Responses, Messages, and Chat
+Completions final adapters now implement that tool-free provider
 boundary. The shared compiler emits canonical JSON containing the task,
 observation text, exact plan/request bindings, and ordered SHA-256/dimension
 descriptors for each PNG; image bytes are then sent as provider-native ordered

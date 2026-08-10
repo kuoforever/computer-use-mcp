@@ -627,30 +627,13 @@ def _reopen_config(config: AgentConfig, run_id: str) -> AgentConfig:
 
 def _real_provider(config: AgentConfig) -> ModelProviderPort:
     from .provider_instructions import ActionInstructionProfile
+    from .provider_factory import create_model_provider
 
-    if config.provider.name == "openai":
-        from .providers.openai import OpenAIResponsesProvider
-
-        return OpenAIResponsesProvider.from_environment(
-            config.provider.model,
-            allow_actions=True,
-            action_instruction_profile=ActionInstructionProfile.PUBLIC_WEB_WORD,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    if config.provider.name == "anthropic":
-        from .providers.anthropic import AnthropicMessagesProvider
-
-        return AnthropicMessagesProvider.from_environment(
-            config.provider.model,
-            allow_actions=True,
-            action_instruction_profile=ActionInstructionProfile.PUBLIC_WEB_WORD,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    raise PublicWebWordError("PUBLIC_WEB_WORD_PROVIDER_NOT_IMPLEMENTED")
+    return create_model_provider(
+        config.provider,
+        allow_actions=True,
+        action_instruction_profile=ActionInstructionProfile.PUBLIC_WEB_WORD,
+    )
 
 
 def _default_desktop(config: AgentConfig) -> DesktopMCPPort:

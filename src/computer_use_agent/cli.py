@@ -266,6 +266,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--provider", choices=sorted(SUPPORTED_PROVIDERS), default="openai"
     )
     setup.add_argument("--model")
+    setup.add_argument(
+        "--base-url",
+        help="Required only for Qwen workspace-compatible endpoints.",
+    )
     setup.add_argument("--output", type=Path)
     setup.add_argument(
         "--allowlist",
@@ -297,6 +301,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     initialize.add_argument("--provider", required=True, choices=sorted(SUPPORTED_PROVIDERS))
     initialize.add_argument("--model", required=True)
+    initialize.add_argument(
+        "--base-url",
+        help="Required only for Qwen workspace-compatible endpoints.",
+    )
     initialize.add_argument("--output", required=True, type=Path)
     initialize.add_argument(
         "--allowlist",
@@ -773,6 +781,7 @@ def _initialize_config(
     allowlist: str | None,
     mcp_executable: Path | None,
     pause_shortcut: str,
+    base_url: str | None = None,
 ) -> int:
     from .config_init import initialize_agent_config
 
@@ -784,6 +793,7 @@ def _initialize_config(
         allowlist=allowlist,
         mcp_executable=mcp_executable,
         pause_shortcut=pause_shortcut,
+        base_url=base_url,
     )
     _print_json(initialized.as_json())
     return 0
@@ -799,6 +809,7 @@ def _setup_config(
     pause_shortcut: str,
     *,
     json_output: bool,
+    base_url: str | None = None,
 ) -> int:
     from .agent_controls import create_quick_setup, render_quick_setup
 
@@ -810,6 +821,7 @@ def _setup_config(
         allowlist=allowlist,
         mcp_executable=mcp_executable,
         pause_shortcut=pause_shortcut,
+        base_url=base_url,
     )
     if json_output:
         _print_json(result.as_json())
@@ -894,28 +906,12 @@ async def _run_live_async(
         memories = build_memory_context(
             MemoryStore(config.memory_database).list(scope=memory_scope)
         )
-    if config.provider.name == "openai":
-        from .providers.openai import OpenAIResponsesProvider
+    from .provider_factory import create_model_provider
 
-        provider = OpenAIResponsesProvider.from_environment(
-            config.provider.model,
-            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    elif config.provider.name == "anthropic":
-        from .providers.anthropic import AnthropicMessagesProvider
-
-        provider = AnthropicMessagesProvider.from_environment(
-            config.provider.model,
-            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    else:
-        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+    provider = create_model_provider(
+        config.provider,
+        allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+    )
     desktop = StdioDesktopMCP(config.mcp)
     presence = _presence_lifecycle(config)
     progress = _progress_lifecycle(config)
@@ -971,40 +967,10 @@ async def _run_planned_observation_async(
         raise RunnerError("PLANNED_OBSERVATION_WAL_REQUIRED")
     if config.policy.max_model_turns < 1:
         raise RunnerError("PLANNED_OBSERVATION_MODEL_BUDGET_INVALID")
-    if config.provider.name == "openai":
-        from .providers.openai_final import OpenAIFinalResponseAdapter
-        from .providers.openai_planner import OpenAIPlanner
+    from .provider_factory import create_final_response_adapter, create_planner
 
-        planner = OpenAIPlanner.from_environment(
-            config.provider.model,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-        final_port = OpenAIFinalResponseAdapter.from_environment(
-            config.provider.model,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    elif config.provider.name == "anthropic":
-        from .providers.anthropic_final import AnthropicFinalResponseAdapter
-        from .providers.anthropic_planner import AnthropicPlanner
-
-        planner = AnthropicPlanner.from_environment(
-            config.provider.model,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-        final_port = AnthropicFinalResponseAdapter.from_environment(
-            config.provider.model,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    else:
-        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+    planner = create_planner(config.provider)
+    final_port = create_final_response_adapter(config.provider)
     runner = AgentRunner(
         config,
         RunnerPorts(
@@ -1493,28 +1459,9 @@ async def _run_claimed_boss_semantic_async(
     from .privacy import LocalPrivacyImageRedactor, WindowsPrivacyImageRecognizer
 
     config = load_agent_config(path)
-    if config.provider.name == "openai":
-        from .providers.openai import OpenAIResponsesProvider
+    from .provider_factory import create_model_provider
 
-        provider = OpenAIResponsesProvider.from_environment(
-            config.provider.model,
-            allow_actions=False,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    elif config.provider.name == "anthropic":
-        from .providers.anthropic import AnthropicMessagesProvider
-
-        provider = AnthropicMessagesProvider.from_environment(
-            config.provider.model,
-            allow_actions=False,
-            max_request_bytes=config.provider.max_request_bytes,
-            context_window_tokens=config.provider.context_window_tokens,
-            output_token_reserve=config.provider.output_token_reserve,
-        )
-    else:
-        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+    provider = create_model_provider(config.provider, allow_actions=False)
     runner = AgentRunner(
         config,
         RunnerPorts(
@@ -1641,28 +1588,12 @@ async def _run_registered_campaign_async(
         campaign_id=campaign_id,
     )
     if selected.provider_required:
-        if config.provider.name == "openai":
-            from .providers.openai import OpenAIResponsesProvider
+        from .provider_factory import create_model_provider
 
-            provider = OpenAIResponsesProvider.from_environment(
-                config.provider.model,
-                allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
-                max_request_bytes=config.provider.max_request_bytes,
-                context_window_tokens=config.provider.context_window_tokens,
-                output_token_reserve=config.provider.output_token_reserve,
-            )
-        elif config.provider.name == "anthropic":
-            from .providers.anthropic import AnthropicMessagesProvider
-
-            provider = AnthropicMessagesProvider.from_environment(
-                config.provider.model,
-                allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
-                max_request_bytes=config.provider.max_request_bytes,
-                context_window_tokens=config.provider.context_window_tokens,
-                output_token_reserve=config.provider.output_token_reserve,
-            )
-        else:
-            raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+        provider = create_model_provider(
+            config.provider,
+            allow_actions=config.policy.mode == APPROVED_ACTIONS_MODE,
+        )
         approvals = _approval_port(config)
         image_redactor = (
             LocalPrivacyImageRedactor(WindowsPrivacyImageRecognizer())
@@ -2047,8 +1978,13 @@ async def _recover_live_async(
     config = load_agent_config(path)
     if not config.continuation.enabled:
         raise RunnerError("CONTINUATION_DISABLED")
-    if stateless_replay and config.provider.name != "openai":
-        raise RunnerError("STATELESS_REPLAY_OPENAI_ONLY")
+    from .provider_catalog import ProviderProtocol
+
+    if (
+        stateless_replay
+        and config.provider.protocol is not ProviderProtocol.OPENAI_RESPONSES
+    ):
+        raise RunnerError("STATELESS_REPLAY_RESPONSES_ONLY")
     presence = FailSilentLifecycle(_presence_lifecycle(config))
     progress = FailSilentLifecycle(_progress_lifecycle(config))
 
@@ -2097,28 +2033,11 @@ async def _recover_live_async(
                     verify_discovered_tools(await desktop.discover_tools())
             elif plan.decision.action is ReconstructionAction.CONTINUE_PROVIDER:
                 if provider is None:
-                    if config.provider.name == "openai":
-                        from .providers.openai import OpenAIResponsesProvider
+                    from .provider_factory import create_model_provider
 
-                        provider = OpenAIResponsesProvider.from_environment(
-                            config.provider.model,
-                            allow_actions=False,
-                            max_request_bytes=config.provider.max_request_bytes,
-                            context_window_tokens=config.provider.context_window_tokens,
-                            output_token_reserve=config.provider.output_token_reserve,
-                        )
-                    elif config.provider.name == "anthropic":
-                        from .providers.anthropic import AnthropicMessagesProvider
-
-                        provider = AnthropicMessagesProvider.from_environment(
-                            config.provider.model,
-                            allow_actions=False,
-                            max_request_bytes=config.provider.max_request_bytes,
-                            context_window_tokens=config.provider.context_window_tokens,
-                            output_token_reserve=config.provider.output_token_reserve,
-                        )
-                    else:
-                        raise RunnerError("PROVIDER_NOT_IMPLEMENTED")
+                    provider = create_model_provider(
+                        config.provider, allow_actions=False
+                    )
             elif plan.decision.action in {
                 ReconstructionAction.FINALIZE_SUCCESS,
                 ReconstructionAction.FINALIZE_BLOCKED,
@@ -2406,6 +2325,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.mcp_executable,
                 args.pause_shortcut,
                 json_output=args.json,
+                base_url=args.base_url,
             )
         if args.command == "config" and args.config_command == "settings":
             return _show_settings(args.config, json_output=args.json)
@@ -2418,6 +2338,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.allowlist,
                 args.mcp_executable,
                 args.pause_shortcut,
+                args.base_url,
             )
         if args.command == "config" and args.config_command == "validate":
             return _validate_config(args.config)

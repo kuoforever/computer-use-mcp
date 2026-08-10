@@ -75,11 +75,13 @@ is not release approval.
 
 - CI is green on all supported Python versions.
 - The wheel artifact installs in a clean Windows environment.
-- OpenAI and Claude E3 pass with reviewed model IDs and the harmless fake MCP.
+- OpenAI and Claude retain their reviewed E3 baseline. Every additional
+  provider profile advertised by that release must separately pass its exact
+  model/endpoint harmless-fake-MCP E3 matrix; offline compatibility is not a waiver.
 - All four cells in the [E4 isolated desktop smoke runbook](E4_SMOKE.md) pass
   only in disposable Notepad or a VM with a narrow allowlist.
 - Read-only and one locally approved low-risk action complete with post-action
-  observation for both providers.
+  observation for every provider profile included in the desktop release claim.
 - Trace samples contain no task/UI/typed/image/provider-error content.
 - Unknown outcome, denial, E-stop, human-active, and gate failures are reviewed.
 - Operator documentation covers credentials, disclosure, approval, recovery,

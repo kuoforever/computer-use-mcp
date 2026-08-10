@@ -1,8 +1,10 @@
-# OpenAI stateless replay readiness
+# Responses stateless replay readiness
 
-> **Status: explicit read-only recovery replay implemented.** Normal runtime
-> continues through `previous_response_id`. Replay requires the operator's
-> `recover --stateless-replay` flag and is never an automatic fallback.
+> **Status: explicit read-only recovery replay implemented for the Responses
+> wire family.** Normal runtime continues through `previous_response_id`.
+> Replay requires the operator's `recover --stateless-replay` flag and is never
+> an automatic fallback. Retained live evidence covers OpenAI only; compatible
+> Qwen/Doubao replay remains offline verified.
 
 ## Why this is a separate capability
 
@@ -26,9 +28,9 @@ Official protocol references:
 
 ## Executable contract
 
-`ProviderContinuationStrategy` distinguishes OpenAI's normal
+`ProviderContinuationStrategy` distinguishes Responses normal
 `remote_response_id`, its one-request `stateless_replay` transition, and
-Claude's `local_message_history`. OpenAI readiness now has no blocker, but
+Messages/Chat `local_message_history`. Protocol readiness has no local blocker, but
 eligibility alone performs no I/O and grants no action authority.
 
 The initial-input, provider-output, and request-contract prerequisites are now
@@ -36,14 +38,14 @@ delivered independently of replay. Every OpenAI Responses request explicitly
 includes `reasoning.encrypted_content`, so persisted reasoning items can carry
 the provider's portable encrypted payload instead of depending only on remote
 response storage. This setting is mandatory: the adapter does not retry without
-it. Continuation v6 stores the exact initial SDK `input`
+it. Continuation v7 stores the exact initial SDK `input`
 string inside the already-sensitive private artifact. This includes the task
 and any explicitly selected memory data, is never copied into trace/report/error
 surfaces, and is not itself executable. The contract digest binds its SHA-256
 along with the model, instructions, reviewed tool definitions,
 action mode, memory-disclosure marker, parallel-call setting, encrypted-reasoning
-include list, request-byte gate, context window, output reserve, and request
-contract version 3 under a canonical SHA-256
+include list, request-byte gate, context window, output reserve, provider
+identity/capabilities, and request contract version 4 under a canonical SHA-256
 digest. Restore or active-chain drift fails with
 `OPENAI_REQUEST_CONTRACT_MISMATCH` before provider I/O and before restored state
 is attached. Each completed response also appends one bounded batch containing
@@ -54,14 +56,15 @@ state commit. The compiler additionally revalidates the complete envelope
 digest, response-batch/model-turn order, exact call ID/name/arguments, reviewed
 observation-only tool identity, and one ordered matching tool result per call.
 
-Continuation v6 additionally binds the live Runner's exact
+Continuation v7 additionally binds exact provider/model/protocol/endpoint and
+the live Runner's exact
 `advertised_tool_names`. At recovery the Host intersects that set with current
 reviewed observations and current attached-desktop baseline evidence; without
 a desktop, baseline-required tools are excluded, and actions are always
-excluded. The resulting registry-ordered tuple is used unchanged for OpenAI
+excluded. The resulting registry-ordered tuple is used unchanged for the exact Responses profile's
 restore, this replay preflight, and the next `create_turn`, so the contract
 digest and actual restricted request cannot silently use different tool
-definitions. An old v5 or malformed scope artifact fails closed rather than
+definitions. An old v1-v5 or malformed scope artifact fails closed rather than
 falling back to the full registry. Replay proceeds only if that restricted
 tuple preserves the persisted adapter-visible request contract; an
 action-enabled or otherwise drifted chain fails before network I/O.

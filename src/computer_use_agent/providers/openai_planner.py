@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 from ..planner import PlannerRequest
@@ -17,6 +17,11 @@ from ..planner_wire import (
     PlannerWireError,
     compile_planner_wire_candidate,
     planner_output_schema,
+)
+from ..provider_catalog import (
+    ProviderProtocol,
+    StructuredOutputMode,
+    provider_profile,
 )
 from ..provider_setup import openai_client_from_environment
 from ..token_window import exceeds_token_window
@@ -103,14 +108,22 @@ class OpenAIPlanner:
 
     model: str
     responses: _ResponsesPort
+    name: str = "openai"
+    structured_output: StructuredOutputMode = StructuredOutputMode.JSON_SCHEMA
+    store_response: bool = True
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
-    name: str = field(default="openai", init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
             raise ValueError("model must be a non-empty string")
+        if provider_profile(self.name).protocol is not ProviderProtocol.OPENAI_RESPONSES:
+            raise ValueError("name must select an OpenAI Responses provider")
+        if not isinstance(self.structured_output, StructuredOutputMode):
+            raise ValueError("structured_output must be reviewed")
+        if not isinstance(self.store_response, bool):
+            raise ValueError("store_response must be boolean")
         if isinstance(self.max_request_bytes, bool) or not isinstance(
             self.max_request_bytes, int
         ) or self.max_request_bytes <= 0:
@@ -137,11 +150,17 @@ class OpenAIPlanner:
         max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES,
         context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS,
         output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS,
+        provider_name: str = "openai",
+        base_url: str | None = None,
     ) -> "OpenAIPlanner":
-        client = openai_client_from_environment()
+        profile = provider_profile(provider_name)
+        client = openai_client_from_environment(provider_name, base_url=base_url)
         return cls(
             model=model,
             responses=client.responses,
+            name=provider_name,
+            structured_output=profile.structured_output,
+            store_response=provider_name == "openai",
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
@@ -151,21 +170,33 @@ class OpenAIPlanner:
         if not isinstance(request, PlannerRequest):
             raise OpenAIPlannerError("OPENAI_PLANNER_REQUEST_INVALID")
         tool_names = tuple(tool.name for tool in request.tools)
+        instructions = OPENAI_PLANNER_INSTRUCTIONS
+        if self.structured_output is not StructuredOutputMode.JSON_SCHEMA:
+            instructions += "\n\nRequired output JSON Schema:\n" + json.dumps(
+                planner_output_schema(tool_names),
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
         provider_request: dict[str, object] = {
             "model": self.model,
-            "instructions": OPENAI_PLANNER_INSTRUCTIONS,
+            "instructions": instructions,
             "input": request.canonical_json,
-            "text": {
+            "max_output_tokens": self.output_token_reserve,
+        }
+        if self.structured_output is StructuredOutputMode.JSON_SCHEMA:
+            provider_request["text"] = {
                 "format": {
                     "type": "json_schema",
                     "name": "task_plan_candidate",
                     "strict": True,
                     "schema": planner_output_schema(tool_names),
                 }
-            },
-            "max_output_tokens": self.output_token_reserve,
-            "store": False,
-        }
+            }
+        elif self.structured_output is StructuredOutputMode.JSON_OBJECT:
+            provider_request["text"] = {"format": {"type": "json_object"}}
+        if self.store_response:
+            provider_request["store"] = False
         if _request_size(provider_request) > self.max_request_bytes:
             raise OpenAIPlannerError("OPENAI_PLANNER_REQUEST_TOO_LARGE")
         if exceeds_token_window(

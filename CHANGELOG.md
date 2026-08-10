@@ -36,6 +36,14 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Eight exact provider profiles.** Agent ordinary, Planner, and final-response
+  routing now supports OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM,
+  and MiniMax over reviewed Responses, Chat Completions, and Messages wire
+  families. Provider credentials/endpoints/capabilities remain separate;
+  Qwen alone accepts one strict workspace endpoint, text-only profiles withdraw
+  image tools, and continuation v7 binds vendor/model/protocol/endpoint. The six
+  added profiles are offline verified only; their credentialed E3/E4 and
+  application gates remain unrun until accounts exist.
 - **Cooperative Pause/Takeover/Resume.** The installed public-web-word Runner
   loops now publish one strict local control lifecycle. CLI `task pause` and
   `task takeover` become effective only after a durable safe-boundary

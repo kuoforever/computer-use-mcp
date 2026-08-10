@@ -29,8 +29,11 @@ desktop execution authority, and durable evidence that outlives a crash.
   `browser_snapshot` tool can read bounded ARIA/text from an existing loopback
   Chromium CDP session. It has no browser action, script, cookie, or storage
   authority; desktop effects remain on the ordinary Runner/MCP/Win32 path.
-- **Two provider paths** (OpenAI and Claude) behind one provider-neutral tool
-  contract, with [retained dual-provider evidence](docs/E3_EVIDENCE.md).
+- **Eight exact provider profiles** behind one provider-neutral tool contract:
+  OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax. All eight
+  are offline verified; only the earlier OpenAI/Claude scopes have
+  [retained live evidence](docs/E3_EVIDENCE.md). See the
+  [provider matrix](docs/PROVIDERS.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
 - **Recovery that never auto-replays an uncertain action.** A dispatch intent
   with no correlated completion stops for a human instead of guessing.
@@ -88,7 +91,7 @@ and are not multimodal training episodes. See
 ```mermaid
 flowchart TB
     OP[Operator / MCP client] --> AR
-    PA[Provider adapter<br/>OpenAI · Claude] --> AR
+    PA[Provider adapter<br/>8 exact vendor profiles] --> AR
     AR[Agent Runner<br/>sole dispatch boundary] --> PG
     PG[Policy · approval · grounding] --> SRV
     SRV[MCP server<br/>SOLE DESKTOP EXECUTION AUTHORITY] --> WD
@@ -150,8 +153,9 @@ tools.
 
 ## Desktop Ask quick start
 
-Use Python 3.11, 3.12, or 3.13. The example below installs the OpenAI adapter;
-use `agent-anthropic`, `anthropic`, and `ANTHROPIC_API_KEY` for Claude.
+Use Python 3.11, 3.12, or 3.13. The example below installs the OpenAI-compatible
+SDK family. Use `agent-anthropic` for Anthropic or MiniMax, or `agent` for both
+SDK families. Provider credentials always remain environment variables.
 
 ~~~powershell
 py -3.13 -m venv .venv
@@ -213,6 +217,13 @@ authority until the host reports
 `PAUSED · DESKTOP AUTHORITY RELEASED`. `Ctrl+Alt+Q` remains the independent MCP
 emergency stop. There is no global approve or resume; closing the host releases
 both registered shortcuts. See [Quick Setup and Agent Controls](docs/AGENT_CONTROLS.md).
+
+`config setup --provider NAME [--model ID]` supports `openai`, `anthropic`,
+`qwen`, `doubao`, `kimi`, `deepseek`, `glm`, and `minimax`. Qwen additionally
+requires `--base-url` with the account's reviewed workspace-compatible URL;
+fixed-endpoint providers reject that override. Exact credentials, SDK extras,
+image capability, continuation behavior, and deferred live-test status are in
+the [provider support matrix](docs/PROVIDERS.md).
 
 `config doctor` is the installed-runtime readiness check. It validates the
 configuration, provider extra and documented credential variable, MCP
