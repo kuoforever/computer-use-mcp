@@ -57,6 +57,24 @@ A result may create or update a resume item only when all of these are true:
 If any gate is missing, use `Resume delta: none` and keep teaching in the
 conversation. Do not create a speculative bullet to remember planned work.
 
+## Reusable case: project capability versus installation profile
+
+Do not use `optional` as a synonym for `outside the project`. Keep four
+different questions separate:
+
+| Layer | Question | Guarded Desktop Agent example |
+| --- | --- | --- |
+| Project capability | Is the code, contract, test, and documentation part of the maintained project? | Provider integrations, read-only Playwright observation, observability, and the Temporal proof of concept remain project modules |
+| Installation profile | Must every contributor install this dependency for routine work? | The Windows CPython 3.13 lock intentionally covers the CI-aligned `.[dev]` baseline; task-specific extras remain explicit |
+| Generated environment | Is this artifact portable and reviewable across machines? | `.venv` contains interpreter paths and installed state, so it stays ignored and is recreated locally |
+| Reproducible recipe | Can another contributor deterministically recreate and check the intended baseline? | A hash-pinned, source-digest-bound lock, non-destructive bootstrap, stale-lock gate, regeneration script, and contract tests are versioned |
+
+The valid claim is a reproducible Windows CPython 3.13 `.[dev]` contributor
+baseline with offline evidence. It is not a cross-platform claim, an all-extras
+lock, proof that optional modules are outside the product, or provider/desktop/
+application evidence. This distinction is reusable whenever a project separates
+core, development, platform, provider, or feature dependency groups.
+
 ## Personal ownership
 
 Repository evidence proves project behavior, not individual contribution.
