@@ -32,6 +32,7 @@ from .config_init import (
     initialize_agent_config,
 )
 from .provider_setup import ModuleFinder, inspect_provider_setup
+from .provider_catalog import provider_profile
 
 
 RECOMMENDED_MODELS: Mapping[str, str] = MappingProxyType(
@@ -92,12 +93,13 @@ class AgentControlsSnapshot:
     profile: str
     provider_sdk_installed: bool
     provider_credential_present: bool
+    provider_credential_required: bool
     credential_environment: str
-    agent_controls_version: int = 1
+    agent_controls_version: int = 2
 
     def __post_init__(self) -> None:
-        if self.agent_controls_version != 1:
-            raise ValueError("agent_controls_version must be 1")
+        if self.agent_controls_version != 2:
+            raise ValueError("agent_controls_version must be 2")
         if self.profile not in {*SUPPORTED_INIT_PROFILES, "advanced"}:
             raise ValueError("agent controls profile is invalid")
 
@@ -141,6 +143,7 @@ class AgentControlsSnapshot:
             "provider_setup": {
                 "credential_environment": self.credential_environment,
                 "credential_present": self.provider_credential_present,
+                "credential_required": self.provider_credential_required,
                 "sdk_installed": self.provider_sdk_installed,
             },
             "safety": {
@@ -223,6 +226,7 @@ def load_agent_controls(
         profile=_profile_for(config),
         provider_sdk_installed=setup.sdk_installed,
         provider_credential_present=setup.credential_present,
+        provider_credential_required=setup.credential_required,
         credential_environment=setup.credential_environment,
     )
 
@@ -246,10 +250,15 @@ def create_quick_setup(
 
     if profile not in SUPPORTED_INIT_PROFILES:
         raise ValueError("CONFIG_PROFILE_NOT_IMPLEMENTED")
-    recommended = RECOMMENDED_MODELS.get(provider)
-    if recommended is None:
-        raise ValueError("PROVIDER_NOT_IMPLEMENTED")
-    effective_model = recommended if model is None else model
+    if provider == "local_openai":
+        if model is None:
+            raise ValueError("LOCAL_MODEL_REQUIRED")
+        effective_model = model
+    else:
+        recommended = RECOMMENDED_MODELS.get(provider)
+        if recommended is None:
+            raise ValueError("PROVIDER_NOT_IMPLEMENTED")
+        effective_model = recommended if model is None else model
     if not isinstance(effective_model, str) or not effective_model.strip():
         raise ValueError("MODEL_MUST_BE_NONEMPTY")
 
@@ -289,10 +298,18 @@ def render_agent_controls(snapshot: AgentControlsSnapshot) -> str:
     operator = config.operator
     applications = _allowed_applications(config)
     application_text = ", ".join(applications) if applications else "none configured"
-    credential = _state(
-        snapshot.provider_credential_present,
-        enabled="configured",
-        disabled="not configured",
+    credential = (
+        _state(
+            snapshot.provider_credential_present,
+            enabled="optional; configured",
+            disabled="optional; not configured",
+        )
+        if not snapshot.provider_credential_required
+        else _state(
+            snapshot.provider_credential_present,
+            enabled="configured",
+            disabled="not configured",
+        )
     )
     sdk = _state(snapshot.provider_sdk_installed, enabled="installed", disabled="not installed")
     approval = (
@@ -354,14 +371,29 @@ def render_quick_setup(result: QuickSetupResult) -> str:
 
     snapshot = result.controls
     provider_action = (
-        f"Set {snapshot.credential_environment} in the current shell."
-        if not snapshot.provider_credential_present
-        else "The documented credential environment variable is configured."
+        (
+            f"Optional {snapshot.credential_environment} is configured."
+            if snapshot.provider_credential_present
+            else (
+                f"{snapshot.credential_environment} is optional for the "
+                "loopback service."
+            )
+        )
+        if not snapshot.provider_credential_required
+        else (
+            f"Set {snapshot.credential_environment} in the current shell."
+            if not snapshot.provider_credential_present
+            else "The documented credential environment variable is configured."
+        )
     )
     sdk_action = (
         "The provider SDK is installed."
         if snapshot.provider_sdk_installed
-        else f'Install the "agent-{snapshot.config.provider.name}" package extra.'
+        else (
+            "Install with: python -m pip install "
+            f'"guarded-desktop-agent['
+            f'{provider_profile(snapshot.config.provider.name).install_extra}]"'
+        )
     )
     return "\n".join(
         (

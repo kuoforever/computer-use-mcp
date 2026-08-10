@@ -50,11 +50,12 @@ def test_quick_setup_uses_reviewed_defaults_without_storing_credentials(
     assert config.policy.mode == "read_only"
     assert config.mcp.executable == mcp_executable.resolve()
     projection = result.controls.as_json()
-    assert projection["agent_controls_version"] == 1
+    assert projection["agent_controls_version"] == 2
     assert projection["configuration"]["profile"] == "desktop-ask"
     assert projection["provider_setup"] == {
         "credential_environment": "OPENAI_API_KEY",
         "credential_present": True,
+        "credential_required": True,
         "sdk_installed": True,
     }
     assert projection["safety"]["emergency_stop"] == "ctrl+alt+q"
@@ -120,6 +121,7 @@ def test_agent_controls_projects_supervised_settings_with_human_json_parity(
     assert projection["provider_setup"] == {
         "credential_environment": "ANTHROPIC_API_KEY",
         "credential_present": False,
+        "credential_required": True,
         "sdk_installed": False,
     }
     assert projection["safety"]["allowed_applications"] == [
@@ -195,3 +197,42 @@ def test_agent_controls_does_not_mislabel_custom_read_only_config(
 
     assert controls.profile == "advanced"
     assert controls.purpose == "Advanced custom configuration"
+
+
+def test_local_openai_quick_setup_requires_a_model_and_reports_optional_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    output = tmp_path / "local.toml"
+    endpoint = "http://127.0.0.1:1234/v1"
+    mcp_executable = _mcp_executable(tmp_path)
+
+    with pytest.raises(ValueError, match="LOCAL_MODEL_REQUIRED"):
+        create_quick_setup(
+            provider="local_openai",
+            base_url=endpoint,
+            output=output,
+            mcp_executable=mcp_executable,
+        )
+
+    result = create_quick_setup(
+        provider="local_openai",
+        model="local-model",
+        base_url=endpoint,
+        output=output,
+        mcp_executable=mcp_executable,
+        environ={},
+        module_finder=lambda _name: object(),
+    )
+    projection = result.controls.as_json()
+    assert projection["provider_setup"] == {
+        "credential_environment": "LOCAL_OPENAI_API_KEY",
+        "credential_present": False,
+        "credential_required": False,
+        "sdk_installed": True,
+    }
+    assert "Credential: optional; not configured" in render_agent_controls(
+        result.controls
+    )
+    assert "LOCAL_OPENAI_API_KEY is optional" in render_quick_setup(result)

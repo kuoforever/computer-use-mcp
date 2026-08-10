@@ -359,6 +359,66 @@ def test_config_init_writes_typed_qwen_region_without_arbitrary_base_url(
     assert "base_url" not in rendered
 
 
+def test_config_init_writes_strict_local_openai_endpoint_and_blocks_action_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from computer_use_agent.config import load_agent_config
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    mcp_executable = tmp_path / "Scripts" / "guarded-desktop-mcp.exe"
+    mcp_executable.parent.mkdir()
+    mcp_executable.write_bytes(b"")
+    output = tmp_path / "local.toml"
+    endpoint = "http://127.0.0.1:11434/v1"
+    arguments = [
+        "config",
+        "init",
+        "--provider",
+        "local_openai",
+        "--model",
+        "qwen3:8b",
+        "--base-url",
+        endpoint,
+        "--mcp-executable",
+        str(mcp_executable),
+        "--output",
+        str(output),
+    ]
+
+    assert main(arguments) == 0
+    result = json.loads(capsys.readouterr().out)
+    config = load_agent_config(output)
+    rendered = output.read_text("utf-8")
+    assert result["region"] == "local"
+    assert config.provider.effective_base_url == endpoint
+    assert config.provider.supports_images is False
+    assert config.provider.supports_tool_calling is False
+    assert 'region = "local"' in rendered
+    assert f'base_url = "{endpoint}"' in rendered
+    assert "LOCAL_OPENAI_API_KEY" not in rendered
+
+    blocked = tmp_path / "local-actions.toml"
+    assert (
+        main(
+            [
+                *arguments[:2],
+                "--profile",
+                "public-web-word",
+                *arguments[2:-2],
+                "--output",
+                str(blocked),
+            ]
+        )
+        == 2
+    )
+    assert capsys.readouterr().err.strip() == (
+        "error: PROVIDER_TOOL_CALLING_UNVERIFIED"
+    )
+    assert not blocked.exists()
+
+
 def test_config_init_creates_the_public_web_word_product_profile(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

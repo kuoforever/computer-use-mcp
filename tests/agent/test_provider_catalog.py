@@ -43,6 +43,11 @@ EXPECTED = {
         "MINIMAX_API_KEY",
         "anthropic",
     ),
+    "local_openai": (
+        ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+        "LOCAL_OPENAI_API_KEY",
+        "openai",
+    ),
 }
 
 
@@ -52,6 +57,11 @@ def test_catalog_separates_vendor_protocol_credential_and_sdk_identity() -> None
         profile = provider_profile(name)
         setup = inspect_provider_setup(
             name,
+            base_url=(
+                "http://127.0.0.1:11434/v1"
+                if name == "local_openai"
+                else None
+            ),
             environ={credential: "present"},
             module_finder=lambda module: object() if module == sdk else None,
         )
@@ -160,6 +170,97 @@ def test_fixed_provider_rejects_config_endpoint_override() -> None:
             "kimi-k2.6",
             base_url="https://api.moonshot.ai/v1",
         )
+
+
+def test_local_openai_requires_one_literal_loopback_v1_endpoint() -> None:
+    ipv4 = ProviderConfig(
+        "local_openai",
+        "qwen3:8b",
+        base_url="http://127.0.0.1:11434/v1/",
+    )
+    ipv6 = ProviderConfig(
+        "local_openai",
+        "local-model",
+        region="local",
+        base_url="http://[::1]:1234/v1",
+    )
+
+    assert ipv4.effective_base_url == "http://127.0.0.1:11434/v1"
+    assert ipv6.effective_base_url == "http://[::1]:1234/v1"
+    assert ipv4.effective_region == "local"
+    assert ipv4.credential_environment == "LOCAL_OPENAI_API_KEY"
+    assert ipv4.uses_legacy_credentials is False
+    assert ipv4.supports_images is False
+    assert ipv4.supports_tool_calling is False
+    assert supported_provider_regions("local_openai") == ("local",)
+
+    with pytest.raises(ConfigError, match="base_url is required"):
+        ProviderConfig("local_openai", "local-model")
+    for invalid in (
+        "http://localhost:11434/v1",
+        "http://127.0.0.2:11434/v1",
+        "http://192.168.1.20:11434/v1",
+        "https://127.0.0.1:11434/v1",
+        "http://user:secret@127.0.0.1:11434/v1",
+        "http://127.0.0.1:0/v1",
+        "http://127.0.0.1/v1",
+        "http://127.0.0.1:11434/",
+        "http://127.0.0.1:11434/v1?target=remote",
+        "http://127.0.0.1:11434/v1#fragment",
+    ):
+        with pytest.raises(ConfigError, match="reviewed endpoint"):
+            ProviderConfig("local_openai", "local-model", base_url=invalid)
+
+    with pytest.raises(ConfigError, match="region is not reviewed"):
+        ProviderConfig(
+            "local_openai",
+            "local-model",
+            region="global",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+    with pytest.raises(ConfigError, match="workspace_id is invalid"):
+        ProviderConfig(
+            "local_openai",
+            "local-model",
+            workspace_id="workspace",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+
+
+def test_local_openai_setup_and_client_use_an_optional_nonsecret_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    constructed: list[dict[str, object]] = []
+
+    class RecordingClient:
+        def __init__(self, **kwargs: object) -> None:
+            constructed.append(kwargs)
+
+    openai_module = ModuleType("openai")
+    openai_module.AsyncOpenAI = RecordingClient  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "openai", openai_module)
+    monkeypatch.setattr(provider_setup, "find_spec", lambda _name: object())
+    monkeypatch.delenv("LOCAL_OPENAI_API_KEY", raising=False)
+    endpoint = "http://127.0.0.1:11434/v1"
+
+    setup = inspect_provider_setup(
+        "local_openai",
+        base_url=endpoint,
+        environ={},
+        module_finder=lambda _name: object(),
+    )
+    provider_setup.openai_client_from_environment(
+        "local_openai",
+        region="local",
+        base_url=endpoint,
+    )
+
+    assert setup.credential_required is False
+    assert setup.credential_present is False
+    assert setup.ready is True
+    assert constructed == [
+        {"api_key": "local-openai-no-key", "base_url": endpoint}
+    ]
 
 
 def test_qwen_toml_round_trip_keeps_nonsecret_workspace_endpoint(

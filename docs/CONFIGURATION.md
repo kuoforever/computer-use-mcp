@@ -12,11 +12,11 @@ The five configuration commands answer different questions:
 
 | Command | Purpose | External activity |
 | --- | --- | --- |
-| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--region REGION] [--workspace-id ID] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
+| `config setup [--profile PROFILE] [--provider NAME] [--model ID] [--region REGION] [--workspace-id ID] [--base-url URL] [--output PATH] [--pause-shortcut CHORD]` | Create one non-overwriting configuration with reviewed defaults and print the exact next check | Creates the same user-local state and MCP working directories as `config init`; reads no credential value and starts no process |
 | `config settings [--config PATH] [--json]` | Project the strict TOML as human-first Agent Controls settings | Reads configuration plus provider SDK/credential presence only; creates no state and starts no process |
-| `config init --profile PROFILE --provider NAME --model ID --output PATH [--region REGION] [--workspace-id ID] [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
+| `config init --profile PROFILE --provider NAME --model ID --output PATH [--region REGION] [--workspace-id ID] [--base-url URL] [--pause-shortcut CHORD]` | Create one non-overwriting, immediately valid installed product profile with a sibling MCP path | Creates the user-local state and MCP working directories; reads no credential and starts no process |
 | `config validate --config PATH` | Parse and validate the strict TOML contract | Creates no state directory, reads no credential, and starts no process |
-| `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and documented key variable, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact configured surface: thirteen core schemas plus optional `browser_snapshot` when enabled |
+| `config doctor --config PATH` | Prove that the installed provider/MCP runtime is ready | Checks the provider extra and required-or-optional credential contract, checks MCP paths, then performs one MCP `initialize` / `list_tools` handshake and verifies the exact configured surface: thirteen core schemas plus optional `browser_snapshot` when enabled; it never probes a provider endpoint |
 
 `config setup` defaults to the reviewed `desktop-ask` / `openai` combination
 and the current project-validated model ID. Explicit profile, provider, model,
@@ -28,7 +28,7 @@ desktop port.
 `config settings` uses the default user-local setup path when `--config` is
 omitted. Its human and `--json` outputs derive from the same strict
 `AgentConfig` and report only bounded configuration, presentation preferences,
-provider SDK/credential-variable presence, paths, and the exact doctor command.
+provider SDK plus credential requirement/presence, paths, and the exact doctor command.
 Its authority flags are all false, including shortcut registration. See
 [Quick Setup and Agent Controls](AGENT_CONTROLS.md).
 
@@ -41,14 +41,18 @@ and releases both on exit. `[operator].pause_shortcut` accepts only canonical
 `ctrl+alt+<a-z>`; G and Q are reserved. It has no approve/resume action and
 does not replace the independent `Ctrl+Alt+Q` emergency stop.
 
-Doctor derives the exact SDK extra and region-specific credential variable from
-the configured provider route. OpenAI-compatible profiles use `agent-openai`;
+Doctor derives the exact SDK extra and credential contract from the configured
+provider route. OpenAI-compatible profiles use `agent-openai`;
 Anthropic and MiniMax use `agent-anthropic`. Credential values are neither
 printed nor passed to the MCP child. `[provider].region` must be a reviewed
 catalog value. Qwen also requires `[provider].workspace_id`, from which the Host
 constructs the exact regional workspace endpoint. Every fixed-endpoint profile
 rejects an override. A Qwen-only `base_url` remains accepted solely for strict
-legacy migration and cannot be combined with the new fields. See
+legacy migration and cannot be combined with the new fields. `local_openai` is
+the only new configuration allowed to carry a dynamic `base_url`: it is
+required, must be literal `127.0.0.1` or `::1` over `http`, include an explicit
+nonzero port, and end at exact `/v1` with no credentials, query, or fragment.
+Its `LOCAL_OPENAI_API_KEY` is optional. See
 [Provider support](PROVIDERS.md) for the exact matrix. The command returns fixed
 JSON, exits `0` when `ready` is `true`, and exits `2` with one `{code, action}`
 failure when setup is incomplete.
@@ -97,6 +101,22 @@ workspace_id = "your-workspace-id"
 Changing `region` changes endpoint, credential variable, and continuation
 identity together. The Host does not retry another region when setup, network,
 quota, model, or provider calls fail.
+
+The local text-only Planner/final configuration is explicit and does not start
+or download a server:
+
+~~~toml
+[provider]
+name = "local_openai"
+model = "operator-selected-model"
+region = "local"
+base_url = "http://127.0.0.1:11434/v1"
+~~~
+
+Until an exact local server/model passes E3, native ordinary tool calling,
+images, `public-web-word`, live provider readiness, and desktop/application
+evidence remain unavailable. `config doctor` validates the SDK, strict URL,
+optional-key contract, and MCP schema only; it does not probe the local server.
 
 `[provider].request_timeout_seconds` defaults to `120` and accepts integers from
 `1` through `600`. The public-web-word generated profile uses `90`. Expiry

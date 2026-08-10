@@ -109,6 +109,11 @@ def _render_config(config: AgentConfig, *, profile: str) -> str:
         if provider.effective_workspace_id is None
         else f"workspace_id = {_toml_string(provider.effective_workspace_id)}\n"
     )
+    provider_base_url = (
+        f"base_url = {_toml_string(provider.effective_base_url)}\n"
+        if provider.name == "local_openai"
+        else ""
+    )
     policy = config.policy
     continuation = config.continuation
     rendered_environment = ", ".join(
@@ -128,7 +133,7 @@ policy_version = {_toml_string(config.policy_version)}
 name = {_toml_string(provider.name)}
 model = {_toml_string(provider.model)}
 region = {_toml_string(provider.effective_region)}
-{provider_workspace}max_request_bytes = {provider.max_request_bytes}
+{provider_base_url}{provider_workspace}max_request_bytes = {provider.max_request_bytes}
 context_window_tokens = {provider.context_window_tokens}
 output_token_reserve = {provider.output_token_reserve}
 request_timeout_seconds = {provider.request_timeout_seconds}
@@ -255,17 +260,20 @@ def initialize_public_web_word_config(
 
     executable = resolve_mcp_executable(mcp_executable)
     state_dir = (default_state_dir() / "public-web-word").resolve(strict=False)
+    provider_config = ProviderConfig(
+        name=provider,
+        model=model,
+        region=region,
+        workspace_id=workspace_id,
+        request_timeout_seconds=90,
+        base_url=base_url,
+    )
+    if not provider_config.supports_tool_calling:
+        raise ConfigInitError("PROVIDER_TOOL_CALLING_UNVERIFIED")
     config = AgentConfig(
         state_dir=state_dir,
         policy_version="public-web-word-v2",
-        provider=ProviderConfig(
-            name=provider,
-            model=model,
-            region=region,
-            workspace_id=workspace_id,
-            request_timeout_seconds=90,
-            base_url=base_url,
-        ),
+        provider=provider_config,
         mcp=MCPLaunchConfig(
             executable=executable,
             args=(),

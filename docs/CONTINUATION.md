@@ -41,7 +41,7 @@ The implementation must preserve these rules:
 4. A completed side-effect may resume only into mandatory read-only
    re-observation. Its result is not dispatched again, its approval is not reused,
    and no later side effect is allowed until fresh grounding is verified.
-5. Recovery never switches provider, model, or service region, relaxes budgets,
+5. Recovery never switches provider, model, service region, or loopback port, relaxes budgets,
    changes the tool registry, or treats persisted content as policy or approval.
 6. Verification and terminal certainty are monotonic across the complete
    ledger. Provider completion, recovery intent, and failed observation cannot
@@ -76,6 +76,10 @@ accepted.
 
 This is a shape excerpt. Placeholder identities, digests, timestamps, provider
 state, and the empty ledger are illustrative and are not accepted verbatim.
+
+The same v8 identity fields bind `local_openai` to exact `region=local` and its
+canonical loopback `/v1` URL. No schema bump is needed because no identity field
+was added; a different port or address fails recovery identity matching.
 
 ~~~json
 {

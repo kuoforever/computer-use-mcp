@@ -1,8 +1,9 @@
 # Agent Host contract and safety boundary
 
 > **Status: experimental Agent vertical slice.** The provider-neutral
-> contract, local stdio bridge, bounded runner, and eight exact provider
-> profiles across Responses, Chat Completions, and Messages wire families are
+> contract, local stdio bridge, bounded runner, eight exact cloud provider
+> profiles, and one loopback-only local Planner/final profile across Responses,
+> Chat Completions, and Messages wire families are
 > implemented. The CLI can inspect desktop structure, semantic document text,
 > bounded OCR, and bounded images through reviewed observation tools. Opt-in
 > locally approved actions are implemented and have scoped
@@ -17,9 +18,9 @@ authority. Trusted user configuration may add one reviewed read-only
 
 ## Scope
 
-The host is a local, CLI-first process with exact profiles for OpenAI,
-Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax. It must use a local
-stdio MCP child and must
+The host is a local, CLI-first process with exact cloud profiles for OpenAI,
+Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax, plus the bounded
+`local_openai` Planner/final profile. It must use a local stdio MCP child and must
 not import `computer_use_mcp.core.Session`, the Windows driver, or native
 control code.
 
@@ -49,7 +50,7 @@ the following commands:
   port.
 - `config settings [--config PATH] [--json]` projects the same strict TOML into
   bounded Agent Controls settings and an exact doctor command. It inspects only
-  SDK and documented credential-variable presence and has no approval, task
+  SDK plus credential requirement/presence and has no approval, task
   control, dispatch, retry/replay, or shortcut authority. See
   [Quick Setup and Agent Controls](AGENT_CONTROLS.md).
 - `shortcuts run [--config PATH]` explicitly owns the foreground Win32
@@ -866,7 +867,7 @@ as general secret detection.
 | Section | Purpose | Fail-closed rule |
 | --- | --- | --- |
 | `[agent]` | absolute user-local `state_dir`, policy version | The directory must be inside the platform user-local `computer-use-agent` application root. Trace and memory locations are separate beneath it. |
-| `[provider]` | one of eight exact provider names, model ID, optional Qwen-only `base_url`, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. Fixed providers reject endpoint overrides. |
+| `[provider]` | one of nine exact provider names, model ID, typed region, Qwen workspace identity or strict `local_openai` loopback `base_url`, bounded `max_request_bytes`, reviewed model context window, and output reserve | Token-window values are required and must be valid for the exact model; API keys are rejected because they do not belong in config. Fixed cloud providers reject endpoint overrides; local native tool calling remains unavailable pending E3. |
 | `[mcp]` | fixed absolute executable, argv, cwd, reviewed child controls | No shell, no relative executable/cwd, and no arbitrary environment variables. Only the SDK OS bootstrap allowlist plus reviewed `CUMCP_*` names reach the child; unsafe mode, disabled confirmation/e-stop, too-short human idle, out-of-range stable-sample/poll/wait values, audit redirection, and custom redaction controls are rejected. |
 | `[policy]` | read-only/approved-actions choice, action-approval policy, and fixed budgets | `all_side_effects` is the default; `high_risk_only` requires `approved_actions` plus a Host classifier, and unknown risk is denied. |
 

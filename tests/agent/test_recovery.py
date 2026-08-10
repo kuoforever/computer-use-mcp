@@ -1146,6 +1146,68 @@ def test_v8_recovery_requires_the_same_provider_region(
     assert mismatched.decision.reason == "CHECKPOINT_MISMATCH"
 
 
+def test_v8_local_openai_recovery_requires_the_same_loopback_port(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    endpoint = "http://127.0.0.1:11434/v1"
+    config = replace(
+        _config(tmp_path, monkeypatch),
+        provider=ProviderConfig(
+            "local_openai",
+            "qwen3:8b",
+            base_url=endpoint,
+        ),
+    )
+    state = _state()
+    recorder = RuntimeContinuationRecorder(
+        state_dir=config.state_dir,
+        state=state,
+        provider_name="local_openai",
+        provider_model="qwen3:8b",
+        provider_region="local",
+        provider_base_url=endpoint,
+        registry_digest=reviewed_registry_digest(),
+        advertised_tool_names=frozenset(tool.name for tool in REVIEWED_TOOLS),
+        ttl_seconds=900,
+        mcp_generation=1,
+    )
+    recorder.prepare_provider(state, "turn_1", checkpoint_sequence=1)
+    recorder.dispatch_provider(state, checkpoint_sequence=2)
+    recorder.complete_provider(
+        state,
+        ModelTurn("run_1", "turn_1", "message_1", "done"),
+        provider_state={
+            "messages": [
+                {"role": "user", "content": state.task},
+                {"role": "assistant", "content": "done"},
+            ]
+        },
+        checkpoint_sequence=3,
+    )
+    envelope = read_continuation(config.state_dir, state.run_id)
+    checkpoint = _checkpoint(state, 3)
+
+    matching = plan_read_only_recovery(checkpoint, envelope, config, task=state.task)
+    other_port = replace(
+        config,
+        provider=ProviderConfig(
+            "local_openai",
+            "qwen3:8b",
+            base_url="http://127.0.0.1:1234/v1",
+        ),
+    )
+    mismatched = plan_read_only_recovery(
+        checkpoint,
+        envelope,
+        other_port,
+        task=state.task,
+    )
+
+    assert matching.decision.action is ReconstructionAction.FINALIZE_SUCCESS
+    assert mismatched.decision.action is ReconstructionAction.START_NEW_RUN
+    assert mismatched.decision.reason == "CHECKPOINT_MISMATCH"
+
+
 def test_completed_observation_reconstructs_result_without_mcp_replay(
     tmp_path: Path, monkeypatch: object
 ) -> None:

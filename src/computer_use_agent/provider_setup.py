@@ -37,12 +37,15 @@ class ProviderSetup:
     sdk_module: str
     install_extra: str
     credential_environment: str
+    credential_required: bool
     sdk_installed: bool
     credential_present: bool
 
     @property
     def ready(self) -> bool:
-        return self.sdk_installed and self.credential_present
+        return self.sdk_installed and (
+            self.credential_present or not self.credential_required
+        )
 
     @property
     def sdk_issue(self) -> SetupIssue:
@@ -109,6 +112,7 @@ def inspect_provider_setup(
         sdk_module=sdk_module,
         install_extra=install_extra,
         credential_environment=credential_environment,
+        credential_required=profile.credential_required,
         sdk_installed=sdk_installed,
         credential_present=isinstance(credential, str) and bool(credential.strip()),
     )
@@ -135,7 +139,7 @@ def require_provider_setup(
         setup.sdk_issue
         if not setup.sdk_installed
         else setup.credential_issue
-        if not setup.credential_present
+        if setup.credential_required and not setup.credential_present
         else None
     )
     if issue is not None:
@@ -158,10 +162,15 @@ def _client_initialization_error(
         base_url=base_url,
         legacy_credentials=legacy_credentials,
     )
-    return ProviderSetupError(
-        f"{provider.upper()}_CLIENT_INIT_FAILED: check "
-        f"{setup.credential_environment} and the provider environment."
+    action = (
+        f"check {setup.credential_environment} and the provider environment"
+        if setup.credential_required
+        else (
+            "check the loopback OpenAI-compatible service and optional "
+            f"{setup.credential_environment}"
+        )
     )
+    return ProviderSetupError(f"{provider.upper()}_CLIENT_INIT_FAILED: {action}.")
 
 
 def openai_client_from_environment(
@@ -209,10 +218,13 @@ def openai_client_from_environment(
             f"{setup.sdk_issue.code}: {setup.sdk_issue.action}"
         ) from exc
     try:
-        return AsyncOpenAI(
-            api_key=os.environ[setup.credential_environment],
-            base_url=route.base_url,
+        credential = os.environ.get(setup.credential_environment)
+        api_key = (
+            credential.strip()
+            if isinstance(credential, str) and credential.strip()
+            else "local-openai-no-key"
         )
+        return AsyncOpenAI(api_key=api_key, base_url=route.base_url)
     except Exception as exc:
         raise _client_initialization_error(
             provider,

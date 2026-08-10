@@ -276,7 +276,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     setup.add_argument(
         "--base-url",
-        help="Legacy Qwen workspace URL; cannot be combined with region/workspace-id.",
+        help=(
+            "Required loopback /v1 URL for local_openai, or legacy Qwen "
+            "workspace URL."
+        ),
     )
     setup.add_argument("--output", type=Path)
     setup.add_argument(
@@ -319,7 +322,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     initialize.add_argument(
         "--base-url",
-        help="Legacy Qwen workspace URL; cannot be combined with region/workspace-id.",
+        help=(
+            "Required loopback /v1 URL for local_openai, or legacy Qwen "
+            "workspace URL."
+        ),
     )
     initialize.add_argument("--output", required=True, type=Path)
     initialize.add_argument(

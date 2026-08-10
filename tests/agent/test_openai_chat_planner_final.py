@@ -137,6 +137,31 @@ def test_chat_planner_uses_json_object_and_host_compiles_exact_plan() -> None:
     assert plan.steps[1].action is PlanStepAction.FINAL_RESPONSE
 
 
+def test_local_openai_planner_uses_prompt_schema_without_native_extensions() -> None:
+    wire = json.dumps({"version": 1, "steps": [{"action": "final_response"}]})
+    scripted = ScriptedCompletions([_response(wire)])
+    planner = OpenAIChatPlanner(
+        model="qwen3:8b",
+        completions=scripted,
+        name="local_openai",
+        structured_output=StructuredOutputMode.PROMPT_ONLY,
+    )
+    request = build_planner_request(
+        run_id="run_local",
+        plan_id="plan_local",
+        task="Summarize the observation",
+        allowed_tools=(),
+    )
+
+    plan = asyncio.run(request_task_plan(planner, request))
+
+    call = scripted.calls[0]
+    assert "response_format" not in call
+    assert "Required output JSON Schema" in call["messages"][0]["content"]
+    assert len(plan.steps) == 1
+    assert plan.steps[0].action is PlanStepAction.FINAL_RESPONSE
+
+
 def test_kimi_final_sends_native_data_url_and_deepseek_fails_before_network() -> None:
     kimi_port = ScriptedCompletions([_response("done")])
     kimi = OpenAIChatFinalResponseAdapter(

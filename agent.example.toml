@@ -11,8 +11,8 @@ policy_version = "readonly-v1"
 
 [provider]
 # Supported runnable values: "openai", "anthropic", "qwen", "doubao", "kimi",
-# "deepseek", "glm", or "minimax". Install the matching optional SDK extra and
-# set only that provider's credential in the host process environment. See
+# "deepseek", "glm", "minimax", or "local_openai". Install the matching SDK
+# extra and set only that provider's required or optional host credential. See
 # docs/PROVIDERS.md for the exact mapping and evidence state.
 name = "openai"
 model = "your-model-id"
@@ -22,8 +22,9 @@ region = "global"
 # New Qwen configurations also require the account workspace identifier; the
 # Host constructs the exact allowlisted regional endpoint:
 # workspace_id = "your-workspace-id"
-# Qwen-only base_url is accepted solely for legacy migration. It cannot be
-# combined with region/workspace_id; fixed-endpoint providers reject it.
+# Qwen-only base_url is accepted solely for legacy migration. `local_openai`
+# instead requires a literal loopback endpoint such as
+# base_url = "http://127.0.0.1:11434/v1"; fixed cloud endpoints reject overrides.
 # Exact UTF-8 JSON byte cap for each outbound provider SDK request. This covers
 # task, selected memory, tool schemas/results, images, and local message history.
 max_request_bytes = 8388608

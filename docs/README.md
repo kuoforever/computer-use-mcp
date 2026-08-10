@@ -115,7 +115,7 @@ canonical project and evidence owners.
 | Resume evidence items | One JD-oriented candidate highlight per Markdown file, with evidence links, interview prompts, and explicit claim limits derived from owner documents |
 | Teaching collaboration | Before/during/after guided-learning protocol and the threshold for durable career evidence; never project sequencing |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
-| Provider support | Eight exact provider profiles, protocol/endpoint/capability routing, setup, and deferred live gates |
+| Provider support | Eight exact cloud profiles plus one loopback-only local Planner/final profile, protocol/endpoint/capability routing, setup, and deferred live gates |
 | Tool reference | Public MCP tool surface and result semantics |
 | Design | Component boundaries and long-lived technical decisions |
 | Driver Contract | The normative shared-core/driver interface |

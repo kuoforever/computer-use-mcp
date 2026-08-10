@@ -170,7 +170,7 @@ async def diagnose_config(
             failure=setup.sdk_issue,
         )
     checks["provider_sdk"] = "pass"
-    if not setup.credential_present:
+    if setup.credential_required and not setup.credential_present:
         checks["provider_credential"] = "fail"
         return _report(
             provider=setup.name,
