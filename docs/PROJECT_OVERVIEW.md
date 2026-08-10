@@ -443,6 +443,7 @@ The authoritative current priorities live in
 | --- | --- |
 | New user | [Root README](../README.md) -> [Tools](TOOLS.md) -> [Configuration](CONFIGURATION.md) |
 | Product or hiring reviewer | This overview -> [Capability status](CAPABILITY_STATUS.md) -> [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| Project author tailoring a job application | [Career and learning hub](career/) -> [Resume evidence](career/resume/) -> [Capability status](CAPABILITY_STATUS.md) |
 | MCP/runtime engineer | This overview -> [Design](DESIGN.md) -> [Driver Contract](DRIVER_CONTRACT.md) -> [Development](DEVELOPMENT.md) |
 | Agent engineer | This overview -> [Agent Host](AGENT.md) -> [Planning](PLANNING.md) -> [Continuation](CONTINUATION.md) |
 | Reliability/safety reviewer | This overview -> [Quality attributes](QUALITY_ATTRIBUTES.md) -> [Approvals](APPROVALS.md) -> [Evaluation](EVALUATION.md) |

@@ -6,9 +6,11 @@ For every Codex or other coding-agent session:
 
 1. Read `PROJECT_STATUS.md`.
 2. Read `docs/FULLCYCLE_INTEGRATION.md` for bridge work.
-3. Read `docs/PROJECT_OVERVIEW.md` and `docs/CAPABILITY_STATUS.md` only when the
+3. Read `docs/career/teaching/README.md` before non-trivial
+   implementation or validation work.
+4. Read `docs/PROJECT_OVERVIEW.md` and `docs/CAPABILITY_STATUS.md` only when the
    active task needs broader product context.
-4. Inspect `git status --short --branch` before editing.
+5. Inspect `git status --short --branch` before editing.
 
 `PROJECT_STATUS.md` owns the active task and closure backlog. `HANDOFF.md`
 contains durable maintainer facts. Capability claims remain owned by
@@ -16,26 +18,15 @@ contains durable maintainer facts. Capability claims remain owned by
 
 ## Teaching-oriented collaboration
 
-Treat implementation as both project delivery and guided learning for the
-user's skill development, interview preparation, and evidence-backed resume.
+The detailed, mandatory workflow lives in
+`docs/career/teaching/README.md`. It owns the before/during/after step
+protocol, interview translation, and resume-evidence threshold. `AGENTS.md`
+owns the requirement to follow it.
 
-- Before each non-trivial step, explain its objective, required concepts, why
-  it is next, the expected evidence, and what failure would mean.
-- During execution, explain consequential code, commands, parameters, design
-  choices, and trade-offs. Summarize repetitive mechanical operations instead
-  of turning them into noise.
-- After each step, interpret the result, distinguish what it proves from what
-  it does not prove, cover relevant failure modes and alternatives, and connect
-  the work to likely interview questions and defensible resume evidence.
-- Prefer clear Chinese explanations while retaining exact English technical
-  terms, identifiers, commands, metrics, and file names needed for industry
-  communication and reproducibility.
-- Teaching must not weaken execution discipline: keep the single active
-  objective, run the required validation, preserve safety and cross-repository
-  boundaries, and never present planned or unverified work as experience.
-- Do not create a separate learning tracker. Use conversation for step-by-step
-  teaching and existing project evidence documents only when a durable result
-  is worth recording.
+Teaching must not weaken the single active objective, validation, safety,
+cross-repository boundaries, or evidence discipline. Prefer clear Chinese with
+exact English technical terms, and never present planned or unverified work as
+experience.
 
 ## Codex and Claude Code coordination
 

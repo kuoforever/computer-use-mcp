@@ -1,8 +1,10 @@
 # Documentation
 
-The English documents in this directory are the canonical project
-documentation. [README.zh-CN.md](../README.zh-CN.md) is a Chinese quick-start,
-not a line-by-line mirror of every reference page.
+The English project contracts in this directory are canonical.
+[README.zh-CN.md](../README.zh-CN.md) is a Chinese quick-start, not a
+line-by-line mirror of every reference page. The Chinese-first working pages
+under [career/](career/) derive job-application and teaching material from the
+canonical project and evidence owners.
 
 ## Status labels
 
@@ -31,6 +33,8 @@ not a line-by-line mirror of every reference page.
 | I want to know why a specific safety rule exists, and what was rejected | [Architecture decision records](adr/) |
 | I want a worked failure analysis with root cause and detection gap | [Postmortems](postmortems/) |
 | I want to know how coding agents are used here and who is responsible | [AI-assisted development](AI_ASSISTED_DEVELOPMENT.md) |
+| I want to tailor evidence-backed project bullets to a job description | [Career and learning hub](career/) and [resume evidence index](career/resume/) |
+| I need the required teaching-oriented implementation workflow | [Teaching collaboration protocol](career/teaching/) |
 | I am implementing a driver | [Driver Contract](DRIVER_CONTRACT.md) |
 | I need the current stack and platform boundary | [Tech stack](TECH_STACK.md) |
 | I am reviewing non-functional requirements | [Quality attributes](QUALITY_ATTRIBUTES.md) |
@@ -108,6 +112,8 @@ not a line-by-line mirror of every reference page.
 | Pre-run Review | Host-fixed workflow goal, applications, data use, output, approval bound, stops, residue, exact acknowledgement, and zero-startup review contract |
 | Cooperative control | Same-process safe-boundary pause, explicit desktop authority release, explicit resume, mandatory fresh observation, and no uncertain replay |
 | Capability status | Cross-surface implementation state, retained evidence level, and next executable gate |
+| Resume evidence items | One JD-oriented candidate highlight per Markdown file, with evidence links, interview prompts, and explicit claim limits derived from owner documents |
+| Teaching collaboration | Before/during/after guided-learning protocol and the threshold for durable career evidence; never project sequencing |
 | Configuration and safety | Runtime modes, environment variables, and guard behavior |
 | Provider support | Eight exact provider profiles, protocol/endpoint/capability routing, setup, and deferred live gates |
 | Tool reference | Public MCP tool surface and result semantics |
