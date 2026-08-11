@@ -23,6 +23,10 @@ a version number states what is packaged, never what has been verified.
   fresh-run identity commits without local state correction. All accepted runs
   used one tool call, zero provider calls, and zero tokens; final handoff points
   to ordinal 4 with no retryable or uncertain items.
+- **Exact China-route provider E3.** Harmless fake-MCP matrices retain exact
+  Kimi `cn` + `kimi-k2.6` and MiniMax `cn` + `MiniMax-M2.7` ordinary,
+  Planner/final, capability, timeout, and continuation evidence without
+  promoting sibling routes/models, desktop, E4, applications, or release.
 
 ### Fixed
 
@@ -40,10 +44,11 @@ a version number states what is packaged, never what has been verified.
   routing now supports OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM,
   and MiniMax over reviewed Responses, Chat Completions, and Messages wire
   families. Provider credentials/endpoints/capabilities remain separate;
-  Qwen alone accepts one strict workspace endpoint, text-only profiles withdraw
-  image tools, and continuation v7 binds vendor/model/protocol/endpoint. The six
-  added profiles are offline verified only; their credentialed E3/E4 and
-  application gates remain unrun until accounts exist.
+  Qwen alone requires a strict workspace-derived regional endpoint, text-only
+  profiles withdraw image tools, and continuation v8 binds
+  vendor/model/region/protocol/endpoint. All profiles are offline verified;
+  exact Kimi and MiniMax China E3 cells are retained, while the remaining
+  profiles, routes, sibling models, E4, and application gates remain unverified.
 - **Cooperative Pause/Takeover/Resume.** The installed public-web-word Runner
   loops now publish one strict local control lifecycle. CLI `task pause` and
   `task takeover` become effective only after a durable safe-boundary

@@ -12,10 +12,60 @@
 | OpenAI | `PASS` | `PASS` | retained |
 | Anthropic Claude | `PASS` | `PASS` | retained |
 | Kimi `kimi-k2.6` China | `PASS` | `PASS`, including synthetic image | retained |
+| MiniMax `MiniMax-M2.7` China | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 
-Together these records cover three exact provider/model/route candidates. They do not
+Together these records cover four exact provider/model/route candidates. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
 every model offered by any provider is compatible with the current adapters.
+
+## 2026-08-11: MiniMax `MiniMax-M2.7` China full fake-MCP E3
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Provider route | MiniMax Anthropic Messages-compatible, `region = "cn"`, fixed `https://api.minimaxi.com/anthropic` |
+| Explicit model ID | `MiniMax-M2.7` |
+| Exact implementation commit | `2c6a7ccebb09095ef796d25028ab2de6453738cc` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest tests\agent\test_minimax_integration.py -m minimax_integration -q` |
+| Fixed outcome | `5 passed in 51.51s` |
+| Setup cell | formal `config setup --provider minimax --model MiniMax-M2.7 --region cn` plus `config doctor` passed SDK, isolated credential, executable, working-directory, and 13-tool discovery checks; generated TOML held no secret |
+| Ordinary/continuation cell | two real model turns completed one `list_windows` fake-MCP call and its tool-result continuation; the child reported that provider secrets were absent |
+| Planner/structured/final cell | exact-schema prompt output was Host-compiled before one fake-MCP observation and one tool-free final response |
+| Image-capability cell | the live ordinary request omitted both `screenshot` and `capture_region`; the model returned without a tool call and fake MCP received zero calls |
+| Timeout cell | one-second Host provider timeout returned fixed `PROVIDER_TIMEOUT` with zero MCP tool calls |
+| Execution boundary | harmless stdio/fake MCP only; zero side effects, Windows Driver calls, real desktop reads, or application actions |
+
+The first five-cell run passed four cases and failed closed at Planner with
+fixed `PLANNER_REQUEST_FAILED`. A structure-only diagnostic retained no model
+text or reasoning and showed `end_turn` with one signed `thinking` block before
+one `text` block. After the Planner accepted only validated reasoning before
+exactly one text block, a single-cell rerun reached the fake `list_windows`
+call/result/observation sequence and then stopped at fixed
+`EXECUTOR_FINAL_UNCERTAIN`. A second structure-only diagnostic showed the same
+strict `thinking`-then-`text` response shape at the final boundary.
+
+The bounded repair is shared by Anthropic Messages one-shot Planner/final
+adapters: zero or more valid signed `thinking` or opaque
+`redacted_thinking` blocks may precede exactly one text block. Reasoning is
+validated and discarded; it never enters the compiled plan, final result,
+trace, continuation, or error text. Reasoning after text, missing signatures,
+duplicate text, tool blocks, unknown content, non-`end_turn`, and malformed
+output still fail closed. Ordinary tool continuation remains unchanged and
+continues to preserve only strictly validated reasoning blocks for exact replay.
+
+The exact-commit passing rerun used only `MINIMAX_API_KEY` through the operator
+environment and did not set a model environment override: the harness itself
+hard-pins `MiniMax-M2.7` and fails on another explicit model. One earlier
+exact-commit attempt was invalid because the clipboard changed before pytest;
+HTTP header construction stopped locally before any provider request. No
+credential, clipboard content, prompt, model prose, reasoning, signature, tool
+output, response identifier, or local state path is retained here.
+
+This result proves neither MiniMax global nor another MiniMax model. The image
+cell proves schema withdrawal for image-returning tools, not MiniMax image
+input or a synthetic-image final cycle. The harness used a conservative
+128,000-token context setting and does not validate the provider's maximum
+context. No real desktop, application, E4, release, sibling provider, or
+cross-region credential compatibility is promoted.
 
 ## 2026-08-11: Kimi `kimi-k2.6` China full fake-MCP E3
 

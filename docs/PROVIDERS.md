@@ -3,7 +3,7 @@
 > **Status: eight cloud identities plus one loopback-only `local_openai`
 > identity are implemented and offline verified at their named boundaries;
 > credentialed testing is retained for the earlier OpenAI and Anthropic scopes
-> plus the exact Kimi `kimi-k2.6` China route.** Local support currently covers
+> plus exact Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` China routes.** Local support currently covers
 > text-only Planner/final construction, not native ordinary tool calling. Other
 > cloud routes, local E3, E4, and application gates remain deferred.
 
@@ -61,15 +61,16 @@ has no recommended model because the Host cannot infer what an operator serves;
 both model ID and endpoint are required. Operators remain responsible for model
 access and accurate context/output limits.
 
-The provider and region snapshot was reviewed on 2026-08-10 against the official
+The provider and region snapshot was reviewed on 2026-08-11 against the official
 [Kimi global API docs](https://platform.kimi.ai/docs/api/overview),
 [Kimi China API docs](https://platform.kimi.com/docs/api/overview),
 [Qwen regional workspace docs](https://www.alibabacloud.com/help/en/model-studio/use-workspace),
 [Doubao Responses guide](https://www.volcengine.com/docs/82379/1795150),
 [BytePlus ModelArk endpoint docs](https://docs.byteplus.com/en/docs/ModelArk/1399008),
 [DeepSeek API model/pricing page](https://api-docs.deepseek.com/quick_start/pricing?article_id=article_1779470751466_8),
-[GLM model overview](https://docs.bigmodel.cn/cn/guide/start/model-overview), and
-[MiniMax Anthropic-compatible API](https://platform.minimax.io/docs/api-reference/text-anthropic-api).
+[GLM model overview](https://docs.bigmodel.cn/cn/guide/start/model-overview),
+[MiniMax global Anthropic-compatible API](https://platform.minimax.io/docs/api-reference/text-anthropic-api), and
+[MiniMax China Anthropic-compatible API](https://platform.minimaxi.com/docs/api-reference/text-chat-anthropic).
 Documentation review chooses request shapes; only credentialed tests can prove
 the exact account/model behavior.
 
@@ -93,6 +94,11 @@ the exact account/model behavior.
 - The Host still validates every returned tool name and argument against its
   own reviewed registry. Prompt-only structured output is not trusted as a
   provider guarantee; it passes through the same strict local compiler.
+- Messages-compatible one-shot Planner/final responses may contain only valid
+  signed `thinking` or opaque `redacted_thinking` blocks before exactly one
+  text block. The Host validates and discards that reasoning before compilation
+  or final output; malformed, late, duplicate, tool, or unknown blocks fail
+  closed. Ordinary Messages continuation retains its stricter exact replay.
 - Provider credentials remain Host environment variables. They are neither
   stored in TOML nor inherited by the MCP child, offline tests, or release
   subprocesses.
@@ -149,6 +155,10 @@ guarded-desktop-agent config setup --provider qwen --model qwen3.7-plus `
 MiniMax China and global accounts are explicit independent routes:
 
 ~~~powershell
+$env:MINIMAX_API_KEY = "<credential>"
+guarded-desktop-agent config setup --provider minimax --model MiniMax-M2.7 `
+  --region cn
+
 $env:MINIMAX_GLOBAL_API_KEY = "<credential>"
 guarded-desktop-agent config setup --provider minimax --model MiniMax-M2.7 `
   --region global
@@ -178,9 +188,10 @@ support does not claim compatibility with any named server or model.
 
 ## Deferred live gate
 
-Kimi `kimi-k2.6` on `cn` has the retained bounded model-pinned exact-commit E3
-result in [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another
-route beyond offline support:
+Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes have
+retained bounded model-pinned exact-commit E3 results in
+[Provider E3 evidence](E3_EVIDENCE.md). Before promoting another route beyond
+offline support:
 
 1. create the provider account in the intended service region and set only that
    route's documented Host credential;
