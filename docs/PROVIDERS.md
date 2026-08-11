@@ -2,11 +2,10 @@
 
 > **Status: eight cloud identities plus one loopback-only `local_openai`
 > identity are implemented and offline verified at their named boundaries;
-> credentialed testing is retained for the earlier OpenAI and Anthropic scopes;
-> the exact Kimi `kimi-k2.6` China-route candidate awaits its exact-commit E3
-> rerun.** Local support currently covers text-only Planner/final construction,
-> not native ordinary tool calling. Other cloud routes, local E3, E4, and
-> application gates remain deferred.
+> credentialed testing is retained for the earlier OpenAI and Anthropic scopes
+> plus the exact Kimi `kimi-k2.6` China route.** Local support currently covers
+> text-only Planner/final construction, not native ordinary tool calling. Other
+> cloud routes, local E3, E4, and application gates remain deferred.
 
 ## Support matrix
 
@@ -179,9 +178,9 @@ support does not claim compatibility with any named server or model.
 
 ## Deferred live gate
 
-Kimi `kimi-k2.6` on `cn` is the current bounded E3 candidate; retention awaits
-an exact-commit rerun in [Provider E3 evidence](E3_EVIDENCE.md). Before
-promoting another route beyond offline support:
+Kimi `kimi-k2.6` on `cn` has the retained bounded model-pinned exact-commit E3
+result in [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another
+route beyond offline support:
 
 1. create the provider account in the intended service region and set only that
    route's documented Host credential;

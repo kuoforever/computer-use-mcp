@@ -17,8 +17,13 @@ v1.0.0, and one in-process Windows implementation. The second is an
 experimental `guarded-desktop-agent` Host with eight exact provider profiles
 over three wire families,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
-actions. [Historical OpenAI/Claude E3 evidence](docs/E3_EVIDENCE.md) is retained for both
-bounded fake-MCP cases with one reviewed model per provider. [Isolated desktop
+actions. [Provider E3 evidence](docs/E3_EVIDENCE.md) is retained for the bounded
+OpenAI/Claude cases and the exact model-pinned Kimi `kimi-k2.6` China route.
+Kimi `global` and `cn` have fixed independent endpoints and Host credential variables with no
+cross-gateway fallback; only `cn` + `kimi-k2.6` one-shot Planner/final calls
+disable thinking after live E3 reproduced output-budget exhaustion, while the
+global route, sibling models, and ordinary tool continuation keep their prior
+behavior. [Isolated desktop
 E4 evidence](docs/E4_EVIDENCE.md) is retained for the reviewed VM and one model
 per provider, including read-only and explicitly approved action cells. The
 record also preserves a separate Sonnet 5
@@ -35,7 +40,7 @@ bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
 response. It has eight-profile offline fake-port coverage plus retained
-OpenAI/Claude-only E3 results. The reviewed Agent Host path also has retained isolated desktop E4
+OpenAI/Claude and Kimi-China E3 results. The reviewed Agent Host path also has retained isolated desktop E4
 evidence, but the Planner / Executor path has no separate desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
