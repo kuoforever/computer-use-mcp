@@ -33,8 +33,9 @@
 - Agent Host 已离线实现 9 个精确 provider profile：8 个云端 identity
   （OpenAI、Anthropic、Qwen、Doubao、Kimi、DeepSeek、GLM 和 MiniMax）以及
   一个仅 loopback 的 `local_openai`。云端路由和本地 Planner/final 边界已离线
-  验证；本地 native tool-calling 在 E3 前固定不可用。只有此前 OpenAI/Claude
-  范围有留存的真实 API 证据；新增国产 provider 尚未连接账号。详见
+  验证；本地 native tool-calling 在 E3 前固定不可用。留存的真实 API 证据覆盖
+  此前 OpenAI/Claude 范围，以及 Kimi `cn` + `kimi-k2.6` 和 MiniMax `cn` +
+  `MiniMax-M2.7` 精确范围；其他 provider、路由和模型仍须分别验证。详见
   [provider 支持矩阵（英文）](docs/PROVIDERS.md)。
 
 macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图中，尚未实现。

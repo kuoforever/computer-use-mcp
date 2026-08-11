@@ -33,8 +33,9 @@ desktop execution authority, and durable evidence that outlives a crash.
   cloud identities (OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM, and
   MiniMax) plus one loopback-only `local_openai` profile. Cloud routing and the
   local Planner/final boundary are offline verified; local native tool calling
-  is unavailable pending an exact E3. Only the earlier OpenAI/Claude scopes have
-  [retained live evidence](docs/E3_EVIDENCE.md). See the
+  is unavailable pending an exact E3. [Retained live evidence](docs/E3_EVIDENCE.md)
+  covers the earlier OpenAI/Claude scopes, Kimi `cn` + `kimi-k2.6`, and MiniMax
+  `cn` + `MiniMax-M2.7`. See the
   [provider matrix](docs/PROVIDERS.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
 - **Recovery that never auto-replays an uncertain action.** A dispatch intent

@@ -111,6 +111,7 @@ def test_release_preflight_records_sanitized_offline_evidence(
     monkeypatch.setenv("ZAI_API_KEY", "secret-glm")
     monkeypatch.setenv("MINIMAX_API_KEY", "secret-minimax")
     monkeypatch.setenv("RUN_OPENAI_INTEGRATION", "1")
+    monkeypatch.setenv("RUN_MINIMAX_INTEGRATION", "1")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-aws")
     monkeypatch.setenv("GITHUB_TOKEN", "secret-github")
     monkeypatch.setenv("UNRELATED_SECRET", "secret-unrelated")
@@ -203,6 +204,9 @@ def test_release_preflight_records_sanitized_offline_evidence(
         environment["RUN_ANTHROPIC_INTEGRATION"] == "0" for environment in environments
     )
     assert all(environment["RUN_KIMI_INTEGRATION"] == "0" for environment in environments)
+    assert all(
+        environment["RUN_MINIMAX_INTEGRATION"] == "0" for environment in environments
+    )
     assert all(environment["PIP_NO_INDEX"] == "1" for environment in environments)
     assert all(environment["PIP_NO_INPUT"] == "1" for environment in environments)
     assert all(environment["PYTHONNOUSERSITE"] == "1" for environment in environments)

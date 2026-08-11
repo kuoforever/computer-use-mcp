@@ -109,6 +109,39 @@ def test_anthropic_planner_with_empty_tool_scope_only_exposes_final_shape() -> N
     assert len(plan.steps) == 1
 
 
+def test_anthropic_planner_validates_then_discards_reasoning_before_text() -> None:
+    candidate = _wire_candidate(
+        {
+            "action": "tool",
+            "tool": "find",
+            "arguments_json": '{"query":"Save"}',
+        },
+        {"action": "final_response"},
+    )
+    scripted = ScriptedMessages(
+        [
+            SimpleNamespace(
+                stop_reason="end_turn",
+                content=[
+                    SimpleNamespace(
+                        type="thinking",
+                        thinking="private reasoning",
+                        signature="signed-reasoning",
+                    ),
+                    SimpleNamespace(type="text", text=candidate, citations=None),
+                ],
+            )
+        ]
+    )
+    planner = AnthropicPlanner(model="minimax-test", messages=scripted, name="minimax")
+
+    plan = asyncio.run(request_task_plan(planner, _request()))
+
+    assert len(plan.steps) == 2
+    assert "private reasoning" not in repr(plan)
+    assert "signed-reasoning" not in repr(plan)
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -124,6 +157,22 @@ def test_anthropic_planner_with_empty_tool_scope_only_exposes_final_shape() -> N
             stop_reason="end_turn",
             content=[
                 SimpleNamespace(type="text", text="{}"),
+                SimpleNamespace(type="text", text="{}"),
+            ],
+        ),
+        SimpleNamespace(
+            stop_reason="end_turn",
+            content=[
+                SimpleNamespace(type="text", text="{}"),
+                SimpleNamespace(
+                    type="thinking", thinking="late", signature="signed-reasoning"
+                ),
+            ],
+        ),
+        SimpleNamespace(
+            stop_reason="end_turn",
+            content=[
+                SimpleNamespace(type="thinking", thinking="unsigned", signature=""),
                 SimpleNamespace(type="text", text="{}"),
             ],
         ),
@@ -148,6 +197,8 @@ def test_anthropic_planner_with_empty_tool_scope_only_exposes_final_shape() -> N
         "tool-use",
         "missing-content",
         "extra-content",
+        "reasoning-after-text",
+        "invalid-reasoning",
         "non-json",
         "non-object-args",
         "scope",

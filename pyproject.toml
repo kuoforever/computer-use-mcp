@@ -66,6 +66,7 @@ markers = [
     "openai_integration: opt-in live OpenAI Responses API test with a harmless fake MCP child",
     "anthropic_integration: opt-in live Claude Messages API test with a harmless fake MCP child",
     "kimi_integration: opt-in live Kimi Chat Completions API matrix with a harmless fake MCP child",
+    "minimax_integration: opt-in live MiniMax Messages API matrix with a harmless fake MCP child",
 ]
 
 [tool.mypy]

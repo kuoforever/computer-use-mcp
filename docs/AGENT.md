@@ -102,9 +102,10 @@ the following commands:
   required final step, executes observations through the sole Runner boundary,
   and makes one stateless tool-free final-response request. It exposes no tool
   selector, action, approval, memory, recovery, or ordinary provider-loop
-  option. Continuation WAL is required. [OpenAI and Claude provider evidence is retained](E3_EVIDENCE.md)
-  for the earlier bounded scope and one reviewed model per provider; the six
-  added profiles are offline verified only. The separate [E4 record](E4_EVIDENCE.md)
+  option. Continuation WAL is required. [Retained provider evidence](E3_EVIDENCE.md)
+  covers the earlier bounded OpenAI/Claude scope, exact Kimi `cn` +
+  `kimi-k2.6`, and exact MiniMax `cn` + `MiniMax-M2.7`; the remaining added
+  cloud profiles are offline verified only. The separate [E4 record](E4_EVIDENCE.md)
   covers the reviewed Agent Host desktop path, not a separate Planner pass.
 - `approval inbox --config PATH [--json]` reads only strict local pending
   Decision Card records. It shows last-record/expired status, fixed action
@@ -562,13 +563,19 @@ required safety baselines are satisfied. A model-generated unadvertised tool
 fails closed.
 
 The Messages adapter serves Anthropic and MiniMax with exact vendor identity.
-For Anthropic it preserves each assistant
+For ordinary continuation it preserves each assistant
 `tool_use` block in its in-memory message history. Signed `thinking` and opaque
 `redacted_thinking` blocks are strictly validated, excluded from canonical
 model text and redacted trace, and retained unmodified only inside that private
 history so the matching tool-result continuation can replay the complete
 assistant block. The next user message begins with the matching `tool_result`
 block keyed by the original `tool_use.id`.
+One-shot Planner and final adapters accept zero or more strictly validated
+`thinking` / `redacted_thinking` blocks only before exactly one non-empty text
+block, discard that reasoning before Host compilation, and reject late,
+unsigned, malformed, duplicate, or unknown content. This normalization is
+shared by Messages profiles; retained live promotion remains limited to the
+exact model/route cells in [E3 evidence](E3_EVIDENCE.md).
 Screenshot results contain a status text block and one nested base64 PNG image
 block.
 Parallel tool use is disabled in the request and any returned calls are still
@@ -610,10 +617,11 @@ interactive per-effect approval by default; only the fixed public-web-word
 profile has bounded Host-owned low-risk authorization. See
 [Approved actions](APPROVALS.md). Generic `run` keeps `type` disabled.
 
-Existing opt-in E3 tests exercise OpenAI and Anthropic against the harmless
-stdio fixture rather than the real desktop. Equivalent exact-profile E3 cells
-for Qwen, Doubao, Kimi, DeepSeek, GLM, and MiniMax are deliberately not run or
-promoted until accounts exist. See [Evaluation](EVALUATION.md).
+Opt-in E3 coverage uses a harmless fake-MCP fixture rather than the real
+desktop. It retains the earlier bounded OpenAI/Anthropic results plus exact
+Kimi `cn` + `kimi-k2.6` and MiniMax `cn` + `MiniMax-M2.7` cells. Those exact
+results do not promote global routes or sibling models; Qwen, Doubao, DeepSeek,
+and GLM remain live-unverified. See [Evaluation](EVALUATION.md).
 
 `RunLock` holds a non-blocking OS file lock for the full lease at the canonical
 user-local application root, so different configured state subdirectories
@@ -923,7 +931,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
-| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. Every profile uses one tool-free stateless request with complete byte/token preflight and strict local output compilation; provider-native JSON Schema, JSON object, and prompt-only modes are explicit capability choices. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port and offline fake-client eight-profile routing; [retained OpenAI/Claude E3 evidence](E3_EVIDENCE.md) predates the added profiles, which remain live-unverified |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. Every profile uses one tool-free stateless request with complete byte/token preflight and strict local output compilation, including ordered reasoning-before-text normalization for Messages calls; provider-native JSON Schema, JSON object, and prompt-only modes are explicit capability choices. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port and offline fake-client eight-profile routing; retained [OpenAI/Claude, exact Kimi-China, and exact MiniMax-China E3 evidence](E3_EVIDENCE.md); remaining profiles, routes, and sibling models remain live-unverified |
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; consumed by the bounded observation runtime |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented bounded contract used by the runtime wrapper |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |
