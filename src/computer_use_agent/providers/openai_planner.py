@@ -22,7 +22,10 @@ from ..provider_catalog import (
     ProviderProtocol,
     StructuredOutputMode,
     provider_profile,
+    provider_strips_exact_planner_json_fence,
+    resolve_provider_route,
 )
+from ..planning import MAX_PLAN_CANDIDATE_BYTES
 from ..provider_setup import openai_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
@@ -67,7 +70,29 @@ def _request_size(value: object) -> int:
         raise OpenAIPlannerError("OPENAI_PLANNER_REQUEST_INVALID") from None
 
 
-def _candidate_from_response(response: object, *, allowed_tools: frozenset[str]) -> str:
+def _strip_exact_json_fence(text: str) -> str:
+    try:
+        if len(text.encode("utf-8")) > MAX_PLAN_CANDIDATE_BYTES:
+            return text
+    except UnicodeError:
+        return text
+    prefix = "```json\n"
+    suffix = "\n```"
+    if (
+        text.startswith(prefix)
+        and text.endswith(suffix)
+        and text.count("```") == 2
+    ):
+        return text[len(prefix) : -len(suffix)]
+    return text
+
+
+def _candidate_from_response(
+    response: object,
+    *,
+    allowed_tools: frozenset[str],
+    strip_exact_json_fence: bool,
+) -> str:
     if _read(response, "status") != "completed":
         raise OpenAIPlannerError("OPENAI_PLANNER_RESPONSE_INVALID")
     output = _read(response, "output")
@@ -94,6 +119,8 @@ def _candidate_from_response(response: object, *, allowed_tools: frozenset[str])
     text = _read(item, "text")
     if not isinstance(text, str):
         raise OpenAIPlannerError("OPENAI_PLANNER_RESPONSE_INVALID")
+    if strip_exact_json_fence:
+        text = _strip_exact_json_fence(text)
     try:
         return compile_planner_wire_candidate(text, allowed_tools=allowed_tools)
     except PlannerWireError as exc:
@@ -111,6 +138,7 @@ class OpenAIPlanner:
     name: str = "openai"
     structured_output: StructuredOutputMode = StructuredOutputMode.JSON_SCHEMA
     store_response: bool = True
+    strip_exact_json_fence: bool = False
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
@@ -124,6 +152,8 @@ class OpenAIPlanner:
             raise ValueError("structured_output must be reviewed")
         if not isinstance(self.store_response, bool):
             raise ValueError("store_response must be boolean")
+        if not isinstance(self.strip_exact_json_fence, bool):
+            raise ValueError("strip_exact_json_fence must be boolean")
         if isinstance(self.max_request_bytes, bool) or not isinstance(
             self.max_request_bytes, int
         ) or self.max_request_bytes <= 0:
@@ -156,6 +186,12 @@ class OpenAIPlanner:
         legacy_credentials: bool = False,
     ) -> "OpenAIPlanner":
         profile = provider_profile(provider_name)
+        route = resolve_provider_route(
+            provider_name,
+            region=region,
+            base_url=base_url,
+            legacy_credentials=legacy_credentials,
+        )
         client = openai_client_from_environment(
             provider_name,
             region=region,
@@ -168,6 +204,9 @@ class OpenAIPlanner:
             name=provider_name,
             structured_output=profile.structured_output,
             store_response=provider_name == "openai",
+            strip_exact_json_fence=provider_strips_exact_planner_json_fence(
+                provider_name, model, route.region
+            ),
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
@@ -219,7 +258,11 @@ class OpenAIPlanner:
         except Exception as exc:
             raise OpenAIPlannerError("OPENAI_PLANNER_REQUEST_FAILED") from exc
         try:
-            return _candidate_from_response(response, allowed_tools=frozenset(tool_names))
+            return _candidate_from_response(
+                response,
+                allowed_tools=frozenset(tool_names),
+                strip_exact_json_fence=self.strip_exact_json_fence,
+            )
         except OpenAIPlannerError:
             raise
         except Exception as exc:

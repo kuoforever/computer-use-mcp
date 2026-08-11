@@ -5,7 +5,8 @@
 > credentialed testing is retained for the earlier OpenAI and Anthropic scopes
 > plus exact Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` China routes and the
 > exact DeepSeek `deepseek-v4-pro` global and Doubao
-> `doubao-seed-2-0-lite-260215` China routes.** Local support currently covers
+> `doubao-seed-2-0-lite-260215` China routes plus exact Qwen `qwen3.7-plus`
+> Beijing.** Local support currently covers
 > text-only Planner/final construction, not native ordinary tool calling. Other
 > cloud routes, local E3, E4, and application gates remain deferred.
 
@@ -200,8 +201,8 @@ support does not claim compatibility with any named server or model.
 
 Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes,
 DeepSeek `deepseek-v4-pro` on its exact `global` route, and Doubao
-`doubao-seed-2-0-lite-260215` on its exact `cn-beijing` route have retained
-bounded model-pinned exact-commit E3 results in
+`doubao-seed-2-0-lite-260215` plus Qwen `qwen3.7-plus` on their exact
+`cn-beijing` routes have retained bounded model-pinned exact-commit E3 results in
 [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another route beyond
 offline support:
 
@@ -229,6 +230,18 @@ PNG was below the route's 14-pixel minimum image dimension. An exact-marker
 harness; the clean full matrix then passed. Its ordinary cell proves bounded
 Responses continuation and its image cell proves only that single synthetic
 input, not arbitrary images, maximum context, or the BytePlus route.
+
+The exact Qwen Beijing gate uses the account-specific generated
+`https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
+endpoint and retains no workspace value. Its clean pre-repair matrix exposed
+intermittent, otherwise-valid Planner contract JSON inside exactly one
+lowercase Markdown JSON fence. The bounded production repair applies only to
+`qwen` + `cn-beijing` + `qwen3.7-plus` Planner output, enforces the original
+64 KiB response limit before removing the exact wrapper, and then invokes the
+unchanged Host compiler. Any other wrapper, route, model, ordinary turn, or
+final response keeps the prior fail-closed behavior. The passing matrix proves
+one bounded Responses continuation and one 16x16 synthetic-image cycle, not
+arbitrary images, maximum context, another Qwen region/model, E4, or release.
 
 Local E3 is separately deferred by the user. Before enabling native ordinary
 tool calling for any exact local server/model candidate, retain a harmless

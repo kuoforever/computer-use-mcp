@@ -7,12 +7,14 @@ from types import SimpleNamespace
 
 import pytest
 
+import computer_use_agent.providers.openai_planner as openai_planner_module
 from computer_use_agent.planner import (
     PlannerError,
     build_planner_request,
     request_task_plan,
 )
 from computer_use_agent.planning import PlanStepAction
+from computer_use_agent.provider_catalog import StructuredOutputMode
 from computer_use_agent.providers.openai_planner import (
     OPENAI_PLANNER_INSTRUCTIONS,
     OpenAIPlanner,
@@ -31,6 +33,27 @@ class ScriptedResponses:
         if isinstance(response, BaseException):
             raise response
         return response
+
+
+def test_environment_constructor_uses_the_effective_route_for_fence_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = SimpleNamespace(responses=ScriptedResponses([]))
+    monkeypatch.setattr(
+        openai_planner_module,
+        "openai_client_from_environment",
+        lambda *_args, **_kwargs: client,
+    )
+
+    planner = OpenAIPlanner.from_environment(
+        "qwen3.7-plus",
+        provider_name="qwen",
+        base_url=(
+            "https://ws1.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+    )
+
+    assert planner.strip_exact_json_fence is False
 
 
 def _request(*, tools: tuple[str, ...] = ("find",)):
@@ -151,6 +174,76 @@ def test_known_reasoning_item_is_ignored_and_never_enters_candidate() -> None:
     }
 
 
+def test_exact_scoped_json_fence_is_removed_before_unchanged_host_compilation() -> None:
+    candidate = _wire_candidate(
+        {
+            "action": "tool",
+            "tool": "find",
+            "arguments_json": '{"query":"Save"}',
+        },
+        {"action": "final_response"},
+    )
+    scripted = ScriptedResponses([_reasoning_response(f"```json\n{candidate}\n```")])
+    planner = OpenAIPlanner(
+        model="qwen3.7-plus",
+        responses=scripted,
+        name="qwen",
+        structured_output=StructuredOutputMode.PROMPT_ONLY,
+        store_response=False,
+        strip_exact_json_fence=True,
+    )
+
+    plan = asyncio.run(request_task_plan(planner, _request()))
+
+    assert plan.steps[0].action is PlanStepAction.TOOL
+    assert dict(plan.steps[0].arguments) == {"query": "Save"}
+    assert plan.steps[1].action is PlanStepAction.FINAL_RESPONSE
+    assert len(scripted.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "wrapped",
+    (
+        "```json\n{candidate}\n```\n",
+        " ```json\n{candidate}\n```",
+        "```JSON\n{candidate}\n```",
+        "```json\n```json\n{candidate}\n```\n```",
+        "before\n```json\n{candidate}\n```",
+    ),
+)
+def test_scoped_json_fence_normalization_rejects_every_nonexact_wrapper(
+    wrapped: str,
+) -> None:
+    candidate = _wire_candidate({"action": "final_response"})
+    scripted = ScriptedResponses([_response(wrapped.format(candidate=candidate))])
+    planner = OpenAIPlanner(
+        model="qwen3.7-plus",
+        responses=scripted,
+        name="qwen",
+        structured_output=StructuredOutputMode.PROMPT_ONLY,
+        store_response=False,
+        strip_exact_json_fence=True,
+    )
+
+    with pytest.raises(OpenAIPlannerError, match="OPENAI_PLANNER_RESPONSE_INVALID"):
+        asyncio.run(planner.create_candidate(_request(tools=())))
+
+
+def test_exact_json_fence_remains_invalid_without_the_scoped_normalization() -> None:
+    candidate = _wire_candidate({"action": "final_response"})
+    scripted = ScriptedResponses([_response(f"```json\n{candidate}\n```")])
+    planner = OpenAIPlanner(
+        model="qwen3.7-plus",
+        responses=scripted,
+        name="qwen",
+        structured_output=StructuredOutputMode.PROMPT_ONLY,
+        store_response=False,
+    )
+
+    with pytest.raises(OpenAIPlannerError, match="OPENAI_PLANNER_RESPONSE_INVALID"):
+        asyncio.run(planner.create_candidate(_request(tools=())))
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -269,6 +362,23 @@ def test_exact_tool_argument_contract_is_still_enforced_by_host_compiler() -> No
 def test_oversized_provider_output_fails_after_one_call() -> None:
     scripted = ScriptedResponses([_response("x" * (64 * 1024 + 1))])
     planner = OpenAIPlanner(model="gpt-test", responses=scripted)
+
+    with pytest.raises(OpenAIPlannerError, match="OPENAI_PLANNER_RESPONSE_TOO_LARGE"):
+        asyncio.run(planner.create_candidate(_request()))
+
+    assert len(scripted.calls) == 1
+
+
+def test_scoped_fence_normalization_preserves_the_original_byte_limit() -> None:
+    scripted = ScriptedResponses([_response(f"```json\n{'x' * (64 * 1024)}\n```")])
+    planner = OpenAIPlanner(
+        model="qwen3.7-plus",
+        responses=scripted,
+        name="qwen",
+        structured_output=StructuredOutputMode.PROMPT_ONLY,
+        store_response=False,
+        strip_exact_json_fence=True,
+    )
 
     with pytest.raises(OpenAIPlannerError, match="OPENAI_PLANNER_RESPONSE_TOO_LARGE"):
         asyncio.run(planner.create_candidate(_request()))

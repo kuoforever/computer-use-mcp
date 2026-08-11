@@ -32,11 +32,15 @@ _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
     "+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
-_DOUBAO_CN_PNG = base64.b64decode(
+_SIXTEEN_BY_SIXTEEN_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGElEQVR42mNg"
     "YGD4TyEeNWDUgFEDhocBAJvM/wFK6ATsAAAAAElFTkSuQmCC"
 )
-_IMAGE_PNG = _DOUBAO_CN_PNG if "doubao-cn-plan-e3" in sys.argv[1:] else _PNG
+_IMAGE_PNG = (
+    _SIXTEEN_BY_SIXTEEN_PNG
+    if {"doubao-cn-plan-e3", "qwen-cn-plan-e3"}.intersection(sys.argv[1:])
+    else _PNG
+)
 _SECRET_NAMES = (
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",

@@ -54,6 +54,7 @@ class ProviderRegionProfile:
     credential_environment: str
     fixed_base_url: str | None
     qwen_workspace: bool = False
+    responses_planner_exact_json_fence_models: frozenset[str] = frozenset()
     chat_one_shot_thinking_disabled_models: frozenset[str] = frozenset()
 
 
@@ -158,6 +159,7 @@ def _region(
     fixed_base_url: str | None = None,
     *,
     qwen_workspace: bool = False,
+    responses_planner_exact_json_fence_models: frozenset[str] = frozenset(),
     chat_one_shot_thinking_disabled_models: frozenset[str] = frozenset(),
 ) -> ProviderRegionProfile:
     return ProviderRegionProfile(
@@ -165,6 +167,9 @@ def _region(
         credential_environment=credential_environment,
         fixed_base_url=fixed_base_url,
         qwen_workspace=qwen_workspace,
+        responses_planner_exact_json_fence_models=(
+            responses_planner_exact_json_fence_models
+        ),
         chat_one_shot_thinking_disabled_models=(
             chat_one_shot_thinking_disabled_models
         ),
@@ -186,7 +191,12 @@ _REGIONS: Mapping[str, Mapping[str, ProviderRegionProfile]] = MappingProxyType(
         "qwen": MappingProxyType(
             {
                 "cn-beijing": _region(
-                    "cn-beijing", "DASHSCOPE_API_KEY", qwen_workspace=True
+                    "cn-beijing",
+                    "DASHSCOPE_API_KEY",
+                    qwen_workspace=True,
+                    responses_planner_exact_json_fence_models=frozenset(
+                        {"qwen3.7-plus"}
+                    ),
                 ),
                 "ap-southeast-1": _region(
                     "ap-southeast-1",
@@ -493,6 +503,22 @@ def provider_disables_one_shot_thinking(
     return model in disabled_models
 
 
+def provider_strips_exact_planner_json_fence(
+    name: str, model: str, region: str | None = None
+) -> bool:
+    """Return the exact reviewed Responses Planner fence normalization scope."""
+
+    provider_profile(name)
+    selected = default_provider_region(name) if region is None else region
+    try:
+        normalized_models = _REGIONS[name][
+            selected
+        ].responses_planner_exact_json_fence_models
+    except (KeyError, TypeError) as exc:
+        raise ValueError("PROVIDER_REGION_INVALID") from exc
+    return model in normalized_models
+
+
 __all__ = [
     "ProviderProfile",
     "ProviderRegionProfile",
@@ -504,6 +530,7 @@ __all__ = [
     "provider_profile",
     "provider_credential_environment",
     "provider_disables_one_shot_thinking",
+    "provider_strips_exact_planner_json_fence",
     "provider_supports_images",
     "provider_supports_tool_calling",
     "resolve_provider_base_url",

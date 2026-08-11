@@ -15,10 +15,64 @@
 | MiniMax `MiniMax-M2.7` China | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 | DeepSeek `deepseek-v4-pro` global | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 | Doubao `doubao-seed-2-0-lite-260215` China | `PASS` | `PASS`, including synthetic image | retained |
+| Qwen `qwen3.7-plus` Beijing | `PASS` | `PASS`, including synthetic image | retained |
 
-Together these records cover six exact provider/model/route candidates. They do not
+Together these records cover seven exact provider/model/route candidates. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
 every model offered by any provider is compatible with the current adapters.
+
+## 2026-08-11: Qwen `qwen3.7-plus` Beijing full fake-MCP E3
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Provider route | Qwen Responses-compatible, `region = "cn-beijing"`, generated `https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1` |
+| Credential contract | `DASHSCOPE_API_KEY` plus harness-only `QWEN_INTEGRATION_WORKSPACE_ID` (variable names only) |
+| Explicit model ID | `qwen3.7-plus` |
+| Exact implementation commit | `438610a972edd82cebe85f4a8e05f60eb093df27` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest tests\agent\test_qwen_integration.py -m qwen_integration -q` |
+| Fixed outcome | `5 passed in 46.07s` |
+| Setup cell | formal `config setup --provider qwen --model qwen3.7-plus --region cn-beijing --workspace-id <WorkspaceId>` plus `config doctor` passed SDK, isolated credential, executable, working-directory, and 13-tool discovery checks; generated TOML, captured output, and local state held no credential |
+| Ordinary/continuation cell | two real model turns completed one `list_windows` fake-MCP call and its Responses tool-result continuation; the child reported that provider secrets were absent |
+| Planner/structured/final cell | prompt-only plan JSON was Host-compiled before one fake-MCP observation and one tool-free final response |
+| Image cell | one deterministic synthetic 16x16 PNG crossed the reviewed Planner/final image boundary; no real pixels were captured |
+| Timeout cell | one-second Host provider timeout returned fixed `PROVIDER_TIMEOUT` with zero MCP tool calls |
+| Execution boundary | setup/doctor performed initialize/tool discovery only; provider-bearing cells used harmless stdio or in-process fake MCP, with zero side effects, Windows Driver calls, real desktop reads, or application actions |
+
+Early harness-only prevalidation failures were repaired without capability
+promotion. Clean pre-repair commit `3c8ee02` then passed three cells and failed
+closed in the two Planner cells. Isolated reruns proved the failure was
+intermittent. A structure-only diagnostic retained no model content and
+established the relevant contract fact: the response sometimes contained one
+otherwise-valid plan object inside exactly one lowercase Markdown JSON fence.
+
+The bounded production repair applies only to the `qwen` + `cn-beijing` +
+`qwen3.7-plus` one-shot Planner. It checks the original UTF-8 response against
+the existing 64 KiB limit before removing only the exact LF-delimited wrapper,
+then passes the inner text to the unchanged Host compiler. Leading/trailing
+text or whitespace, CRLF or case changes, nested/additional fences, sibling
+regions/models, ordinary continuation, and final response preserve the prior
+fail-closed behavior. Independent route, code, test, and credential reviews
+found no remaining blocker.
+
+An uncommitted repair prevalidation passed all five cells. The first attempt on
+the exact clean commit above was invalid because the clipboard had been
+replaced by a non-header value and four provider-bearing cells stopped locally
+during SDK header construction. After the operator recopied the credential,
+the unchanged clean commit produced the fixed passing outcome above. The
+harness hard-pins the exact model and rejects another explicit model.
+
+Credential checks cover setup/doctor output, generated configuration,
+ordinary/final output, trace, state files, and the fake MCP child. No
+credential, workspace value, clipboard content, task, prompt, model prose,
+reasoning, tool output, response identifier, raw provider error, diagnostic
+payload, or user-local state path is retained here.
+
+The ordinary cell proves exact-route Responses continuation for this bounded
+workload. The image cell proves one 16x16 synthetic-input Planner/final cycle,
+not arbitrary images or a maximum context. This result promotes neither
+another Qwen region/workspace nor another Qwen model/account/service version,
+and no real desktop, application, side effect, E4, release, Full Cycle, or L5
+evidence.
 
 ## 2026-08-11: Doubao `doubao-seed-2-0-lite-260215` China full fake-MCP E3
 

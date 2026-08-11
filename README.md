@@ -36,7 +36,8 @@ desktop execution authority, and durable evidence that outlives a crash.
   is unavailable pending an exact E3. [Retained live evidence](docs/E3_EVIDENCE.md)
   covers the earlier OpenAI/Claude scopes, Kimi `cn` + `kimi-k2.6`, MiniMax
   `cn` + `MiniMax-M2.7`, DeepSeek `global` + `deepseek-v4-pro`, and Doubao
-  `cn-beijing` + `doubao-seed-2-0-lite-260215`. See the [provider
+  `cn-beijing` + `doubao-seed-2-0-lite-260215`, and Qwen `cn-beijing` +
+  `qwen3.7-plus`. See the [provider
   matrix](docs/PROVIDERS.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
 - **Recovery that never auto-replays an uncertain action.** A dispatch intent

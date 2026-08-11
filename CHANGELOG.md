@@ -25,12 +25,20 @@ a version number states what is packaged, never what has been verified.
   to ordinal 4 with no retryable or uncertain items.
 - **Exact provider E3.** Harmless fake-MCP matrices retain exact Kimi `cn` +
   `kimi-k2.6`, MiniMax `cn` + `MiniMax-M2.7`, and DeepSeek `global` +
-  `deepseek-v4-pro` ordinary, Planner/final, capability, timeout, and
-  continuation evidence without promoting sibling routes/models, desktop,
-  E4, applications, or release.
+  `deepseek-v4-pro`, Doubao `cn-beijing` +
+  `doubao-seed-2-0-lite-260215`, and Qwen `cn-beijing` + `qwen3.7-plus`
+  ordinary, Planner/final, capability, timeout, and continuation evidence
+  without promoting sibling routes/models, desktop, E4, applications, or
+  release.
 
 ### Fixed
 
+- **Qwen Planner JSON-fence compatibility is exact-scoped.** Live Beijing
+  `qwen3.7-plus` E3 exposed intermittent valid plan JSON inside one exact
+  lowercase Markdown fence. Only that provider/region/model Planner removes
+  the LF-delimited wrapper after the original response-byte gate; unchanged
+  Host compilation remains authoritative, and all other wrappers, routes,
+  models, ordinary turns, and final responses retain fail-closed behavior.
 - **Planner scope values are now executable, not prose.** The first
   exact-candidate Desktop Ask attempt exposed a real `document_text` failure
   when the Planner emitted `"foreground document"` and the Host accepted any
@@ -48,7 +56,8 @@ a version number states what is packaged, never what has been verified.
   Qwen alone requires a strict workspace-derived regional endpoint, text-only
   profiles withdraw image tools, and continuation v8 binds
   vendor/model/region/protocol/endpoint. All profiles are offline verified;
-  exact Kimi and MiniMax China plus DeepSeek global E3 cells are retained,
+  exact Kimi and MiniMax China, DeepSeek global, Doubao China, and Qwen Beijing
+  E3 cells are retained,
   while the remaining profiles, routes, sibling models, E4, and application
   gates remain unverified.
 - **Cooperative Pause/Takeover/Resume.** The installed public-web-word Runner

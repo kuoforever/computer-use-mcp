@@ -14,13 +14,14 @@ contract.
 The codebase has two executable surfaces. The public baseline is an
 experimental Windows-only MCP server with thirteen tools, a typed Driver Contract
 v1.0.0, and one in-process Windows implementation. The second is an
-experimental `guarded-desktop-agent` Host with eight exact provider profiles
+experimental `guarded-desktop-agent` Host with nine exact provider profiles
 over three wire families,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. [Provider E3 evidence](docs/E3_EVIDENCE.md) is retained for the bounded
 OpenAI/Claude cases, the exact model-pinned Kimi `kimi-k2.6` and MiniMax
 `MiniMax-M2.7` China routes, and the exact DeepSeek `global` +
-`deepseek-v4-pro` route.
+`deepseek-v4-pro`, Doubao `cn-beijing` + `doubao-seed-2-0-lite-260215`, and
+Qwen `cn-beijing` + `qwen3.7-plus` routes.
 Kimi `global` and `cn` have fixed independent endpoints and Host credential variables with no
 cross-gateway fallback; only `cn` + `kimi-k2.6` one-shot Planner/final calls
 disable thinking after live E3 reproduced output-budget exhaustion, while the
@@ -38,7 +39,15 @@ passed the same bounded five-cell shape without a runtime compatibility repair:
 ordinary two-turn continuation, JSON Object Planner/Host compilation/final,
 text-only image-tool withdrawal, and timeout/zero dispatch. The live gate did
 not assert that reasoning content appeared, and its configured 1,000,000-token
-ceiling was not exercised as a maximum-context test. [Isolated desktop
+ceiling was not exercised as a maximum-context test.
+The Qwen Beijing gate uses a generated workspace endpoint and prompt-only
+Planner output. Live failures showed intermittent otherwise-valid contract
+JSON inside one exact lowercase Markdown fence. Only the exact Qwen
+provider/region/model Planner removes that LF-delimited wrapper after the raw
+64 KiB gate; unchanged Host compilation remains authoritative, and every
+other wrapper, route/model, ordinary turn, and final response stays fail
+closed. Its retained image result is one synthetic 16x16 cycle, not arbitrary
+image or maximum-context evidence. [Isolated desktop
 E4 evidence](docs/E4_EVIDENCE.md) is retained for the reviewed VM and one model
 per provider, including read-only and explicitly approved action cells. The
 record also preserves a separate Sonnet 5
@@ -55,7 +64,8 @@ bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
 response. It has eight-profile offline fake-port coverage plus retained
-OpenAI/Claude, Kimi-China, MiniMax-China, and DeepSeek-global E3 results. The reviewed Agent Host path also has retained isolated desktop E4
+OpenAI/Claude, Kimi-China, MiniMax-China, DeepSeek-global, Doubao-China, and
+Qwen-Beijing E3 results. The reviewed Agent Host path also has retained isolated desktop E4
 evidence, but the Planner / Executor path has no separate desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
