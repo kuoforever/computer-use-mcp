@@ -1,10 +1,8 @@
 # Project status
 
-> **Mode:** `GDA-DOCS-004B` implementation and local review are complete on
-> this feature branch. Until this revision reaches `main` through a clear PR,
-> publication is the sole active action. Once merged, no executable repository
-> item is active.
-> **Exact next on merged `main`:** wait for one user-created supported
+> **Mode: no executable repository item is active.** `GDA-DOCS-004B` completed
+> through PR #351 as `3dc8183`.
+> **Exact next:** wait for one user-created supported
 > regional account, then run one exact provider/model/region harmless fake-MCP
 > E3 matrix. If matching authority is absent, stop; do not substitute local E3,
 > E4, release, application, Demo, Full Cycle, or L5 work.
@@ -32,16 +30,14 @@ That archive is historical context, not a second tracker.
 5. Files under `docs/archive/` and archive tags are non-normative and never
    authorize resumption.
 
-## Current item
+## Current authorization
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
-| `GDA-DOCS-004B` | Implementation and local review complete; publication is the sole active action off `main`; complete on `main` after a clear merge | Separate current operational status from closure/decision chronology, while preserving every historical record and owner boundary | The pre-compaction tracker is archived; the compact root entry retains current item/resume points/baseline/invariants/closure/gates; direct historical-row links are repaired; the complete local repository gate and independent truth/link/safety reviews pass. Publish through a clear PR, then stop at the regional-account wait state. Documentation only: no Runtime/tool/test/evidence behavior, capability promotion, provider/live/application/E4/release scope, Full Cycle authority, Demo archive, L5, or second tracker |
+| `GDA-DOCS-004B` | Complete; merged | Separate current operational status from closure/decision chronology, while preserving every historical record and owner boundary | Commit `60a18b4`; PR #351 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, unresolved thread, conflict, or head drift and merged as `3dc8183`; both branch copies were removed. The pre-compaction tracker is archived, direct historical-row links are repaired, and independent truth/link/safety reviews passed. Documentation only: no Runtime/tool/test/evidence behavior, capability promotion, provider/live/application/E4/release scope, Full Cycle authority, Demo archive, L5, or second tracker |
 
-No other row is active. Once this exact revision reaches `main` through a clear
-merge, this row is complete and no executable row is active. A branch name,
-archived plan, capability gate, or dated evidence record is never permission to
-start another item.
+No row is active. A branch name, archived plan, capability gate, or dated
+evidence record is never permission to start another item.
 
 ## Exact next and preserved resume points
 
@@ -118,7 +114,7 @@ the current handoff.
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
 | `GDA-DOCS-004A` | Complete; merged | Reconciled current truth across tracker and owner documents | Commit `e3308a8`; PR #350 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, or unresolved thread and merged as `b3fefde`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, 400-line status, diff check, and independent truth/editorial/safety reviews. No Runtime/tool behavior or evidence level changed |
-| `GDA-DOCS-004B` | Implementation and local review complete; publication pending off `main`; complete on merged `main` | Compact current status and archive chronology | Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, compact-status bound, diff check, and independent truth/link/safety reviews. After a clear merge, no executable row remains active and the regional-account provider-E3 wait state is exact next |
+| `GDA-DOCS-004B` | Complete; merged | Compact current status and archive chronology | Commit `60a18b4`; PR #351 passed wheel plus Python 3.11/3.12/3.13 with no review, comment, unresolved thread, conflict, or head drift and merged as `3dc8183`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, compact-status bound, diff check, and independent truth/link/safety reviews. No executable row remains active; the regional-account provider-E3 wait state is exact next |
 
 ## Session protocol
 
