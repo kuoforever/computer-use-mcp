@@ -201,6 +201,26 @@ def test_anthropic_final_uses_one_stateless_native_image_request() -> None:
     }
 
 
+def test_anthropic_final_validates_then_discards_reasoning_before_text() -> None:
+    response = _anthropic_response("final answer")
+    response.content = [
+        SimpleNamespace(
+            type="thinking",
+            thinking="private final reasoning",
+            signature="signed-final-reasoning",
+        ),
+        SimpleNamespace(type="text", text="final answer", citations=None),
+    ]
+    scripted = ScriptedPort([response])
+    adapter = AnthropicFinalResponseAdapter(model="minimax-test", messages=scripted)
+
+    result = asyncio.run(adapter.create_final_response(_request()))
+
+    assert result.text == "final answer"
+    assert "private final reasoning" not in repr(result)
+    assert "signed-final-reasoning" not in repr(result)
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -270,6 +290,26 @@ def test_openai_invalid_refusal_or_tool_output_is_fixed(response: object) -> Non
                 SimpleNamespace(type="text", text="one"),
                 SimpleNamespace(type="text", text="two"),
             ],
+        ),
+        SimpleNamespace(
+            id="msg_reasoning_after_text",
+            stop_reason="end_turn",
+            content=[
+                SimpleNamespace(type="text", text="one"),
+                SimpleNamespace(
+                    type="thinking", thinking="late", signature="signed-reasoning"
+                ),
+            ],
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+        ),
+        SimpleNamespace(
+            id="msg_invalid_reasoning",
+            stop_reason="end_turn",
+            content=[
+                SimpleNamespace(type="thinking", thinking="unsigned", signature=""),
+                SimpleNamespace(type="text", text="one"),
+            ],
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
         ),
         _anthropic_response(""),
         SimpleNamespace(

@@ -22,6 +22,7 @@ from ..types import (
     DEFAULT_PROVIDER_REQUEST_BYTES,
     ModelUsage,
 )
+from .anthropic import AnthropicProviderError, _reasoning_block
 
 
 ANTHROPIC_FINAL_SYSTEM_PROMPT = """Produce the final answer for the user from
@@ -64,13 +65,26 @@ def _result_from_response(
     if not isinstance(response_id, str) or not response_id:
         raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
     content = _read(response, "content")
-    if not isinstance(content, (list, tuple)) or len(content) != 1:
+    if not isinstance(content, (list, tuple)) or not content:
         raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
-    block = content[0]
-    if _read(block, "type") != "text":
+    raw_text: object = None
+    for block in content:
+        block_type = _read(block, "type")
+        if block_type in {"thinking", "redacted_thinking"} and raw_text is None:
+            try:
+                _reasoning_block(block, block_type)
+            except AnthropicProviderError as exc:
+                raise AnthropicFinalResponseError(
+                    "ANTHROPIC_FINAL_RESPONSE_INVALID"
+                ) from exc
+            continue
+        if block_type != "text" or raw_text is not None:
+            raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
+        raw_text = _read(block, "text")
+    if not isinstance(raw_text, str):
         raise AnthropicFinalResponseError("ANTHROPIC_FINAL_RESPONSE_INVALID")
     try:
-        text = validate_final_response_text(_read(block, "text"))
+        text = validate_final_response_text(raw_text)
     except FinalResponseWireError as exc:
         code = (
             "ANTHROPIC_FINAL_RESPONSE_TOO_LARGE"

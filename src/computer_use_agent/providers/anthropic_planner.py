@@ -24,6 +24,7 @@ from ..types import (
     DEFAULT_PROVIDER_OUTPUT_TOKENS,
     DEFAULT_PROVIDER_REQUEST_BYTES,
 )
+from .anthropic import AnthropicProviderError, _reasoning_block
 
 
 ANTHROPIC_PLANNER_SYSTEM_PROMPT = """Create a short declarative task plan from
@@ -65,12 +66,22 @@ def _candidate_from_response(response: object, *, allowed_tools: frozenset[str])
     if _read(response, "stop_reason") != "end_turn":
         raise AnthropicPlannerError("ANTHROPIC_PLANNER_RESPONSE_INVALID")
     content = _read(response, "content")
-    if not isinstance(content, (list, tuple)) or len(content) != 1:
+    if not isinstance(content, (list, tuple)) or not content:
         raise AnthropicPlannerError("ANTHROPIC_PLANNER_RESPONSE_INVALID")
-    block = content[0]
-    if _read(block, "type") != "text":
-        raise AnthropicPlannerError("ANTHROPIC_PLANNER_RESPONSE_INVALID")
-    text = _read(block, "text")
+    text: object = None
+    for block in content:
+        block_type = _read(block, "type")
+        if block_type in {"thinking", "redacted_thinking"} and text is None:
+            try:
+                _reasoning_block(block, block_type)
+            except AnthropicProviderError as exc:
+                raise AnthropicPlannerError(
+                    "ANTHROPIC_PLANNER_RESPONSE_INVALID"
+                ) from exc
+            continue
+        if block_type != "text" or text is not None:
+            raise AnthropicPlannerError("ANTHROPIC_PLANNER_RESPONSE_INVALID")
+        text = _read(block, "text")
     if not isinstance(text, str):
         raise AnthropicPlannerError("ANTHROPIC_PLANNER_RESPONSE_INVALID")
     try:
