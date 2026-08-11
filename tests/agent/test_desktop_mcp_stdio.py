@@ -87,20 +87,21 @@ def test_real_stdio_child_uses_fixed_launch_and_excludes_provider_secrets(
     assert "STDERR_SECRET_SENTINEL" not in capsys.readouterr().err
 
 
-def test_real_stdio_child_uses_doubao_compatible_synthetic_image(
-    tmp_path: Path,
+@pytest.mark.parametrize("marker", ("doubao-cn-plan-e3", "qwen-cn-plan-e3"))
+def test_real_stdio_child_uses_route_compatible_synthetic_image(
+    tmp_path: Path, marker: str
 ) -> None:
     child = Path(__file__).parent / "fixtures" / "stdio_mcp_server.py"
     launch = MCPLaunchConfig(
         executable=Path(sys.executable).resolve(),
-        args=(str(child), "doubao-cn-plan-e3"),
+        args=(str(child), marker),
         cwd=tmp_path,
         environment={"CUMCP_ALLOWLIST": "notepad.exe"},
     )
     bridge = StdioDesktopMCP(launch, timeout_seconds=10.0)
     call = ToolCall(
         identity=CallIdentity(
-            run_id="run_doubao_image", turn_id="turn_1", call_id="call_1"
+            run_id="run_route_image", turn_id="turn_1", call_id="call_1"
         ),
         name="screenshot",
         arguments={},
