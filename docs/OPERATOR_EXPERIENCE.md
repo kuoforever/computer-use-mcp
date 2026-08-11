@@ -158,22 +158,30 @@ detail and digest-only evidence use independent read-only scroll areas. Buttons
 use a responsive layout and stack when the window is narrow. Close and timeout
 deny without dispatch.
 
-`GDA-DEMO-003` targets a compact Operator HUD that adds the current approval
+`GDA-DEMO-003` targeted a compact Operator HUD with the current approval
 number, total approvals, fixed action label, target application, a genuine
 compact/expanded details state, and safe `Esc` rejection. The first live review
-did not meet that target: content overlapped, buttons stacked and clipped, and
-the details affordance was not a true collapsed state. The classified issue
-inventory and acceptance criteria are owned by `PROJECT_STATUS.md`; these
-sentences describe the target, not promoted implementation evidence.
+did not meet that target. Subsequent bounded evidence on 2026-08-03 closed the
+acceptance detour: the post-fix Chrome-to-Word Demo completed through the
+existing Runner and stdio project MCP, the synthetic non-dispatching Decision
+Card passed compact and expanded review at 100% and 125% scaling, and a physical
+Alt+Tab switched away with no matching review window left. These results apply
+only to the dated bounded Demo/HUD clauses; they do not establish universal-GUI,
+provider/model, authenticated-browser, general Office, release, or broader
+desktop capability.
 
 ## Desktop presence indicator
 
 The indicator provides ambient feedback comparable to a computer-use border or
 halo. It appears only while the Agent owns or is waiting to regain the shared
 desktop. State is conveyed by label/icon/motion as well as color so color is
-never the only signal. A thicker border and solid phase tab are present as
-unverified `GDA-DEMO-003` worktree changes; the first live review reported no
-visible halo, so high-visibility behavior is not yet an evidence-backed claim.
+never the only signal. The thicker border and solid phase tab are retained as
+part of the bounded post-fix `GDA-DEMO-003` result. Presence remained
+`WDA_EXCLUDEFROMCAPTURE`, so no screenshot or broader visual-quality claim is
+made. The exact run-owned probe recorded 85 projections, 247 painted samples,
+zero unpainted samples, and painted state for every active phase and approval
+yield. This is painted-state lifecycle evidence for that retained run, not a
+general visibility, display, application, or universal-GUI claim.
 
 | Host state | Suggested presentation | Meaning |
 | --- | --- | --- |
@@ -272,11 +280,12 @@ The diagnostic summary may show:
   terminal states;
 - last validated checkpoint time and whether liveness is known or unknown.
 
-An unpromoted `GDA-DEMO-003` worktree change leads the first line with
-`STEP current/total`, where the total is the Host tool-call budget and current
-is derived only from the durable checkpoint. The issue inventory records that
-this is not yet a truthful end-user workflow-step model and has not passed live
-visual review.
+The retained bounded `GDA-DEMO-003` run used a six-chapter Progress HUD and
+completed all `17 / 17` tool calls. Its `STEP current/total` presentation was
+derived from the Host tool-call budget, so the dated result is retained only as
+bounded Demo presentation evidence; it is not a general truthful end-user
+workflow-step model. The separate `GDA-HUD-005` checklist below owns
+workflow-semantic labels and states.
 
 The first `GDA-HUD-005` model slice now defines a separate, immutable linear
 workflow checklist. Its labels and application names are reviewed Host data,
@@ -330,8 +339,8 @@ reasoning. Unknown values remain unavailable rather than becoming zero.
 ## Remote and mobile notification semantics
 
 Mobile push is a host surface, not another operator authority surface. After a
-future campaign worker exists, Codex or Claude may poll the bounded status
-projection defined in [Long-running tasks](LONG_RUNNING_TASKS.md). ChatGPT
+future public host-status surface is reviewed, Codex or Claude may poll the
+bounded status projection defined in [Long-running tasks](LONG_RUNNING_TASKS.md). ChatGPT
 Remote or Claude Remote Control may then notify the operator when the host ends
 on a validated terminal state or pauses for a validated attention state.
 
@@ -612,9 +621,10 @@ campaign-control mutation, or second desktop dispatcher.
     across the three native surfaces; High Contrast wins and learned,
     per-application, model-controlled, and authority-bearing preferences remain
     excluded.**
-11. After the executable campaign worker exists, verify fake-host terminal and
-   attention events from the same redacted status projection without adding a
-   second execution path.
+11. Retain the executable campaign worker and fake-host terminal/attention
+    projection. **Both are offline verified through the same redacted durable
+    state without a second execution path; public host polling, mobile delivery,
+    and generic provider/application evidence remain absent.**
 12. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
    cross-application scenario with one approval and one human takeover.
 

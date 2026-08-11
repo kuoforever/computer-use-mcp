@@ -1,8 +1,8 @@
 # Full Cycle integration contract
 
-> **Status: Lane A manifest/export v1 is implemented and offline verified, and
-> the Full Cycle consumer is complete. Freeze validation is next. Rich
-> multimodal capture is not implemented.**
+> **Status: Lane A manifest/export v1, the Full Cycle consumer, and freeze
+> validation are complete. The Runtime baseline is frozen and consumer work is
+> paused. Rich multimodal capture is not implemented.**
 
 ## Purpose
 
