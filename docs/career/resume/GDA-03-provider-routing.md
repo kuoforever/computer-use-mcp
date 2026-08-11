@@ -57,7 +57,7 @@ live-provider work from offline adapters.
 | --- | --- |
 | Current matrix and 15 route entries | [Provider support](../../PROVIDERS.md#support-matrix) |
 | Exact implemented/live boundary | [Capability dashboard](../../CAPABILITY_STATUS.md) |
-| Merge and current exact-next state | [Project status](../../../PROJECT_STATUS.md) |
+| Merge chronology and current exact-next state | [Archived closure snapshot](../../archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog); [current project status](../../../PROJECT_STATUS.md) |
 
 ## Interview card
 

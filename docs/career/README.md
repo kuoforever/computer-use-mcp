@@ -18,13 +18,17 @@ should we work and learn?” Neither replaces the canonical project tracker.
 
 Resume claims follow this source hierarchy:
 
-1. [Project status](../../PROJECT_STATUS.md) owns active sequencing, closure,
-   merge facts, and the exact resume point after a detour.
-2. [Capability status](../CAPABILITY_STATUS.md) owns current capability and
+1. [Project status](../../PROJECT_STATUS.md) owns active sequencing, compact
+   current closure, and the exact resume point after a detour.
+2. The archived [2026-08-11 project-status
+   snapshot](../archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog)
+   preserves earlier closure and merge facts; it is non-normative for current
+   sequencing.
+3. [Capability status](../CAPABILITY_STATUS.md) owns current capability and
    evidence levels.
-3. Contract and dated evidence documents own exact behavior, environment,
+4. Contract and dated evidence documents own exact behavior, environment,
    metrics, failures, and limitations.
-4. Files under `resume/` may select and compress those facts, but may not
+5. Files under `resume/` may select and compress those facts, but may not
    promote, widen, or silently reconcile conflicting owner documents.
 
 Repository evidence proves what the project did. It does not prove which parts

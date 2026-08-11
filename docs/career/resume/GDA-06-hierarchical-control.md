@@ -59,7 +59,7 @@ choice/fallback, H7 composition, tests, or evidence you personally owned.
 | Actual local worker overlap and atomic batch | [H8A evidence](../../H8A_PARALLEL_CONDITION_EVIDENCE.md) |
 | Dependency/join bounds | [H8B evidence](../../H8B_DEPENDENCY_JOIN_EVIDENCE.md) |
 | Host-order choice and fallback stop matrix | [H8C evidence](../../H8C_SAFE_CHOICE_EVIDENCE.md) |
-| PR/merge and complete gate | [Project status](../../../PROJECT_STATUS.md) |
+| PR/merge and complete gate | [Archived closure snapshot](../../archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog) |
 
 ## Interview card
 

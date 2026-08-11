@@ -63,7 +63,7 @@ evidence you personally owned.
 | L0-L4 architecture, lifecycle, and limits | [Continual learning owner](../../CONTINUAL_LEARNING.md) |
 | Canary policy, persistence, rollback matrix, and injected composition | [L4 adaptive-routing evidence](../../L4_BOUNDED_ADAPTIVE_ROUTING_EVIDENCE.md) |
 | Current evidence ceiling and L5 state | [Capability dashboard](../../CAPABILITY_STATUS.md) |
-| Merge/gate chronology | [Project status](../../../PROJECT_STATUS.md) |
+| Merge/gate chronology | [Archived closure snapshot](../../archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog) |
 
 ## Interview card
 

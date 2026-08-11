@@ -70,7 +70,7 @@ personally owned.
 | AI-assisted responsibility split and known limits | [AI-assisted development](../../AI_ASSISTED_DEVELOPMENT.md) |
 | Preflight, CI, and human release gates | [Release contract](../../RELEASE.md) |
 | Development profile, generated-state boundary, and explicit extras | [Development contract](../../DEVELOPMENT.md) |
-| Environment delivery, exact validation, and retained limitations | [`GDA-MAINT-001`](../../../PROJECT_STATUS.md#closure-backlog) |
+| Environment delivery, exact validation, and retained limitations | [`GDA-MAINT-001`](../../archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog) |
 
 ## Interview card
 

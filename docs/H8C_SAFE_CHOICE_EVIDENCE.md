@@ -40,7 +40,9 @@ The focused matrix proves:
 
 The complete repository gate passed `2441 passed, 8 skipped`, Ruff, mypy over
 161 source files, docs consistency, and `git diff --check`. Publication evidence
-is recorded in `PROJECT_STATUS.md` and the implementation pull request.
+is preserved in the archived
+[project-status snapshot](archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog)
+and the implementation pull request.
 
 ## Claim boundary
 

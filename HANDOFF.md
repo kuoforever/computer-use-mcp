@@ -171,12 +171,12 @@ identities on the left are resolvable, and all three are ancestors of `main`.
 
 The offline gate that had been outstanding for the rebased branch was
 re-established on 2026-08-01 and again after the merge; the dated results are
-in `PROJECT_STATUS.md`.
+in the [core Runtime slice history](docs/archive/CORE_RUNTIME_SLICE_HISTORY.md).
 
 Read these files in order for the HUD continuation:
 
-1. `PROJECT_STATUS.md`, especially `GDA-HUD-005`, `GDA-HUD-006`, and
-   `GDA-HUD-011`;
+1. the [core Runtime slice history](docs/archive/CORE_RUNTIME_SLICE_HISTORY.md),
+   especially `GDA-HUD-005`, `GDA-HUD-006`, and `GDA-HUD-011`;
 2. `docs/OPERATOR_HUD_VISUAL_EVIDENCE.md` for the retained 150% DPI matrix and
    its promotion boundary;
 3. `docs/OPERATOR_EXPERIENCE.md` and `docs/PROGRESS_VIEWER.md` for the default
@@ -231,7 +231,8 @@ without starting the complete Demo. All six prescribed points are done:
    integer-only passive observer whose failure drops the observer and never
    changes the Demo;
 6. the complete offline gate passed on 2026-08-01; the exact dated counts are
-   in the `GDA-HUD-005` row of `PROJECT_STATUS.md`.
+   in the `GDA-HUD-005` row of the
+   [core Runtime slice history](docs/archive/CORE_RUNTIME_SLICE_HISTORY.md).
 
 That dedicated live smoke now exists as
 `scripts/smoke_demo_workflow_progress.py` and passed three consecutive times on
@@ -344,7 +345,9 @@ them. Clean release preflight then passed at
 clean source at both endpoints: CPython 3.13.7, report schema 5, the full
 pytest/Ruff/diff gates, 13/13 E1/E2 cases, 15 crash-reconstruction cases, 9
 stateless-replay cases, and clean wheel build/install all passed. The dated
-pytest count is retained in `PROJECT_STATUS.md`; the sanitized report SHA-256 is
+pytest count is retained in the [pre-compaction status
+snapshot](docs/archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md); the sanitized
+report SHA-256 is
 `dc78f08030b4d3c4fac255a91fb7badf2b06fdb0eb0c487073e1f825260c6d0e`.
 
 The candidate manifest SHA-256 remains
@@ -495,8 +498,9 @@ docs/                  canonical English documentation
 ## Starting a fresh maintenance session
 
 When the repository is in closure mode, start with
-[Project status](PROJECT_STATUS.md). It owns the single active `GDA-FC-*` item,
-the freeze scope, and the exact next task. For Full Cycle bridge work, then read
+[Project status](PROJECT_STATUS.md). It owns the current authorized item, if
+any, preserved resume points, freeze scope, and exact next task. For Full Cycle
+bridge work, then read
 [the integration contract](docs/FULLCYCLE_INTEGRATION.md). Do not infer active
 work from the branch name or the broad roadmap.
 
