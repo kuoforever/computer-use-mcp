@@ -4,7 +4,8 @@
 > identity are implemented and offline verified at their named boundaries;
 > credentialed testing is retained for the earlier OpenAI and Anthropic scopes
 > plus exact Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` China routes and the
-> exact DeepSeek `deepseek-v4-pro` global route.** Local support currently covers
+> exact DeepSeek `deepseek-v4-pro` global and Doubao
+> `doubao-seed-2-0-lite-260215` China routes.** Local support currently covers
 > text-only Planner/final construction, not native ordinary tool calling. Other
 > cloud routes, local E3, E4, and application gates remain deferred.
 
@@ -197,9 +198,10 @@ support does not claim compatibility with any named server or model.
 
 ## Remaining live gates
 
-Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes plus
-DeepSeek `deepseek-v4-pro` on its exact `global` route have retained bounded
-model-pinned exact-commit E3 results in
+Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes,
+DeepSeek `deepseek-v4-pro` on its exact `global` route, and Doubao
+`doubao-seed-2-0-lite-260215` on its exact `cn-beijing` route have retained
+bounded model-pinned exact-commit E3 results in
 [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another route beyond
 offline support:
 
@@ -219,6 +221,14 @@ The exact DeepSeek gate required no production adapter repair. Its ordinary
 cell proves two-turn continuation but not live `reasoning_content`; its
 text-only image cell proves tool-schema withdrawal rather than image input,
 and its small workload does not validate the configured maximum context.
+
+The exact Doubao China gate also required no production adapter repair. Its
+first valid matrix passed four cells and exposed only that the shared 1x1 fake
+PNG was below the route's 14-pixel minimum image dimension. An exact-marker
+16x16 synthetic fixture plus a deterministic legacy-fixture test repaired the
+harness; the clean full matrix then passed. Its ordinary cell proves bounded
+Responses continuation and its image cell proves only that single synthetic
+input, not arbitrary images, maximum context, or the BytePlus route.
 
 Local E3 is separately deferred by the user. Before enabling native ordinary
 tool calling for any exact local server/model candidate, retain a harmless

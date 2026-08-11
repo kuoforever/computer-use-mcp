@@ -76,7 +76,7 @@ Feature state and evidence state answer different questions:
 | Internal only | Code is callable by tests/internal APIs but not a supported CLI/product path. |
 | Planned | A documented contract or direction exists; no runtime claim is made. |
 | Offline verified | Deterministic tests or fakes cover the stated boundary. |
-| Provider verified | A retained credentialed result exists for that exact provider/model/scope; the earlier OpenAI/Claude cells, exact Kimi `cn` + `kimi-k2.6`, exact MiniMax `cn` + `MiniMax-M2.7`, and exact DeepSeek `global` + `deepseek-v4-pro` E3 currently qualify. |
+| Provider verified | A retained credentialed result exists for that exact provider/model/scope; the earlier OpenAI/Claude cells, exact Kimi `cn` + `kimi-k2.6`, exact MiniMax `cn` + `MiniMax-M2.7`, exact DeepSeek `global` + `deepseek-v4-pro`, and exact Doubao `cn-beijing` + `doubao-seed-2-0-lite-260215` E3 currently qualify. |
 | Desktop verified | A retained isolated Windows E4 result exists. |
 | Application verified | A staged real-application acceptance case has passed with retained evidence. |
 
@@ -188,7 +188,7 @@ surfaces rather than one automatic general-product loop.
 | Feature | State | Implementation | Primary owner |
 | --- | --- | --- | --- |
 | Provider-neutral host contract | Implemented | Canonical immutable types and ports isolate provider, desktop, approval, policy, and state | [Agent Host](AGENT.md) |
-| Responses profiles | Implemented/offline verified | Exact OpenAI/Qwen/Doubao identity, response-ID continuation, strict tool/result correlation, byte/token gates, bounded capability flags | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md) |
+| Responses profiles | Implemented/offline verified; Doubao `cn-beijing` E3 retained | Exact OpenAI/Qwen/Doubao identity, response-ID continuation, strict tool/result correlation, byte/token gates, bounded capability flags; the exact Doubao candidate passed ordinary continuation plus prompt-only Planner/Host compilation/final and one 16x16 synthetic-image cycle | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md), [E3 evidence](E3_EVIDENCE.md) |
 | Chat Completions profiles | Implemented/offline verified; Kimi `cn` and DeepSeek `global` E3 retained | Exact Kimi/DeepSeek/GLM identity, isolated Kimi global/China routes, bounded local history, sequential tool calls, opaque compatible reasoning, exact Kimi route/model-scoped one-shot thinking disablement, image withdrawal | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md), [E3 evidence](E3_EVIDENCE.md) |
 | Messages profiles | Implemented/offline verified; MiniMax `cn` E3 retained | Exact Anthropic/MiniMax identity, adjacent tool-use/results, atomic history packing, strict reasoning preservation for ordinary continuation, strict one-shot reasoning-before-text normalization, byte/token gates, exact MiniMax route/model-scoped image-tool withdrawal | [Provider support](PROVIDERS.md), [Agent Host](AGENT.md), [E3 evidence](E3_EVIDENCE.md) |
 | Bounded runner | Implemented | One canonical loop owns budgets, ledger, provider turns, policy, dispatch, verification, and cleanup | [Agent Host](AGENT.md) |
@@ -402,7 +402,7 @@ These rules explain most implementation choices:
 | E0 | Pure contracts, parsing, persistence, adapters, invariants | pytest and fake clients/ports |
 | E1 | Deterministic bounded workflow success/failure | frozen fake-provider/fake-MCP cases |
 | E2 | Safety, recovery, denial, unknown-outcome, exact replay boundaries | frozen semantic traces and exact-call matrices |
-| E3 | Real provider with harmless fake MCP | retained OpenAI/Claude, exact Kimi `cn` + `kimi-k2.6`, exact MiniMax `cn` + `MiniMax-M2.7`, and exact DeepSeek `global` + `deepseek-v4-pro` results; other profiles and routes require separate opt-in exact-provider/model/route runs |
+| E3 | Real provider with harmless fake MCP | retained OpenAI/Claude, exact Kimi `cn` + `kimi-k2.6`, exact MiniMax `cn` + `MiniMax-M2.7`, exact DeepSeek `global` + `deepseek-v4-pro`, and exact Doubao `cn-beijing` + `doubao-seed-2-0-lite-260215` results; other profiles and routes require separate opt-in exact-provider/model/route runs |
 | E4 | Real provider plus isolated Windows desktop | four-cell disposable Notepad/VM runbook |
 | E5 / release regression | Candidate-wide automated and human evidence | CI, preflight, retained records, explicit approval |
 

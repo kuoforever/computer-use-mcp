@@ -68,6 +68,7 @@ markers = [
     "kimi_integration: opt-in live Kimi Chat Completions API matrix with a harmless fake MCP child",
     "deepseek_integration: opt-in live DeepSeek Chat Completions API matrix with a harmless fake MCP child",
     "minimax_integration: opt-in live MiniMax Messages API matrix with a harmless fake MCP child",
+    "doubao_integration: opt-in live Doubao Responses API matrix with a harmless fake MCP child",
 ]
 
 [tool.mypy]

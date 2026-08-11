@@ -32,6 +32,11 @@ _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
     "+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
+_DOUBAO_CN_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGElEQVR42mNg"
+    "YGD4TyEeNWDUgFEDhocBAJvM/wFK6ATsAAAAAElFTkSuQmCC"
+)
+_IMAGE_PNG = _DOUBAO_CN_PNG if "doubao-cn-plan-e3" in sys.argv[1:] else _PNG
 _SECRET_NAMES = (
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
@@ -74,7 +79,7 @@ def list_windows() -> str:
 
 @mcp.tool()
 def screenshot() -> MCPImage:
-    return MCPImage(data=_PNG, format="png")
+    return MCPImage(data=_IMAGE_PNG, format="png")
 
 
 @mcp.tool(structured_output=False)

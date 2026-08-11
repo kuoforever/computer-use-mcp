@@ -35,8 +35,8 @@
   一个仅 loopback 的 `local_openai`。云端路由和本地 Planner/final 边界已离线
   验证；本地 native tool-calling 在 E3 前固定不可用。留存的真实 API 证据覆盖
   此前 OpenAI/Claude 范围、Kimi `cn` + `kimi-k2.6`、MiniMax `cn` +
-  `MiniMax-M2.7`，以及 DeepSeek `global` + `deepseek-v4-pro` 精确范围；其他
-  provider、路由和模型仍须分别验证。详见
+  `MiniMax-M2.7`、DeepSeek `global` + `deepseek-v4-pro`，以及 Doubao
+  `cn-beijing` + `doubao-seed-2-0-lite-260215` 精确范围；其他 provider、路由和模型仍须分别验证。详见
   [provider 支持矩阵（英文）](docs/PROVIDERS.md)。
 
 macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图中，尚未实现。
