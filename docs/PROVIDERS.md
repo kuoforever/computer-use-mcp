@@ -6,7 +6,7 @@
 > plus exact Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` China routes and the
 > exact DeepSeek `deepseek-v4-pro` global and Doubao
 > `doubao-seed-2-0-lite-260215` China routes plus exact Qwen `qwen3.7-plus`
-> Beijing.** Local support currently covers
+> Beijing and GLM `glm-5.2` China routes.** Local support currently covers
 > text-only Planner/final construction, not native ordinary tool calling. Other
 > cloud routes, local E3, E4, and application gates remain deferred.
 
@@ -97,6 +97,13 @@ the exact account/model behavior.
 - The Host still validates every returned tool name and argument against its
   own reviewed registry. Prompt-only structured output is not trusted as a
   provider guarantee; it passes through the same strict local compiler.
+- The exact `glm` + `cn` + `glm-5.2` one-shot Planner wire requests string
+  field `arguments` because a valid live JSON response was not conformant to
+  the Host-requested Planner wire: it returned unreviewed `arguments_` instead
+  of requested `arguments_json`. The Host accepts only that exact reviewed
+  field for this route, decodes it to an object, and then runs the unchanged
+  tool/argument compiler. Invented, old, duplicate, sibling-route, and sibling-
+  model forms fail closed.
 - Messages-compatible one-shot Planner/final responses may contain only valid
   signed `thinking` or opaque `redacted_thinking` blocks before exactly one
   text block. The Host validates and discards that reasoning before compilation
@@ -202,7 +209,8 @@ support does not claim compatibility with any named server or model.
 Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes,
 DeepSeek `deepseek-v4-pro` on its exact `global` route, and Doubao
 `doubao-seed-2-0-lite-260215` plus Qwen `qwen3.7-plus` on their exact
-`cn-beijing` routes have retained bounded model-pinned exact-commit E3 results in
+`cn-beijing` routes plus GLM `glm-5.2` on its exact `cn` route have retained
+bounded model-pinned exact-commit E3 results in
 [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another route beyond
 offline support:
 
@@ -222,6 +230,18 @@ The exact DeepSeek gate required no production adapter repair. Its ordinary
 cell proves two-turn continuation but not live `reasoning_content`; its
 text-only image cell proves tool-schema withdrawal rather than image input,
 and its small workload does not validate the configured maximum context.
+
+The exact GLM China gate first passed four cells and failed closed only at
+Planner. Structure-only diagnostics retained no model content and showed that
+the valid JSON response was not conformant to the Host-requested Planner wire:
+it returned unreviewed `arguments_` instead of requested `arguments_json`.
+Disabling thinking and strengthening the prompt did not change that result.
+The bounded repair asks only `glm` + `cn` + `glm-5.2` for string field
+`arguments`, then uses the same exact-key, allowed-tool, JSON-object, and
+reviewed-schema Host compilation. It does not accept `arguments_`, multiple
+aliases, object-valued wire arguments, the global route, or sibling models.
+The passing matrix proves one bounded local-history continuation and text-only
+image-tool withdrawal, not image input, maximum context/output, E4, or release.
 
 The exact Doubao China gate also required no production adapter repair. Its
 first valid matrix passed four cells and exposed only that the shared 1x1 fake

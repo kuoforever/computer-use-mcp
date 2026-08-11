@@ -21,7 +21,7 @@ actions. [Provider E3 evidence](docs/E3_EVIDENCE.md) is retained for the bounded
 OpenAI/Claude cases, the exact model-pinned Kimi `kimi-k2.6` and MiniMax
 `MiniMax-M2.7` China routes, and the exact DeepSeek `global` +
 `deepseek-v4-pro`, Doubao `cn-beijing` + `doubao-seed-2-0-lite-260215`, and
-Qwen `cn-beijing` + `qwen3.7-plus` routes.
+Qwen `cn-beijing` + `qwen3.7-plus` plus GLM `cn` + `glm-5.2` routes.
 Kimi `global` and `cn` have fixed independent endpoints and Host credential variables with no
 cross-gateway fallback; only `cn` + `kimi-k2.6` one-shot Planner/final calls
 disable thinking after live E3 reproduced output-budget exhaustion, while the
@@ -40,6 +40,15 @@ ordinary two-turn continuation, JSON Object Planner/Host compilation/final,
 text-only image-tool withdrawal, and timeout/zero dispatch. The live gate did
 not assert that reasoning content appeared, and its configured 1,000,000-token
 ceiling was not exercised as a maximum-context test.
+GLM China passed the bounded five-cell text-only shape after one exact Planner
+wire repair. The valid JSON response was not conformant to the Host-requested
+Planner wire: it returned unreviewed `arguments_` instead of requested
+`arguments_json`. Only `glm` + `cn` + exact `glm-5.2` now requests string field
+`arguments`; the shared compiler still enforces exact keys, allowed tools,
+JSON text decoding to an object, and the reviewed Host schema.
+The observed alias and old/duplicate/object-valued forms fail closed; the short
+field is not accepted for the global route or sibling models. The tiny gate did
+not exercise the configured maximum context or output.
 The Qwen Beijing gate uses a generated workspace endpoint and prompt-only
 Planner output. Live failures showed intermittent otherwise-valid contract
 JSON inside one exact lowercase Markdown fence. Only the exact Qwen
@@ -65,7 +74,7 @@ plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
 response. It has eight-profile offline fake-port coverage plus retained
 OpenAI/Claude, Kimi-China, MiniMax-China, DeepSeek-global, Doubao-China, and
-Qwen-Beijing E3 results. The reviewed Agent Host path also has retained isolated desktop E4
+Qwen-Beijing plus GLM-China E3 results. The reviewed Agent Host path also has retained isolated desktop E4
 evidence, but the Planner / Executor path has no separate desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist

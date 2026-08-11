@@ -49,7 +49,7 @@ live-provider work from offline adapters.
 | Decision | Keep exact profile identity; use typed allowlisted regions; bind provider/model/protocol/region/effective endpoint into continuation |
 | Implementation | Responses, Chat Completions, and Messages adapters; strict Host validation; provider-specific credentials; 15 route entries; literal-loopback local URL parser |
 | Verified result | Nine profiles pass offline construction, routing, migration, capability, request-bound, secret-isolation, and recovery-binding gates |
-| Live ceiling | Retained credentialed evidence covers only earlier OpenAI/Claude scopes; six added cloud profiles, new regions, and local candidates remain unverified |
+| Live ceiling | Retained credentialed evidence covers exact Kimi, MiniMax, and GLM China, DeepSeek global, and Doubao plus Qwen Beijing candidates in addition to earlier OpenAI/Claude; sibling routes/models, other candidates, E4, applications, and local E3 remain unverified |
 
 ## Proof map
 
@@ -66,8 +66,8 @@ live-provider work from offline adapters.
 - **T:** state the provider/catalog/adapter/config/test scope you owned.
 - **A:** bind identity and capabilities explicitly, compile structured output
   locally, isolate credentials, and reject unsupported modality/tool routes.
-- **R:** nine exact profiles and 15 reviewed routes pass offline gates; only
-  earlier OpenAI/Claude cells have retained live evidence.
+- **R:** nine exact profiles and 15 reviewed routes pass offline gates; six
+  exact added-provider candidates now have bounded retained live E3 evidence.
 - **Trade-off:** no automatic fallback reduces availability but prevents
   credential, residency, billing, and recovery identity drift.
 - **Debug story:** explain why local ordinary tool calling returns

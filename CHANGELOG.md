@@ -26,13 +26,20 @@ a version number states what is packaged, never what has been verified.
 - **Exact provider E3.** Harmless fake-MCP matrices retain exact Kimi `cn` +
   `kimi-k2.6`, MiniMax `cn` + `MiniMax-M2.7`, and DeepSeek `global` +
   `deepseek-v4-pro`, Doubao `cn-beijing` +
-  `doubao-seed-2-0-lite-260215`, and Qwen `cn-beijing` + `qwen3.7-plus`
-  ordinary, Planner/final, capability, timeout, and continuation evidence
+  `doubao-seed-2-0-lite-260215`, Qwen `cn-beijing` + `qwen3.7-plus`, and GLM
+  `cn` + `glm-5.2` ordinary, Planner/final, capability, timeout, and continuation evidence
   without promoting sibling routes/models, desktop, E4, applications, or
   release.
 
 ### Fixed
 
+- **GLM Planner JSON Object compatibility is exact-scoped.** Live China
+  `glm-5.2` E3 returned valid JSON that was not conformant to the Host-requested
+  Planner wire: it used unreviewed `arguments_` instead of requested
+  `arguments_json`. Only that provider/region/model wire requests string field
+  `arguments`; the shared Host compiler still enforces exact keys, allowed
+  tools, decoded-object arguments, and reviewed tool schemas. Observed, default,
+  duplicate, sibling-route, and sibling-model forms fail closed.
 - **Qwen Planner JSON-fence compatibility is exact-scoped.** Live Beijing
   `qwen3.7-plus` E3 exposed intermittent valid plan JSON inside one exact
   lowercase Markdown fence. Only that provider/region/model Planner removes
@@ -57,9 +64,8 @@ a version number states what is packaged, never what has been verified.
   profiles withdraw image tools, and continuation v8 binds
   vendor/model/region/protocol/endpoint. All profiles are offline verified;
   exact Kimi and MiniMax China, DeepSeek global, Doubao China, and Qwen Beijing
-  E3 cells are retained,
-  while the remaining profiles, routes, sibling models, E4, and application
-  gates remain unverified.
+  plus GLM China E3 cells are retained, while the remaining routes, sibling
+  models, local candidates, E4, and application gates remain unverified.
 - **Cooperative Pause/Takeover/Resume.** The installed public-web-word Runner
   loops now publish one strict local control lifecycle. CLI `task pause` and
   `task takeover` become effective only after a durable safe-boundary

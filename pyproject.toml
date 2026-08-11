@@ -67,6 +67,7 @@ markers = [
     "anthropic_integration: opt-in live Claude Messages API test with a harmless fake MCP child",
     "kimi_integration: opt-in live Kimi Chat Completions API matrix with a harmless fake MCP child",
     "deepseek_integration: opt-in live DeepSeek Chat Completions API matrix with a harmless fake MCP child",
+    "glm_integration: opt-in live GLM Chat Completions API matrix with a harmless fake MCP child",
     "minimax_integration: opt-in live MiniMax Messages API matrix with a harmless fake MCP child",
     "doubao_integration: opt-in live Doubao Responses API matrix with a harmless fake MCP child",
     "qwen_integration: opt-in live Qwen Responses API matrix with a harmless fake MCP child",

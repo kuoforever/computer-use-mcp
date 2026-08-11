@@ -140,6 +140,42 @@ def test_kimi_planner_uses_prompted_json_object_and_host_compiles_exact_plan() -
     assert plan.steps[1].action is PlanStepAction.FINAL_RESPONSE
 
 
+def test_glm_planner_uses_reviewed_short_arguments_wire_and_host_compiles() -> None:
+    wire = json.dumps(
+        {
+            "version": 1,
+            "steps": [
+                {"action": "tool", "tool": "list_windows", "arguments": "{}"},
+                {"action": "final_response"},
+            ],
+        }
+    )
+    scripted = ScriptedCompletions([_response(wire)])
+    planner = OpenAIChatPlanner(
+        model="glm-5.2",
+        completions=scripted,
+        name="glm",
+        structured_output=StructuredOutputMode.JSON_OBJECT,
+        arguments_field="arguments",
+    )
+    request = build_planner_request(
+        run_id="run_glm",
+        plan_id="plan_glm",
+        task="List windows",
+        allowed_tools=("list_windows",),
+    )
+
+    plan = asyncio.run(request_task_plan(planner, request))
+
+    call = scripted.calls[0]
+    system = call["messages"][0]["content"]
+    assert "arguments_json" not in system
+    assert '"arguments"' in system
+    assert plan.steps[0].action is PlanStepAction.TOOL
+    assert plan.steps[0].arguments == {}
+    assert plan.steps[1].action is PlanStepAction.FINAL_RESPONSE
+
+
 def test_local_openai_planner_uses_prompt_schema_without_native_extensions() -> None:
     wire = json.dumps({"version": 1, "steps": [{"action": "final_response"}]})
     scripted = ScriptedCompletions([_response(wire)])

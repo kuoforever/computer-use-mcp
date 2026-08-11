@@ -16,7 +16,7 @@ and expected safety outcome.
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated/non-serial side-effect turns, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
-| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi China, MiniMax China, DeepSeek global, Doubao China, and Qwen Beijing routes passed](E3_EVIDENCE.md); GLM, sibling routes/models, and local E3 remain unverified or deferred |
+| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi China, MiniMax China, DeepSeek global, Doubao China, Qwen Beijing, and GLM China routes passed](E3_EVIDENCE.md); sibling routes/models and local E3 remain unverified or deferred |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and reviewed low-risk-action/post-observation cells for each provider profile selected for desktop promotion | `PARTIAL`: [retained sanitized evidence](E4_EVIDENCE.md) covers only the earlier OpenAI/Claude models and Windows revision; added profiles are `NOT RUN` |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
 | E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, then cross-application campaigns | planned |
@@ -502,6 +502,23 @@ $env:DEEPSEEK_API_KEY = "..."
   tests\agent\test_deepseek_integration.py -m deepseek_integration -q
 ~~~
 
+The GLM China matrix hard-pins `glm-5.2`, uses the fixed bigmodel.cn route,
+withdraws image-returning tools from the text-only request, and keeps the same
+one-second timeout/zero-dispatch boundary. A valid first run passed four cells
+and exposed JSON Object's non-strict field behavior at Planner. Only this exact
+provider/region/model wire asks for string field `arguments`; Host compilation
+still enforces exact keys, allowed tools, decoded-object arguments, and the
+reviewed tool schema. The observed `arguments_`, default/sibling field,
+multiple aliases, and object-valued wire arguments fail closed:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-openai]"
+$env:RUN_GLM_INTEGRATION = "1"
+$env:ZAI_API_KEY = "..."
+.\.venv\Scripts\python.exe -m pytest `
+  tests\agent\test_glm_integration.py -m glm_integration -q
+~~~
+
 The Doubao China matrix hard-pins `doubao-seed-2-0-lite-260215`, uses exact
 schema in the prompt plus unchanged Host compilation, retains Responses
 tool-result continuation, and sends one deterministic 16x16 synthetic image.
@@ -543,8 +560,8 @@ state paths.
 
 The maintained [provider E3 evidence](E3_EVIDENCE.md) retains matching passing
 records for OpenAI, Claude, exact Kimi China, exact MiniMax China, exact
-DeepSeek global, exact Doubao China, and exact Qwen Beijing candidates. Every record is
-model/route-scoped: the historical
+DeepSeek global, exact Doubao China, exact Qwen Beijing, and exact GLM China
+candidates. Every record is model/route-scoped: the historical
 Sonnet 5 repair preserves validated reasoning in ordinary continuation, while
 the MiniMax-live repair validates then discards reasoning only for one-shot
 Planner/final normalization. DeepSeek required no production adapter repair;
@@ -554,5 +571,7 @@ adapter repair; its 16x16 synthetic image does not validate arbitrary image
 inputs or the BytePlus route. Qwen's exact-scoped Planner fence normalization
 does not apply to ordinary/final calls, another Qwen route/model, or arbitrary
 wrappers; its 16x16 input likewise is not an arbitrary-image or
-maximum-context claim. None converts E3 into an all-model claim. E4
-remains a separate isolated-desktop gate.
+maximum-context claim. GLM's short Planner field is a Host-reviewed
+provider-wire contract, not an accepted alias: every malformed or sibling form
+still enters the same strict Host compiler or fails before plan persistence. None converts E3 into
+an all-model claim. E4 remains a separate isolated-desktop gate.

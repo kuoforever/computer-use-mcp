@@ -16,10 +16,63 @@
 | DeepSeek `deepseek-v4-pro` global | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 | Doubao `doubao-seed-2-0-lite-260215` China | `PASS` | `PASS`, including synthetic image | retained |
 | Qwen `qwen3.7-plus` Beijing | `PASS` | `PASS`, including synthetic image | retained |
+| GLM `glm-5.2` China | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 
-Together these records cover seven exact provider/model/route candidates. They do not
+Together these records cover eight exact provider/model/route candidates. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
 every model offered by any provider is compatible with the current adapters.
+
+## 2026-08-11: GLM `glm-5.2` China full fake-MCP E3
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Provider route | GLM OpenAI-compatible Chat Completions, `region = "cn"`, fixed `https://open.bigmodel.cn/api/paas/v4` |
+| Credential contract | `ZAI_API_KEY` (variable name only) |
+| Explicit model ID | `glm-5.2` |
+| Exact implementation commit | `34c31f34c05cc4d4920a40233021656751cd97b9` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest -q tests\agent\test_glm_integration.py` |
+| Fixed outcome | `5 passed in 39.91s` |
+| Setup cell | formal `config setup --provider glm --model glm-5.2 --region cn` plus `config doctor` passed SDK, isolated credential, executable, working-directory, and 13-tool discovery checks; generated TOML, captured output, and local state held no credential |
+| Ordinary/continuation cell | two real model turns completed one `list_windows` fake-MCP call and its tool-result continuation; the child reported that provider secrets were absent |
+| Planner/structured/final cell | exact GLM short-field JSON-object output was strictly Host-compiled before one fake-MCP observation and one tool-free final response |
+| Image-capability cell | the live ordinary request omitted both `screenshot` and `capture_region`; the model returned without a tool call and fake MCP received zero calls |
+| Timeout cell | one-second Host provider timeout returned fixed `PROVIDER_TIMEOUT` with zero MCP tool calls |
+| Execution boundary | setup/doctor performed initialize/tool discovery only; provider-bearing cells used harmless stdio or in-process fake MCP, with zero side effects, Windows Driver calls, real desktop reads, or application actions |
+
+Clean pre-repair commit `17ec086` passed four cells and failed closed only at
+Planner with fixed `PLANNER_REQUEST_FAILED`. Structure-only diagnostics retained
+no model content and established that the JSON object had the expected envelope
+and step ordering, but the valid JSON response was not conformant to the
+Host-requested Planner wire: it returned the unreviewed `arguments_` key
+instead of the requested `arguments_json`. Disabling thinking and adding an
+exact-key reminder did not change this Host Planner wire-conformance failure;
+neither diagnostic result was treated as capability evidence.
+
+The bounded repair applies only to `glm` + `cn` + exact `glm-5.2` one-shot
+Planner calls. That provider wire now asks for the shorter `arguments` field,
+requires it to be a JSON string, decodes it to an object, checks the exact field
+set and allowed tool, and then produces the same canonical Host candidate as
+every other profile. The observed `arguments_`, the default `arguments_json`,
+both fields together, object-valued arguments, unknown aliases, sibling GLM
+models, and the global route all retain fail-closed behavior. The later Host
+TaskPlan compiler and reviewed tool schema remain authoritative; no model field
+becomes execution authority.
+
+The passing exact-commit rerun used only `ZAI_API_KEY` through the operator
+environment and did not set a model environment override: the harness hard-pins
+`glm-5.2` and rejects another explicit model. Credential checks cover
+setup/doctor output, generated configuration, ordinary/final output, trace,
+state files, and the fake MCP child. No credential, clipboard content, task,
+prompt, model prose, reasoning, tool output, response identifier, raw provider
+error, diagnostic payload, or user-local state path is retained here.
+
+The ordinary cell proves one exact-model local-history continuation. The
+image-capability cell proves text-only schema withdrawal, not image input. The
+harness configured a 1,000,000-token context ceiling and 4,096-token output
+reserve, but its small fixed workload validates neither maximum context nor
+maximum output. This result promotes no GLM global route, sibling model,
+account, later service version, real desktop, application, side effect, E4,
+release, Full Cycle, or L5 evidence.
 
 ## 2026-08-11: Qwen `qwen3.7-plus` Beijing full fake-MCP E3
 
