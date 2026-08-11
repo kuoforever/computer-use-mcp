@@ -103,7 +103,8 @@ canonical project and evidence owners.
 
 | Document | Owns |
 | --- | --- |
-| Project status | Frozen closure backlog, reactivation rule, session protocol, and freeze scope |
+| [Project status](../PROJECT_STATUS.md) | Current authorized item, if any; exact resume point; reactivation rule; compact current closure; session protocol; baseline; invariants; and validation gate |
+| [Archived 2026-08-11 project-status snapshot](archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md) | Historical closure and decision chronology through merge `b3fefde`; non-normative for current work |
 | Full Cycle integration | Runtime/model-factory ownership boundary, safe export schema, rich-capture boundary, and closure gates |
 | Project overview | Cross-system project shape, exhaustive feature-family inventory, implementation map, quality-attribute mapping, and role-based reading paths |
 | Root README | Current product scope, safe quick start, and high-level limitations |

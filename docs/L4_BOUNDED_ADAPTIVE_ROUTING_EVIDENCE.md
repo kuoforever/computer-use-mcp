@@ -78,4 +78,5 @@ then closed the one-run canary as complete without promoting the procedure.
 
 The focused L2/L3/H7/L4 gate currently passes 69 tests. The complete repository
 suite, Ruff, mypy, documentation consistency, and diff checks remain the owning
-implementation PR's publication gate and are recorded in `PROJECT_STATUS.md`.
+implementation PR's publication gate and are preserved in the archived
+[project-status snapshot](archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog).

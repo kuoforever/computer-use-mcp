@@ -34,8 +34,9 @@ The focused H8B matrix proves:
 - unchanged H8A condition-only evaluation when a v3 parallel node directly
   contains H5 conditions.
 
-The complete repository gate and GitHub matrix are recorded in
-`PROJECT_STATUS.md` and the implementation pull request after publication.
+The complete repository gate and GitHub matrix are preserved in the archived
+[project-status snapshot](archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog)
+and the implementation pull request.
 
 ## Claim boundary
 

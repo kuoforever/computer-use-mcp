@@ -37,8 +37,9 @@ The focused H8A matrix proves:
 
 The complete repository gate passed `2407 passed, 8 skipped`, Ruff, mypy over
 158 source files, docs consistency, and `git diff --check`. The implementation
-commit and GitHub matrix are recorded in `PROJECT_STATUS.md` and the pull
-request after publication.
+commit and GitHub matrix are preserved in the archived
+[project-status snapshot](archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog)
+and the pull request.
 
 ## Claim boundary
 

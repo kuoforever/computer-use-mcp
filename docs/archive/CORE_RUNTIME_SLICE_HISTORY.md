@@ -7,9 +7,10 @@
 > [`PROJECT_STATUS.md`](../../PROJECT_STATUS.md); capability claims by
 > [capability status](../CAPABILITY_STATUS.md).
 
-Every closure fact below also has a row in the `PROJECT_STATUS.md` Closure
-backlog table. What survives only here is the *pre-closure gap analysis* for
-each slice: why the audit selected it and what the defect actually was.
+Every closure fact below is also preserved in the
+[2026-08-11 status snapshot](PROJECT_STATUS_SNAPSHOT_2026-08-11.md#closure-backlog).
+What survives only here is the *pre-closure gap analysis* for each slice: why
+the audit selected it and what the defect actually was.
 
 ## Reopened core Runtime scope
 
