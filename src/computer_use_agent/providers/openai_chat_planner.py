@@ -15,6 +15,7 @@ from ..planner_wire import (
 from ..provider_catalog import (
     ProviderProtocol,
     StructuredOutputMode,
+    provider_chat_planner_arguments_field,
     provider_disables_one_shot_thinking,
     provider_profile,
 )
@@ -71,6 +72,7 @@ class OpenAIChatPlanner:
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
     thinking_disabled: bool = False
+    arguments_field: str = "arguments_json"
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
@@ -83,6 +85,8 @@ class OpenAIChatPlanner:
             raise ValueError("max_tokens_parameter must be reviewed")
         if not isinstance(self.thinking_disabled, bool):
             raise ValueError("thinking_disabled must be boolean")
+        if self.arguments_field not in {"arguments_json", "arguments"}:
+            raise ValueError("arguments_field must be reviewed")
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -129,16 +133,23 @@ class OpenAIChatPlanner:
             thinking_disabled=provider_disables_one_shot_thinking(
                 provider_name, model, region
             ),
+            arguments_field=provider_chat_planner_arguments_field(
+                provider_name, model, region
+            ),
         )
 
     async def create_candidate(self, request: PlannerRequest) -> str:
         if not isinstance(request, PlannerRequest):
             raise OpenAIChatPlannerError("OPENAI_CHAT_PLANNER_REQUEST_INVALID")
         tool_names = tuple(tool.name for tool in request.tools)
-        system = CHAT_PLANNER_SYSTEM_PROMPT
+        system = CHAT_PLANNER_SYSTEM_PROMPT.replace(
+            "arguments_json", self.arguments_field
+        )
         if self.structured_output is not StructuredOutputMode.JSON_SCHEMA:
             system += "\n\nRequired output JSON Schema:\n" + json.dumps(
-                planner_output_schema(tool_names),
+                planner_output_schema(
+                    tool_names, arguments_field=self.arguments_field
+                ),
                 ensure_ascii=False,
                 separators=(",", ":"),
                 sort_keys=True,
@@ -157,7 +168,9 @@ class OpenAIChatPlanner:
                 "json_schema": {
                     "name": "task_plan_candidate",
                     "strict": True,
-                    "schema": planner_output_schema(tool_names),
+                    "schema": planner_output_schema(
+                        tool_names, arguments_field=self.arguments_field
+                    ),
                 },
             }
         elif self.structured_output is StructuredOutputMode.JSON_OBJECT:
@@ -187,7 +200,11 @@ class OpenAIChatPlanner:
         if _read(choice, "finish_reason") != "stop" or not isinstance(text, str):
             raise OpenAIChatPlannerError("OPENAI_CHAT_PLANNER_RESPONSE_INVALID")
         try:
-            return compile_planner_wire_candidate(text, allowed_tools=frozenset(tool_names))
+            return compile_planner_wire_candidate(
+                text,
+                allowed_tools=frozenset(tool_names),
+                arguments_field=self.arguments_field,
+            )
         except PlannerWireError as exc:
             code = (
                 "OPENAI_CHAT_PLANNER_RESPONSE_TOO_LARGE"

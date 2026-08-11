@@ -56,6 +56,7 @@ class ProviderRegionProfile:
     qwen_workspace: bool = False
     responses_planner_exact_json_fence_models: frozenset[str] = frozenset()
     chat_one_shot_thinking_disabled_models: frozenset[str] = frozenset()
+    chat_planner_short_arguments_models: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,7 @@ def _region(
     qwen_workspace: bool = False,
     responses_planner_exact_json_fence_models: frozenset[str] = frozenset(),
     chat_one_shot_thinking_disabled_models: frozenset[str] = frozenset(),
+    chat_planner_short_arguments_models: frozenset[str] = frozenset(),
 ) -> ProviderRegionProfile:
     return ProviderRegionProfile(
         region=region,
@@ -173,6 +175,7 @@ def _region(
         chat_one_shot_thinking_disabled_models=(
             chat_one_shot_thinking_disabled_models
         ),
+        chat_planner_short_arguments_models=chat_planner_short_arguments_models,
     )
 
 
@@ -254,7 +257,10 @@ _REGIONS: Mapping[str, Mapping[str, ProviderRegionProfile]] = MappingProxyType(
         "glm": MappingProxyType(
             {
                 "cn": _region(
-                    "cn", "ZAI_API_KEY", "https://open.bigmodel.cn/api/paas/v4"
+                    "cn",
+                    "ZAI_API_KEY",
+                    "https://open.bigmodel.cn/api/paas/v4",
+                    chat_planner_short_arguments_models=frozenset({"glm-5.2"}),
                 ),
                 "global": _region(
                     "global", "ZAI_GLOBAL_API_KEY", "https://api.z.ai/api/paas/v4"
@@ -503,6 +509,22 @@ def provider_disables_one_shot_thinking(
     return model in disabled_models
 
 
+def provider_chat_planner_arguments_field(
+    name: str, model: str, region: str | None = None
+) -> str:
+    """Return the exact reviewed Chat Planner tool-arguments wire field."""
+
+    provider_profile(name)
+    selected = default_provider_region(name) if region is None else region
+    try:
+        short_field_models = _REGIONS[name][
+            selected
+        ].chat_planner_short_arguments_models
+    except (KeyError, TypeError) as exc:
+        raise ValueError("PROVIDER_REGION_INVALID") from exc
+    return "arguments" if model in short_field_models else "arguments_json"
+
+
 def provider_strips_exact_planner_json_fence(
     name: str, model: str, region: str | None = None
 ) -> bool:
@@ -527,6 +549,7 @@ __all__ = [
     "StructuredOutputMode",
     "SUPPORTED_PROVIDERS",
     "default_provider_region",
+    "provider_chat_planner_arguments_field",
     "provider_profile",
     "provider_credential_environment",
     "provider_disables_one_shot_thinking",

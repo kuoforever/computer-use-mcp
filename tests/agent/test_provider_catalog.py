@@ -10,6 +10,7 @@ from computer_use_agent.config import ConfigError, ProviderConfig, load_agent_co
 from computer_use_agent.provider_catalog import (
     ProviderProtocol,
     SUPPORTED_PROVIDERS,
+    provider_chat_planner_arguments_field,
     provider_disables_one_shot_thinking,
     provider_profile,
     provider_strips_exact_planner_json_fence,
@@ -182,6 +183,22 @@ def test_kimi_one_shot_thinking_override_is_exact_route_and_model_scoped() -> No
     assert provider_disables_one_shot_thinking("kimi", "kimi-k2.6", "global") is False
     assert provider_disables_one_shot_thinking("kimi", "kimi-k2.5", "cn") is False
     assert provider_disables_one_shot_thinking("deepseek", "deepseek-v4-pro") is False
+
+
+def test_glm_planner_arguments_field_is_exact_route_and_model_scoped() -> None:
+    assert provider_chat_planner_arguments_field("glm", "glm-5.2", "cn") == "arguments"
+    assert (
+        provider_chat_planner_arguments_field("glm", "glm-5.2", "global")
+        == "arguments_json"
+    )
+    assert (
+        provider_chat_planner_arguments_field("glm", "glm-5.1", "cn")
+        == "arguments_json"
+    )
+    assert (
+        provider_chat_planner_arguments_field("deepseek", "deepseek-v4-pro")
+        == "arguments_json"
+    )
 
 
 def test_qwen_planner_fence_normalization_is_exact_route_and_model_scoped() -> None:

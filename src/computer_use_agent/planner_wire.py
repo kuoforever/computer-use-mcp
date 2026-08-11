@@ -17,9 +17,18 @@ class PlannerWireError(ValueError):
     """Fixed wire-envelope failure that never embeds provider output."""
 
 
-def planner_output_schema(tool_names: Sequence[str]) -> dict[str, object]:
+def _validated_arguments_field(arguments_field: str) -> str:
+    if arguments_field not in {"arguments_json", "arguments"}:
+        raise PlannerWireError("PLANNER_WIRE_ARGUMENT_FIELD_INVALID")
+    return arguments_field
+
+
+def planner_output_schema(
+    tool_names: Sequence[str], *, arguments_field: str = "arguments_json"
+) -> dict[str, object]:
     """Build the small JSON Schema shared by structured-output providers."""
 
+    reviewed_arguments_field = _validated_arguments_field(arguments_field)
     names = tuple(tool_names)
     if (
         isinstance(tool_names, (str, bytes))
@@ -43,9 +52,9 @@ def planner_output_schema(tool_names: Sequence[str]) -> dict[str, object]:
                 "properties": {
                     "action": {"type": "string", "const": "tool"},
                     "tool": {"type": "string", "enum": list(names)},
-                    "arguments_json": {"type": "string"},
+                    reviewed_arguments_field: {"type": "string"},
                 },
-                "required": ["action", "tool", "arguments_json"],
+                "required": ["action", "tool", reviewed_arguments_field],
                 "additionalProperties": False,
             },
         )
@@ -65,10 +74,14 @@ def planner_output_schema(tool_names: Sequence[str]) -> dict[str, object]:
 
 
 def compile_planner_wire_candidate(
-    text: str, *, allowed_tools: frozenset[str]
+    text: str,
+    *,
+    allowed_tools: frozenset[str],
+    arguments_field: str = "arguments_json",
 ) -> str:
     """Losslessly convert one bounded provider envelope to candidate JSON."""
 
+    reviewed_arguments_field = _validated_arguments_field(arguments_field)
     if not isinstance(text, str) or not text:
         raise PlannerWireError("PLANNER_WIRE_INVALID")
     try:
@@ -96,10 +109,12 @@ def compile_planner_wire_candidate(
         if step == {"action": "final_response"}:
             candidate_steps.append(step)
             continue
-        if set(step) != {"action", "tool", "arguments_json"} or step.get("action") != "tool":
+        if set(step) != {"action", "tool", reviewed_arguments_field} or step.get(
+            "action"
+        ) != "tool":
             raise PlannerWireError("PLANNER_WIRE_INVALID")
         tool = step["tool"]
-        raw_arguments = step["arguments_json"]
+        raw_arguments = step[reviewed_arguments_field]
         if not isinstance(tool, str) or tool not in allowed_tools:
             raise PlannerWireError("PLANNER_WIRE_INVALID")
         if not isinstance(raw_arguments, str):

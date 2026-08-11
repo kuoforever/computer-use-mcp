@@ -167,6 +167,12 @@ def test_factory_routes_every_provider_through_its_reviewed_protocol_family(
     )
     assert getattr(planner, "thinking_disabled", False) is expected_thinking_disabled
     assert getattr(final, "thinking_disabled", False) is expected_thinking_disabled
+    expected_arguments_field = (
+        "arguments"
+        if name == "glm" and model == "glm-5.2" and expected_region == "cn"
+        else "arguments_json"
+    )
+    assert getattr(planner, "arguments_field", "arguments_json") == expected_arguments_field
     expected_fence_strip = (
         name == "qwen" and model == "qwen3.7-plus" and expected_region == "cn-beijing"
     )
