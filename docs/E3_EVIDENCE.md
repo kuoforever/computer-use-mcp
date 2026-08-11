@@ -13,10 +13,52 @@
 | Anthropic Claude | `PASS` | `PASS` | retained |
 | Kimi `kimi-k2.6` China | `PASS` | `PASS`, including synthetic image | retained |
 | MiniMax `MiniMax-M2.7` China | `PASS` | `PASS`; image-returning tools withdrawn | retained |
+| DeepSeek `deepseek-v4-pro` global | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 
-Together these records cover four exact provider/model/route candidates. They do not
+Together these records cover five exact provider/model/route candidates. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
 every model offered by any provider is compatible with the current adapters.
+
+## 2026-08-11: DeepSeek `deepseek-v4-pro` global full fake-MCP E3
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Provider route | DeepSeek Chat Completions-compatible, `region = "global"`, fixed `https://api.deepseek.com` |
+| Credential contract | `DEEPSEEK_API_KEY` (variable name only) |
+| Explicit model ID | `deepseek-v4-pro` |
+| Exact implementation commit | `e4a84eb0ff4e07c5760c7a1395d2c6062be41ce3` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest tests\agent\test_deepseek_integration.py -m deepseek_integration -q` |
+| Fixed outcome | `5 passed in 43.21s` |
+| Setup cell | formal `config setup --provider deepseek --model deepseek-v4-pro --region global` plus `config doctor` passed SDK, isolated credential, executable, working-directory, and 13-tool discovery checks; generated TOML, captured output, and local state held no credential |
+| Ordinary/continuation cell | two real model turns completed one `list_windows` fake-MCP call and its tool-result continuation; the child reported that provider secrets were absent |
+| Planner/structured/final cell | JSON-object output was Host-compiled before one fake-MCP observation and one tool-free final response |
+| Image-capability cell | the live ordinary request omitted both `screenshot` and `capture_region`; the model returned without a tool call and fake MCP received zero calls |
+| Timeout cell | one-second Host provider timeout returned fixed `PROVIDER_TIMEOUT` with zero MCP tool calls |
+| Execution boundary | setup/doctor performed initialize/tool discovery only; provider-bearing cells used harmless stdio or in-process fake MCP, with zero side effects, Windows Driver calls, real desktop reads, or application actions |
+
+The first exact-commit run passed setup/doctor and timeout but the three
+provider-content cells failed with HTTP 402 `Insufficient Balance`. That
+account-state result was blocked evidence, not a provider-compatibility or
+product-code defect. After the operator recharged the account and recopied the
+credential, the unchanged clean implementation commit passed the full matrix.
+No production adapter repair was required.
+
+The passing run used only `DEEPSEEK_API_KEY` through the operator environment
+and did not set a model environment override: the harness hard-pins
+`deepseek-v4-pro` and rejects another explicit model. Fixed-message checks ran
+before assertions that could reflect captured material and verified that the
+credential was absent from setup/doctor output, generated configuration,
+ordinary/final output, trace, state files, and the fake MCP child. No
+credential, prompt, model prose, reasoning, tool output, response identifier,
+traceback, or user-local state path is retained here.
+
+The ordinary cell proves an exact-model two-turn continuation, not that live
+`reasoning_content` appeared or was replayed. The image-capability cell proves
+text-only schema withdrawal, not image input. The harness configured a
+1,000,000-token context ceiling, but its tiny fixed workload does not validate
+maximum context or output. This result promotes no sibling DeepSeek model,
+route, account, or later service version, and no real desktop, application,
+side effect, E4, release, Full Cycle, or L5 evidence.
 
 ## 2026-08-11: MiniMax `MiniMax-M2.7` China full fake-MCP E3
 

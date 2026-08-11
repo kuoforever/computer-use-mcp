@@ -18,8 +18,9 @@ experimental `guarded-desktop-agent` Host with eight exact provider profiles
 over three wire families,
 explicit memory, traces/evaluation, bounded recovery, and fake-verified approved
 actions. [Provider E3 evidence](docs/E3_EVIDENCE.md) is retained for the bounded
-OpenAI/Claude cases, the exact model-pinned Kimi `kimi-k2.6` China route, and
-the exact MiniMax `cn` + `MiniMax-M2.7` route.
+OpenAI/Claude cases, the exact model-pinned Kimi `kimi-k2.6` and MiniMax
+`MiniMax-M2.7` China routes, and the exact DeepSeek `global` +
+`deepseek-v4-pro` route.
 Kimi `global` and `cn` have fixed independent endpoints and Host credential variables with no
 cross-gateway fallback; only `cn` + `kimi-k2.6` one-shot Planner/final calls
 disable thinking after live E3 reproduced output-budget exhaustion, while the
@@ -32,7 +33,12 @@ text block and discard the reasoning before Host compilation, while ordinary
 tool continuation retains validated blocks for exact replay. Late, malformed,
 or unsigned reasoning still fails closed. That gate used a conservative 128k
 context window and withdrew image-returning tool schemas; it establishes no
-image-input, desktop, E4, or full advertised-context claim. [Isolated desktop
+image-input, desktop, E4, or full advertised-context claim. DeepSeek global
+passed the same bounded five-cell shape without a runtime compatibility repair:
+ordinary two-turn continuation, JSON Object Planner/Host compilation/final,
+text-only image-tool withdrawal, and timeout/zero dispatch. The live gate did
+not assert that reasoning content appeared, and its configured 1,000,000-token
+ceiling was not exercised as a maximum-context test. [Isolated desktop
 E4 evidence](docs/E4_EVIDENCE.md) is retained for the reviewed VM and one model
 per provider, including read-only and explicitly approved action cells. The
 record also preserves a separate Sonnet 5
@@ -49,7 +55,7 @@ bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
 response. It has eight-profile offline fake-port coverage plus retained
-OpenAI/Claude, Kimi-China, and MiniMax-China E3 results. The reviewed Agent Host path also has retained isolated desktop E4
+OpenAI/Claude, Kimi-China, MiniMax-China, and DeepSeek-global E3 results. The reviewed Agent Host path also has retained isolated desktop E4
 evidence, but the Planner / Executor path has no separate desktop result. One
 fixed synthetic claimed campaign item can execute a
 single `list_windows` observation through the existing Runner boundary, persist
