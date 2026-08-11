@@ -12,6 +12,7 @@ from computer_use_agent.provider_catalog import (
     SUPPORTED_PROVIDERS,
     provider_disables_one_shot_thinking,
     provider_profile,
+    provider_strips_exact_planner_json_fence,
     resolve_provider_route,
     supported_provider_regions,
 )
@@ -181,6 +182,33 @@ def test_kimi_one_shot_thinking_override_is_exact_route_and_model_scoped() -> No
     assert provider_disables_one_shot_thinking("kimi", "kimi-k2.6", "global") is False
     assert provider_disables_one_shot_thinking("kimi", "kimi-k2.5", "cn") is False
     assert provider_disables_one_shot_thinking("deepseek", "deepseek-v4-pro") is False
+
+
+def test_qwen_planner_fence_normalization_is_exact_route_and_model_scoped() -> None:
+    assert (
+        provider_strips_exact_planner_json_fence(
+            "qwen", "qwen3.7-plus", "cn-beijing"
+        )
+        is True
+    )
+    assert (
+        provider_strips_exact_planner_json_fence(
+            "qwen", "qwen3.7-plus", "ap-southeast-1"
+        )
+        is False
+    )
+    assert (
+        provider_strips_exact_planner_json_fence(
+            "qwen", "qwen3.7-turbo", "cn-beijing"
+        )
+        is False
+    )
+    assert (
+        provider_strips_exact_planner_json_fence(
+            "doubao", "doubao-seed-2-0-lite-260215", "cn-beijing"
+        )
+        is False
+    )
 
 
 def test_local_openai_requires_one_literal_loopback_v1_endpoint() -> None:

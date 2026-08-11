@@ -167,6 +167,11 @@ def test_factory_routes_every_provider_through_its_reviewed_protocol_family(
     )
     assert getattr(planner, "thinking_disabled", False) is expected_thinking_disabled
     assert getattr(final, "thinking_disabled", False) is expected_thinking_disabled
+    expected_fence_strip = (
+        name == "qwen" and model == "qwen3.7-plus" and expected_region == "cn-beijing"
+    )
+    assert getattr(planner, "strip_exact_json_fence", False) is expected_fence_strip
+    assert getattr(final, "strip_exact_json_fence", False) is False
     expected_call = (
         name,
         expected_region,
