@@ -125,9 +125,9 @@ def test_deepseek_global_setup_and_doctor_use_the_formal_product_route(
         timeout=30,
         env=environment,
     )
-    assert setup.returncode == 0, setup.stderr
     _fail_if_credential_present(setup.stdout)
     _fail_if_credential_present(setup.stderr)
+    assert setup.returncode == 0, setup.stderr
     setup_payload = json.loads(setup.stdout)
     assert setup_payload["configuration"]["provider"] == "deepseek"
     assert setup_payload["configuration"]["model"] == _DEEPSEEK_INTEGRATION_MODEL
@@ -155,9 +155,9 @@ def test_deepseek_global_setup_and_doctor_use_the_formal_product_route(
         timeout=30,
         env=environment,
     )
-    assert doctor.returncode == 0, doctor.stderr
     _fail_if_credential_present(doctor.stdout)
     _fail_if_credential_present(doctor.stderr)
+    assert doctor.returncode == 0, doctor.stderr
     doctor_payload = json.loads(doctor.stdout)
     assert doctor_payload["provider"] == "deepseek"
     assert doctor_payload["ready"] is True
@@ -165,9 +165,9 @@ def test_deepseek_global_setup_and_doctor_use_the_formal_product_route(
     assert doctor_payload["mcp"]["tool_count"] == 13
 
     rendered = config_path.read_text(encoding="utf-8")
+    _fail_if_credential_present(rendered)
     assert 'region = "global"' in rendered
     assert "DEEPSEEK_API_KEY" not in rendered
-    _fail_if_credential_present(rendered)
     _scan_state_files(local_app_data)
 
 
@@ -205,6 +205,7 @@ def test_live_deepseek_global_tool_result_continuation_cycle(
 
     outcome = asyncio.run(scenario())
 
+    _fail_if_credential_present(outcome.text)
     assert outcome.text.strip()
     assert outcome.state.budgets.model_turns_used == 2
     assert outcome.state.budgets.tool_calls_used == 1
@@ -288,9 +289,9 @@ ttl_seconds = 900
         timeout=210,
         env=environment,
     )
-    assert completed.returncode == 0, completed.stderr
     _fail_if_credential_present(completed.stdout)
     _fail_if_credential_present(completed.stderr)
+    assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     trace_path = state_dir / "traces" / f"{payload['run_id']}.jsonl"
     trace = [
@@ -382,6 +383,7 @@ def test_live_deepseek_global_withdraws_image_tools_from_the_model_request(
 
     outcome = asyncio.run(runner.run("Return a concise final answer without calling a tool."))
 
+    _fail_if_credential_present(outcome.text)
     assert outcome.text.strip()
     assert len(recording.calls) == 1
     definitions = recording.calls[0]["tools"]
