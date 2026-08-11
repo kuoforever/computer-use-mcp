@@ -87,6 +87,38 @@ def test_real_stdio_child_uses_fixed_launch_and_excludes_provider_secrets(
     assert "STDERR_SECRET_SENTINEL" not in capsys.readouterr().err
 
 
+def test_real_stdio_child_uses_doubao_compatible_synthetic_image(
+    tmp_path: Path,
+) -> None:
+    child = Path(__file__).parent / "fixtures" / "stdio_mcp_server.py"
+    launch = MCPLaunchConfig(
+        executable=Path(sys.executable).resolve(),
+        args=(str(child), "doubao-cn-plan-e3"),
+        cwd=tmp_path,
+        environment={"CUMCP_ALLOWLIST": "notepad.exe"},
+    )
+    bridge = StdioDesktopMCP(launch, timeout_seconds=10.0)
+    call = ToolCall(
+        identity=CallIdentity(
+            run_id="run_doubao_image", turn_id="turn_1", call_id="call_1"
+        ),
+        name="screenshot",
+        arguments={},
+        status=ToolCallStatus.AUTHORIZED,
+    )
+
+    async def scenario() -> object:
+        async with bridge:
+            return await bridge.call_tool(call)
+
+    screenshot = asyncio.run(scenario())
+
+    assert screenshot.status is ToolResultStatus.SUCCESS
+    assert len(screenshot.images) == 1
+    assert (screenshot.images[0].width, screenshot.images[0].height) == (16, 16)
+    assert bridge.closed
+
+
 def test_stdio_child_negotiates_the_optional_browser_observation_tool(
     tmp_path: Path,
 ) -> None:
