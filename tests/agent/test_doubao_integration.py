@@ -342,7 +342,7 @@ def test_live_doubao_cn_structured_planner_and_final_cycle(tmp_path: Path) -> No
 
 
 def test_live_doubao_cn_image_planner_and_final_cycle(tmp_path: Path) -> None:
-    """Pass one synthetic 1x1 PNG through the reviewed image boundary."""
+    """Pass one synthetic 16x16 PNG through the reviewed image boundary."""
 
     model = _require_opt_in()
     payload, _trace = _run_planned_observation(

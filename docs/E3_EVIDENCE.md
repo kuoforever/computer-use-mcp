@@ -14,10 +14,53 @@
 | Kimi `kimi-k2.6` China | `PASS` | `PASS`, including synthetic image | retained |
 | MiniMax `MiniMax-M2.7` China | `PASS` | `PASS`; image-returning tools withdrawn | retained |
 | DeepSeek `deepseek-v4-pro` global | `PASS` | `PASS`; image-returning tools withdrawn | retained |
+| Doubao `doubao-seed-2-0-lite-260215` China | `PASS` | `PASS`, including synthetic image | retained |
 
-Together these records cover five exact provider/model/route candidates. They do not
+Together these records cover six exact provider/model/route candidates. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
 every model offered by any provider is compatible with the current adapters.
+
+## 2026-08-11: Doubao `doubao-seed-2-0-lite-260215` China full fake-MCP E3
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Provider route | Doubao Responses-compatible, `region = "cn-beijing"`, fixed `https://ark.cn-beijing.volces.com/api/v3` |
+| Credential contract | `ARK_API_KEY` (variable name only) |
+| Explicit model ID | `doubao-seed-2-0-lite-260215` |
+| Exact implementation commit | `c358f0e2accbe19681c57af3677f9230192d546f` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest tests\agent\test_doubao_integration.py -m doubao_integration -q` |
+| Fixed outcome | `5 passed in 54.41s` |
+| Setup cell | formal `config setup --provider doubao --model doubao-seed-2-0-lite-260215 --region cn-beijing` plus `config doctor` passed SDK, isolated credential, executable, working-directory, and 13-tool discovery checks; generated TOML, captured output, and local state held no credential |
+| Ordinary/continuation cell | two real model turns completed one `list_windows` fake-MCP call and its Responses tool-result continuation; the child reported that provider secrets were absent |
+| Planner/structured/final cell | exact-schema prompt output was Host-compiled before one fake-MCP observation and one tool-free final response |
+| Image cell | one deterministic synthetic 16x16 PNG crossed the reviewed Planner/final image boundary; no real pixels were captured |
+| Timeout cell | one-second Host provider timeout returned fixed `PROVIDER_TIMEOUT` with zero MCP tool calls |
+| Execution boundary | setup/doctor performed initialize/tool discovery only; provider-bearing cells used harmless stdio or in-process fake MCP, with zero side effects, Windows Driver calls, real desktop reads, or application actions |
+
+The first clean exact-commit matrix passed four cells and failed only the image
+cell at fixed `EXECUTOR_FINAL_UNCERTAIN`. A structure-only diagnostic retained
+no model or provider-error text and reduced the HTTP 400 `InvalidParameter`
+response to the relevant contract fact: the original 1x1 fake PNG was below
+the route's 14-pixel minimum image dimension. No production adapter repair was
+required. The fake child now selects a deterministic 16x16 PNG only for the
+Doubao-China plan marker, while an offline stdio test preserves the historical
+1x1 fixture for every other path. The repaired image cell passed alone, and
+the clean full-matrix rerun above then passed without a model override.
+
+The passing run used only `ARK_API_KEY` through the operator environment. The
+harness hard-pins the exact model and rejects another explicit model. Fixed
+checks verified that the credential was absent from setup/doctor output,
+generated configuration, ordinary/final output, trace, state files, and the
+fake MCP child. No credential, clipboard content, prompt, model prose,
+reasoning, tool output, response identifier, raw provider error, or user-local
+state path is retained here.
+
+The ordinary cell proves exact-route Responses continuation for this bounded
+workload. The image cell proves one 16x16 synthetic-input Planner/final cycle,
+not arbitrary images or a maximum context. This result promotes neither the
+BytePlus `ap-southeast-1` route nor another Doubao model/account/service
+version, and no real desktop, application, side effect, E4, release, Full
+Cycle, or L5 evidence.
 
 ## 2026-08-11: DeepSeek `deepseek-v4-pro` global full fake-MCP E3
 
