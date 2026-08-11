@@ -2,10 +2,10 @@
 
 > **Status: eight cloud identities plus one loopback-only `local_openai`
 > identity are implemented and offline verified at their named boundaries;
-> credentialed testing is retained only for the earlier OpenAI and Anthropic
-> scopes.** Local support currently covers text-only Planner/final construction,
-> not native ordinary tool calling. No cloud region or local endpoint made a
-> real API request in this slice; E3/E4 and application gates remain deferred.
+> credentialed testing is retained for the earlier OpenAI and Anthropic scopes
+> plus the exact Kimi `kimi-k2.6` China route.** Local support currently covers
+> text-only Planner/final construction, not native ordinary tool calling. Other
+> cloud routes, local E3, E4, and application gates remain deferred.
 
 ## Support matrix
 
@@ -40,6 +40,7 @@ fallback.
 | `doubao` | `cn-beijing` | `ARK_API_KEY` | `https://ark.cn-beijing.volces.com/api/v3` |
 | `doubao` | `ap-southeast-1` | `BYTEPLUS_ARK_API_KEY` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | `kimi` | `global` | `MOONSHOT_API_KEY` | `https://api.moonshot.ai/v1` |
+| `kimi` | `cn` | `MOONSHOT_CN_API_KEY` | `https://api.moonshot.cn/v1` |
 | `deepseek` | `global` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` |
 | `glm` | `cn` | `ZAI_API_KEY` | `https://open.bigmodel.cn/api/paas/v4` |
 | `glm` | `global` | `ZAI_GLOBAL_API_KEY` | `https://api.z.ai/api/paas/v4` |
@@ -49,9 +50,8 @@ fallback.
 
 Omitting `region` preserves the pre-region defaults: `global` for OpenAI,
 Anthropic, Kimi, and DeepSeek; `cn-beijing` for Qwen and Doubao; and `cn` for
-GLM and MiniMax; `local` is fixed for `local_openai`. Kimi currently has only
-the reviewed global route. The catalog does not invent a China route merely
-because a vendor has a domestic product.
+GLM and MiniMax; `local` is fixed for `local_openai`. Kimi `global` and `cn`
+use separate Host credential variables and never fall back across gateways.
 
 The current `config setup` recommendations are account-dependent starting
 points, not retained live evidence: `gpt-5.6-terra`, `claude-sonnet-5`,
@@ -62,7 +62,8 @@ both model ID and endpoint are required. Operators remain responsible for model
 access and accurate context/output limits.
 
 The provider and region snapshot was reviewed on 2026-08-10 against the official
-[Kimi API and model docs](https://platform.kimi.ai/docs/api/overview),
+[Kimi global API docs](https://platform.kimi.ai/docs/api/overview),
+[Kimi China API docs](https://platform.kimi.com/docs/api/overview),
 [Qwen regional workspace docs](https://www.alibabacloud.com/help/en/model-studio/use-workspace),
 [Doubao Responses guide](https://www.volcengine.com/docs/82379/1795150),
 [BytePlus ModelArk endpoint docs](https://docs.byteplus.com/en/docs/ModelArk/1399008),
@@ -122,6 +123,21 @@ guarded-desktop-agent config doctor --config `
   "$env:LOCALAPPDATA\computer-use-agent\agent.toml"
 ~~~
 
+The China gateway is explicit and uses an isolated Host credential name:
+
+~~~powershell
+$env:MOONSHOT_CN_API_KEY = "<credential>"
+guarded-desktop-agent config setup --provider kimi --model kimi-k2.6 `
+  --region cn
+~~~
+
+The China and global gateways expose the same reviewed model ID here, but
+their account keys are not assumed interchangeable. Only the exact `cn` +
+`kimi-k2.6` route disables model thinking for one-shot Planner/final calls to
+keep bounded structured output and final text inside the configured reserve.
+The global route, sibling models, and ordinary tool-calling turns keep their
+prior behavior.
+
 Qwen also needs its account-specific workspace ID and matching regional key:
 
 ~~~powershell
@@ -162,8 +178,9 @@ support does not claim compatibility with any named server or model.
 
 ## Deferred live gate
 
-No Kimi, Qwen, Doubao, DeepSeek, GLM, or MiniMax credential was created or used
-for this slice. Before promoting any one of them beyond offline support:
+Kimi `kimi-k2.6` on `cn` has the retained bounded model-pinned exact-commit E3
+result in [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another
+route beyond offline support:
 
 1. create the provider account in the intended service region and set only that
    route's documented Host credential;

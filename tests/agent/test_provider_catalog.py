@@ -10,6 +10,7 @@ from computer_use_agent.config import ConfigError, ProviderConfig, load_agent_co
 from computer_use_agent.provider_catalog import (
     ProviderProtocol,
     SUPPORTED_PROVIDERS,
+    provider_disables_one_shot_thinking,
     provider_profile,
     resolve_provider_route,
     supported_provider_regions,
@@ -105,6 +106,7 @@ def test_region_catalog_is_strict_and_constructs_only_reviewed_routes() -> None:
         "cn-beijing",
         "ap-southeast-1",
     )
+    assert supported_provider_regions("kimi") == ("global", "cn")
     assert supported_provider_regions("glm") == ("cn", "global")
     assert supported_provider_regions("minimax") == ("cn", "global")
 
@@ -113,6 +115,7 @@ def test_region_catalog_is_strict_and_constructs_only_reviewed_routes() -> None:
             "qwen", region="ap-northeast-1", workspace_id="workspace-jp"
         ),
         resolve_provider_route("doubao", region="ap-southeast-1"),
+        resolve_provider_route("kimi", region="cn"),
         resolve_provider_route("glm", region="global"),
         resolve_provider_route("minimax", region="global"),
     )
@@ -127,6 +130,7 @@ def test_region_catalog_is_strict_and_constructs_only_reviewed_routes() -> None:
             "BYTEPLUS_ARK_API_KEY",
             "https://ark.ap-southeast.bytepluses.com/api/v3",
         ),
+        ("cn", "MOONSHOT_CN_API_KEY", "https://api.moonshot.cn/v1"),
         ("global", "ZAI_GLOBAL_API_KEY", "https://api.z.ai/api/paas/v4"),
         (
             "global",
@@ -170,6 +174,13 @@ def test_fixed_provider_rejects_config_endpoint_override() -> None:
             "kimi-k2.6",
             base_url="https://api.moonshot.ai/v1",
         )
+
+
+def test_kimi_one_shot_thinking_override_is_exact_route_and_model_scoped() -> None:
+    assert provider_disables_one_shot_thinking("kimi", "kimi-k2.6", "cn") is True
+    assert provider_disables_one_shot_thinking("kimi", "kimi-k2.6", "global") is False
+    assert provider_disables_one_shot_thinking("kimi", "kimi-k2.5", "cn") is False
+    assert provider_disables_one_shot_thinking("deepseek", "deepseek-v4-pro") is False
 
 
 def test_local_openai_requires_one_literal_loopback_v1_endpoint() -> None:
@@ -320,6 +331,7 @@ def test_compatible_clients_receive_vendor_key_and_reviewed_endpoint(
     monkeypatch.setitem(sys.modules, "anthropic", anthropic_module)
     monkeypatch.setattr(provider_setup, "find_spec", lambda _name: object())
     monkeypatch.setenv("DASHSCOPE_AP_SOUTHEAST_1_API_KEY", "qwen-secret")
+    monkeypatch.setenv("MOONSHOT_CN_API_KEY", "kimi-cn-secret")
     monkeypatch.setenv("MINIMAX_GLOBAL_API_KEY", "minimax-secret")
 
     qwen_endpoint = (
@@ -328,10 +340,15 @@ def test_compatible_clients_receive_vendor_key_and_reviewed_endpoint(
     provider_setup.openai_client_from_environment(
         "qwen", region="ap-southeast-1", base_url=qwen_endpoint
     )
+    provider_setup.openai_client_from_environment("kimi", region="cn")
     provider_setup.anthropic_client_from_environment("minimax", region="global")
 
     assert constructed == [
         {"api_key": "qwen-secret", "base_url": qwen_endpoint},
+        {
+            "api_key": "kimi-cn-secret",
+            "base_url": "https://api.moonshot.cn/v1",
+        },
         {
             "api_key": "minimax-secret",
             "base_url": "https://api.minimax.io/anthropic",

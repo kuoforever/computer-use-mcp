@@ -54,6 +54,7 @@ class ProviderRegionProfile:
     credential_environment: str
     fixed_base_url: str | None
     qwen_workspace: bool = False
+    chat_one_shot_thinking_disabled_models: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -157,12 +158,16 @@ def _region(
     fixed_base_url: str | None = None,
     *,
     qwen_workspace: bool = False,
+    chat_one_shot_thinking_disabled_models: frozenset[str] = frozenset(),
 ) -> ProviderRegionProfile:
     return ProviderRegionProfile(
         region=region,
         credential_environment=credential_environment,
         fixed_base_url=fixed_base_url,
         qwen_workspace=qwen_workspace,
+        chat_one_shot_thinking_disabled_models=(
+            chat_one_shot_thinking_disabled_models
+        ),
     )
 
 
@@ -218,7 +223,15 @@ _REGIONS: Mapping[str, Mapping[str, ProviderRegionProfile]] = MappingProxyType(
             {
                 "global": _region(
                     "global", "MOONSHOT_API_KEY", "https://api.moonshot.ai/v1"
-                )
+                ),
+                "cn": _region(
+                    "cn",
+                    "MOONSHOT_CN_API_KEY",
+                    "https://api.moonshot.cn/v1",
+                    chat_one_shot_thinking_disabled_models=frozenset(
+                        {"kimi-k2.6"}
+                    ),
+                ),
             }
         ),
         "deepseek": MappingProxyType(
@@ -464,6 +477,22 @@ def provider_supports_tool_calling(name: str) -> bool:
     return provider_profile(name).supports_tool_calling
 
 
+def provider_disables_one_shot_thinking(
+    name: str, model: str, region: str | None = None
+) -> bool:
+    """Return the exact reviewed route/model one-shot thinking override."""
+
+    provider_profile(name)
+    selected = default_provider_region(name) if region is None else region
+    try:
+        disabled_models = _REGIONS[name][
+            selected
+        ].chat_one_shot_thinking_disabled_models
+    except (KeyError, TypeError) as exc:
+        raise ValueError("PROVIDER_REGION_INVALID") from exc
+    return model in disabled_models
+
+
 __all__ = [
     "ProviderProfile",
     "ProviderRegionProfile",
@@ -474,6 +503,7 @@ __all__ = [
     "default_provider_region",
     "provider_profile",
     "provider_credential_environment",
+    "provider_disables_one_shot_thinking",
     "provider_supports_images",
     "provider_supports_tool_calling",
     "resolve_provider_base_url",

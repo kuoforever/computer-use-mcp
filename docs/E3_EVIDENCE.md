@@ -11,10 +11,50 @@
 | --- | --- | --- | --- |
 | OpenAI | `PASS` | `PASS` | retained |
 | Anthropic Claude | `PASS` | `PASS` | retained |
+| Kimi `kimi-k2.6` China | `PASS` | `PASS`, including synthetic image | retained |
 
-Together these records complete the bounded dual-provider E3 gate. They do not
+Together these records cover three exact provider/model/route candidates. They do not
 prove desktop behavior, authorize any new runtime surface, or establish that
-every model offered by either provider is compatible with the current adapters.
+every model offered by any provider is compatible with the current adapters.
+
+## 2026-08-11: Kimi `kimi-k2.6` China full fake-MCP E3
+
+| Field | Sanitized reviewed value |
+| --- | --- |
+| Provider route | Kimi Chat Completions, `region = "cn"`, fixed `https://api.moonshot.cn/v1` |
+| Explicit model ID | `kimi-k2.6` |
+| Exact implementation commit | `e350603eb43c224f38f6e7b2c18189f6b2e2b7e7` |
+| Exact pytest command | `.\.venv\Scripts\python.exe -m pytest tests\agent\test_kimi_integration.py -m kimi_integration -q` |
+| Fixed outcome | `5 passed in 29.81s` |
+| Invalid attempt | an earlier exact-commit attempt passed setup/doctor but failed four provider cells at authentication because the clipboard held a MiniMax key; it grants no capability evidence |
+| Ordinary/continuation cell | two real model turns completed one `list_windows` fake-MCP call and its tool-result continuation |
+| Planner/structured/final cell | prompted JSON Object was Host-compiled before one fake-MCP observation and one tool-free final response |
+| Image cell | one synthetic 1x1 PNG crossed the reviewed Planner/final image boundary; no real pixels were captured |
+| Timeout cell | one-second Host provider timeout returned fixed `PROVIDER_TIMEOUT` with zero MCP tool calls |
+| Setup cell | formal `config setup --provider kimi --model kimi-k2.6 --region cn` plus `config doctor` passed SDK, isolated credential, executable, working-directory, and 13-tool discovery checks; generated TOML held no secret |
+| Execution boundary | harmless stdio/fake MCP only; zero side effects, Windows Driver calls, real desktop reads, or application actions |
+
+The initial live ordinary tool continuation passed. Initial Planner attempts
+failed closed: first because the integration child process did not inherit its
+test-local application root, then because K2.6 default thinking consumed the
+entire 512-token one-shot reserve and returned `finish_reason=length` with no
+answer content. A diagnostic native strict-schema request also returned a
+non-contract plan despite accepting the schema. The bounded repair therefore
+keeps Kimi Planner in prompted JSON Object mode with unchanged Host compilation
+and disables thinking only for `cn` + `kimi-k2.6` one-shot Planner/final calls.
+The global route and sibling models remain unchanged, and ordinary tool-calling
+continuation keeps its reasoning-capable behavior.
+
+The exact-commit passing rerun used only the route-specific
+`MOONSHOT_CN_API_KEY` supplied through the operator environment and did not set
+a model environment variable: the harness itself hard-pins `kimi-k2.6` and
+fails on another explicit model. One earlier rerun stopped before pytest because
+the clipboard was empty and made no provider request. The separate authentication
+failure was invalidated after the operator clarified that the then-current
+clipboard held a MiniMax credential. No key was written to configuration, MCP
+environment, subprocess evidence, or this record. This result does not promote
+Kimi global, another Kimi model, another provider, a real desktop or
+application, E4, release, or cross-gateway credential compatibility.
 
 ## 2026-08-07: feature-freeze candidate revalidation
 
@@ -105,8 +145,9 @@ provider identifier, raw traffic, or local state artifact is retained here.
 
 ## Promotion boundary
 
-Both providers now have retained passing records for the two bounded fake-MCP
-cases, so the dual-provider E3 rows may move from `PARTIAL` to `YES`. E4 remains
-separate and requires the isolated desktop runbook. The Sonnet 5 compatibility
-repair is retained for the exact implementation commit above, but remains
-model-scoped and does not convert E3 into an all-model compatibility claim.
+The historical OpenAI/Claude pair has retained passing records for the two
+bounded fake-MCP cases, so those historical dual-provider E3 rows may move from
+`PARTIAL` to `YES`. E4 remains separate and requires the isolated desktop
+runbook. The Sonnet 5 compatibility repair is retained for the exact
+implementation commit above, but remains model-scoped and does not convert E3
+into an all-model compatibility claim.

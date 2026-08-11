@@ -13,7 +13,11 @@ from ..final_response_wire import (
     compile_final_response_wire,
     validate_final_response_text,
 )
-from ..provider_catalog import ProviderProtocol, provider_profile
+from ..provider_catalog import (
+    ProviderProtocol,
+    provider_disables_one_shot_thinking,
+    provider_profile,
+)
 from ..provider_setup import openai_client_from_environment
 from ..token_window import exceeds_token_window
 from ..types import (
@@ -65,6 +69,7 @@ class OpenAIChatFinalResponseAdapter:
     max_request_bytes: int = DEFAULT_PROVIDER_REQUEST_BYTES
     context_window_tokens: int = DEFAULT_PROVIDER_CONTEXT_TOKENS
     output_token_reserve: int = DEFAULT_PROVIDER_OUTPUT_TOKENS
+    thinking_disabled: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
@@ -75,6 +80,8 @@ class OpenAIChatFinalResponseAdapter:
             raise ValueError("supports_images must be boolean")
         if self.max_tokens_parameter not in {"max_tokens", "max_completion_tokens"}:
             raise ValueError("max_tokens_parameter must be reviewed")
+        if not isinstance(self.thinking_disabled, bool):
+            raise ValueError("thinking_disabled must be boolean")
         if (
             isinstance(self.max_request_bytes, bool)
             or not isinstance(self.max_request_bytes, int)
@@ -121,6 +128,9 @@ class OpenAIChatFinalResponseAdapter:
             max_request_bytes=max_request_bytes,
             context_window_tokens=context_window_tokens,
             output_token_reserve=output_token_reserve,
+            thinking_disabled=provider_disables_one_shot_thinking(
+                provider_name, model, region
+            ),
         )
 
     async def create_final_response(
@@ -159,6 +169,8 @@ class OpenAIChatFinalResponseAdapter:
             ],
             self.max_tokens_parameter: self.output_token_reserve,
         }
+        if self.thinking_disabled:
+            provider_request["extra_body"] = {"thinking": {"type": "disabled"}}
         if _request_size(provider_request) > self.max_request_bytes:
             raise OpenAIChatFinalResponseError("OPENAI_CHAT_FINAL_REQUEST_TOO_LARGE")
         if exceeds_token_window(

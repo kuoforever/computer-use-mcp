@@ -106,7 +106,7 @@ def _final_request(*, image: bool) -> FinalResponseRequest:
     )
 
 
-def test_chat_planner_uses_json_object_and_host_compiles_exact_plan() -> None:
+def test_kimi_planner_uses_prompted_json_object_and_host_compiles_exact_plan() -> None:
     wire = json.dumps(
         {
             "version": 1,
@@ -123,6 +123,7 @@ def test_chat_planner_uses_json_object_and_host_compiles_exact_plan() -> None:
         name="kimi",
         structured_output=StructuredOutputMode.JSON_OBJECT,
         max_tokens_parameter="max_completion_tokens",
+        thinking_disabled=True,
     )
     request = build_planner_request(
         run_id="run_1",
@@ -132,6 +133,8 @@ def test_chat_planner_uses_json_object_and_host_compiles_exact_plan() -> None:
     )
     plan = asyncio.run(request_task_plan(planner, request))
     assert scripted.calls[0]["response_format"] == {"type": "json_object"}
+    assert "Required output JSON Schema" in scripted.calls[0]["messages"][0]["content"]
+    assert scripted.calls[0]["extra_body"] == {"thinking": {"type": "disabled"}}
     assert scripted.calls[0]["max_completion_tokens"] == planner.output_token_reserve
     assert plan.steps[0].action is PlanStepAction.TOOL
     assert plan.steps[1].action is PlanStepAction.FINAL_RESPONSE
@@ -157,6 +160,7 @@ def test_local_openai_planner_uses_prompt_schema_without_native_extensions() -> 
 
     call = scripted.calls[0]
     assert "response_format" not in call
+    assert "extra_body" not in call
     assert "Required output JSON Schema" in call["messages"][0]["content"]
     assert len(plan.steps) == 1
     assert plan.steps[0].action is PlanStepAction.FINAL_RESPONSE
@@ -170,11 +174,13 @@ def test_kimi_final_sends_native_data_url_and_deepseek_fails_before_network() ->
         name="kimi",
         supports_images=True,
         max_tokens_parameter="max_completion_tokens",
+        thinking_disabled=True,
     )
     result = asyncio.run(kimi.create_final_response(_final_request(image=True)))
     assert result.text == "done"
     content = kimi_port.calls[0]["messages"][1]["content"]
     assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert kimi_port.calls[0]["extra_body"] == {"thinking": {"type": "disabled"}}
 
     deepseek_port = ScriptedCompletions([_response("must not be used")])
     deepseek = OpenAIChatFinalResponseAdapter(
