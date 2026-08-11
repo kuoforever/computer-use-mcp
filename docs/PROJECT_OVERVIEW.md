@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-08-10.** This page explains the complete project shape without promoting
+> 2026-08-11.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -25,16 +25,17 @@ four distinct maturity layers:
 3. **Planner/Executor and Campaign control plane — substantial internal/offline
    implementation:** strict planning, WAL-backed observation/final-response
    boundaries, campaign ledgers, leases, heartbeat, handoff, and reconciliation
-   exist. Three fixed campaign CLI commands exercise one exact synthetic path;
-   no general campaign worker or complete application workflow is connected.
-4. **Complete-product layers — initial contract work active:** hierarchical
-   H1-H8 and continual-learning L0-L4 are implemented through offline
-   observation-runtime composition, typed freshness-bound facts, one pinned
-   reviewed behavior template, and bounded local condition evaluation;
-   multi-source observation,
-   operator UI, mobile-completion projection, broad application campaigns,
-   isolated workers, additional platforms, and verified continual learning
-   remain partial or planned at their documented evidence levels.
+   exist. Fixed synthetic and discovery paths plus a manifest-routed general
+   campaign worker are implemented internally; the general worker remains
+   offline-only, with no generic real-application acceptance or complete
+   application product claim.
+4. **Complete-product layers — bounded programs implemented, broader acceptance
+   incomplete:** hierarchical H1-H8 and continual-learning L0-L4 are
+   implemented at their documented offline or injected-runtime scopes.
+   Multi-source observation, operator UI, mobile-completion projection, and
+   broad application campaigns remain partial; isolated workers, additional
+   platforms, complete real-application acceptance, and L5 remain planned or
+   inactive at their documented evidence levels.
 
 The central engineering idea is not “let a model click anywhere.” It is to
 separate observation, reasoning, authority, execution, durable evidence, and
@@ -60,7 +61,7 @@ It is not currently:
 
 - a safe parallel background controller for the operator's active desktop;
 - a production browser automation framework;
-- a connected day-scale campaign worker;
+- a supported or application-verified day-scale campaign product;
 - a multi-monitor, macOS, or Linux runtime;
 - a production operator dashboard or iPhone notification adapter; or
 - an automatically learning or self-modifying agent.
@@ -104,14 +105,20 @@ operator / Codex / Claude Code / another MCP client
 
 internal, not complete product paths
   -> Planner / Executor: plan, observe, reconcile, final response
-  -> Campaign control plane: items, batches, leases, heartbeat, handoff
+  -> Campaign control plane: items, batches, leases, heartbeat, handoff,
+     reviewed discovery adapters, and one manifest-routed offline worker
+  -> H1-H8 control plus L0-L4 evidence/selection at bounded offline or
+     injected-runtime scopes
 
-planned projections and adapters
-  -> OCR / document text / cropped image / delta observation
+implemented or partial projections and adapters
+  -> OCR / document text / cropped image / optional browser observation
   -> passive progress / presence / Decision Cards
-  -> host terminal polling -> ChatGPT or Claude mobile notification
-  -> isolated workers / macOS / Linux / Android device driver / multi-monitor
-  -> verified experience promotion and strategy selection
+  -> local host terminal polling and read-only Task Center projection
+
+planned or unverified expansion
+  -> delta observation and remote/mobile delivery
+  -> isolated workers / macOS / Linux / Android device driver
+  -> complete cross-application and release acceptance
 ~~~
 
 The MCP server remains the only desktop execution authority. Planner,
@@ -196,7 +203,7 @@ surfaces rather than one automatic general-product loop.
 | Reviewed tool registry | Implemented | Host derives effect/schema/approval facts; provider output cannot grant authority | [Agent Host](AGENT.md) |
 | Policy modes | Implemented | Read-only default; approved actions are opt-in, budgeted, grounded, and confirmed by default. The fixed public-web-word profile uses Host-owned low/high/unknown classification: low proceeds without a prompt, high requires exact approval, and unknown is denied | [Approvals](APPROVALS.md) |
 | Grounding and verification | Implemented/fake verified | Actions require fresh observation binding and mandatory post-action observation | [Approvals](APPROVALS.md) |
-| Bounded stdio bridge | Implemented | Absolute child command, reviewed environment, exact nine-schema discovery, bounded frames/results, generation invalidation | [Agent Host](AGENT.md) |
+| Bounded stdio bridge | Implemented | Absolute child command, reviewed environment, exact core-plus-configured-optional discovery, bounded frames/results, generation invalidation | [Agent Host](AGENT.md) |
 | Run budgets | Implemented | Model turns, tool calls, side effects, cumulative input, request bytes, context window, and image/result bounds | [Context and memory](CONTEXT_MEMORY.md) |
 | Checkpoint and redacted trace | Implemented | Atomic safe checkpoint plus bounded append-only semantic JSONL; sensitive content excluded | [Trace](TRACE.md) |
 | Reports | Implemented | Bounded checkpoint-only aggregation of phase, failure, token, call, and latency metrics | [Trace](TRACE.md) |
@@ -236,7 +243,7 @@ surfaces rather than one automatic general-product loop.
 | BOSS identity discovery | Implemented/internal fixed runtime | Two fixed CLI commands create the reviewed manifest and dispatch one foreground `ui_snapshot` through Runner/project MCP; bounded complete link values produce idempotent public job keys with query data discarded. A [current-contract two-pass result](BOSS_CAMPAIGN_MULTIPAGE_EVIDENCE.md) retained twelve identities with externally controlled progression; no automatic navigation, worker, restart, or application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | BOSS bounded item/restart seam | Implemented/internal fixed runtime | Three fixed CLIs start the first coordinator-selected batch, verify one exact claimed public identity through one Runner/project-MCP snapshot and digest-backed commit/handoff, then transfer a fresh or proven-stale finished owner to a zero-port run and claim the exact next item. A [clean on-device sequence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) retained twelve identities and three consecutive fresh-run commits without local state correction, and the earlier [diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) preserves two corrected defects; no item selector, provider execution, automatic navigation, semantic job extraction, or clean application acceptance | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | BOSS semantic extraction seam | Implemented/offline-only runtime | Three fixed no-selector CLIs open a one-item/five-call/zero-side-effect batch, re-establish the exact claim through Runner UIA, permit strict escalation to document text, commit only a schema/policy/source-digest-bound provider result, hand off without OCR dispatch when its Host safety baseline remains denied, and transfer a successful batch to a fresh run. The pure contract retains the full OCR/crop/screenshot ladder; there is no on-device semantic result or automatic navigation | [Semantic contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) |
-| General campaign worker | Implemented/internal, offline only | Manifest-routed capability-composed scenario registry with A1-A19 as built-in examples rather than a closed list; validated new specs register without Runner changes. Includes explicit stable-item preparation, provider execution through the sole Runner boundary, strict semantic result schema, digest commit, one-item handoff, fresh-run resume, and automatic exhausted-manifest completion with exact terminal heartbeat retirement. No generic real-application acceptance claim | [Roadmap](EXECUTION_PLAN.md) |
+| General campaign worker | Implemented/internal, offline only | Manifest-routed capability-composed scenario registry with A1-A19 as built-in examples rather than a closed list; validated new specs register without Runner changes. Includes explicit stable-item preparation, provider execution through the sole Runner boundary, strict semantic result schema, digest commit, one-item handoff, fresh-run resume, and automatic exhausted-manifest completion with exact terminal heartbeat retirement. No generic real-application acceptance claim | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Composable discovery adapters | Implemented/internal, offline only | Declarative `link_url`/`control_name` adapters bound to a campaign kind derive stable public item keys from one bounded foreground `ui_snapshot`; two CLI commands create the reviewed campaign and record one operator-driven pass with the provider forbidden and no page, URL, scope, or item selector. The campaign carries the ordinary worker digests, so discovery enters `campaign start` unchanged. Only BOSS has retained on-device discovery evidence, under its own separate fixed contract | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Host completion polling | Implemented/internal contract | Bounded read-only projection and deduplicated fake-host terminal/attention decisions; the local Task Center consumes the projection, while no mobile bridge exists | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) |
 
@@ -365,7 +372,7 @@ validated campaign plan
 | Reliability | Explicit incomplete/stale/driver results, bounded retries, generation invalidation, application probes before claims | [Quality attributes](QUALITY_ATTRIBUTES.md) |
 | Durability and recoverability | Atomic replace, append-only ledgers, RunLock, WAL before dispatch, exact CAS/digests, no replay after uncertainty | [Continuation](CONTINUATION.md), [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | Security and privacy | Secret-minimized child environment, redacted checkpoint/trace/audit, private sensitive artifacts, explicit memory consent, opt-in local text pseudonymization | [Agent Host](AGENT.md), [Trace](TRACE.md), [Context and memory](CONTEXT_MEMORY.md), [Local text privacy](LOCAL_PRIVACY.md) |
-| Human coexistence | Recent-input yield, visible foreground assumptions, explicit takeover, planned passive non-activating UI | [Operator experience](OPERATOR_EXPERIENCE.md) |
+| Human coexistence | Recent-input yield, visible foreground assumptions, explicit takeover, and implemented passive non-activating Presence/Progress surfaces within their bounded evidence scopes | [Operator experience](OPERATOR_EXPERIENCE.md) |
 | Observability and auditability | Fixed codes, bounded JSONL, safe metrics, deterministic reports, evidence-level dashboard | [Trace](TRACE.md), [Capability status](CAPABILITY_STATUS.md) |
 | Testability and evidence integrity | Pure logic separated from named desktop smokes; frozen E1/E2 manifests; E3/E4 and release gates stay explicit | [Evaluation](EVALUATION.md), [Release](RELEASE.md) |
 | Resource boundedness | Limits on frames, results, images, events, requests, tokens, turns, calls, side effects, batches, and artifacts | [Context and memory](CONTEXT_MEMORY.md), [Token efficiency](TOKEN_EFFICIENCY.md) |
@@ -409,9 +416,9 @@ These rules explain most implementation choices:
 Offline passing tests do not fill E3/E4/application cells. See
 [Evaluation](EVALUATION.md) and [Release evidence](RELEASE_EVIDENCE.md).
 
-## Current gaps and next gates
+## Retained capability gaps and evidence gates
 
-In priority order:
+These are evidence dependencies, not operational task priority:
 
 1. Use the retained isolated Windows evidence only for the repaired activation
    path and reviewed VM/model scope.
@@ -432,11 +439,14 @@ In priority order:
 7. Retain the implemented bounded Host-owned risk-tier policy: reviewed
    low-risk reversible public-web-word effects proceed under policy, high risk
    requires exact approval, and unknown/ambiguous/scope-drifted effects fail
-   closed. Next close the available non-E4 human/native-control checks;
-   keep physical two-monitor, E4, and release as later explicit gates.
+   closed. The available named non-E4 human/native-control checks are retained
+   as complete; physical two-monitor remains hardware-blocked, while other AT
+   and locales, E4, and release remain separate explicit gates.
 
-The authoritative current priorities live in
-[Capability status](CAPABILITY_STATUS.md) and [Roadmap](EXECUTION_PLAN.md).
+[Project status](../PROJECT_STATUS.md) is the sole owner of the active item and
+exact next action. [Capability status](CAPABILITY_STATUS.md) owns evidence truth;
+[Execution plan](EXECUTION_PLAN.md) retains capability gates and future design,
+not a competing active tracker.
 
 ## Reading paths
 

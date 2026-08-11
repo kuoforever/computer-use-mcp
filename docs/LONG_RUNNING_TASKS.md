@@ -1,11 +1,13 @@
 # Long-running task contract
 
-> **Status: campaign control plane implemented and offline verified; first
-> fixed observation-through-restart/resume seam connected.** Manifests, item/batch ledgers, leases,
+> **Status: campaign control plane, manifest-routed general worker, and first
+> fixed observation-through-restart/resume seam are implemented and offline
+> verified.** Manifests, item/batch ledgers, leases,
 > heartbeat, pause/stale inspection, deterministic handoff, bounded resume/run
 > transfer, read-only item progression, and completion are implemented without
-> provider, general worker, timer, side-effect, or free-form campaign-creation
-> authority. One
+> a second dispatch path, scheduler/timer, or free-form campaign-creation
+> authority. The general worker remains internal and offline-only, with no
+> retained generic provider/application result. One
 > exact claimed synthetic item can execute `list_windows` through the existing
 > Runner authority, persist correlated `OBSERVED`, extract only a bounded
 > non-sensitive window count, persist `EXTRACTED`, verify canonical JSON,
@@ -248,7 +250,7 @@ The incremental implementation sequence is retained in
 
 ### Executable batch contract
 
-A future campaign worker must:
+Any executable campaign worker must:
 
 1. hold the existing OS run lock at every durable transition;
 2. accept only the exact item selected by the validated batch state;
@@ -318,9 +320,11 @@ scenario ID and a bounded JSON list of stable item keys; the library runtime
 also accepts another validated capability-composed scenario spec without core
 Runner changes. Item content is not
 printed or traced. `start`, `run-claimed`, and `resume` then resolve only the
-persisted manifest kind. Fifteen immutable capabilities derive the advertised
-Runner tool subset and carry preconditions, postconditions, stop states,
-approval requirements, and grounding invalidation. The provider must return
+persisted manifest kind. Seventeen immutable declarative capabilities—eight
+observation/verification, six navigation/recovery, one draft, one
+external-commit, and one critical-commit—derive the advertised Runner tool
+subset and carry preconditions, postconditions, stop states, approval
+requirements, and grounding invalidation. The provider must return
 the exact scenario ID, selected item key, identity dimensions, result fields,
 executed observation sources, and verified-state attestations. Unknown or
 substituted values fail before campaign commit. One-item batches deliberately
@@ -373,8 +377,8 @@ no-preference classification is `INSUFFICIENT_EVIDENCE`; there is no automatic
 navigation or on-device semantic evidence.
 
 
-A future worker must close the current run cleanly at a batch boundary, write
-`handoff.json`, and start a fresh provider context. A replacement session must
+Each application-worker batch must close the current run cleanly at a boundary,
+write `handoff.json`, and start a fresh provider context. A replacement session must
 need only the campaign ID and config path, not prior conversation text.
 
 ## Handoff record
@@ -468,7 +472,8 @@ replacement grants no item or action authority and starts no worker.
 > **Status: internal projection implemented and offline verified; no public
 > status tool or notification bridge is implemented.** The current thirteen-tool
 > desktop MCP surface remains unchanged. The projection is a read-only campaign
-> module and does not broaden the fixed synthetic seam into a general worker.
+> module and grants no additional authority to the separately implemented,
+> offline-only general worker.
 
 Codex and Claude mobile push notifications are host capabilities. The MCP
 server must not claim that a whole task is complete, emit a log notification as
@@ -477,9 +482,9 @@ starting background work. A host may finish its turn, and therefore notify the
 operator, only after it has read a durable campaign terminal or attention
 state.
 
-The future worker boundary should expose one start operation and bounded,
-read-only status observation. Names are illustrative until the worker and CLI
-surface are reviewed:
+A future public host-facing status boundary should expose one start operation
+and bounded, read-only status observation. Names are illustrative until that
+public status surface is reviewed:
 
 ~~~text
 start_task(...) -> {task_id, status}

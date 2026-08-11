@@ -74,10 +74,10 @@ Required visible behavior:
 
 The operator surfaces follow [Operator experience](OPERATOR_EXPERIENCE.md).
 
-`GDA-DEMO-003` targets one visual language for the bounded Chrome-to-Word
-interview Demo:
+The retained `GDA-DEMO-003` bounded result used one visual language for the
+Chrome-to-Word interview Demo:
 
-- a high-visibility phase halo and solid status tab while desktop authority is
+- a phase halo and solid status tab while desktop authority is
   held;
 - a compact dark progress HUD showing `STEP current/17`;
 - a compact approval HUD showing the current approval out of seven, its fixed
@@ -88,8 +88,10 @@ interview Demo:
 
 The passive halo and progress HUD must remain click-through/non-activating.
 Only the approval HUD may take focus, and it may do so only after desktop
-authority has yielded. This target is paused after a failed first live review;
-`PROJECT_STATUS.md` owns the issue-by-issue status and acceptance criteria.
+authority has yielded. The bounded `GDA-DEMO-003` target is complete locally
+with retained evidence, and no Demo acceptance item is active. This does not
+promote the planned universal campaign or any application acceptance;
+`PROJECT_STATUS.md` owns any future reactivation and acceptance scope.
 
 ## Act 1: research, documents, data, and native communication
 

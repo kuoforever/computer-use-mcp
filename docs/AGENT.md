@@ -427,8 +427,9 @@ heartbeat. The module exposes no free-form selector, side effect, or second MCP 
 The three fixed campaign boundaries are consumed by `campaign
 prepare-synthetic`, `campaign run-claimed-synthetic`, and `campaign
 resume-synthetic`. Preparation creates only the exact fixed manifest,
-discovery record, heartbeat, single-item batch, and claim. Campaign-kind/item
-selection and a general worker remain unavailable.
+discovery record, heartbeat, single-item batch, and claim. Within these three
+fixed synthetic boundaries, campaign-kind/item selection and the separate
+general worker remain unavailable.
 
 `boss_campaign_discovery.py` adds a separate non-executable application
 preparation boundary. Under the existing run lock it can create only the fixed
@@ -978,7 +979,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Final-response adapters are isolated and stateless | Shared canonical wire data binds text plus ordered native PNGs. Every profile makes one no-tool request with byte/token preflight, fixed failure codes, no retry/fallback/continuation, and strict bounded single-text output; text-only profiles fail before I/O on images | implemented offline fake-client adapters and bounded CLI selection; new-provider live evidence absent |
 | Final-response runtime ordering is fail-closed | Under one RunLock, exact compile and prepared WAL precede final-step `in_progress`; durable intent precedes the single provider call; correlated completion precedes host budget/ledger consumption, final CAS, terminal trace, and ordinary-WAL cleanup. Intent-or-later failure preserves evidence, closes, and never retries or reaches MCP/recovery | implemented offline injected-port runtime and CLI composition tests |
 | Completed final-response reconciliation is local-only | Version 2 WAL binds the source plan/checkpoint/continuation and provider latency. A pure compiler revalidates exact completed evidence and reconstructs the original request and canonical terminal state. A separate same-lock writer rereads those pins, idempotently CAS-completes the final plan step, writes or reuses one terminal event and `SUCCESS` checkpoint, retains final WAL, and deletes only the ordinary continuation. Prepared/intent state, drift, malformed evidence, and commit failure fail closed without provider/MCP/approval/recovery paths | implemented offline preflight, application, retry, no-mutation, and real runtime-failure artifact tests; no automatic CLI recovery |
-| Host completion projection is evidence-only | The internal read-only projection validates durable campaign control state under the run lock; running continues, waiting/stale/malformed states request attention, uncertainty forbids replay, and only digest-identified validated terminal state can complete once across host restart | implemented and offline fake-host verified; the public status tool, notification bridge, mobile adapter, and general worker remain unimplemented |
+| Host completion projection is evidence-only | The internal read-only projection validates durable campaign control state under the run lock; running continues, waiting/stale/malformed states request attention, uncertainty forbids replay, and only digest-identified validated terminal state can complete once across host restart | implemented and offline fake-host verified; the public status tool, campaign notification bridge, and mobile adapter remain unimplemented, while this projection neither grants nor invokes the separately implemented offline general worker |
 
 The remaining work hardens the installed product path, retains exact-candidate
 provider/desktop/application evidence, adds broader post-provider resumable

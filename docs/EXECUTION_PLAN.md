@@ -18,20 +18,27 @@
 | P7 — full-control local mode | Implemented | `safe_local` and `full_control_local` are supported modes. |
 | P8 — VMware host helper | Experimental | The helper checks/starts an existing VM and can wait for VMware Tools. |
 
-## Active productization direction
+## Standing first-release boundary
 
-The current release target is an Experimental Windows Agent MVP: installed
-first-run configuration, one public read-only Desktop Ask path, current-candidate
-real document-aware evidence, one model-driven public-browser-to-disposable-Word
-workflow, and a versioned GitHub release artifact. The exact active batch and
-ordered PR map live only in [Project status](../PROJECT_STATUS.md).
+The first release boundary was defined as an Experimental Windows Agent MVP:
+installed first-run configuration, one public read-only Desktop Ask path,
+current-candidate real document-aware evidence, one model-driven
+public-browser-to-disposable-Word workflow, and a versioned GitHub release
+artifact. The exact active batch and ordered PR map live only in
+[Project status](../PROJECT_STATUS.md).
 
-The first MVP does not wait for the 100-item BOSS gate, complete Google Docs or
-WeChat Wave 1 coverage, the universal-GUI showcase, additional platforms,
-hierarchical control, continual learning, or Multi-Agent work. Those remain
-post-MVP product programs and retain the gates below.
+That standing MVP boundary does not depend on the 100-item BOSS gate, complete
+Google Docs or WeChat Wave 1 coverage, the universal-GUI showcase, additional
+platforms, hierarchical control, continual learning, or Multi-Agent work.
+H1-H8 and L0-L4 have since been implemented at their bounded offline or
+injected-runtime scopes; they do not complete Wave 1, the universal showcase,
+Multi-Agent operation, E4, or release acceptance.
 
-## Next validation priorities
+## Retained validation sequence
+
+This section preserves capability-specific gates and chronology. It is not the
+active tracker; [Project status](../PROJECT_STATUS.md) alone owns the current
+item and exact next action.
 
 ### P0 - validate repaired foreground activation
 
@@ -68,11 +75,12 @@ restart evidence.
 > at `COMMITTED`, closes the batch with measured Runner usage, writes the
 > existing deterministic handoff, and transfers heartbeat ownership to a fresh
 > Runner run that reconstructs the finished session from durable records and
-> reaches the expected exhausted resume decision. It has no general campaign
-> worker, provider turn, side effect, campaign completion, or automatic
-> terminal heartbeat removal. Three fixed CLI commands prepare the exact
-> one-item synthetic claim, execute it through handoff, and enter the durable
-> fresh-run resume half. Preparation opens no external port or trace; execution
+> reaches the expected exhausted resume decision. This fixed seam has no
+> provider turn, side effect, application-worker selection, campaign
+> completion, or automatic terminal heartbeat removal. Three fixed CLI commands
+> prepare the exact one-item synthetic claim, execute it through handoff, and
+> enter the durable fresh-run resume half. Preparation opens no external port or
+> trace; execution
 > uses the configured MCP child with a fail-closed provider guard. None accepts
 > task text, item selection, campaign-kind selection, or action authority.
 
@@ -93,7 +101,8 @@ requests attention for waiting, stale, malformed, or uncertain state, and emits
 one digest-identified completion only for validated terminal evidence. Polling
 is byte-for-byte read-only and adds no provider/MCP/desktop path or public
 desktop tool. Mobile push delivery remains owned by ChatGPT Remote or Claude
-Remote Control. The next gate is the bounded multi-item BOSS restart run.
+Remote Control. The later BOSS restart and semantic increments below supersede
+that earlier gate.
 
 The first application increment now connects the identity boundary to the sole
 Runner dispatch path. Two fixed CLI commands create only the reviewed discovery
@@ -120,9 +129,11 @@ from durable records alone. The current policy and schema digests now have
 two-pass on-device evidence; progression was operator-controlled outside the
 fixed command and does not imply navigation authority or a general worker.
 
-Next run the first 100-item read-only BOSS campaign across multiple provider
-contexts and at least one forced restart. Retain committed-item, token, retry,
-recovery, takeover, and cost evidence.
+Before the 100-item campaign, retain one on-device UIA/document-text semantic
+item and review the OCR fallback baseline. Only then run the first 100-item
+read-only BOSS campaign across multiple provider contexts and at least one
+forced restart, retaining committed-item, token, retry, recovery, takeover, and
+cost evidence.
 
 The first worker-side increment is now offline verified: fixed
 `campaign start-boss-batch` accepts only config, campaign ID, and run ID,
@@ -145,10 +156,11 @@ A manifest-routed worker runtime now exposes explicit stable-item preparation
 and generic `campaign start`, `campaign run-claimed`, and `campaign resume`
 commands for capability-composed scenario contracts. A1-A19 are built-in
 evaluation examples rather than a closed product list; another validated spec
-can compose reviewed capabilities and register with the same runtime. Fifteen immutable capabilities
-compose stable identity, observation escalation, navigation, entry, recovery,
-verification, and approval-bound effect requirements; their union derives the
-only Runner-advertised MCP tool subset. Provider execution returns one strict
+can compose reviewed capabilities and register with the same runtime. Seventeen
+immutable declarative capabilities—eight observation/verification, six
+navigation/recovery, one draft, one external-commit, and one critical-commit—
+compose the reviewed authority envelopes; their union derives the only
+Runner-advertised MCP tool subset. Provider execution returns one strict
 scenario/item/result schema and can commit only observation evidence matching
 tools actually dispatched. One-item batches force deterministic handoff and a
 fresh provider context. This is offline runtime coverage, not application
@@ -169,8 +181,9 @@ carries the ordinary worker policy and schema digests, discovery flows into
 are registered as reviewed examples, and unregistered kinds, unchanged sources,
 torn pass ledgers, and campaigns that already opened a batch or wrote a handoff
 fail closed. BOSS keeps its own fixed discovery contract and its retained
-on-device evidence; the generic path is offline verified only, so the next gate
-is one retained on-device adapter pass followed by the 100-item evaluation.
+on-device evidence; the generic path is offline verified only, so its next
+application-specific evidence gate is one retained on-device adapter pass. It
+does not displace the semantic-item sequence above or the active tracker.
 A partial [three-item diagnostic](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md)
 retains two discovered-and-fixed integration defects plus one clean post-fix
 stale-owner recovery. The later
@@ -300,8 +313,8 @@ release notes and cannot be inferred complete from offline CI:
 | Broader resume | Controlled recovery can chain 1-4 reviewed read-only calls under one run lock, with an atomic intent/completion pair for every call. A completed final provider response can be terminalized locally with zero external calls. Provider-requested actions are correlation-checked, terminalized as a fixed failure, and deleted without dispatch; completed side effects issue one synthetic `ui_snapshot` and stop. The frozen E2 matrix proves zero action replay | Keep uncertain dispatches and pending side effects permanently non-executable; require a separate design before raising the four-step cap or resuming action authority |
 | Token-aware context | Event-count reduction, exact request-byte gates, cumulative provider-reported input-token cutoff, conservative provider/model pre-request enforcement, correlated OpenAI recovery token-state restoration, Claude-only oldest-complete-group packing, canonical OpenAI request-contract v3 digest binding, exact initial-input and ordered provider-output persistence, explicit portable encrypted-reasoning requests, and an explicit digest-bound OpenAI stateless-replay compiler for read-only recovery | Tokenizer-specific calibration, safe semantic compression, and broader replay/compaction policy beyond the explicit recovery boundary |
 | Operator experience | The console remains default; passive progress/presence are retained; opt-in fail-silent presence follows durable ordinary `run`/`resume`, bounded `ask` / `plan run`, explicit read-only recovery, and fixed MCP-backed campaign execution phases, while the separate progress coordinator covers the same paths on a dedicated UI thread. Both remain observational and close on E-stop/final cleanup without gaining execution authority. Recovery notifications follow the existing durable CAS. Zero-port campaign control remains window-free. Progress checkpoints preserve creation time and distinguish complete provider-usage reports and successful screenshots from generic image results, while legacy missing facts remain unavailable. An opt-in focus-taking Win32 Decision Card yields Agent authority and presents exact-effect approval, re-observe, durable defer, and denial plus expandable digest-only evidence through the existing ApprovalPort. Re-observe abandons remaining calls from the stale turn and gates progress on fresh observation; defer persists non-resumable `PAUSED`/`stopped`; every non-allow choice has zero side-effect dispatch and Runner/MCP dispatch remains singular | Retain a human-operated four-choice cross-application result, recovery and BOSS campaign presence desktop evidence, and general post-provider same-run process resume |
-| Host completion notification | Internal bounded projection and fake-host decisions are offline verified: running keeps polling, attention/uncertain states never complete, validated terminal events deduplicate across restart, and repeated polling is read-only. No public status tool, generic worker, notification bridge, or mobile adapter exists | Retain application evidence before reviewing any public status surface; keep mobile delivery host-owned and provider/MCP/desktop calls absent from polling |
-| Planner-Executor | Strict TaskPlan compilation/persistence, dual-provider Planner and final adapters, fresh-call preflight/session, observation runtime/reconciliation, final WAL, and completed-final local reconciliation are implemented. Product-facing `ask` and metadata-oriented `plan run` compose exactly one host-scoped plan request, one to four observations including bounded semantic document text through the sole Runner boundary, and one stateless tool-free final response. They expose no tool selector, side effect, ordinary provider continuation, approval option, or alternate MCP path. The expanded path is offline fake-verified and has one exact-candidate OpenAI/Windows/Notepad [result](DESKTOP_ASK_EVIDENCE.md); dual-provider E3 predates the document-aware scope | Deliver the installed model-driven public-browser-to-disposable-Word workflow while keeping output untrusted and action authority inside the existing Runner/MCP boundaries |
+| Host completion notification | Internal bounded projection and fake-host decisions are offline verified: running keeps polling, attention/uncertain states never complete, validated terminal events deduplicate across restart, and repeated polling is read-only. No public status tool, notification bridge, or mobile adapter exists. The separately implemented general worker is offline-only and is not connected to this polling/notification path | Retain application evidence before reviewing any public status surface; keep mobile delivery host-owned and provider/MCP/desktop calls absent from polling |
+| Planner-Executor | Strict TaskPlan compilation/persistence, dual-provider Planner and final adapters, fresh-call preflight/session, observation runtime/reconciliation, final WAL, and completed-final local reconciliation are implemented. Product-facing `ask` and metadata-oriented `plan run` compose exactly one host-scoped plan request, one to four observations including bounded semantic document text through the sole Runner boundary, and one stateless tool-free final response. They expose no tool selector, side effect, ordinary provider continuation, approval option, or alternate MCP path. The expanded path is offline fake-verified and has one exact-candidate OpenAI/Windows/Notepad [result](DESKTOP_ASK_EVIDENCE.md); the installed public-browser-to-disposable-Word workflow is separately retained | Preserve those exact results; expand only through a named provider/application gate while keeping output untrusted and action authority inside the existing Runner/MCP boundaries |
 
 If E3 or E4 is waived, the artifact remains an experimental prerelease. Its
 release notes must say `E3 NOT RUN` and/or `E4 NOT RUN`; it must not be called a
@@ -387,13 +400,14 @@ records and credentials are outside the default evaluation boundary.
 
 ### Continual learning and verified experience evolution
 
-After normalized campaign outcomes and complete cost vectors are reliable,
-implement the staged [continual-learning architecture](CONTINUAL_LEARNING.md).
-Begin with quarantined factual-memory suggestions, then versioned procedural
-candidates, isolated replay, held-out evaluation, explicit promotion, and
-rollback. Only after those gates pass may the Host produce shadow strategy
-recommendations or select among already approved, equivalent low-risk
-procedures using measured outcome and cost history.
+L0-L4 now implement the bounded stages in the
+[continual-learning architecture](CONTINUAL_LEARNING.md): quarantined factual
+suggestions, versioned inert procedures, isolated replay, held-out comparison,
+and canary-bounded selection among already approved equivalent low-risk
+procedures. These are offline or injected-runtime data/evaluation/routing
+scopes, not automatic learning or model training. L5 remains inactive and
+requires separate privacy, security, evaluation, deployment, and rollback
+consent.
 
 Do not treat trace retention, explicit memory, model replanning, provider data
 sharing, or one successful replay as reinforcement learning. Online
