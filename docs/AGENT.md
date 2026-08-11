@@ -106,8 +106,9 @@ the following commands:
   covers the earlier bounded OpenAI/Claude scope, exact Kimi `cn` +
   `kimi-k2.6`, exact MiniMax `cn` + `MiniMax-M2.7`, exact DeepSeek `global` +
   `deepseek-v4-pro`, and exact Doubao `cn-beijing` +
-  `doubao-seed-2-0-lite-260215`; the remaining added cloud profiles are offline
-  verified only. The separate [E4 record](E4_EVIDENCE.md)
+  `doubao-seed-2-0-lite-260215`, and exact Qwen `cn-beijing` +
+  `qwen3.7-plus`; GLM and sibling routes/models remain offline verified only.
+  The separate [E4 record](E4_EVIDENCE.md)
   covers the reviewed Agent Host desktop path, not a separate Planner pass.
 - `approval inbox --config PATH [--json]` reads only strict local pending
   Decision Card records. It shows last-record/expired status, fixed action
@@ -563,6 +564,12 @@ Provider, protocol, and policy failures use fixed error codes rather than
 echoing task, UI, or API error text. In approved mode it advertises only reviewed action tools whose
 required safety baselines are satisfied. A model-generated unadvertised tool
 fails closed.
+For the exact Qwen `cn-beijing` + `qwen3.7-plus` one-shot Planner only, the
+adapter may remove one exact lowercase Markdown JSON fence with LF-only
+boundaries after checking the original UTF-8 response against the existing byte limit. The
+unwrapped text still enters the unchanged Host compiler. Extra prose,
+whitespace, case changes, nested fences, every sibling route/model, ordinary
+continuation, and final response retain the prior fail-closed behavior.
 
 The Messages adapter serves Anthropic and MiniMax with exact vendor identity.
 For ordinary continuation it preserves each assistant
@@ -623,8 +630,9 @@ Opt-in E3 coverage uses a harmless fake-MCP fixture rather than the real
 desktop. It retains the earlier bounded OpenAI/Anthropic results plus exact
 Kimi `cn` + `kimi-k2.6`, MiniMax `cn` + `MiniMax-M2.7`, DeepSeek `global` +
 `deepseek-v4-pro`, and Doubao `cn-beijing` +
-`doubao-seed-2-0-lite-260215` cells. Those exact results do not promote sibling
-routes or models; Qwen and GLM remain live-unverified. See
+`doubao-seed-2-0-lite-260215`, and Qwen `cn-beijing` + `qwen3.7-plus` cells.
+Those exact results do not promote sibling routes or models; GLM remains
+live-unverified. See
 [Evaluation](EVALUATION.md).
 
 `RunLock` holds a non-blocking OS file lock for the full lease at the canonical
@@ -935,7 +943,7 @@ sequencing is in [Evaluation](EVALUATION.md).
 | Memory disclosure is per-run opt-in | Exact-scope active records are revalidated, capped at 8/8192 characters, sent as non-authoritative JSON data on the initial provider turn, and excluded from ledger/trace/checkpoint output | implemented retrieval test |
 | Task planning is declarative and bounded | Strict JSON candidates are byte/step bounded, scoped to reviewed tools, schema checked, stripped of sensitive-tool support, host-ID/digest bound, and limited to pure ordered transitions with zero external calls | implemented non-executable contract test |
 | Task plans persist without becoming authority | Private snapshots are strict/size bounded, task-text free, registry/plan/envelope digest bound, path safe, owner-only where supported, atomically replaced under the application RunLock, and reject stale sequence or plan-digest writes without changing disk state | implemented non-executable persistence test |
-| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. Every profile uses one tool-free stateless request with complete byte/token preflight and strict local output compilation, including ordered reasoning-before-text normalization for Messages calls; provider-native JSON Schema, JSON object, and prompt-only modes are explicit capability choices. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port and offline fake-client eight-profile routing; retained [OpenAI/Claude, exact Kimi-China, exact MiniMax-China, exact DeepSeek-global, and exact Doubao-China E3 evidence](E3_EVIDENCE.md); remaining profiles, routes, and sibling models remain live-unverified |
+| Planner output remains untrusted data | The one-shot port receives only a bounded task and the seven fixed observation schemas; fixed failures, invalid/out-of-scope/authority-bearing/oversized/non-UTF-8 candidates, and provider errors stop after one call with no retry or fallback. Every profile uses one tool-free stateless request with complete byte/token preflight and strict local output compilation, including ordered reasoning-before-text normalization for Messages calls and one exact route/model-scoped Qwen JSON-fence normalization after the original byte gate; provider-native JSON Schema, JSON object, and prompt-only modes are explicit capability choices. The CLI composition accepts only one to four observations before opening MCP | implemented provider-neutral port and offline fake-client eight-profile routing; retained [OpenAI/Claude, exact Kimi-China, exact MiniMax-China, exact DeepSeek-global, exact Doubao-China, and exact Qwen-Beijing E3 evidence](E3_EVIDENCE.md); remaining profiles, routes, and sibling models remain live-unverified |
 | Executor preflight cannot grant authority | Exact snapshot sequence/plan digest plus current run/task/registry bindings are revalidated; only the first pending tool step can become a fresh `requested` call, while reused identities, started/terminal/final steps, and drift fail closed. The compiler has no ports and neither mutates plan/budget state nor authorizes or dispatches | implemented pure local contract tests; consumed by the bounded observation runtime |
 | Executor session remains bounded data coordination | One live PlanStore lock scopes at most four host-identified observation requests with one outstanding call. State must retain the prior ledger exactly, and progress requires correlated call/result evidence plus exact completed/failed transitions; unknown outcomes retain `in_progress` and close. No provider, approval, recovery, trace, MCP, or desktop port is present | implemented bounded contract used by the runtime wrapper |
 | Runner call authority has one boundary | Provider workflow, campaign runtime, and observation-plan CLI delegate normalized requests to the sole Runner MCP dispatch site, which retains policy, grounding, budgets, approval, WAL, result validation, and verification. Structural tests freeze the single-site invariant and forbid direct composition/runtime dispatch sites | implemented shared host boundary and offline CLI composition |

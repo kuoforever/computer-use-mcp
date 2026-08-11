@@ -16,7 +16,7 @@ and expected safety outcome.
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated/non-serial side-effect turns, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
-| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi China, MiniMax China, DeepSeek global, and Doubao China routes passed](E3_EVIDENCE.md); Qwen, GLM, sibling routes/models, and local E3 remain unverified or deferred |
+| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi China, MiniMax China, DeepSeek global, Doubao China, and Qwen Beijing routes passed](E3_EVIDENCE.md); GLM, sibling routes/models, and local E3 remain unverified or deferred |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and reviewed low-risk-action/post-observation cells for each provider profile selected for desktop promotion | `PARTIAL`: [retained sanitized evidence](E4_EVIDENCE.md) covers only the earlier OpenAI/Claude models and Windows revision; added profiles are `NOT RUN` |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
 | E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, then cross-application campaigns | planned |
@@ -517,6 +517,24 @@ $env:ARK_API_KEY = "..."
   tests\agent\test_doubao_integration.py -m doubao_integration -q
 ~~~
 
+The Qwen Beijing matrix hard-pins `qwen3.7-plus`, constructs the dedicated
+endpoint from a matching workspace ID, retains Responses tool-result
+continuation, and sends one deterministic 16x16 synthetic image. Alibaba
+Responses structured output remains prompt-only and Host-compiled. A clean
+pre-repair run exposed intermittent otherwise-valid plan JSON inside one exact
+Markdown fence; the repair strips only that exact wrapper for this
+provider/region/model Planner after enforcing the original byte limit, then
+uses the unchanged Host compiler. No model environment override is accepted:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-openai]"
+$env:RUN_QWEN_INTEGRATION = "1"
+$env:DASHSCOPE_API_KEY = "..."
+$env:QWEN_INTEGRATION_WORKSPACE_ID = "<WorkspaceId>"
+.\.venv\Scripts\python.exe -m pytest `
+  tests\agent\test_qwen_integration.py -m qwen_integration -q
+~~~
+
 A skipped or offline-fake pass is not retained E3 evidence. Promotion requires
 a sanitized reviewed record containing the exact commit, provider, explicit
 model ID, test command, pass counts, and zero-side-effect/fake-child boundary;
@@ -525,7 +543,7 @@ state paths.
 
 The maintained [provider E3 evidence](E3_EVIDENCE.md) retains matching passing
 records for OpenAI, Claude, exact Kimi China, exact MiniMax China, exact
-DeepSeek global, and exact Doubao China candidates. Every record is
+DeepSeek global, exact Doubao China, and exact Qwen Beijing candidates. Every record is
 model/route-scoped: the historical
 Sonnet 5 repair preserves validated reasoning in ordinary continuation, while
 the MiniMax-live repair validates then discards reasoning only for one-shot
@@ -533,5 +551,8 @@ Planner/final normalization. DeepSeek required no production adapter repair;
 its live ordinary cell proves two-turn continuation, not that
 `reasoning_content` appeared or was replayed. Doubao required no production
 adapter repair; its 16x16 synthetic image does not validate arbitrary image
-inputs or the BytePlus route. None converts E3 into an all-model claim. E4
+inputs or the BytePlus route. Qwen's exact-scoped Planner fence normalization
+does not apply to ordinary/final calls, another Qwen route/model, or arbitrary
+wrappers; its 16x16 input likewise is not an arbitrary-image or
+maximum-context claim. None converts E3 into an all-model claim. E4
 remains a separate isolated-desktop gate.

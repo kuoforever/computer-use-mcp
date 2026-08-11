@@ -78,7 +78,8 @@ is not release approval.
 - OpenAI and Claude retain their reviewed E3 baseline; exact Kimi `cn` +
   `kimi-k2.6`, MiniMax `cn` + `MiniMax-M2.7`, DeepSeek `global` +
   `deepseek-v4-pro`, and Doubao `cn-beijing` +
-  `doubao-seed-2-0-lite-260215` cells are also retained. Every other provider
+  `doubao-seed-2-0-lite-260215`, and Qwen `cn-beijing` + `qwen3.7-plus` cells
+  are also retained. Every other provider
   profile, route, or sibling model advertised by that release must separately pass its
   exact model/endpoint harmless-fake-MCP E3 matrix; offline compatibility is
   not a waiver, and these records alone are not release approval.
