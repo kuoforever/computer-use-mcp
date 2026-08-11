@@ -16,7 +16,7 @@ and expected safety outcome.
 | E0: contracts | fully offline | registry, schemas, canonical types, non-executable TaskPlan compilation/transitions, pure non-authorizing Executor preflight/session, local reconciliation, tool-free final-response compilation/adapters, dedicated WAL and internal runtime ordering, single-site Runner call-boundary structure, config, audit redaction, CLI, fakes, runner preparation, run lock, bridge conversion, scripted stdio lifecycle, provider normalization, and fail-closed release-preflight evidence | implemented |
 | E1: deterministic workflow | fake model and fake desktop port | observe-select-act-verify, stale refs, exact action traces | read-only trace baseline plus observe/approve/act/reobserve/success, grounding, budgets, terminal state tests, and an internal plan-driven observation runtime with exact plan/WAL ordering implemented |
 | E2: adversarial safety | fake model and fake desktop port | injection, malformed calls, gate/e-stop/human/approval denial, repeats, parallel calls | unknown tool, policy/approval denial, server gate/e-stop/human/driver outcomes, stale/mismatched approval, repeated/non-serial side-effect turns, missing verification, typed-action denial, continuation-incompatible sensitive calls, pre/post-approval generation and baseline drift, and unknown outcome tested |
-| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi and MiniMax China routes passed](E3_EVIDENCE.md); Qwen, Doubao, DeepSeek, GLM, sibling routes/models, and local E3 remain unverified or deferred |
+| E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi China, MiniMax China, and DeepSeek global routes passed](E3_EVIDENCE.md); Qwen, Doubao, GLM, sibling routes/models, and local E3 remain unverified or deferred |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and reviewed low-risk-action/post-observation cells for each provider profile selected for desktop promotion | `PARTIAL`: [retained sanitized evidence](E4_EVIDENCE.md) covers only the earlier OpenAI/Claude models and Windows revision; added profiles are `NOT RUN` |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
 | E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, then cross-application campaigns | planned |
@@ -490,6 +490,18 @@ $env:MINIMAX_API_KEY = "..."
   tests\agent\test_minimax_integration.py -m minimax_integration -q
 ~~~
 
+The DeepSeek global matrix hard-pins `deepseek-v4-pro`, uses JSON Object plus
+unchanged Host compilation for Planner/final, withdraws image-returning tools
+from its text-only schema, and retains one-second timeout/zero-dispatch checks:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-openai]"
+$env:RUN_DEEPSEEK_INTEGRATION = "1"
+$env:DEEPSEEK_API_KEY = "..."
+.\.venv\Scripts\python.exe -m pytest `
+  tests\agent\test_deepseek_integration.py -m deepseek_integration -q
+~~~
+
 A skipped or offline-fake pass is not retained E3 evidence. Promotion requires
 a sanitized reviewed record containing the exact commit, provider, explicit
 model ID, test command, pass counts, and zero-side-effect/fake-child boundary;
@@ -497,9 +509,11 @@ never retain credentials, task/final text, tool output, provider IDs, or local
 state paths.
 
 The maintained [provider E3 evidence](E3_EVIDENCE.md) retains matching passing
-records for OpenAI, Claude, exact Kimi China, and exact MiniMax China
-candidates. Every record is model/route-scoped: the historical Sonnet 5 repair
-preserves validated reasoning in ordinary continuation, while the MiniMax-live
-repair validates then discards reasoning only for one-shot Planner/final
-normalization. Neither converts E3 into an all-model claim. E4 remains a
-separate isolated-desktop gate.
+records for OpenAI, Claude, exact Kimi China, exact MiniMax China, and exact
+DeepSeek global candidates. Every record is model/route-scoped: the historical
+Sonnet 5 repair preserves validated reasoning in ordinary continuation, while
+the MiniMax-live repair validates then discards reasoning only for one-shot
+Planner/final normalization. DeepSeek required no production adapter repair;
+its live ordinary cell proves two-turn continuation, not that
+`reasoning_content` appeared or was replayed. None converts E3 into an
+all-model claim. E4 remains a separate isolated-desktop gate.

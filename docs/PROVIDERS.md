@@ -3,7 +3,8 @@
 > **Status: eight cloud identities plus one loopback-only `local_openai`
 > identity are implemented and offline verified at their named boundaries;
 > credentialed testing is retained for the earlier OpenAI and Anthropic scopes
-> plus exact Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` China routes.** Local support currently covers
+> plus exact Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` China routes and the
+> exact DeepSeek `deepseek-v4-pro` global route.** Local support currently covers
 > text-only Planner/final construction, not native ordinary tool calling. Other
 > cloud routes, local E3, E4, and application gates remain deferred.
 
@@ -144,6 +145,14 @@ keep bounded structured output and final text inside the configured reserve.
 The global route, sibling models, and ordinary tool-calling turns keep their
 prior behavior.
 
+DeepSeek uses one fixed global route and a text-only exact candidate here:
+
+~~~powershell
+$env:DEEPSEEK_API_KEY = "<credential>"
+guarded-desktop-agent config setup --provider deepseek `
+  --model deepseek-v4-pro --region global
+~~~
+
 Qwen also needs its account-specific workspace ID and matching regional key:
 
 ~~~powershell
@@ -186,10 +195,11 @@ guarded-desktop-agent config setup --provider local_openai `
 is optional otherwise. `config doctor` does not probe the endpoint, and this
 support does not claim compatibility with any named server or model.
 
-## Deferred live gate
+## Remaining live gates
 
-Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes have
-retained bounded model-pinned exact-commit E3 results in
+Kimi `kimi-k2.6` and MiniMax `MiniMax-M2.7` on their exact `cn` routes plus
+DeepSeek `deepseek-v4-pro` on its exact `global` route have retained bounded
+model-pinned exact-commit E3 results in
 [Provider E3 evidence](E3_EVIDENCE.md). Before promoting another route beyond
 offline support:
 
@@ -204,6 +214,11 @@ offline support:
 
 Passing one provider or model does not promote a sibling profile, later model,
 desktop action, application, or release.
+
+The exact DeepSeek gate required no production adapter repair. Its ordinary
+cell proves two-turn continuation but not live `reasoning_content`; its
+text-only image cell proves tool-schema withdrawal rather than image input,
+and its small workload does not validate the configured maximum context.
 
 Local E3 is separately deferred by the user. Before enabling native ordinary
 tool calling for any exact local server/model candidate, retain a harmless

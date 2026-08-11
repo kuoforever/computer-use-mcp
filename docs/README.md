@@ -146,7 +146,7 @@ canonical project and evidence owners.
 | Approved actions | Opt-in local approval, grounding, budgets, re-observation, and current validation boundary |
 | E4 smoke runbook | Isolated environment prerequisites, dual-provider acceptance matrix, fail-closed execution, and sanitized evidence |
 | E4 evidence | Reviewed VM/model scope, activation regression, four provider cells, approvals, and sanitized trace hashes |
-| Provider E3 evidence | Per-provider bounded live-API outcomes and the remaining dual-provider promotion boundary |
+| Provider E3 evidence | Per-provider bounded live-API outcomes and the remaining exact-provider/model/route promotion boundary |
 | Release checklist | Automated CI, human E3/E4 gates, operator checks, disablement, and release boundary |
 | Release evidence record | Per-candidate automated evidence, E3/E4 results, waivers, classification, and human decision |
 | Development / handoff | Test practice and maintainer-only operational knowledge |

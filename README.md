@@ -34,8 +34,8 @@ desktop execution authority, and durable evidence that outlives a crash.
   MiniMax) plus one loopback-only `local_openai` profile. Cloud routing and the
   local Planner/final boundary are offline verified; local native tool calling
   is unavailable pending an exact E3. [Retained live evidence](docs/E3_EVIDENCE.md)
-  covers the earlier OpenAI/Claude scopes, Kimi `cn` + `kimi-k2.6`, and MiniMax
-  `cn` + `MiniMax-M2.7`. See the
+  covers the earlier OpenAI/Claude scopes, Kimi `cn` + `kimi-k2.6`, MiniMax
+  `cn` + `MiniMax-M2.7`, and DeepSeek `global` + `deepseek-v4-pro`. See the
   [provider matrix](docs/PROVIDERS.md).
 - **Fresh grounding before a side effect**, and mandatory observation after it.
 - **Recovery that never auto-replays an uncertain action.** A dispatch intent
