@@ -1,11 +1,12 @@
 # Application evaluation matrix
 
-> **Status: planned real-application evaluation; A1-A19 are built-in examples
-> for the shared capability-composed worker runtime, not an exhaustive product
-> list.** The manifest-routed runtime and
+> **Status: planned real-application coverage; A1-A19 are built-in examples for
+> the shared capability-composed worker runtime, not an exhaustive product list
+> or the product roadmap.** The manifest-routed runtime and
 > composable capability layer do not constitute application evidence. These
 > cases complement the isolated Notepad E4 smoke. They are not default CI tests
 > and must use dedicated test data or accounts appropriate to the application.
+> This matrix is independent of [Formal Demo v1](FORMAL_DEMO_V1.md).
 
 ## Purpose
 
@@ -18,8 +19,10 @@ rendering, state, and recovery behavior.
 | Canvas document editor | Google Docs | Canvas rendering, accessibility/document-text gaps, cursor and selection state, long documents |
 | Native messaging client | WeChat | Window recreation, foreground/focus, search, conversation identity, externally visible send action |
 
-These three applications are Wave 1. Later waves add failure mechanisms that
-the first set does not cover.
+These three applications form **Coverage Set A**, historically called
+“Wave 1.” The old label described evaluation batching, not current product
+priority or the Formal Demo story. Later coverage sets add failure mechanisms
+that Set A does not cover.
 
 ## Shared measurements
 
@@ -129,9 +132,10 @@ the outgoing bubble or delivery state before commit. If the result is unknown,
 record `UNCERTAIN` and require human re-observation; do not send the same payload
 again automatically.
 
-## Cross-application scenario
+## Coverage Set A cross-application scenario
 
-After individual cases pass, run one campaign that:
+As an optional coverage gate after the individual cases pass, run one campaign
+that:
 
 1. reads a bounded set of BOSS job results;
 2. writes a structured summary into a disposable Google Doc copy;
@@ -154,7 +158,7 @@ prior model prose or raw page/chat content.
 Failures in a later tier do not invalidate the narrower capability, but the
 released documentation must state the highest tier with retained evidence.
 
-## Wave 2: high-value coverage gaps
+## Coverage Set B: high-value coverage gaps
 
 ### A4: Excel large virtualized grid
 
@@ -265,7 +269,7 @@ Primary mechanism: a time-varying pixel surface embedded in a multi-process
 desktop shell, with infinite-feed identity, autoplay, hover overlays, and
 media-specific input modes.
 
-## Wave 3: pure-vision, mode, and system boundaries
+## Coverage Set C: pure-vision, mode, and system boundaries
 
 ### A9: Remote Desktop, Citrix, or VM console
 
@@ -342,9 +346,9 @@ Required coverage:
 Primary mechanism: process/window topology and intentionally non-automatable
 system boundaries.
 
-## Wave 4: enterprise workflows and governance
+## Coverage Set D: enterprise workflows and governance
 
-Wave 4 evaluates business authority and cross-system consistency, not merely
+Coverage Set D evaluates business authority and cross-system consistency, not merely
 whether the Agent can manipulate another GUI. Every fixture uses a dedicated
 tenant or test environment, synthetic records, least-privilege accounts, and a
 reviewed data-retention policy.
@@ -516,20 +520,23 @@ mechanisms rather than application count:
 An application adds meaningful coverage only when it exercises a cell not
 already proven by a simpler case.
 
-## Recommended order
+## Suggested coverage order (non-operational)
 
-1. Wave 1: BOSS, Google Docs, WeChat.
-2. Wave 2: Excel, PDF, Figma/Canva, one Electron collaboration client, and the
-   Douyin real-time-media case after bounded multi-source observation exists.
-3. Remote Desktop and system-dialog detection.
-4. Word/PowerPoint and one legacy custom-widget application.
-5. Blender/CAD only after observation epochs, mode tracking, and drag recovery
-   are stable.
-6. Wave 4 enterprise cases only after object-scoped authorization,
+1. Coverage Set A: BOSS, Google Docs, and WeChat, promoted independently; its
+   legacy cross-application campaign is optional coverage, not the Formal Demo.
+2. Coverage Set B: Excel, PDF, Figma/Canva, one Electron collaboration client,
+   and the Douyin real-time-media case after bounded multi-source observation
+   exists.
+3. Coverage Set C: Remote Desktop and system-dialog detection; then
+   Word/PowerPoint and one legacy custom-widget application; Blender/CAD only
+   after observation epochs, mode tracking, and drag recovery are stable.
+4. Coverage Set D enterprise cases only after object-scoped authorization,
    cross-system transaction records, data classification, and human handoff
    have executable contracts; begin with the read-only IT incident scenario.
 
-After the individual and cross-application promotion gates retain evidence, use
-the [Universal GUI complete-product demo](UNIVERSAL_GUI_DEMO.md) to assemble one
-chaptered campaign across all distinct mechanism families. The showcase does
-not replace this matrix or turn skipped application cases into coverage.
+Coverage order is not product implementation order. [Formal Demo
+v1](FORMAL_DEMO_V1.md) has its own role-based product story and does not inherit
+evidence from this matrix. Only after selected independent coverage gates retain
+evidence may the future [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md)
+assemble those mechanisms. Neither Demo replaces this matrix or turns skipped
+application cases into coverage.

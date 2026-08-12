@@ -544,10 +544,14 @@ read-only polling. It still exposes no CLI/MCP status method or mobile delivery.
 | Rate limit or repeated site refusal | Pause the campaign with a fixed reason; do not rotate backends as an evasion strategy. |
 | Repeated item-specific parse failure | Mark `RETRYABLE` or `SKIPPED` according to campaign policy and continue. |
 
-## Application acceptance scenarios
+## Independent application-coverage scenarios
 
-The detailed cases live in [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md).
-The first long-run evaluation should use a non-destructive BOSS review campaign:
+The detailed representative cases live in the
+[Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md). They form an
+independent application-coverage program: they do not define the selected
+[Formal Demo v1](FORMAL_DEMO_V1.md), establish project priority, or authorize a
+run. Within that coverage program, the BOSS long-run case uses a non-destructive
+review campaign:
 
 1. Discover at least 100 saved-job identities without changing the collection.
 2. Process them in at least five batches and two fresh provider contexts.
@@ -559,7 +563,7 @@ The first long-run evaluation should use a non-destructive BOSS review campaign:
 6. Finish with one committed result per stable item key, a bounded handoff, and
    no uncertain side-effect replay.
 
-After the BOSS baseline, add two structurally different workloads:
+Two other structurally different coverage cases are:
 
 - a Google Docs campaign over at least 50 heading-delimited sections, including
   canvas/document-text/OCR observation fallback, zoom-induced coordinate
@@ -570,9 +574,11 @@ After the BOSS baseline, add two structurally different workloads:
   editor focus, and draft verification. Sending remains a separate optional
   side-effect tier with no replay after an unknown outcome.
 
-The first cross-application campaign should read BOSS results, write a
-structured summary to a disposable Google Doc copy, and prepare a WeChat draft
-after a fresh-session handoff.
+An optional legacy cross-application coverage scenario reads BOSS results,
+writes a structured summary to a disposable Google Doc copy, and prepares a
+WeChat draft after a fresh-session handoff. It is useful for campaign and
+handoff evidence, but it is not the Formal Demo v1 story or a prerequisite for
+that Demo.
 
 ## Planned enterprise workflow ledger
 
@@ -608,6 +614,11 @@ classification mismatch, or loss of the required role. Reassignment and human
 takeover are durable transitions, not informal chat instructions.
 
 ## Delivery sequence
+
+This sequence preserves delivered campaign chronology followed by
+coverage-specific possibilities. It is not an operational backlog and grants
+no authority to start an item; [Project status](../PROJECT_STATUS.md) alone owns
+the active item and exact next action.
 
 1. **Implemented and offline verified:** strict read-only campaign control
    plane, including manifest, item/batch ledgers, leases, heartbeat, pause,
@@ -673,14 +684,18 @@ takeover are durable transitions, not informal chat instructions.
     through Runner, commits canonical results, writes zero-OCR-dispatch handoff
     when the OCR safety baseline remains denied, and transfers a successful
     batch to a fresh run.
-18. **Next:** retain one on-device UIA/document-text semantic item, then review
-    the OCR Host baseline separately before the 100-item evaluation.
-19. Run Google Docs 50-section and WeChat draft-only evaluations.
-20. Run the cross-application campaign with a fresh-session boundary.
-21. Add Wave 2 application coverage: Excel, PDF, Figma/Canva, and Electron.
+18. **Coverage follow-up:** retain one on-device UIA/document-text semantic
+    item, then review the OCR Host baseline separately before the 100-item BOSS
+    evaluation.
+19. Independently evaluate the Google Docs 50-section and WeChat draft-only
+    cases when each is explicitly activated.
+20. Optionally evaluate the legacy cross-application coverage scenario with a
+    fresh-session boundary; do not treat it as Formal Demo v1.
+21. Add broader application coverage for Excel, PDF, Figma/Canva, and Electron.
 22. Only then consider resumable side-effect campaigns and higher-complexity
     remote-desktop or modal-tool workloads.
 23. Define object-scoped enterprise authority, data classification, transaction
-    reconciliation, SLA ownership, and human takeover before Wave 4.
+    reconciliation, SLA ownership, and human takeover before broader enterprise
+    application coverage.
 24. Run the synthetic read-only IT incident campaign, then add approved ticket
     updates and notifications one effect tier at a time.

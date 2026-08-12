@@ -3,6 +3,11 @@
 Status: Proposed
 Date: 2026-07-22
 
+> **Terminology note (2026-08-12):** this dated proposal uses “Wave 1” for the
+> BOSS/WeChat evaluation batch. Current planning calls those cases Application
+> Coverage Set A; the label is not the Formal Demo v1 story or project priority.
+> The decision text below remains unchanged as a dated design record.
+
 ## Context
 
 Some target applications — recruiter chat on BOSS, WeChat, and similar

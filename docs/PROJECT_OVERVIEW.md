@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-08-11.** This page explains the complete project shape without promoting
+> 2026-08-12.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -34,8 +34,10 @@ four distinct maturity layers:
    implemented at their documented offline or injected-runtime scopes.
    Multi-source observation, operator UI, mobile-completion projection, and
    broad application campaigns remain partial; isolated workers, additional
-   platforms, complete real-application acceptance, and L5 remain planned or
-   inactive at their documented evidence levels.
+   platforms, the independent Formal Demo v1 front door and application
+   adapters, complete real-application acceptance, the Universal GUI final
+   showcase, and L5 remain planned or inactive at their documented evidence
+   levels.
 
 The central engineering idea is not “let a model click anywhere.” It is to
 separate observation, reasoning, authority, execution, durable evidence, and
@@ -43,16 +45,25 @@ operator control so each layer can be bounded and verified independently.
 
 ## Product boundary
 
-The motivating workflows are reliable Google Docs and WeChat operation, then
-broader Windows and enterprise GUI work. The intended product is a universal
-GUI execution system where pixels remain the universal fallback and structured
-sources improve reliability when available.
+The selected future [Formal Demo v1](FORMAL_DEMO_V1.md) product story is an
+independently launched GitHub Issues, PDF, Excel, Word, and unsent test-email
+workflow. Its planned Agent Console, `TaskIntent`, generic Scope Sheet,
+launcher, application adapters, and formal evidence do not exist yet. BOSS,
+Google Docs, and WeChat instead belong to independent
+[Application Coverage Set A](APPLICATION_EVALUATION_MATRIX.md); coverage cases
+do not define the product Demo or operational priority. The still broader
+[Universal GUI program](UNIVERSAL_GUI_DEMO.md) is a future final integration
+showcase, not either of those two programs.
+
+The long-term intended product is a universal GUI execution system where
+pixels remain the universal fallback and structured sources improve reliability
+when available. That intent is not a current universal-GUI capability claim.
 
 The project is currently:
 
 - local and Windows-first;
 - model-agnostic at the MCP boundary;
-- eight-profile and three-wire-family at the experimental Agent Host boundary;
+- nine-profile and three-wire-family at the experimental Agent Host boundary;
 - explicit about foreground ownership and human takeover;
 - conservative about replay, recovery, and capability claims; and
 - evaluated through contracts and evidence gates before promotion.
@@ -116,6 +127,8 @@ implemented or partial projections and adapters
   -> local host terminal polling and read-only Task Center projection
 
 planned or unverified expansion
+  -> Host-owned Agent Console / TaskIntent / generic Scope Sheet front door
+  -> Formal Demo v1 application-role adapters and independent launcher
   -> delta observation and remote/mobile delivery
   -> isolated workers / macOS / Linux / Android device driver
   -> complete cross-application and release acceptance
@@ -124,6 +137,12 @@ planned or unverified expansion
 The MCP server remains the only desktop execution authority. Planner,
 campaign, recovery, UI, and learning layers may request or project work, but
 must not create a second native-action path.
+
+The user-facing entry is not unified today. `ask`, the fixed
+`review` / `workflow public-web-word` pair, configuration, Task Center, and
+cooperative control are separate CLI surfaces with different authority. The
+planned Console and intent layer must not be inferred from those implemented
+parts.
 
 ## Executable surfaces today
 
@@ -154,6 +173,8 @@ must not create a second native-action path.
 Planner/Executor is exposed through product-facing `ask` and metadata-oriented
 `plan run`. Campaign commands remain deliberately bounded control/evidence
 surfaces rather than one automatic general-product loop.
+There is no Unified Agent Console or `TaskIntent` entry point in this table;
+that proposed front door appears only in the explicitly planned flow below.
 
 ## Feature inventory
 
@@ -221,7 +242,7 @@ surfaces rather than one automatic general-product loop.
 | OpenAI stateless replay | Implemented/explicit | Rebuilds only a complete digest-bound read-only transcript; never automatic fallback | [Stateless replay](STATELESS_REPLAY.md) |
 | Declarative task plan | Implemented/internal | Strict JSON compiler derives host IDs/effects/approval metadata and rejects sensitive or out-of-scope arguments | [Planning](PLANNING.md) |
 | Atomic plan store | Implemented/internal | Private `task-plan.json`, RunLock ownership, sequence/digest compare-and-swap, legal ordered transitions | [Planning](PLANNING.md) |
-| One-shot eight-profile Planner | Implemented/internal | Isolated no-tool request with explicit native-schema, JSON-object, or prompt-schema mode; fixed one-call failure, no fallback | [Provider support](PROVIDERS.md), [Planning](PLANNING.md) |
+| One-shot nine-profile Planner | Implemented/internal | Isolated no-tool request with explicit native-schema, JSON-object, or prompt-schema mode; fixed one-call failure, no fallback | [Provider support](PROVIDERS.md), [Planning](PLANNING.md) |
 | Observation Executor | Implemented/internal | At most four observation steps; WAL before dispatch; shared Runner authority; known completion or fail-closed uncertainty | [Planning](PLANNING.md) |
 | Observation reconciliation | Implemented/internal | Repairs only the exact missed plan CAS after a known completed result; never redispatches | [Planning](PLANNING.md) |
 | Tool-free final response | Implemented/internal | Lossless observation compiler, isolated provider adapters, dedicated WAL, ordered budget/plan/trace terminalization | [Planning](PLANNING.md) |
@@ -261,9 +282,10 @@ surfaces rather than one automatic general-product loop.
 | Approval Inbox and local notification | Implemented / CLI-first, offline verified | Strict expiring identity/digest records supplement the bound Decision Card; optional Windows notification carries fixed wording only. Neither surface can decide, control, retry, replay, or dispatch, and native accessibility evidence remains open | [Approval Inbox](APPROVAL_INBOX.md) |
 | Public web to Word workflow | Implemented / exact scoped evidence | One installed fixed workflow lets a reviewed OpenAI model observe a fresh public Microsoft Support page, author a bounded brief, and write, save, reopen, visually verify, and clean up one disposable Word fixture through the existing Runner/MCP and Decision Card boundaries. The [retained result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md) does not establish arbitrary websites or applications | [Workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | Mobile notifications | Host capability; internal repository projection implemented | Local fixed-content approval attention exists, but mobile terminal/attention delivery remains absent; no MCP-log completion inference or repository mobile bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
-| Wave 1 applications | Planned acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, then cross-application handoff | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
-| Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance waves | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
-| Complete-product demonstration | Planned/final integration gate | One chaptered campaign with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
+| Formal Demo v1 | Planned product contract; not executable | Independent Agent Console with a validated `TaskIntent` and generic Scope Sheet, followed by the selected GitHub Issues -> PDF -> Excel -> Word -> unsent test-email story through existing Host authority | [Formal Demo v1](FORMAL_DEMO_V1.md) |
+| Application Coverage Set A | Planned independent acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, and their legacy cross-application case remain representative mechanism coverage; they do not define the Formal Demo or project priority | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance coverage sets | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| Universal GUI final showcase | Planned/final integration gate | One chaptered campaign composed only after its selected mechanisms are independently eligible, with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) |
 | Continual learning | L0-L4 implemented/offline and injected-runtime; L5 separately deferred | Redacted outcomes and typed facts remain isolated; reviewed content-free `ACTIVE`/`SHADOW` evidence can enter one exact-context, action-risk-bound persistent canary. Selection binds a separately compiled H7 plan but carries no arguments or authority; every regression rolls back, and automatic retry/promotion, memory injection, general procedure compilation, training, and real-application claims remain absent | [Continual learning](CONTINUAL_LEARNING.md) |
 | Platform expansion | Planned | macOS AX, Linux AT-SPI, an Android device driver (ADB transport, behind the same contract; see [ADR-008](adr/008-android-device-driver-behind-driver-contract.md)), multi-monitor coordinate model, isolated worker runtimes | [Tech stack](TECH_STACK.md) |
 
@@ -333,6 +355,55 @@ task + strict config
   -> continue provider or write terminal checkpoint
   -> close desktop bridge, release lock, return bounded JSON
 ~~~
+
+These current surfaces are separate entries. In particular, the implemented
+`public-web-word` Scope Sheet is fixed to that one workflow, and Task Center is
+read-only; together they do not form a generic recipe or Console lifecycle.
+
+### Planned Host front-door flow — not implemented
+
+~~~text
+natural-language outcome in planned Agent Console
+  -> local Host-fixed provider/data-use disclosure + exact COMPILE acknowledgement
+  -> tool-free provider candidate for untrusted TaskIntent
+  -> Host validates reviewed scenario + application-role profiles
+  -> Host compiles generic Scope Sheet
+  -> explicit start acknowledgement (not action approval)
+  -> existing planning / campaign / operator-control components
+  -> existing Agent Runner policy + grounding + budgets + approval + WAL
+  -> sole stdio MCP server
+  -> Windows Driver
+~~~
+
+The Console, `TaskIntent`, generic Scope Sheet, recipe lifecycle, and Formal
+Demo launcher above are planned contracts, not source packages or commands.
+They may narrow and compose reviewed Host behavior but cannot select arbitrary
+tools, grant authority, bypass the Runner, or create a second desktop path.
+
+## Runner and tool change-impact map
+
+The front-door plan above does not require a Runner or core-tool change. If a
+later activated slice does change those contracts, it is not a local edit and
+must update every affected owner in the same bounded change:
+
+| Change | Required companion work |
+| --- | --- |
+| Add or remove a reviewed tool | Keep the Host `ToolSpec` and FastMCP discovery schema exact; update policy/effect/sensitivity/grounding metadata, provider projections, registry digest and continuation/replay fixtures, plan/tree/procedure/adaptive-routing bindings, campaign worker capability catalogs, tool/server/Runner tests, and create a new manifest version/consumer fixture when that tool belongs in a future Full Cycle export rather than mutating frozen manifest v1 |
+| Change a tool input or output schema | Update both Host and MCP schemas plus result conversion/types; update digest-bound plan/tree/procedure/adaptive-routing/campaign persistence and migration/fixtures; expect incompatible approvals, continuations, replay, compiled plans/trees, learned procedures, canary routes, and worker specs to fail closed |
+| Change tool semantics without changing schema | Re-review effect, approval, grounding, observation invalidation, safety baseline, result sensitivity, and unknown-outcome behavior; add scoped behavior tests and new live evidence before changing a capability claim |
+| Add a new native primitive | Update the Driver Contract, platform Driver implementation, MCP Session/server orchestration, and contract tests; the Runner still cannot call the Driver directly |
+| Change Runner dispatch, recovery, or result certainty | Update WAL/continuation/recovery contracts, policy and grounding checks, canonical result conversion, unknown-outcome/no-replay tests, and the owning docs before promotion |
+| Add only a Host front-door recipe or scenario contract | Reuse the existing Runner and reviewed tools. Keep the registry static unless the scenario truly needs a new primitive; a Console, channel, scheduler, or adapter may submit reviewed requests but may never dispatch desktop actions itself |
+
+The frozen Full Cycle Lane A manifest remains the thirteen-core-tool surface. A
+core tool/schema change therefore needs an explicit versioned compatibility
+decision; a planned Demo cannot silently widen that external contract.
+
+The planned tool-free `TaskIntent` request is also not zero external work. Before
+that request, the Console must show a local Host-fixed disclosure of the exact
+text, provider/model, purpose, and data-use boundary and require a separate exact
+`COMPILE` acknowledgement. The later generic Scope Sheet and `START` still bind
+the full execution scope; neither acknowledgement grants action authority.
 
 ### Planned campaign-to-mobile flow
 
@@ -434,8 +505,10 @@ These are evidence dependencies, not operational task priority:
    only for its exact fixed seam.
 5. Preserve the bounded internal host terminal projection and fake-host
    notification semantics without broadening the campaign selector.
-6. With provider E3 and isolated E4 retained, execute bounded BOSS evidence,
-   then Google Docs and WeChat cases only after their preceding gates.
+6. Promote BOSS, Google Docs, and WeChat only through their independent
+   Application Coverage Set A gates; do not infer a product-priority sequence
+   or Formal Demo acceptance from those cases. Formal Demo v1 application-role
+   adapters require their own separately retained evidence.
 7. Retain the implemented bounded Host-owned risk-tier policy: reviewed
    low-risk reversible public-web-word effects proceed under policy, high risk
    requires exact approval, and unknown/ambiguous/scope-drifted effects fail
@@ -452,8 +525,10 @@ not a competing active tracker.
 
 | Reader | Fast path |
 | --- | --- |
+| Chinese-speaking user unsure what exists or how to ask | [Chinese user front door](../README.zh-CN.md) -> [Capability status](CAPABILITY_STATUS.md) |
 | New user | [Root README](../README.md) -> [Tools](TOOLS.md) -> [Configuration](CONFIGURATION.md) |
 | Product or hiring reviewer | This overview -> [Capability status](CAPABILITY_STATUS.md) -> [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| Demo/product-entry designer | This overview -> [Formal Demo v1](FORMAL_DEMO_V1.md) -> [Application Coverage Set A](APPLICATION_EVALUATION_MATRIX.md) -> [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) |
 | Project author tailoring a job application | [Career and learning hub](career/) -> [Resume evidence](career/resume/) -> [Capability status](CAPABILITY_STATUS.md) |
 | MCP/runtime engineer | This overview -> [Design](DESIGN.md) -> [Driver Contract](DRIVER_CONTRACT.md) -> [Development](DEVELOPMENT.md) |
 | Agent engineer | This overview -> [Agent Host](AGENT.md) -> [Planning](PLANNING.md) -> [Continuation](CONTINUATION.md) |

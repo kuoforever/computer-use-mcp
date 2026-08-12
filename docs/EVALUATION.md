@@ -19,8 +19,13 @@ and expected safety outcome.
 | E3: provider integration | opt-in provider API plus fake MCP server | ordinary tool cycle plus bounded Planner/final cycle, structured output, image capability, timeout, and continuation for each exact provider/model profile under promotion | `PARTIAL`: [OpenAI and Claude plus exact Kimi China, MiniMax China, DeepSeek global, Doubao China, Qwen Beijing, and GLM China routes passed](E3_EVIDENCE.md); sibling routes/models and local E3 remain unverified or deferred |
 | E4: isolated desktop smoke | disposable app or VM, narrow allowlist, explicit approval | read-only and reviewed low-risk-action/post-observation cells for each provider profile selected for desktop promotion | `PARTIAL`: [retained sanitized evidence](E4_EVIDENCE.md) covers only the earlier OpenAI/Claude models and Windows revision; added profiles are `NOT RUN` |
 | E5: release regression | CI plus scheduled/manual isolated smoke | SHA-256 manifest freezes canonical E1/E2 case JSON in CI; isolated successful/failed traces remain pending | partial |
-| E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | [application matrix](APPLICATION_EVALUATION_MATRIX.md): BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, then cross-application campaigns | planned |
+| E6: application campaigns | dedicated test data/accounts on an isolated or operator-controlled desktop | Independent representative cases from the [application matrix](APPLICATION_EVALUATION_MATRIX.md), including BOSS long list, Google Docs long canvas document, WeChat native-client draft, Douyin real-time media, and optional cross-application coverage | planned |
 | E7: enterprise workflows | dedicated synthetic tenant, least-privilege identities, test business records, and reviewed human approvers | object-scoped authority, RBAC and tenant isolation, data classification, maker-checker separation, concurrent-edit detection, SLA handoff, cross-system transaction reconciliation, and evidence-linked audit | planned |
+
+The E6 cases are an application-coverage program, not a product-priority order
+or the selected Demo story. [Formal Demo v1](FORMAL_DEMO_V1.md) is a separate
+planned integration program; every adapter used there must earn its own exact
+provider, desktop, and application evidence rather than inheriting E6 evidence.
 
 ## Phase-0 E0 cases
 

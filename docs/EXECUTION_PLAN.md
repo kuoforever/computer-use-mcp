@@ -28,11 +28,25 @@ artifact. The exact active batch and ordered PR map live only in
 [Project status](../PROJECT_STATUS.md).
 
 That standing MVP boundary does not depend on the 100-item BOSS gate, complete
-Google Docs or WeChat Wave 1 coverage, the universal-GUI showcase, additional
-platforms, hierarchical control, continual learning, or Multi-Agent work.
+Google Docs or WeChat application coverage, the Universal GUI final showcase,
+additional platforms, hierarchical control, continual learning, or Multi-Agent
+work.
 H1-H8 and L0-L4 have since been implemented at their bounded offline or
-injected-runtime scopes; they do not complete Wave 1, the universal showcase,
-Multi-Agent operation, E4, or release acceptance.
+injected-runtime scopes; they do not complete Application Coverage Set A, the
+Formal Demo, the Universal GUI final showcase, Multi-Agent operation, E4, or
+release acceptance.
+
+## Separate planned programs
+
+The following programs have different owners and acceptance. None is activated
+by this roadmap; [Project status](../PROJECT_STATUS.md) alone may authorize one
+bounded item.
+
+| Program | Owner and current boundary | Relationship |
+| --- | --- | --- |
+| Formal Demo v1 | [Formal Demo v1](FORMAL_DEMO_V1.md) owns the selected independent Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email-draft story. The Console, `TaskIntent`, generic Scope Sheet compiler, scenario digest, launcher, adapters, and complete evidence are all unimplemented | Product-demo delivery program. It may reuse only separately verified mechanisms and cannot inherit evidence from the fixed public-web-word workflow |
+| Application coverage | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) owns independent application cases. BOSS, Google Docs, WeChat, and their legacy cross-application case form representative Coverage Set A, not the Formal Demo story or product-priority order | Evidence program. Each case advances only through its own provider, desktop, application, safety, and recovery gates |
+| Universal GUI final showcase | [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) owns a future chaptered integration and presentation gate | Final showcase only after selected underlying mechanisms retain executable evidence; an edited showcase cannot substitute for Formal Demo or application acceptance |
 
 ## Retained validation sequence
 
@@ -280,24 +294,27 @@ until the checkpoint/campaign schemas expose those facts.
 
 Presence must follow validated Host phases, avoid focus/input interception,
 stay out of Agent observation content, support reduced motion and DPI changes,
-and disappear on E-stop or authority release. After the passive surfaces are
-stable, implement fake-only Decision Card view models before connecting a
-focus-taking card to the existing ApprovalPort. Options and trade-offs remain
-advisory until a fresh bound Host decision passes every ordinary action gate.
+and disappear on E-stop or authority release. The fake-only Decision Card view
+models and focus-taking ApprovalPort adapter are now implemented at the bounded
+scopes above; preserve their no-authority projection and fresh-digest checks.
+Options and trade-offs remain advisory until a fresh bound Host decision passes
+every ordinary action gate. The next evidence gap is the named human-operated
+four-choice cross-application result, not reimplementation of these surfaces.
 
-### Showcase gate - universal GUI complete-product demo
+### Showcase gate - Universal GUI final showcase
 
 After the narrower application, campaign, observation, operator, and enterprise
 authority gates retain executable evidence, run the chaptered
-[Universal GUI demo](UNIVERSAL_GUI_DEMO.md). One campaign covers all distinct
+[Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md). One campaign covers all distinct
 mechanism families across browser/native/document/data, media/design,
 nested/legacy/system, and enterprise workflows. It must include deterministic
 fault injection, provider-context rotation, restart recovery, presence/progress
 UI, one multi-option Decision Card, and a versioned token-cost baseline.
 
-This is a final integration and presentation gate, not the next runtime
-increment. A partial or edited showcase must preserve skipped, failed,
-challenged, uncertain, and human-completed states in its retained report.
+This is a final integration and presentation gate, not Formal Demo v1, an
+application-coverage set, or the next runtime increment. A partial or edited
+showcase must preserve skipped, failed, challenged, uncertain, and
+human-completed states in its retained report.
 
 ### Agent Host remaining-work ledger
 
@@ -376,8 +393,9 @@ sequenced the same way — after the Windows vertical is application-verified, n
 before. It first requires the additive contract v1.1 `swipe` / `long_press`
 primitive and a deliberate second-coordinate-domain decision. Because a phone or
 emulator is a machine with independent input and capture authority, it doubles
-as an isolated-worker target for the mobile-first Wave 1 applications (BOSS,
-WeChat). See [ADR-008](adr/008-android-device-driver-behind-driver-contract.md).
+as an isolated-worker target for mobile-facing application-coverage cases such
+as BOSS and WeChat. See
+[ADR-008](adr/008-android-device-driver-behind-driver-contract.md).
 This is distinct from the roadmap's existing "mobile" work, which is a
 notification sink, not a control target.
 
@@ -389,9 +407,9 @@ end-to-end validation.
 
 ### Enterprise workflow layer
 
-After Wave 1-3 application mechanics are reproducible, define the planned E7
-enterprise boundary before connecting the Agent to business systems. This layer
-adds stable business-object identities, object- and field-scoped authority,
+After the staged application-coverage mechanics are reproducible, define the
+planned E7 enterprise boundary before connecting the Agent to business systems.
+This layer adds stable business-object identities, object- and field-scoped authority,
 tenant isolation, data classification, maker-checker approval, SLA ownership,
 and saga-style cross-system reconciliation. The first evaluation is the
 synthetic IT incident workflow in

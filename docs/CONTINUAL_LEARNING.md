@@ -405,11 +405,14 @@ cumulative-input, retry, time, approval, and action budgets.
 8. Operators can inspect, disable, delete, expire, pin, demote, and roll back
    every learned artifact.
 
-## Demo and acceptance evidence
+## Learning demonstration and acceptance evidence
 
-The [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) should eventually contain a
-learning segment backed by multiple pre-recorded training episodes and separate
-held-out tasks. A valid demonstration shows:
+[Formal Demo v1](FORMAL_DEMO_V1.md) neither includes nor requires continual
+learning; L5 remains inactive and separately consented. A future, separately
+activated learning demonstration may optionally become a segment of the
+[Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md), but it must be backed by
+multiple pre-recorded training episodes and separate held-out tasks. A valid
+learning demonstration shows:
 
 1. repeated execution evidence producing a bounded candidate;
 2. a rejected or corrected candidate, proving that extraction is not automatic

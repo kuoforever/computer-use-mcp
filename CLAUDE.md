@@ -13,11 +13,10 @@ in [PROJECT_STATUS.md](PROJECT_STATUS.md).
 Do not infer the active task from the branch name, old chat history, the broad
 roadmap, or archived plans.
 
-If the user explicitly resumes one bounded `GDA-DEMO-003` Operator HUD issue,
-read `HANDOFF.md` section **Bounded Operator HUD handoff (2026-07-31)** after
-the standard files above. That section is a safe resume note, not a second
-tracker and not permission to displace the single active item in
-`PROJECT_STATUS.md`.
+If the canonical active item or exact next action explicitly points to a
+historical Demo/HUD slice, follow the owner and evidence links named there;
+consult the matching `HANDOFF.md` safe-resume note only for durable operational
+context. No old Demo ID or handoff section independently authorizes resumption.
 
 ## Expected completion response
 

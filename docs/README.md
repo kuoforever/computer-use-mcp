@@ -1,10 +1,11 @@
 # Documentation
 
 The English project contracts in this directory are canonical.
-[README.zh-CN.md](../README.zh-CN.md) is a Chinese quick-start, not a
-line-by-line mirror of every reference page. The Chinese-first working pages
-under [career/](career/) derive job-application and teaching material from the
-canonical project and evidence owners.
+[README.zh-CN.md](../README.zh-CN.md) is the single Chinese user front door for
+what exists now, what can be run, what is planned, and how to phrase a bounded
+request. It is not a line-by-line mirror or an evidence owner. The Chinese-first
+working pages under [career/](career/) derive job-application and teaching
+material from the canonical project and evidence owners.
 
 ## Status labels
 
@@ -20,6 +21,7 @@ canonical project and evidence owners.
 | I am inspecting the frozen Full Cycle Runtime baseline or intentionally reopening work | [Project status](../PROJECT_STATUS.md) |
 | I am integrating this Runtime with the Multimodal LLM Full Cycle project | [Full Cycle integration](FULLCYCLE_INTEGRATION.md) |
 | I need the complete project map: features, implementation, quality attributes, status, evidence, and next gates | [Project overview](PROJECT_OVERVIEW.md) |
+| I want one Chinese page explaining what I can do now, what is planned, and how to ask for work | [Chinese user front door](../README.zh-CN.md) |
 | I need the current product names and compatibility aliases | [Naming migration](BRAND_MIGRATION.md) |
 | I want to install and run the server | [Root README](../README.md) |
 | I want to run the installed fixed public-browser-to-Word product workflow | [Public Web to Word workflow](PUBLIC_WEB_WORD_WORKFLOW.md) |
@@ -54,11 +56,12 @@ canonical project and evidence owners.
 | I am reviewing explicit OpenAI stateless replay | [Stateless replay](STATELESS_REPLAY.md) |
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | I need accurate Codex/Claude completion polling before a host sends a mobile notification | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) and [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
-| I need real-application and enterprise workflow cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
+| I need the selected but unimplemented independent product-demo story and delivery contract | [Formal Demo v1](FORMAL_DEMO_V1.md) |
+| I need independent real-application coverage cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | I need the clean fixed-code BOSS multi-item restart result | [BOSS clean item/restart evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) |
 | I am implementing the bounded BOSS semantic result or per-item observation ladder | [BOSS semantic extraction contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) |
 | I need the latest partial BOSS item/restart diagnostic | [BOSS item/restart diagnostic evidence](BOSS_ITEM_RESTART_DIAGNOSTIC_EVIDENCE.md) |
-| I need the one-campaign complete-product showcase and evidence plan | [Universal GUI demo](UNIVERSAL_GUI_DEMO.md) |
+| I need the future one-campaign final integration showcase and evidence plan | [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) |
 | I need the retained bounded Chrome-to-Word GUI Demo result | [Cross-application Demo evidence](CROSS_APP_DEMO_EVIDENCE.md) |
 | I need the retained public-web-to-Word Demo with approval heartbeat | [Public-web Word Demo evidence](PUBLIC_WEB_WORD_DEMO_EVIDENCE.md) |
 | I need model-token and observation-cost optimization | [Token efficiency](TOKEN_EFFICIENCY.md) |
@@ -107,7 +110,8 @@ canonical project and evidence owners.
 | [Archived 2026-08-11 project-status snapshot](archive/PROJECT_STATUS_SNAPSHOT_2026-08-11.md) | Historical closure and decision chronology through merge `b3fefde`; non-normative for current work |
 | Full Cycle integration | Runtime/model-factory ownership boundary, safe export schema, rich-capture boundary, and closure gates |
 | Project overview | Cross-system project shape, exhaustive feature-family inventory, implementation map, quality-attribute mapping, and role-based reading paths |
-| Root README | Current product scope, safe quick start, and high-level limitations |
+| English root README | Current product scope, safe quick start, high-level limitations, and links to the three distinct Demo/application programs |
+| Chinese root README | Single Chinese Now / Can do / Planned / How-to-ask user front door; navigation only, never evidence or operational priority |
 | Public Web to Word workflow | Fixed source/application boundary, installed command, durable DOCX completion contract, and bounded result metadata |
 | Task Center and outcome receipts | Read-only local run/campaign grouping, fixed human outcome wording, strict private product receipt, and the no-control/no-replay boundary |
 | Pre-run Review | Host-fixed workflow goal, applications, data use, output, approval bound, stops, residue, exact acknowledgement, and zero-startup review contract |
@@ -137,8 +141,9 @@ canonical project and evidence owners.
 | H8B dependency/join evidence | Offline bounded graph/cycle matrix, local join reduction, deterministic one-ready-leaf selection, global external serialization, strict decode/tamper, and restart evidence |
 | H8C safe-choice evidence | Offline Host-order gate matrix, worker overlap, immutable selection, exact eligible fallback, prohibited-stop matrix, atomic CAS, strict decode/tamper, and restart evidence |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, deterministic cross-session handoff, and the planned host-terminal polling contract |
-| Application evaluation matrix | Staged real-application workloads, failure-mechanism coverage scoring, cross-application cases, and promotion gates |
-| Universal GUI demo | One-campaign chapter plan spanning all mechanism families, fault injection, operator UX, token evidence, and presentation cuts |
+| Formal Demo v1 | Selected independent GitHub/PDF/Excel/Word/email-draft product story, planned Host front door, staged delivery, and formal evidence boundary; not implementation or application evidence |
+| Application evaluation matrix | Independent staged real-application coverage workloads, failure-mechanism scoring, cross-application cases, and promotion gates; not product priority or the Formal Demo story |
+| Universal GUI final showcase | Future final one-campaign integration showcase spanning already eligible mechanisms, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |
 | Observation contract | Planned UIA, document-text, OCR, image, and delta observation envelope and grounding rules |
 | Operator experience | Implemented passive progress/presence lifecycle wiring, a focus-taking Decision Card, read-only Task Center, Pre-run Review, and same-process cooperative control for the fixed public-web-word Runner loops. Cooperative pause/takeover/resume is offline verified only; recovery/BOSS campaign presence, native takeover timing, and host-owned mobile notification remain planned |
