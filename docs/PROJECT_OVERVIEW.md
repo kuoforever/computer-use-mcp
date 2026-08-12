@@ -48,8 +48,9 @@ operator control so each layer can be bounded and verified independently.
 The selected future [Formal Demo v1](FORMAL_DEMO_V1.md) product story is an
 independently launched GitHub Issues, PDF, Excel, Word, and unsent test-email
 workflow. Its internal inert v1 `TaskIntent`, scenario/profile, generic Scope,
-exact-pin, and digest contracts are implemented offline only. Its planned Agent
-Console, provider intent call, launcher, executable application adapters,
+exact-pin/digest, and pure-local typed intent-disclosure/permit contracts are
+implemented offline only. Its planned Agent Console, provider intent call,
+launcher, executable application adapters,
 durable composition, and formal evidence do not exist yet. BOSS,
 Google Docs, and WeChat instead belong to independent
 [Application Coverage Set A](APPLICATION_EVALUATION_MATRIX.md); coverage cases
@@ -284,7 +285,7 @@ that proposed front door appears only in the explicitly planned flow below.
 | Approval Inbox and local notification | Implemented / CLI-first, offline verified | Strict expiring identity/digest records supplement the bound Decision Card; optional Windows notification carries fixed wording only. Neither surface can decide, control, retry, replay, or dispatch, and native accessibility evidence remains open | [Approval Inbox](APPROVAL_INBOX.md) |
 | Public web to Word workflow | Implemented / exact scoped evidence | One installed fixed workflow lets a reviewed OpenAI model observe a fresh public Microsoft Support page, author a bounded brief, and write, save, reopen, visually verify, and clean up one disposable Word fixture through the existing Runner/MCP and Decision Card boundaries. The [retained result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md) does not establish arbitrary websites or applications | [Workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | Mobile notifications | Host capability; internal repository projection implemented | Local fixed-content approval attention exists, but mobile terminal/attention delivery remains absent; no MCP-log completion inference or repository mobile bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
-| Formal Demo v1 | Internal offline contracts implemented; product not executable | Inert v1 `TaskIntent`, scenario/profile pins, generic Scope, and canonical binding exist; the independent Console, provider intent call, launcher, executable adapters, durable composition, and selected GitHub Issues -> PDF -> Excel -> Word -> unsent test-email run remain planned | [Formal Demo v1](FORMAL_DEMO_V1.md) |
+| Formal Demo v1 | Internal offline contracts implemented; product not executable | Inert v1 `TaskIntent`, scenario/profile pins, generic Scope, canonical binding, and a typed local disclosure/exact-`COMPILE` process-local permit exist; the independent Console, provider intent call, launcher, executable adapters, durable composition, and selected GitHub Issues -> PDF -> Excel -> Word -> unsent test-email run remain planned | [Formal Demo v1](FORMAL_DEMO_V1.md) |
 | Application Coverage Set A | Planned independent acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, and their legacy cross-application case remain representative mechanism coverage; they do not define the Formal Demo or project priority | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance coverage sets | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Universal GUI final showcase | Planned/final integration gate | One chaptered campaign composed only after its selected mechanisms are independently eligible, with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) |
@@ -314,6 +315,7 @@ that proposed front door appears only in the explicitly planned flow below.
 | `src/computer_use_agent/progress_view.py`, `task_center.py`, `product_receipt.py` | Structurally validated status projection, read-only task grouping/fixed receipt wording, and strict private product completion evidence |
 | `src/computer_use_agent/public_web_word.py`, `pre_run_review.py` | Fixed workflow/profile guard plus the Host-compiled Scope Sheet, versioned JSON, and human rendering without external ports |
 | `src/computer_use_agent/formal_demo_contract.py` | Internal inert Formal Demo v1 intent/scenario/profile/Scope contracts, exact reviewed pins, bounded canonical binding, and fail-closed structural compilation without execution ports |
+| `src/computer_use_agent/formal_demo_intent_gate.py` | Internal typed sensitive-local intent disclosure plus exact `COMPILE` issue/consume gate; validates one exact route against static reviewed catalog/routing rules and one reviewed warning pin, opens no provider/execution/persistence port, and makes no durable or cross-process exactly-once claim |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
 | `src/computer_use_agent/planning.py`, `planner.py`, `plan_store.py` | Declarative plan compilation, provider port, and persistence |
 | `src/computer_use_agent/hierarchical_control.py` | Inert H1 node schema, canonical tree digest, reviewed limits, pure status reduction, and linear-plan projection |
@@ -363,12 +365,13 @@ These current surfaces are separate entries. In particular, the implemented
 `public-web-word` Scope Sheet is fixed to that one workflow, and Task Center is
 read-only; together they do not form a generic recipe or Console lifecycle.
 
-### Planned Host front-door flow — offline data contracts only
+### Planned Host front-door flow — first two internal contract slices only
 
 ~~~text
 natural-language outcome in planned Agent Console
-  -> local Host-fixed provider/data-use disclosure + exact COMPILE acknowledgement
-  -> tool-free provider candidate for untrusted TaskIntent
+  -> local Host-fixed provider/data-use disclosure [internal typed contract exists]
+  -> exact COMPILE acknowledgement [process-local inert permit exists]
+  -> tool-free provider candidate for untrusted TaskIntent [planned]
   -> Host validates reviewed scenario + application-role profiles
   -> Host compiles generic Scope Sheet
   -> explicit start acknowledgement (not action approval)
@@ -378,10 +381,13 @@ natural-language outcome in planned Agent Console
   -> Windows Driver
 ~~~
 
-The inert `TaskIntent`, scenario/profile, and generic Scope data contracts are
-implemented as an internal source module. The Console, disclosure/provider
-call, product compiler integration, recipe lifecycle, and Formal Demo launcher
-above are not source packages or commands. No built-in full product path can
+The inert `TaskIntent`, scenario/profile, generic Scope, and local disclosure /
+permit contracts are implemented as internal source modules. The latter keeps
+the exact task only in sensitive local memory/rendering and copies only its
+digest into the permit and receipt. It accepts typed Host objects and exposes no
+serialized loader. Its one-use guarantee is limited to one in-memory gate
+instance. The Console, provider call, product compiler integration, recipe
+lifecycle, and Formal Demo launcher above are not source packages or commands. No built-in full product path can
 compile while the exact email role remains `UNSELECTED`. Future product layers
 may narrow and compose reviewed Host behavior but cannot select arbitrary
 tools, grant authority, bypass the Runner, or create a second desktop path.
@@ -405,11 +411,14 @@ The frozen Full Cycle Lane A manifest remains the thirteen-core-tool surface. A
 core tool/schema change therefore needs an explicit versioned compatibility
 decision; a planned Demo cannot silently widen that external contract.
 
-The planned tool-free `TaskIntent` request is also not zero external work. Before
-that request, the Console must show a local Host-fixed disclosure of the exact
-text, provider/model, purpose, and data-use boundary and require a separate exact
-`COMPILE` acknowledgement. The later generic Scope Sheet and `START` still bind
-the full execution scope; neither acknowledgement grants action authority.
+The planned tool-free `TaskIntent` request is also not zero external work. The
+implemented internal gate can render the Host-fixed exact text, provider/model,
+purpose, and conservative data-use boundary and issue one process-local inert
+permit after exact `COMPILE`; it has no Console or provider port. A future
+activated provider slice must revalidate the current route/account boundary and
+atomically consume before send with no automatic retry. The later generic Scope
+Sheet and `START` still bind the full execution scope; neither acknowledgement
+grants action authority.
 
 ### Planned campaign-to-mobile flow
 

@@ -56,6 +56,17 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Formal Demo local intent-disclosure gate.** Added a pure-local typed v1
+  disclosure that renders the exact sensitive task and exact provider route
+  validated against reviewed static routing rules, with a conservative warning,
+  plus exact `COMPILE` and one
+  opaque issue/consume transition per in-memory gate instance. Task/route/profile/
+  draft drift, returned-record tamper, wrong acknowledgement, copy/forgery,
+  cross-gate use, concurrency, and same-gate replay fail closed. Raw
+  task bytes are absent from permit and receipt; there is no serialized gate
+  loader, provider request, filesystem/persistence, Runner, MCP, Driver, desktop,
+  application, CLI, or launcher port and no durable/process-wide exactly-once
+  claim.
 - **Formal Demo v1 offline contracts.** Added four inert internal v1 data
   contracts for untrusted intent, Host-reviewed scenario and semantic-role
   pins, generic Scope review, and a domain-separated canonical binding digest.
