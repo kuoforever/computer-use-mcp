@@ -124,8 +124,11 @@ Runner, commits only strict provider JSON under a fixed no-preference
 classification policy, writes failure handoff when the still-gated OCR rung is
 denied without dispatch, and transfers a successful batch to a fresh run. It
 does not alter the retained one-call identity runtime and has no on-device
-semantic evidence. Formal Demo v1 contracts and the independent Agent Console
-are not implemented. The Universal GUI final showcase and additional
+semantic evidence. Formal Demo v1 now has an internal offline-only contract
+slice: four inert v1 data structures, exact reviewed pins, canonical binding,
+and fail-closed compilation. It has no Console, provider call, launcher,
+executable adapter, durable run, or Formal Demo evidence. The Universal GUI
+final showcase and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
 remain planned; operator UI and continual learning exist only at the bounded
@@ -153,15 +156,16 @@ owns authorization and exact next action.
 
 | Program | Owner | Durable boundary |
 | --- | --- | --- |
-| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email draft. The Console, `TaskIntent`, generic Scope Sheet, launcher, adapters, and full composition remain unimplemented |
+| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email draft. Internal inert v1 intent/scenario/profile/Scope contracts are offline verified; the Console, provider intent call, launcher, executable adapters, durable composition, and evidence remain unimplemented, and the email role is still `UNSELECTED` |
 | Application coverage | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) | BOSS, Google Docs, WeChat, and their legacy cross-application case are representative Coverage Set A evidence cases, not the Formal Demo or a product-priority sequence |
 | Universal GUI final showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration/presentation gate after the underlying mechanisms retain their own executable evidence; it is not Formal Demo v1 |
 
 The existing `review public-web-word` Scope Sheet is fixed to one narrow
-Chrome-to-disposable-Word workflow. It is not the planned generic Scope Sheet,
-`TaskIntent` compiler, Formal Demo launcher, or proof of any selected Formal
-Demo adapter. Console or model input must never gain authority; every future
-front door must preserve the sole Runner -> MCP -> Windows Driver dispatch path.
+Chrome-to-disposable-Word workflow. It is not the internal generic Scope
+contract, a provider `TaskIntent` compiler, Formal Demo launcher, or proof of
+any selected Formal Demo adapter. Console or model input must never gain
+authority; every future front door must preserve the sole Runner -> MCP ->
+Windows Driver dispatch path.
 
 ## Bounded Operator HUD handoff (2026-07-31)
 

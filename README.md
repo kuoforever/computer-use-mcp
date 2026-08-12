@@ -83,9 +83,11 @@ separate bounded CLI entries: read-only `ask`, the fixed
 Center, and fixed-workflow cooperative control. This separation is a current
 fact, not a recommendation that users assemble arbitrary workflows from them.
 
-The planned Host-owned front door, `TaskIntent`, generic Scope Sheet, and
-independent Demo launcher are not implemented. Their intended relationship to
-the existing Runner/MCP authority is shown in the canonical
+The Host-owned front door and independent Demo launcher are not implemented.
+An internal offline-only `TaskIntent` / scenario / role-profile / generic Scope
+Sheet contract layer now exists, but it has no command, provider call,
+executable adapter, durable run, or application evidence. Its intended
+relationship to the existing Runner/MCP authority is shown in the canonical
 [project architecture](docs/PROJECT_OVERVIEW.md); the selected planned product
 story is owned by [Formal Demo v1](docs/FORMAL_DEMO_V1.md). BOSS, Google Docs,
 and WeChat remain an independent [application coverage set](docs/APPLICATION_EVALUATION_MATRIX.md),
@@ -487,7 +489,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
 | Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
 | Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |
-| Review the selected but unimplemented independent product demonstration | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
+| Review the selected independent product demonstration and its offline-only first contract slice | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
 | Run staged real-application coverage cases and benchmarks, independently of the Formal Demo | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
 | Review the future one-campaign final integration showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) |
 | Reduce model context and observation cost | [Token efficiency](docs/TOKEN_EFFICIENCY.md) |

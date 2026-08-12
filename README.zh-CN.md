@@ -25,9 +25,10 @@
 Center 和协作式控制各有自己的命令。
 
 当前**没有**可以接收任意自然语言任务的统一 Agent Console，也没有通用的
-`recipe list -> review -> start -> status` 产品入口。`TaskIntent`、通用 Scope
-Sheet 和独立 Demo launcher 都仍是计划中的 Host 薄层，不能从现有命令或文档
-描述中推断为已实现能力。当前授权工作和安全恢复点只看
+`recipe list -> review -> start -> status` 产品入口。内部已经有离线-only 的
+`TaskIntent`、scenario、role profile 和通用 Scope Sheet 数据合同，但没有命令、
+provider call、可执行 adapter、durable run 或应用证据；独立 Demo launcher 仍未
+实现，不能从这些数据合同推断为当前产品能力。当前授权工作和安全恢复点只看
 [Project status](PROJECT_STATUS.md)，能力及证据只看
 [Capability status](docs/CAPABILITY_STATUS.md)。
 
@@ -84,7 +85,8 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 
 ## 计划中（Planned）
 
-下列内容是已经分清 owner 的计划，不是当前可执行命令或已验证能力：
+下列内容已经分清 owner；其中标明的内部离线合同不是当前可执行命令、产品入口或
+真实应用证据：
 
 1. **统一 Host 前门：**计划中的 `Agent Console -> TaskIntent -> Host validation
    -> Scope Sheet -> review/start/status` 只负责收集意图和展示 Host 验证后的范围；
@@ -95,8 +97,10 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
    [项目总览中的 current/planned architecture](docs/PROJECT_OVERVIEW.md)。
 2. **Formal Demo v1：**选定的产品故事是 GitHub Issues fixture -> PDF ->
    disposable Excel -> disposable Word -> test-account email draft（绝不发送）。
-   Console、`TaskIntent`、通用 Scope Sheet、launcher、应用 adapter 和正式证据均
-   尚未实现。详见[Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
+   第一切片已实现四个 inert v1 数据合同、严格 loader、reviewed pin、canonical
+   digest 和 fail-closed 离线测试；email role 仍是 `UNSELECTED`，完整产品场景会
+   确定性停止。Console、provider intent call、launcher、可执行应用 adapter、
+   durable run 和正式证据仍未实现。详见[Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
 3. **Application Coverage Set A：**BOSS、Google Docs、WeChat 继续作为独立的
    真实应用覆盖与证据用例，不再定义 Formal Demo，也不是自动获得优先级的
    “Wave 1”。详见[应用评估矩阵](docs/APPLICATION_EVALUATION_MATRIX.md)。
