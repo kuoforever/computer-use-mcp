@@ -203,7 +203,7 @@ The first evaluation corpus should contain:
 - a visible login or challenge state;
 - a multi-monitor case once the coordinate model exists.
 
-Later evaluation waves add Excel grid virtualization, PDF text/OCR ordering,
+Later evaluation coverage sets add Excel grid virtualization, PDF text/OCR ordering,
 Figma/Canva infinite canvases, Electron virtual lists, Remote Desktop nested
 pixels, Office mode transitions, legacy custom widgets, and GPU modal tools.
 
@@ -211,5 +211,8 @@ For each case, measure completeness, characters, nodes, image pixels, provider
 tokens, tool calls, retries, and whether the chosen source was sufficient for
 the next decision.
 
-See [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) for the
-first BOSS, Google Docs, WeChat, and cross-application scenarios.
+See [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) for
+representative BOSS, Google Docs, WeChat, and cross-application coverage cases.
+They are independent observation/evaluation samples, not the selected product
+Demo story. [Formal Demo v1](FORMAL_DEMO_V1.md) selects different application
+roles and must retain source-specific observation evidence for each adapter.

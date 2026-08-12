@@ -17,7 +17,32 @@
 负责观察，策略与审批构成显式边界，桌面执行权限收敛到唯一入口，证据持久化
 到崩溃之后仍然可用。
 
-## 当前支持
+## 现在（Now）
+
+项目当前是一个实验性的 Windows 前台桌面 Runtime 与 Agent Host，而不是一个
+已经统一完成的桌面 Agent 产品。用户入口仍然是几组**彼此分开的 CLI 命令**：
+只读提问、一个固定 Chrome-to-Word 工作流、配置检查、Pre-run Review、Task
+Center 和协作式控制各有自己的命令。
+
+当前**没有**可以接收任意自然语言任务的统一 Agent Console，也没有通用的
+`recipe list -> review -> start -> status` 产品入口。`TaskIntent`、通用 Scope
+Sheet 和独立 Demo launcher 都仍是计划中的 Host 薄层，不能从现有命令或文档
+描述中推断为已实现能力。当前授权工作和安全恢复点只看
+[Project status](PROJECT_STATUS.md)，能力及证据只看
+[Capability status](docs/CAPABILITY_STATUS.md)。
+
+## 现在能做什么（Can do）
+
+| 需求 | 当前入口 | 真实边界 |
+| --- | --- | --- |
+| 询问前台文档内容 | `guarded-desktop-agent ask` | 一到四次已审核的只读观察；不能规划桌面副作用 |
+| 运行现有产品工作流 | `guarded-desktop-agent review public-web-word`，再执行 `guarded-desktop-agent workflow public-web-word` | 只覆盖固定公开网页到全新 Word 文档；不是任意网页或任意办公任务 |
+| 检查安装和配置 | `guarded-desktop-agent config setup/settings/doctor` | 配置与 readiness；不等于开始任务或授予桌面权限 |
+| 查看本地任务结果 | `guarded-desktop-agent task center` | 只读状态与 Receipt；不能 approve、resume、retry 或 dispatch |
+| 协作式暂停、接管和恢复 | `guarded-desktop-agent task pause/takeover/resume` | 目前只覆盖固定工作流的同进程 Runner；恢复前必须重新观察 |
+| 直接接入 MCP Runtime | `guarded-desktop-mcp` | 13 个核心工具加可选只读浏览器观察；桌面仍只有一个执行路径 |
+
+### 当前 Runtime 与 provider 支持
 
 - Windows；Python 3.11 至 3.13。
 - stdio MCP transport。
@@ -56,6 +81,74 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 每条记录**只支持它自己的范围**：这些都不是 application acceptance，也不表示
 本项目是通用 worker。旧的一页结果保留作历史记录；当前契约的两次 pass 只证明
 外部控制翻页后的身份累积，不证明 item 处理、provider 执行或重启恢复。
+
+## 计划中（Planned）
+
+下列内容是已经分清 owner 的计划，不是当前可执行命令或已验证能力：
+
+1. **统一 Host 前门：**计划中的 `Agent Console -> TaskIntent -> Host validation
+   -> Scope Sheet -> review/start/status` 只负责收集意图和展示 Host 验证后的范围；
+   它不会获得桌面权限，后续仍必须进入现有 Runner、唯一 MCP server 和 Windows
+   Driver。自然语言如果要发送给 provider 生成 `TaskIntent`，发送前还必须本地展示
+   exact text、provider/model、用途与 data-use 警告，并用单独的 `COMPILE` 确认；
+   这不等于后续 Scope Sheet 的 `START`，也不授予动作权限。详见
+   [项目总览中的 current/planned architecture](docs/PROJECT_OVERVIEW.md)。
+2. **Formal Demo v1：**选定的产品故事是 GitHub Issues fixture -> PDF ->
+   disposable Excel -> disposable Word -> test-account email draft（绝不发送）。
+   Console、`TaskIntent`、通用 Scope Sheet、launcher、应用 adapter 和正式证据均
+   尚未实现。详见[Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
+3. **Application Coverage Set A：**BOSS、Google Docs、WeChat 继续作为独立的
+   真实应用覆盖与证据用例，不再定义 Formal Demo，也不是自动获得优先级的
+   “Wave 1”。详见[应用评估矩阵](docs/APPLICATION_EVALUATION_MATRIX.md)。
+4. **Universal GUI final showcase：**未来在多个独立机制和应用通过证据门后，
+   再组装完整的多章节最终展示；它不是 Formal Demo v1，也不是当前下一步。
+   详见[Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md)。
+
+## 怎么下指令（How to ask）
+
+今天没有一个统一 Console 可以理解并执行任意指令。请先说明你是在**使用当前
+能力**，还是在**要求修改项目**。
+
+使用当前只读能力时，把问题写成明确且可验证的结果，例如：
+
+> 总结当前前台测试文档的三个要点；只读，不点击、不输入、不切换应用。
+
+使用固定工作流时，不要用泛化描述替代它的契约；先运行
+`review public-web-word`，核对来源、应用、输出路径、停止条件和残留风险，再显式
+输入 `START`。
+
+让 Codex 或 Claude Code 修改项目时，建议一次给出五项：
+
+1. **Outcome：**这一小步完成后应新增或纠正什么；
+2. **Scope：**允许修改的模块、应用和文件；
+3. **Side effects：**允许读、写、发送或发布什么，哪些明确禁止；
+4. **Evidence：**用哪些测试、真实环境或保留产物证明完成；
+5. **Stop：**缺账号、权限、选择、真实证据或出现不确定副作用时在哪里停下。
+
+可以直接复制下面的边界化表达：
+
+> 只审查当前架构和文档，不改 Runtime。列出 implemented、partial、planned，
+> 并指出每一项的 owner、证据和准确下一步。
+
+> 把 Formal Demo v1 的第一个实现切片限定为离线、无 provider/MCP/desktop 的
+> `TaskIntent` 与 scenario contract；保留 Full Cycle 和 provider E3 恢复点，
+> 不实现 Console、应用 adapter 或 Demo 运行。
+
+> 设计 OpenClaw-like 的产品入口时，只做 Host-owned front-door contract；复用
+> 现有 Runner/MCP，不增加 daemon、scheduler、plugin gateway、Multi-Agent 或
+> 第二条桌面执行路径，并把未实现部分明确标成 Planned。
+
+如果指令会改变项目优先级，应同时要求将唯一 active item、停止条件和原有恢复点
+写回 [Project status](PROJECT_STATUS.md)，不能只在对话里改变方向。
+
+### 如果以后要改 Runner 或 tools
+
+这类改动通常不是“只改一个文件”：新增或修改 tool 要同步 Host `ToolSpec`、MCP
+schema、策略/grounding、安全元数据、结果转换、registry digest 及相关测试；新增原生
+动作还要同步 Driver Contract 与 Windows Driver。修改 Runner 的 dispatch、恢复或
+结果确定性，则要同步 continuation/WAL/recovery 与 unknown-outcome no-replay 测试。
+只有纯 Host 前门、recipe 或 scenario contract 通常可以复用现有 Runner/tools 而不改
+核心工具面。完整影响表见[项目架构](docs/PROJECT_OVERVIEW.md#runner-and-tool-change-impact-map)。
 
 ## 安全提示
 

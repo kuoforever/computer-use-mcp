@@ -4,8 +4,8 @@
 > recovery/fixed-campaign progress and ordinary-run/bounded-plan/read-only
 > recovery/fixed-campaign
 > primary-display presence
-> lifecycles are implemented; complete-product
-> integration remains planned.** The presence
+> lifecycles are implemented; Formal Demo v1 composition and the future final
+> showcase integration remain planned.** The presence
 > surface has a pure Host-state projection, click-through/non-activating Win32
 > halo, DPI geometry, reduced-motion/high-contrast modes, capture affinity, and
 > E-stop/authority-release teardown. One fail-silent Host coordinator now drives
@@ -256,8 +256,10 @@ current validated Host phase and ownership state.
 
 The detailed projection, privacy constraints, multi-run grouping, and
 non-activating behavior live in [Operator progress viewer](PROGRESS_VIEWER.md).
-The complete window adds chapter and work-item progress for the universal GUI
-campaign while retaining the existing passive default.
+Future composition may add chapter and work-item progress for the selected
+[Formal Demo v1](FORMAL_DEMO_V1.md) or the later Universal GUI final showcase
+while retaining the existing passive default. Neither program is implemented
+or activated by this operator-surface contract.
 
 When explicitly enabled, Agent `run`, `resume`, bounded observation-only
 `plan run`, and explicit read-only recovery now start a separate fail-silent
@@ -528,6 +530,10 @@ campaign-control mutation, or second desktop dispatcher.
 
 ## Example
 
+The example below is a legacy application-coverage Decision Card scenario. It
+exercises identity drift and unknown-side-effect handling; it does not define
+the Formal Demo v1 application story.
+
 ~~~text
 + Decision required -----------------------------------------------+
 | WeChat test conversation changed after restart                   |
@@ -625,8 +631,12 @@ campaign-control mutation, or second desktop dispatcher.
     projection. **Both are offline verified through the same redacted durable
     state without a second execution path; public host polling, mobile delivery,
     and generic provider/application evidence remain absent.**
-12. Run isolated Windows UX smoke, then the BOSS -> Google Docs -> WeChat
-   cross-application scenario with one approval and one human takeover.
+12. Independently retain an isolated Windows UX smoke. If separately activated,
+    the legacy BOSS -> Google Docs -> WeChat application-coverage scenario may
+    exercise one approval and one human takeover; it is not the Formal Demo v1
+    story or a project-priority dependency.
 
-The final integrated presentation and evidence requirements live in the
-[Universal GUI complete-product demo](UNIVERSAL_GUI_DEMO.md).
+The selected product-demo operator journey and evidence boundary live in
+[Formal Demo v1](FORMAL_DEMO_V1.md). The
+[Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) remains a later integration
+and presentation gate across independently verified mechanisms.

@@ -72,7 +72,7 @@ ordinary-continuation cleanup while retaining the completed final WAL. A
 bounded `plan run` CLI now asks the configured provider for one host-scoped
 plan containing one to four observation steps, executes only those steps
 through the sole Runner boundary, and obtains one stateless tool-free final
-response. It has eight-profile offline fake-port coverage plus retained
+response. It has nine-profile offline fake-port coverage plus retained
 OpenAI/Claude, Kimi-China, MiniMax-China, DeepSeek-global, Doubao-China, and
 Qwen-Beijing plus GLM-China E3 results. The reviewed Agent Host path also has retained isolated desktop E4
 evidence, but the Planner / Executor path has no separate desktop result. One
@@ -124,12 +124,13 @@ Runner, commits only strict provider JSON under a fixed no-preference
 classification policy, writes failure handoff when the still-gated OCR rung is
 denied without dispatch, and transfers a successful batch to a fresh run. It
 does not alter the retained one-call identity runtime and has no on-device
-semantic evidence. The broader
-universal GUI, operator UI, cross-application demo, continual-learning, and additional
+semantic evidence. Formal Demo v1 contracts and the independent Agent Console
+are not implemented. The Universal GUI final showcase and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
-remain planned. Start with [Capability status](docs/CAPABILITY_STATUS.md) and
-read the status header of every owner document before treating it as available.
+remain planned; operator UI and continual learning exist only at the bounded
+scopes recorded in [Capability status](docs/CAPABILITY_STATUS.md). Read the
+status header of every owner document before treating it as available.
 
 The Runtime-side Full Cycle Lane A bridge is implemented. `fullcycle manifest`
 derives a versioned capability document from the reviewed registry, and
@@ -143,6 +144,24 @@ exactly, so Lane A has not drifted. `GDA-FC-004` is complete locally and no
 Runtime item is active. Rich episode capture is explicitly deferred to the
 Full Cycle project's separate `FC-BRIDGE-003` review and remains disabled by
 default.
+
+## Demo and application-program ownership
+
+These are three separate programs. Their documents describe scope and evidence
+gates; none can activate work or promote capability. `PROJECT_STATUS.md` alone
+owns authorization and exact next action.
+
+| Program | Owner | Durable boundary |
+| --- | --- | --- |
+| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email draft. The Console, `TaskIntent`, generic Scope Sheet, launcher, adapters, and full composition remain unimplemented |
+| Application coverage | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) | BOSS, Google Docs, WeChat, and their legacy cross-application case are representative Coverage Set A evidence cases, not the Formal Demo or a product-priority sequence |
+| Universal GUI final showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration/presentation gate after the underlying mechanisms retain their own executable evidence; it is not Formal Demo v1 |
+
+The existing `review public-web-word` Scope Sheet is fixed to one narrow
+Chrome-to-disposable-Word workflow. It is not the planned generic Scope Sheet,
+`TaskIntent` compiler, Formal Demo launcher, or proof of any selected Formal
+Demo adapter. Console or model input must never gain authority; every future
+front door must preserve the sole Runner -> MCP -> Windows Driver dispatch path.
 
 ## Bounded Operator HUD handoff (2026-07-31)
 
@@ -517,22 +536,26 @@ layer:
 5. [Long-running tasks](docs/LONG_RUNNING_TASKS.md) for campaigns, item ledgers,
    batching, cross-session handoff, and the planned host-terminal polling
    contract used before Codex/Claude mobile notification.
-6. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
+6. [Formal Demo v1](docs/FORMAL_DEMO_V1.md) only for the selected independent
+   Console/product-demo program; every implementation slice still requires
+   activation in `PROJECT_STATUS.md`.
+7. [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) for
    the BOSS, Google Docs, WeChat, Douyin real-time-media, enterprise workflow,
-   and cross-application acceptance cases.
-7. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
+   and cross-application coverage cases; these do not define Formal Demo v1.
+8. [Token efficiency](docs/TOKEN_EFFICIENCY.md) and
    [Observation contract](docs/OBSERVATION_CONTRACT.md) for model-context and
    perception changes.
-8. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the planned
-   computer-use presence indicator and Decision Cards, then
+9. [Operator experience](docs/OPERATOR_EXPERIENCE.md) for the implemented or
+   partial bounded presence, progress, and Decision Card scopes and their
+   remaining evidence gates, then
    [Operator progress viewer](docs/PROGRESS_VIEWER.md) for the passive Windows
    status projection.
-9. [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
+10. [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) only when assembling the
    final chaptered showcase and retained evidence package; it is not a shortcut
-   around the narrower application and safety gates.
-10. [Continual learning](docs/CONTINUAL_LEARNING.md) for the planned progression
-   from explicit memory through verified workflow promotion and cost-aware
-   strategy selection; it does not describe current runtime behavior.
+   around Formal Demo, application, or safety gates.
+11. [Continual learning](docs/CONTINUAL_LEARNING.md) for L0-L4 at their bounded
+   offline or injected-runtime scopes and the separately consented inactive L5;
+   none of those scopes implies automatic learning or model training.
 
 The campaign control plane can validate `campaign_id`, manifest, ledgers, and
 `handoff.json`. Its first internal execution seam is limited to the exact
@@ -581,6 +604,11 @@ its UIA tree.
   provider, desktop, or application evidence cell.
 - Keep design directions in [docs/DESIGN.md](docs/DESIGN.md) and
    [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md).
+- Keep the three non-interchangeable programs synchronized with their owners:
+  [Formal Demo v1](docs/FORMAL_DEMO_V1.md), independent
+  [application coverage](docs/APPLICATION_EVALUATION_MATRIX.md), and the future
+  [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md). Never transfer
+  implementation or evidence status among them.
 - Keep computer-use presence, passive progress, and interactive decision
   boundaries synchronized across [operator experience](docs/OPERATOR_EXPERIENCE.md),
   [progress viewer](docs/PROGRESS_VIEWER.md), and
@@ -608,7 +636,7 @@ its UIA tree.
 - Keep planned automatic extraction and strategy-learning claims synchronized
   across [context and memory](docs/CONTEXT_MEMORY.md),
   [continual learning](docs/CONTINUAL_LEARNING.md), the roadmap, and the
-  universal demo.
+  Universal GUI final showcase.
 - Keep contract changes synchronized with `contract.py`.
 - Keep superseded plans and implementation chronology under `docs/archive/`;
   archived files are non-normative and must point to their current owner.

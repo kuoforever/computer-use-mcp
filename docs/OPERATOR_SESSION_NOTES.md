@@ -274,7 +274,11 @@ record only an opaque alias or the minimum identifier needed for correlation.
 - Privacy check: no raw task/UI/screenshot/typed-value content committed
 ~~~
 
-## Prioritized backlog from these sessions
+## Dated follow-ups from these sessions (historical, non-normative)
+
+> This list preserves the priorities inferred from the recorded sessions at the
+> time. It is not the current project backlog, does not activate any application
+> or Demo work, and must not override [Project status](../PROJECT_STATUS.md).
 
 1. **P1:** implement the read-only, non-activating multi-run progress window on
    top of validated Agent checkpoints.

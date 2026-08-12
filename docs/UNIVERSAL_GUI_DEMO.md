@@ -1,18 +1,21 @@
-# Universal GUI complete-product demo
+# Universal GUI final showcase
 
-> **Status: planned showcase and acceptance runbook.** The current runtime
-> cannot execute this complete campaign. Individual chapters become eligible
-> only after their application, orchestration, observation, approval, and
-> operator-experience gates retain executable evidence.
+> **Status: future final integration showcase; not Formal Demo v1 and not
+> executable.** The current runtime cannot execute this complete campaign.
+> Individual chapters become eligible only after their application,
+> orchestration, observation, approval, and operator-experience gates retain
+> executable evidence. The current product demonstration is owned separately by
+> [Formal Demo v1](FORMAL_DEMO_V1.md).
 
 ## Purpose
 
-Demonstrate the complete product in one visible, resumable campaign rather than
-as unrelated per-application clips. The showcase should prove that one Agent
+Eventually demonstrate broad product mechanisms in one visible, resumable
+campaign rather than as unrelated per-application clips. The showcase should
+prove that one Agent
 can preserve identity, policy, progress, evidence, and cost state while moving
 through structurally different Windows applications and web surfaces.
 
-"One demo" means:
+"One final showcase" means:
 
 - one campaign ID and one durable source of truth;
 - one operator-facing progress history and final report;
@@ -36,13 +39,13 @@ The complete campaign should support this bounded claim:
 > enterprise surfaces while preserving object identity, human authority,
 > side-effect certainty, and measured context cost.
 
-The demo must not be presented as proof of arbitrary application support,
+The showcase must not be presented as proof of arbitrary application support,
 production scale, anti-challenge bypass, or exactly-once external effects.
 
 ## Campaign topology
 
 ~~~text
-universal_gui_demo/<campaign_id>
+universal_gui_showcase/<campaign_id>
   -> Act 0: preflight and operator surfaces
   -> Act 1: research, documents, data, and native communication
   -> Act 2: real-time media, design, and collaboration
@@ -253,7 +256,7 @@ Required coverage:
 - finish with a cross-system transaction ledger marking every step committed,
   skipped, challenged, conflicted, or uncertain.
 
-The full demo does not post or pay financial records. Those highest-risk effects
+The full showcase does not post or pay financial records. Those highest-risk effects
 remain negative authority tests unless a separate reviewed sandbox campaign is
 approved.
 
@@ -279,7 +282,7 @@ a resumable handoff when no compliant machine-executable option remains.
 
 ## Planned continual-learning segment
 
-The complete-product recording may add a learning segment only after the
+The final-showcase recording may add a learning segment only after the
 [continual-learning](CONTINUAL_LEARNING.md) promotion gates pass independently.
 It uses multiple retained synthetic episodes plus separate held-out tasks to
 show candidate extraction, one rejection or correction, isolated replay,
@@ -343,7 +346,7 @@ listed window through Runner/MCP, verify that activation, and re-observe the
 target before acting. If foreground verification fails, stop the chapter; never
 continue the visible workflow against a background application.
 
-Every repeatable Demo chapter must also declare and verify its initial state.
+Every repeatable showcase chapter must also declare and verify its initial state.
 Use a fresh browser profile, a pristine copied document fixture, fixed visible
 window geometry where the application supports it, and a new run identity.
 Bind a same-title browser only when the newly launched window is foreground,
@@ -368,7 +371,7 @@ The recording must show, without revealing sensitive content:
 The complete evidence package contains:
 
 ~~~text
-demo/<campaign_id>/
+showcase/<campaign_id>/
   manifest.json
   chapter-summary.json
   coverage-report.json
@@ -381,7 +384,7 @@ demo/<campaign_id>/
   recordings/
 ~~~
 
-Control and public demo artifacts contain no raw screenshots, messages, typed
+Control and public showcase artifacts contain no raw screenshots, messages, typed
 values, credentials, account identifiers, customer/employee data, hidden
 reasoning, or arbitrary page text. Private fixtures and recordings use separate
 access, redaction, and retention review.
@@ -411,7 +414,7 @@ The complete campaign passes only when:
 
 All presentations are projections of the same retained campaign evidence:
 
-- **3-minute portfolio cut:** Act 1, one fault recovery, one Decision Card, and
+- **3-minute final-showcase cut:** Act 1, one fault recovery, one Decision Card, and
   the final coverage/cost result;
 - **15-minute technical cut:** one representative transition from every act,
   restart recovery, operator surfaces, and evidence inspection;
@@ -427,7 +430,9 @@ hide failed, skipped, challenged, uncertain, or human-completed steps.
 ## Promotion sequence
 
 1. Pass each selected application case independently.
-2. Pass the Wave 1 BOSS -> Google Docs -> WeChat campaign.
+2. Pass selected cross-application coverage campaigns; the historical BOSS ->
+   Google Docs -> WeChat campaign is one optional Coverage Set A case, not the
+   Formal Demo v1 product story.
 3. Add Excel/PDF and retain an observation/token baseline.
 4. Pass the media/design and nested/legacy acts independently.
 5. Pass passive progress, presence, Decision Card, takeover, and E-stop UX
@@ -439,5 +444,5 @@ hide failed, skipped, challenged, uncertain, or human-completed steps.
 9. Execute the complete campaign twice with each supported provider or document
    any provider-specific waiver explicitly.
 
-The complete demo is a final integration gate, not a substitute for narrower
+The complete showcase is a final integration gate, not a substitute for narrower
 deterministic, provider, desktop, application, safety, or authority tests.

@@ -7,7 +7,7 @@ its project-local MCP server from platform-provided computer-use plugins.
 Legacy Python import paths, state directories, environment variables, and
 console commands remain supported during the compatibility window.
 
-[中文快速开始](README.zh-CN.md) · [Architecture](#architecture) · [Reliability demo](#try-the-reliability-demo) · [Evidence dashboard](docs/CAPABILITY_STATUS.md) · [Documentation](docs/README.md)
+[中文使用入口：现在能做什么、计划与下指令](README.zh-CN.md) · [Architecture](#architecture) · [Reliability demo](#try-the-reliability-demo) · [Evidence dashboard](docs/CAPABILITY_STATUS.md) · [Documentation](docs/README.md)
 
 > **Status: experimental.** Windows-only, foreground desktop, primary display.
 > The English documentation is canonical. Every claim below links to retained
@@ -73,6 +73,25 @@ complete application acceptance.
 The [capability dashboard](docs/CAPABILITY_STATUS.md) states, per layer, what is
 designed, implemented, offline-verified, provider-verified, desktop-verified,
 and application-verified.
+
+## Product entry points today
+
+The product does not yet have one unified Agent Console or a generic
+`recipe list -> review -> start -> status` front door. Its current surfaces are
+separate bounded CLI entries: read-only `ask`, the fixed
+`review` / `workflow public-web-word` pair, setup and doctor, read-only Task
+Center, and fixed-workflow cooperative control. This separation is a current
+fact, not a recommendation that users assemble arbitrary workflows from them.
+
+The planned Host-owned front door, `TaskIntent`, generic Scope Sheet, and
+independent Demo launcher are not implemented. Their intended relationship to
+the existing Runner/MCP authority is shown in the canonical
+[project architecture](docs/PROJECT_OVERVIEW.md); the selected planned product
+story is owned by [Formal Demo v1](docs/FORMAL_DEMO_V1.md). BOSS, Google Docs,
+and WeChat remain an independent [application coverage set](docs/APPLICATION_EVALUATION_MATRIX.md),
+while the [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) remains a future
+final showcase. None of those planned documents activates work or promotes an
+application capability.
 
 For the external model lifecycle, use the bounded Lane A bridge:
 
@@ -468,8 +487,9 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
 | Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
 | Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |
-| Run staged real-application campaigns and coverage benchmarks | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
-| Review the planned one-campaign complete-product showcase | [Universal GUI demo](docs/UNIVERSAL_GUI_DEMO.md) |
+| Review the selected but unimplemented independent product demonstration | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
+| Run staged real-application coverage cases and benchmarks, independently of the Formal Demo | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
+| Review the future one-campaign final integration showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) |
 | Reduce model context and observation cost | [Token efficiency](docs/TOKEN_EFFICIENCY.md) |
 | Review the planned computer-use indicator, progress UI, and decision experience | [Operator experience](docs/OPERATOR_EXPERIENCE.md) |
 
