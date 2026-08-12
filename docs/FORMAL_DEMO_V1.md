@@ -1,11 +1,12 @@
 # Formal Demo v1
 
-> **Status: the `GDA-DEMO-007A` internal offline contract slice is implemented;
-> the Formal Demo product is not executable.** This document owns the selected
-> Formal Demo v1 story and its staged delivery boundary. The implemented slice
-> adds inert v1 data contracts and fail-closed compilation only. It does not
-> add a Console, provider call, launcher, executable application adapter,
-> durable run, Formal Demo evidence, or authority to activate later work.
+> **Status: the `GDA-DEMO-007A` and `GDA-DEMO-007B` internal offline contract
+> slices are implemented; the Formal Demo product is not executable.** This
+> document owns the selected Formal Demo v1 story and its staged delivery
+> boundary. The implemented slices add inert v1 scenario/Scope contracts plus
+> a pure-local intent disclosure and exact `COMPILE` permit. They do not add a
+> Console, provider request, launcher, executable application adapter, durable
+> run, Formal Demo evidence, or authority to activate later work.
 > [Project status](../PROJECT_STATUS.md) remains the only operational tracker.
 
 ## Decision
@@ -37,10 +38,9 @@ an alternate tool port.
 ~~~text
 operator
   -> planned Agent Console
-  -> local intent-disclosure review: provider/model, exact text to disclose,
-     purpose, retention warning, and zero desktop/application startup
-  -> explicit COMPILE acknowledgement
-  -> tool-free provider call for an untrusted TaskIntent candidate
+  -> local intent-disclosure review contract [implemented internally; no command]
+  -> exact COMPILE process-local permit [implemented; no provider request]
+  -> tool-free provider call for an untrusted TaskIntent candidate [planned]
   -> Host validation against reviewed scenario and application-role profiles
   -> Host-compiled Scope Sheet and explicit START
   -> existing H-tree / campaign control
@@ -54,7 +54,9 @@ future adapters cannot bypass the Runner. Policy, approval, grounding, budgets,
 WAL, audit, mandatory post-action observation, recovery classification, and
 unknown-outcome no-replay remain Host/Runner-owned.
 
-## Implemented offline v1 contracts
+## Implemented internal offline slices
+
+### `GDA-DEMO-007A` scenario and Scope contracts
 
 `src/computer_use_agent/formal_demo_contract.py` implements the following four
 stdlib-only frozen data structures. The module has no Provider, Runner, MCP,
@@ -103,15 +105,57 @@ Scope Sheet says only that its compilation starts no external work and grants
 no execution authority; it does not claim that a separately reviewed intent
 provider call never occurred.
 
-The intent call is itself external data disclosure, so it requires a separate
-inert review before the call. That review is Host-fixed and local: it names the
-provider/model, shows the exact natural-language text to be sent, explains the
-TaskIntent-only purpose and provider-retention boundary, and states that no MCP,
-desktop, application, durable workflow, or action authority will start. Exact
-`COMPILE` acknowledgement permits only that one tool-free request; it grants no
-Scope Sheet, task-start, action, retry, replay, or later provider authority. A
-local-only intent compiler could replace this call, but it cannot be silently
-selected as a provider fallback.
+### `GDA-DEMO-007B` local intent disclosure and permit
+
+`src/computer_use_agent/formal_demo_intent_gate.py` implements a second
+stdlib-only internal contract surface. It compiles a sensitive local disclosure
+from one exact provider route validated against static reviewed catalog/routing
+rules and one exact code-reviewed warning profile. The disclosure shows the
+exact task as one escaped UTF-8 JSON string
+literal, exact provider/region/model/protocol/endpoint/workspace identity,
+TaskIntent-only purpose, conservative data-use/retention boundaries, and
+explicit zero-start/zero-authority facts. The raw task remains local display
+data: it is intentionally accessible to trusted in-process Host code and is not
+copied into the permit, terminal receipt, canonical payload, automatic Full
+Cycle export, `repr`, or pickle surface.
+
+Only exact case-sensitive and whitespace-sensitive `COMPILE` can issue an
+opaque v1 permit. The permit binds the disclosure, raw-task digest, exact route,
+reviewed warning pin, TaskIntent version, and inert draft/resume identity. It
+grants no provider request, Scope Sheet, `START`, action approval, retry,
+replay, desktop authority, or durable-workflow authority. A locked state machine
+allows one issue and one consume transition for one process-local gate instance;
+wrong input, cancel, copy, forgery, cross-gate use, returned
+profile/route/disclosure/current-snapshot/permit mutation, stale binding, or
+same-gate replay terminates fail closed. This is not crash-safe or process-wide
+exactly-once. Two separately created gate instances are separate local attempts,
+and any future provider adapter must own an atomic pre-send consumed-attempt
+boundary.
+
+The in-process Host is a trusted computing boundary, not a Python object
+sandbox. Tests cover mutation of returned route, disclosure, current-snapshot,
+profile, and permit records; they do not claim to resist hostile code that uses
+reflection to rewrite the gate's private lock or state memory. Such code already
+has arbitrary authority inside this process and requires process isolation, not
+another dataclass invariant.
+
+This slice accepts Host-constructed typed objects only and deliberately exposes
+no disclosure/permit JSON loader, filesystem store, CLI, Console, provider
+factory, network port, or replayable request envelope. Code-reviewed profile
+snapshots are reconstructed from private immutable literals so mutating a
+returned snapshot cannot rewrite the registry. The model identity is bound
+exactly but is not declared provider-verified or compatibility-reviewed by this
+offline contract. The warning also does not claim that operator-entered text is
+non-sensitive: whatever the operator includes in the exact displayed text would
+be disclosed by the future request. Current provider terms and account data
+controls must be revalidated in that separately authorized live slice.
+
+The future intent call is external work and remains unimplemented. A future
+consumer must re-resolve current task/route/profile/draft bindings, atomically
+consume its one attempt before sending, disable tools and automatic retries,
+and treat the returned `TaskIntent` candidate as untrusted. A local-only intent
+compiler could replace that call, but it cannot be silently selected as a
+provider fallback.
 
 ## Selected role profiles and boundaries
 
@@ -158,6 +202,7 @@ authority:
 | --- | --- | --- |
 | Draft | Natural-language input exists only in the Console | edit, discard, or open the local intent-disclosure review |
 | Intent disclosure ready | The exact text, provider/model, purpose, and data-use warning are visible with zero external work | exact `COMPILE` acknowledgement or cancel |
+| Compile permit issued | One process-local gate instance holds an inert digest-bound permit; no provider request or durable run has started | future provider integration may atomically consume once, or the operator may abandon the process-local attempt |
 | Review ready | A candidate intent passed Host validation and a bound Scope Sheet is visible | exact `START` acknowledgement or cancel |
 | Running | The reviewed durable run owns foreground execution | observe, pause, E-stop, or answer a Decision Card |
 | Attention | The run is blocked on approval, challenge, ambiguity, or human judgment | approve/deny only through the existing approval path, or take over |
@@ -191,23 +236,27 @@ Writing this plan activates none of them.
    inert structures, strict loading/compilation, deterministic digests, bounds,
    exact reviewed pins, and fail-closed tests. It adds no UI, provider request,
    MCP, desktop, application work, or live evidence.
-2. **Intent disclosure and tool-free provider compilation:** first implement a
-   local Host surface that shows the exact text, provider/model, purpose, and
-   data-use warning and requires exact `COMPILE`. Only then may it make one
-   tool-free provider call for an untrusted `TaskIntent` and validate it locally.
-   The gate and call require deterministic fake/offline tests before a separately
-   authorized live provider check; neither exposes tools or desktop authority.
-3. **Review-only Agent Console:** project natural-language input, the required
+2. **`GDA-DEMO-007B` — local intent disclosure and permit, implemented:** the
+   internal typed Host contract renders the exact text and exact route with a
+   reviewed conservative warning, requires exact `COMPILE`, and issues/consumes
+   one opaque permit per process-local gate instance. It has no serialized
+   loader, command, persistence, provider request, or execution port.
+3. **Future bounded provider-intent request:** revalidate current route, account
+   data controls, task, profile, and draft identity; atomically consume one
+   permit before one tool-free request; disable automatic retry; strictly load
+   the untrusted `TaskIntent` candidate locally. This requires separate
+   activation, deterministic fake tests, and later exact live-provider scope.
+4. **Review-only Agent Console:** project natural-language input, the required
    intent-disclosure gate, provider/model and profile display, validation errors,
    and Scope Sheet review in the independent Console. `Start` remains disabled
    until this surface is stable and accessible.
-4. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
+5. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
    email draft, with exact output verification and send permanently forbidden.
-5. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel
+6. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel
    roles one at a time, each with its own evidence gate.
-6. **Control and recovery composition:** add Pause/Takeover/Resume, one Decision
+7. **Control and recovery composition:** add Pause/Takeover/Resume, one Decision
    Card, E-stop, forced restart, fresh-context resume, and exact cleanup.
-7. **Formal evidence freeze:** retain fixtures, manifests, digests, recordings,
+8. **Formal evidence freeze:** retain fixtures, manifests, digests, recordings,
    sanitized traces, receipts, provider scope, cost, failures, and waivers.
 
 ## Presentation modes

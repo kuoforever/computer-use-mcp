@@ -1,11 +1,12 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-DEMO-007A` completed
-> through PR #355 as merge `0514906`.
-> **Exact next:** stop for user review. The next Formal Demo delivery step would
-> be a separately bounded local disclosure / exact `COMPILE` gate before any
-> one tool-free provider intent request, but it is not active until the user
-> explicitly authorizes it.
+> **Mode: `GDA-DEMO-007B` is the single active item.** The user explicitly
+> authorized the next Formal Demo slice on 2026-08-12 after reviewing the
+> completed `GDA-DEMO-007A` merge.
+> **Exact next:** implement and verify a pure-local, versioned Host disclosure
+> and exact `COMPILE` permit contract. The permit may bind a future one-request
+> intent-compilation attempt, but this slice must not call or instantiate any
+> provider, Runner, MCP, Driver, desktop, application, durable run, or launcher.
 > The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
 > No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
@@ -34,9 +35,7 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
-
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+| `GDA-DEMO-007B` | Active; implementation authorized | Add a pure-local Formal Demo intent-disclosure and exact `COMPILE` permit boundary without any external call or execution port | Versioned Host-reviewed typed disclosure records bind the exact source text/digest, exact provider/model/route identity, inert draft/resume identity, TaskIntent-only purpose, conservative reviewed data-use/retention warning, and explicit zero-start/zero-authority facts. Only exact case-sensitive `COMPILE` may create one bounded digest-pinned permit. This slice exposes no serialized disclosure/permit loader: wrong runtime types or versions, unreviewed profile pins, returned route/disclosure/current-snapshot/permit tamper, stale or mismatched task/provider/model/route/profile/resume identity, wrong/cancelled acknowledgement, copied/forged/cross-gate permit, and same-gate replay fail closed with content-free deterministic errors. One-shot means one process-local gate instance, not crash-safe, process-wide, or network exactly-once. Trusted Host code is inside the process trust boundary; hostile reflection that rewrites private gate memory is not process isolation and is outside this contract. Deterministic offline tests must prove no provider/network/Runner/MCP/Driver/desktop/application/filesystem/launcher port and no raw task bytes in the permit, receipt, disclosure bound payload, or canonical digest input. Run the complete repository gate, update owner/capability truth without promoting Provider/Desktop/Application/E4/release evidence, then stop for merge/review; a real or fake provider request is outside this item |
 
 ## Exact next and preserved resume points
 
@@ -45,7 +44,7 @@ evidence record is never permission to start another item.
 | Cloud provider E3 | Preserved resume point; waiting for another user-created supported regional account | With matching authorization, run one exact provider/model/region harmless fake-MCP E3 matrix and repair only reproduced incompatibilities. Never inherit evidence across routes, regions, or models |
 | Local provider E3 | Deferred by the user | None until the user explicitly resumes one named loopback server/model scope |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
-| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A` merged; the internal v1 contracts are offline verified, while Console, provider compilation, launcher, executable application adapters, and formal evidence remain unimplemented | Stop for user review. A future local disclosure / exact `COMPILE` gate plus one tool-free provider intent request requires separate activation; do not restore retired `GDA-DEMO-006`, open MCP/desktop/application work, or infer application/Universal GUI acceptance |
+| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A` merged; `GDA-DEMO-007B` is active only for the pure-local disclosure/permit boundary. Console, provider compilation, launcher, executable application adapters, and formal evidence remain unimplemented | Complete the local disclosure and exact `COMPILE` permit contracts and offline tests, then stop. Any provider intent request remains a separately activated next slice; do not restore retired `GDA-DEMO-006`, open MCP/desktop/application work, or infer application/Universal GUI acceptance |
 | [Application coverage](docs/APPLICATION_EVALUATION_MATRIX.md) | Planned evidence program, not active | BOSS, Google Docs, WeChat, and their legacy cross-application scenario remain representative Coverage Set A cases. They do not define the Formal Demo story or project priority; promote each case only through its own retained gates |
 | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration gate, not active | Assemble only after selected application, safety, authority, observation, operator-UX, and enterprise gates retain executable evidence. Its 3-minute edit is not Formal Demo v1 |
 | Hierarchical control and learning | H1-H8 and L0-L4 complete only at their recorded bounded offline or injected-runtime scopes; L5 inactive | L5 requires separate privacy, security, evaluation, deployment, and rollback consent |

@@ -26,7 +26,8 @@ Center 和协作式控制各有自己的命令。
 
 当前**没有**可以接收任意自然语言任务的统一 Agent Console，也没有通用的
 `recipe list -> review -> start -> status` 产品入口。内部已经有离线-only 的
-`TaskIntent`、scenario、role profile 和通用 Scope Sheet 数据合同，但没有命令、
+`TaskIntent`、scenario、role profile、通用 Scope Sheet，以及敏感本地 disclosure /
+exact `COMPILE` 的进程内 permit 合同，但没有命令、serialized gate loader、
 provider call、可执行 adapter、durable run 或应用证据；独立 Demo launcher 仍未
 实现，不能从这些数据合同推断为当前产品能力。当前授权工作和安全恢复点只看
 [Project status](PROJECT_STATUS.md)，能力及证据只看
@@ -97,9 +98,12 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
    [项目总览中的 current/planned architecture](docs/PROJECT_OVERVIEW.md)。
 2. **Formal Demo v1：**选定的产品故事是 GitHub Issues fixture -> PDF ->
    disposable Excel -> disposable Word -> test-account email draft（绝不发送）。
-   第一切片已实现四个 inert v1 数据合同、严格 loader、reviewed pin、canonical
-   digest 和 fail-closed 离线测试；email role 仍是 `UNSELECTED`，完整产品场景会
-   确定性停止。Console、provider intent call、launcher、可执行应用 adapter、
+   前两切片已实现四个 inert v1 数据合同，以及 typed 敏感本地 disclosure、
+   reviewed warning pin 和单 gate 实例 exact `COMPILE` permit；email role 仍是
+   `UNSELECTED`，完整产品场景会确定性停止。原始任务只保留在本地内存 disclosure
+   与显示中，permit/receipt 只绑定其 digest；没有 serialized gate loader，也不
+   提供跨进程 exactly-once。
+   Console、provider intent call、launcher、可执行应用 adapter、
    durable run 和正式证据仍未实现。详见[Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
 3. **Application Coverage Set A：**BOSS、Google Docs、WeChat 继续作为独立的
    真实应用覆盖与证据用例，不再定义 Formal Demo，也不是自动获得优先级的
@@ -134,9 +138,9 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 > 只审查当前架构和文档，不改 Runtime。列出 implemented、partial、planned，
 > 并指出每一项的 owner、证据和准确下一步。
 
-> 把 Formal Demo v1 的第一个实现切片限定为离线、无 provider/MCP/desktop 的
-> `TaskIntent` 与 scenario contract；保留 Full Cycle 和 provider E3 恢复点，
-> 不实现 Console、应用 adapter 或 Demo 运行。
+> 把 Formal Demo v1 的下一实现切片限定为离线、无 provider/MCP/desktop 的
+> typed local disclosure 与 exact `COMPILE` permit；保留 Full Cycle 和 provider
+> E3 恢复点，不实现 Console、provider request、应用 adapter 或 Demo 运行。
 
 > 设计 OpenClaw-like 的产品入口时，只做 Host-owned front-door contract；复用
 > 现有 Runner/MCP，不增加 daemon、scheduler、plugin gateway、Multi-Agent 或
