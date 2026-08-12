@@ -56,6 +56,13 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **Formal Demo v1 offline contracts.** Added four inert internal v1 data
+  contracts for untrusted intent, Host-reviewed scenario and semantic-role
+  pins, generic Scope review, and a domain-separated canonical binding digest.
+  Exact-key bounded loaders, Unicode-stable canonicalization, tamper and stale
+  pin detection, authority rejection, and an explicitly unselected email role
+  fail closed without Provider, Runner, MCP, Driver, filesystem, network, CLI,
+  desktop, or application ports. This is not a Demo launcher or live evidence.
 - **Eight exact provider profiles.** Agent ordinary, Planner, and final-response
   routing now supports OpenAI, Anthropic, Qwen, Doubao, Kimi, DeepSeek, GLM,
   and MiniMax over reviewed Responses, Chat Completions, and Messages wire

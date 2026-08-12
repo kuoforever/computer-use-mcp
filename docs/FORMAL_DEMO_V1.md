@@ -1,9 +1,12 @@
 # Formal Demo v1
 
-> **Status: planned product contract; not implemented and not executable.** This
-> document owns the selected Formal Demo v1 story and its staged delivery
-> boundary. It does not activate an implementation item, promote application
-> evidence, or replace [Project status](../PROJECT_STATUS.md).
+> **Status: the `GDA-DEMO-007A` internal offline contract slice is implemented;
+> the Formal Demo product is not executable.** This document owns the selected
+> Formal Demo v1 story and its staged delivery boundary. The implemented slice
+> adds inert v1 data contracts and fail-closed compilation only. It does not
+> add a Console, provider call, launcher, executable application adapter,
+> durable run, Formal Demo evidence, or authority to activate later work.
+> [Project status](../PROJECT_STATUS.md) remains the only operational tracker.
 
 ## Decision
 
@@ -20,10 +23,10 @@ GitHub Issues fixture -> related PDF -> disposable Excel analysis
   -> disposable Word report -> test-account email draft (never send)
 ~~~
 
-These products are the selected Formal Demo v1 adapters, not a claim that the
-applications are supported today. The earlier BOSS, Google Docs, and WeChat
-cases remain independent [application coverage](APPLICATION_EVALUATION_MATRIX.md)
-and do not define this Demo.
+These products are selected semantic-role targets, not executable or verified
+adapters. The earlier BOSS, Google Docs, and WeChat cases remain independent
+[application coverage](APPLICATION_EVALUATION_MATRIX.md) and do not define
+this Demo.
 
 ## Product boundary
 
@@ -51,22 +54,54 @@ future adapters cannot bypass the Runner. Policy, approval, grounding, budgets,
 WAL, audit, mandatory post-action observation, recovery classification, and
 unknown-outcome no-replay remain Host/Runner-owned.
 
-## Planned versioned contracts
+## Implemented offline v1 contracts
 
-The names below describe the first proposed implementation program. No public
-schema exists until an activated implementation slice adds code and tests.
+`src/computer_use_agent/formal_demo_contract.py` implements the following four
+stdlib-only frozen data structures. The module has no Provider, Runner, MCP,
+Driver, filesystem, network, CLI, or application port. Its Python API is an
+internal contract surface, not a user command or product launcher.
 
-| Contract | Planned responsibility | Explicit non-authority |
+| Contract | Implemented offline responsibility | Explicit non-authority |
 | --- | --- | --- |
 | `TaskIntent v1` | Strict untrusted representation of the requested outcome, selected role candidates, constraints, and requested outputs | Cannot select tools, grant permission, add an application, widen risk, or start work |
 | `DemoScenarioSpec v1` | Host-authored allowlist of roles, outcome classes, budgets, fixtures, risk ceiling, and forbidden effects | Contains no callable, executable, coordinates, transient refs, model prose, or click sequence |
 | `ApplicationRoleProfile v1` | Reviewed mapping from one semantic role to one bounded adapter and test-data boundary | Registration is not application evidence and does not create action authority |
-| Generic Scope Sheet | Host-compiled review of goal, applications, reads, changes, outputs, budgets, approvals, stops, residue, and forbidden effects | Review and `START` approve no individual action and grant no retry or replay authority |
+| `GenericScopeSheet v1` | Host-compiled review of goal, applications, reads, changes, outputs, budgets, approvals, stops, residue, and forbidden effects | Review and `START` approve no individual action and grant no retry or replay authority |
 | Canonical scenario digest | Binds the reviewed intent envelope, profiles, constraints, and resume identity | A new prompt or changed profile cannot mutate an existing run |
 
-Provider output remains untrusted data. The Host must reject refusal,
-truncation, malformed structure, unknown roles, unavailable profiles, scope
-expansion, ambiguous outputs, and budget overflow before any external work.
+The strict in-memory loaders use exact keys and independent version `1` for all
+four structures. A `TaskIntent` candidate is capped at 16 KiB, the exact source
+task at 8 KiB, and the other canonical artifacts at 64 KiB. Compact sorted
+UTF-8 JSON and domain-separated SHA-256 digests bind the source-task digest,
+validated intent, reviewed scenario, ordered profiles, effective constraints
+and budgets, and resume identity. First compilation creates that binding;
+every Scope artifact reload requires the previously retained binding digest,
+so a changed intent/profile set cannot silently re-sign an existing run.
+Unknown or duplicate keys, unsupported
+versions, invalid numeric forms, oversized Unicode after canonicalization,
+tamper, stale digest pins, duplicate roles, ambiguous outputs, unavailable
+profiles, and scope or budget expansion fail with content-free deterministic
+errors.
+
+Structurally valid decoded scenario/profile data is not thereby reviewed. The
+public product compiler accepts only exact built-in scenario and profile
+`id`/version/digest pins. The internal structural compiler is exercised with
+synthetic test-only records and marks the resulting Scope Sheet as not
+registry-reviewed. Five target records exist: four contain selected inert
+symbolic design bindings, while the email role remains explicitly
+`UNSELECTED`. Compiling the complete built-in product scenario therefore stops
+with `FORMAL_DEMO_PROFILE_UNAVAILABLE`. This is expected and does not establish
+adapter availability or application evidence.
+
+Provider output remains untrusted data. The future Host path must reject
+refusal, truncation, malformed structure, unknown roles, unavailable profiles,
+scope expansion, ambiguous outputs, and budget overflow before any downstream
+provider, durable-workflow, MCP, desktop, or application startup. Free-form
+task text never grants authority; typed Host-owned allowlists define the only
+admissible outcome, roles, outputs, constraints, risk, and budgets. The generic
+Scope Sheet says only that its compilation starts no external work and grants
+no execution authority; it does not claim that a separately reviewed intent
+provider call never occurred.
 
 The intent call is itself external data disclosure, so it requires a separate
 inert review before the call. That review is Host-fixed and local: it names the
@@ -152,10 +187,10 @@ outcome. `UNCERTAIN` is visibly distinct from success and ordinary failure.
 Each item requires explicit activation in [Project status](../PROJECT_STATUS.md).
 Writing this plan activates none of them.
 
-1. **Proposed `GDA-DEMO-007A` — offline scenario contract:** implement the four
-   versioned structures above, strict loading/compilation, deterministic digests,
-   bounds, and fail-closed tests. No UI, provider request, MCP, desktop, or
-   application work.
+1. **`GDA-DEMO-007A` — offline scenario contract, implemented:** four versioned
+   inert structures, strict loading/compilation, deterministic digests, bounds,
+   exact reviewed pins, and fail-closed tests. It adds no UI, provider request,
+   MCP, desktop, application work, or live evidence.
 2. **Intent disclosure and tool-free provider compilation:** first implement a
    local Host surface that shows the exact text, provider/model, purpose, and
    data-use warning and requires exact `COMPILE`. Only then may it make one

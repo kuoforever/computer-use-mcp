@@ -1,14 +1,13 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-DOCS-005` completed
-> through PR #353 as merge `983ac0d`.
-> **Exact next:** stop for user review. The proposed first
-> implementation slice is `GDA-DEMO-007A`, a versioned offline Demo scenario and
-> `TaskIntent` contract with zero provider, MCP, desktop, or application work;
-> it is not active until the user explicitly authorizes it.
+> **Mode: `GDA-DEMO-007A` implementation acceptance is complete locally;
+> publication closure remains active.**
+> **Exact next:** publish only this bounded branch, require clear checks,
+> review, conflict, and head state, merge it, remove both feature-branch copies,
+> then record the merge in one closeout change. No later Demo slice is active.
 > The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
-> No Demo acceptance item is active. `GDA-DEMO-006` remains retired under tag
+> No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
 > `archive/gda-demo-006-pr231-5c403a5`. L5 remains inactive.
 > Updated: 2026-08-12.
 
@@ -34,9 +33,10 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
+| `GDA-DEMO-007A` | Complete locally; publication pending | Versioned offline `DemoScenarioSpec`, untrusted `TaskIntent`, reviewed `ApplicationRoleProfile` records, `GenericScopeSheet`, and deterministic canonical digest | Local acceptance passed: `2594 passed, 38 skipped`, Ruff, mypy over 168 source files, docs consistency over 13 reviewed tools, diff check, and three independent reviews. Publish and merge only if every required check/review/conflict/head gate remains clear. Stop with no provider request, MCP/Runner/Driver startup, desktop/application access, Console UI, launcher, later Demo slice, or Provider/Desktop/Application/E4/release evidence promotion |
 
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+No second row may be activated. A branch name, archived plan, capability gate,
+or dated evidence record is never permission to start another item.
 
 ## Exact next and preserved resume points
 
@@ -45,7 +45,7 @@ evidence record is never permission to start another item.
 | Cloud provider E3 | Preserved resume point; waiting for another user-created supported regional account | With matching authorization, run one exact provider/model/region harmless fake-MCP E3 matrix and repair only reproduced incompatibilities. Never inherit evidence across routes, regions, or models |
 | Local provider E3 | Deferred by the user | None until the user explicitly resumes one named loopback server/model scope |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
-| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Product direction selected; contract, Console, generic Scope Sheet, launcher, application adapters, and formal evidence are not implemented | Stop for user review. If explicitly activated later, begin only with proposed `GDA-DEMO-007A`: versioned `DemoScenarioSpec`, `TaskIntent`, reviewed role profiles, generic Scope Sheet, deterministic digest, and offline fail-closed tests. Do not restore retired `GDA-DEMO-006` or infer application/Universal GUI acceptance |
+| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A` is complete locally and pending publication; Console, provider compilation, launcher, executable application adapters, and formal evidence remain unimplemented | Complete publication closure only. Do not activate the next delivery slice, restore retired `GDA-DEMO-006`, open a provider/MCP/desktop/application surface, or infer application/Universal GUI acceptance |
 | [Application coverage](docs/APPLICATION_EVALUATION_MATRIX.md) | Planned evidence program, not active | BOSS, Google Docs, WeChat, and their legacy cross-application scenario remain representative Coverage Set A cases. They do not define the Formal Demo story or project priority; promote each case only through its own retained gates |
 | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration gate, not active | Assemble only after selected application, safety, authority, observation, operator-UX, and enterprise gates retain executable evidence. Its 3-minute edit is not Formal Demo v1 |
 | Hierarchical control and learning | H1-H8 and L0-L4 complete only at their recorded bounded offline or injected-runtime scopes; L5 inactive | L5 requires separate privacy, security, evaluation, deployment, and rollback consent |
@@ -84,7 +84,7 @@ production safety.
 | Campaign | Manifest-routed general worker implemented/internal/offline-only; BOSS has narrower retained identity/restart evidence; semantic and 100-item gates remain open |
 | Control and learning | H1-H8 and L0-L4 complete only at their recorded bounded scopes; no automatic promotion, training, or broad application claim |
 | Full Cycle | Lane A and freeze validation complete; baseline `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9` frozen; consumer paused; Lane B separately deferred |
-| Latest complete local gate | `2537 passed, 38 skipped`; Ruff; mypy over 167 source files; docs consistency over 13 reviewed tools; 2026-08-11. This is a dated snapshot, not permanent capability evidence |
+| Latest complete local gate | `2594 passed, 38 skipped`; Ruff; mypy over 168 source files; docs consistency over 13 reviewed tools; 2026-08-12. This is a dated offline snapshot, not provider, desktop, application, E4, release, or permanent capability evidence |
 
 ## Non-negotiable invariants
 
@@ -116,6 +116,7 @@ the current handoff.
 | `GDA-DOCS-004A` | Complete; merged | Reconciled current truth across tracker and owner documents | Commit `e3308a8`; PR #350 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, or unresolved thread and merged as `b3fefde`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, 400-line status, diff check, and independent truth/editorial/safety reviews. No Runtime/tool behavior or evidence level changed |
 | `GDA-DOCS-004B` | Complete; merged | Compact current status and archive chronology | Commit `60a18b4`; PR #351 passed wheel plus Python 3.11/3.12/3.13 with no review, comment, unresolved thread, conflict, or head drift and merged as `3dc8183`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, compact-status bound, diff check, and independent truth/link/safety reviews. No executable row remains active; the regional-account provider-E3 wait state is exact next |
 | `GDA-DOCS-005` | Complete; merged | Align Formal Demo, application coverage, future showcase, architecture/front-door, and user-guidance owners | Commit `6194c23`; PR #353 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, requested change, unresolved thread, conflict, or head drift and merged as `983ac0d`; both feature-branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy over 167 source files, docs consistency over 13 reviewed tools, diff check, and independent truth/link/safety reviews. No Runtime, Runner, MCP, tool/schema, provider, desktop, application, evidence, Full Cycle, L5, E4, or release behavior changed; stop for user review rather than silently starting `GDA-DEMO-007A` |
+| `GDA-DEMO-007A` | Complete locally; publication pending | Add the first inert internal Formal Demo v1 contract slice | Four strict versioned data contracts, Host-reviewed exact pins, canonical digest/bounds, required reload pins, fail-closed compiler/loaders, and 57 focused tests are implemented without execution ports. Full local gate: `2594 passed, 38 skipped`; Ruff; mypy over 168 source files; docs-13; diff check; independent contract, safety/docs, and test/packaging reviews found no blocker. Provider/Desktop/Application remain `NO`; no Console, provider request, Runner/MCP/Driver startup, desktop/application access, launcher, live Demo evidence, Full Cycle change, L5, E4, or release promotion occurred |
 
 ## Session protocol
 
