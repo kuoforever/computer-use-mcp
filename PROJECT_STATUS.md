@@ -1,10 +1,8 @@
 # Project status
 
-> **Mode: `GDA-DOCS-005` Demo/application-roadmap alignment is implementation-
-> complete and remains the sole active publication item until this exact
-> revision reaches `main` through a clear PR.** On merged `main`, it is complete
-> and no executable repository item is active.
-> **Exact next on merged `main`:** stop for user review. The proposed first
+> **Mode: no executable repository item is active.** `GDA-DOCS-005` completed
+> through PR #353 as merge `983ac0d`.
+> **Exact next:** stop for user review. The proposed first
 > implementation slice is `GDA-DEMO-007A`, a versioned offline Demo scenario and
 > `TaskIntent` contract with zero provider, MCP, desktop, or application work;
 > it is not active until the user explicitly authorizes it.
@@ -36,9 +34,8 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
-| `GDA-DOCS-005` | Implementation and local review complete; publication active | Make the current Formal Demo decision, application-coverage program, future Universal GUI showcase, architecture/front-door plan, and user instruction entry point unambiguous | One Formal Demo v1 owner, independent application coverage, future-only Universal GUI showcase, Chinese user front door, current/planned architecture, and Runner/tool impact map are synchronized. Complete local gate: `2537 passed, 38 skipped`, Ruff, mypy over 167 source files, docs consistency over 13 reviewed tools, diff check, and independent truth/link/safety reviews. Publish only through a clear PR; on merged `main`, this row is complete and the exact next remains user review. Documentation only: no Runtime, Runner, MCP, tool/schema, provider, desktop, application, evidence, Full Cycle, L5, E4, or release behavior changes |
 
-No other row is active. A branch name, archived plan, capability gate, or dated
+No row is active. A branch name, archived plan, capability gate, or dated
 evidence record is never permission to start another item.
 
 ## Exact next and preserved resume points
@@ -48,7 +45,7 @@ evidence record is never permission to start another item.
 | Cloud provider E3 | Preserved resume point; waiting for another user-created supported regional account | With matching authorization, run one exact provider/model/region harmless fake-MCP E3 matrix and repair only reproduced incompatibilities. Never inherit evidence across routes, regions, or models |
 | Local provider E3 | Deferred by the user | None until the user explicitly resumes one named loopback server/model scope |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
-| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Product direction selected; contract, Console, generic Scope Sheet, launcher, application adapters, and formal evidence are not implemented | After this documentation merge, stop for review. If explicitly activated, begin only with proposed `GDA-DEMO-007A`: versioned `DemoScenarioSpec`, `TaskIntent`, reviewed role profiles, generic Scope Sheet, deterministic digest, and offline fail-closed tests. Do not restore retired `GDA-DEMO-006` or infer application/Universal GUI acceptance |
+| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Product direction selected; contract, Console, generic Scope Sheet, launcher, application adapters, and formal evidence are not implemented | Stop for user review. If explicitly activated later, begin only with proposed `GDA-DEMO-007A`: versioned `DemoScenarioSpec`, `TaskIntent`, reviewed role profiles, generic Scope Sheet, deterministic digest, and offline fail-closed tests. Do not restore retired `GDA-DEMO-006` or infer application/Universal GUI acceptance |
 | [Application coverage](docs/APPLICATION_EVALUATION_MATRIX.md) | Planned evidence program, not active | BOSS, Google Docs, WeChat, and their legacy cross-application scenario remain representative Coverage Set A cases. They do not define the Formal Demo story or project priority; promote each case only through its own retained gates |
 | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration gate, not active | Assemble only after selected application, safety, authority, observation, operator-UX, and enterprise gates retain executable evidence. Its 3-minute edit is not Formal Demo v1 |
 | Hierarchical control and learning | H1-H8 and L0-L4 complete only at their recorded bounded offline or injected-runtime scopes; L5 inactive | L5 requires separate privacy, security, evaluation, deployment, and rollback consent |
@@ -118,7 +115,7 @@ the current handoff.
 | --- | --- | --- | --- |
 | `GDA-DOCS-004A` | Complete; merged | Reconciled current truth across tracker and owner documents | Commit `e3308a8`; PR #350 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, or unresolved thread and merged as `b3fefde`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, 400-line status, diff check, and independent truth/editorial/safety reviews. No Runtime/tool behavior or evidence level changed |
 | `GDA-DOCS-004B` | Complete; merged | Compact current status and archive chronology | Commit `60a18b4`; PR #351 passed wheel plus Python 3.11/3.12/3.13 with no review, comment, unresolved thread, conflict, or head drift and merged as `3dc8183`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, compact-status bound, diff check, and independent truth/link/safety reviews. No executable row remains active; the regional-account provider-E3 wait state is exact next |
-| `GDA-DOCS-005` | Implementation and local review complete; publication active | Align Formal Demo, application coverage, future showcase, architecture/front-door, and user-guidance owners | Active row above owns the final publication gate. Preserve the cloud-provider E3 and every other resume point; stop for user review after a clear merge rather than silently starting `GDA-DEMO-007A` |
+| `GDA-DOCS-005` | Complete; merged | Align Formal Demo, application coverage, future showcase, architecture/front-door, and user-guidance owners | Commit `6194c23`; PR #353 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, requested change, unresolved thread, conflict, or head drift and merged as `983ac0d`; both feature-branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy over 167 source files, docs consistency over 13 reviewed tools, diff check, and independent truth/link/safety reviews. No Runtime, Runner, MCP, tool/schema, provider, desktop, application, evidence, Full Cycle, L5, E4, or release behavior changed; stop for user review rather than silently starting `GDA-DEMO-007A` |
 
 ## Session protocol
 
