@@ -31,6 +31,7 @@ from computer_use_agent.formal_demo_contract import (
     decode_task_intent,
     decode_task_intent_artifact,
     resolve_reviewed_formal_demo_profile,
+    validate_task_intent_for_reviewed_scenario,
 )
 
 
@@ -760,6 +761,75 @@ def test_outcome_role_output_constraint_risk_and_budget_expansion_fail_closed(
             _synthetic_profiles(),
             resume_identity=RESUME_IDENTITY,
         )
+
+
+def test_validate_only_boundary_accepts_exact_reviewed_intent_and_rejects_expansion() -> None:
+    intent = _intent()
+    validated = validate_task_intent_for_reviewed_scenario(
+        intent,
+        FORMAL_DEMO_V1_SCENARIO,
+    )
+    assert validated == intent
+    assert validated is not intent
+    assert validated.budgets is not intent.budgets
+
+    widened = _intent(requested_outputs=[*OUTPUTS, "unknown_output"])
+    with pytest.raises(FormalDemoContractError, match="^FORMAL_DEMO_SCOPE_EXPANSION$"):
+        validate_task_intent_for_reviewed_scenario(
+            widened,
+            FORMAL_DEMO_V1_SCENARIO,
+        )
+
+    tampered_scenario = replace(
+        FORMAL_DEMO_V1_SCENARIO,
+        outcomes={
+            **FORMAL_DEMO_V1_SCENARIO.outcomes,
+            "attacker_outcome": "Attacker-selected outcome.",
+        },
+    )
+    with pytest.raises(
+        FormalDemoContractError,
+        match="^FORMAL_DEMO_SCENARIO_PIN_MISMATCH$",
+    ):
+        validate_task_intent_for_reviewed_scenario(intent, tampered_scenario)
+
+    with pytest.raises(
+        FormalDemoContractError,
+        match="^FORMAL_DEMO_INTENT_VALIDATION_INVALID$",
+    ):
+        validate_task_intent_for_reviewed_scenario(
+            object(),  # type: ignore[arg-type]
+            FORMAL_DEMO_V1_SCENARIO,
+        )
+
+    class ForgedBudgets:
+        artifacts = 3
+
+        def within(self, _ceilings: object) -> bool:
+            return True
+
+    tampered_intent = _intent()
+    object.__setattr__(tampered_intent, "budgets", ForgedBudgets())
+    with pytest.raises(
+        FormalDemoContractError,
+        match="^FORMAL_DEMO_INTENT_VALIDATION_INVALID$",
+    ):
+        validate_task_intent_for_reviewed_scenario(
+            tampered_intent,
+            FORMAL_DEMO_V1_SCENARIO,
+        )
+
+    missing_budget_intent = _intent()
+    object.__delattr__(missing_budget_intent, "budgets")
+    with pytest.raises(
+        FormalDemoContractError,
+        match="^FORMAL_DEMO_INTENT_VALIDATION_INVALID$",
+    ) as caught:
+        validate_task_intent_for_reviewed_scenario(
+            missing_budget_intent,
+            FORMAL_DEMO_V1_SCENARIO,
+        )
+    assert caught.value.__context__ is None
 
 
 def test_profile_set_must_be_exact_available_and_unambiguous() -> None:

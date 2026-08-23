@@ -1,12 +1,15 @@
 # Formal Demo v1
 
-> **Status: the `GDA-DEMO-007A` and `GDA-DEMO-007B` internal offline contract
-> slices are implemented; the Formal Demo product is not executable.** This
+> **Status: the `GDA-DEMO-007A`, `GDA-DEMO-007B`, and `GDA-DEMO-007C` internal
+> offline contract slices are implemented; the Formal Demo product is not
+> executable.** This
 > document owns the selected Formal Demo v1 story and its staged delivery
-> boundary. The implemented slices add inert v1 scenario/Scope contracts plus
-> a pure-local intent disclosure and exact `COMPILE` permit. They do not add a
-> Console, provider request, launcher, executable application adapter, durable
-> run, Formal Demo evidence, or authority to activate later work.
+> boundary. The implemented slices add inert v1 scenario/Scope contracts, a
+> pure-local intent disclosure and exact `COMPILE` permit, and a provider-neutral
+> one-attempt coordinator exercised only through injected deterministic fakes.
+> They do not add a Console, concrete provider adapter or request, credential
+> access, launcher, executable application adapter, durable run, Formal Demo
+> evidence, or authority to activate later work.
 > [Project status](../PROJECT_STATUS.md) remains the only operational tracker.
 
 ## Decision
@@ -40,8 +43,10 @@ operator
   -> planned Agent Console
   -> local intent-disclosure review contract [implemented internally; no command]
   -> exact COMPILE process-local permit [implemented; no provider request]
-  -> tool-free provider call for an untrusted TaskIntent candidate [planned]
-  -> Host validation against reviewed scenario and application-role profiles
+  -> one-attempt Host coordinator [implemented internally; injected fake only]
+  -> concrete tool-free provider adapter/call [planned; no credential wiring]
+  -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
+  -> Host validation against reviewed application-role profiles
   -> Host-compiled Scope Sheet and explicit START
   -> existing H-tree / campaign control
   -> existing Agent Runner
@@ -150,12 +155,45 @@ non-sensitive: whatever the operator includes in the exact displayed text would
 be disclosed by the future request. Current provider terms and account data
 controls must be revalidated in that separately authorized live slice.
 
-The future intent call is external work and remains unimplemented. A future
-consumer must re-resolve current task/route/profile/draft bindings, atomically
-consume its one attempt before sending, disable tools and automatic retries,
-and treat the returned `TaskIntent` candidate as untrusted. A local-only intent
-compiler could replace that call, but it cannot be silently selected as a
-provider fallback.
+### `GDA-DEMO-007C` offline one-attempt coordinator
+
+`src/computer_use_agent/formal_demo_intent_request.py` implements a third
+stdlib-only internal boundary. It accepts the existing gate and permit, one
+current typed disclosure, one exact built-in scenario pin, and one injected
+`IntentCandidatePort`. Local preflight resolves the reviewed scenario before
+consumption. The gate then revalidates the exact task/route/profile/draft
+bindings and moves to `CONSUMED` before the port can be entered. One process-local
+gate therefore permits at most one injected call even under concurrent callers;
+port descriptors are not resolved before consumption; refusal, truncation,
+ordinary port failure, sanitized cancellation or process-control propagation,
+malformed or oversized candidate data, and scenario pin drift or role, output,
+constraint, risk, or budget expansion remain terminal and cannot retry the
+consumed permit.
+
+The sensitive request exposes the exact task only to trusted in-process Host and
+injected-port code. Its digest payload, `repr`, copy, pickle, and terminal
+consumption omit the raw task and candidate. The returned attempt contains the
+strictly rebuilt, bounded, source-task-digest-bound, reviewed-scenario-validated
+`TaskIntent`, but omits both the raw task and the raw candidate JSON/envelope.
+Port and candidate-decoder failures cross the coordinator only as sanitized
+control flow or fixed error codes without the original exception context. This
+boundary does not resolve application profiles, compile a Scope Sheet, grant
+`START`, or open durable workflow or execution authority.
+
+The module ships no concrete port implementation or fake in production source,
+provider SDK/client/factory, configuration or environment read, API-key path,
+network/socket/HTTP call, filesystem store, CLI/Console, persistence, Runner,
+MCP, Driver, desktop, application, or Full Cycle integration. Its deterministic
+tests inject an in-test fake only. This proves process-local at-most-once ordering,
+not crash-safe or process-wide exactly-once, provider compatibility, or that any
+external request occurred.
+
+The future live intent call remains external work and is unimplemented and
+deferred. A future separately authorized concrete adapter must revalidate current
+route, account data controls, task, profile, and draft identity, use this
+pre-consumed one-attempt boundary without tools or automatic retry, and treat the
+returned candidate as untrusted. A local-only intent compiler could replace that
+call, but it cannot be silently selected as a provider fallback.
 
 ## Selected role profiles and boundaries
 
@@ -241,22 +279,29 @@ Writing this plan activates none of them.
    reviewed conservative warning, requires exact `COMPILE`, and issues/consumes
    one opaque permit per process-local gate instance. It has no serialized
    loader, command, persistence, provider request, or execution port.
-3. **Future bounded provider-intent request:** revalidate current route, account
-   data controls, task, profile, and draft identity; atomically consume one
-   permit before one tool-free request; disable automatic retry; strictly load
-   the untrusted `TaskIntent` candidate locally. This requires separate
-   activation, deterministic fake tests, and later exact live-provider scope.
+3. **`GDA-DEMO-007C` — offline one-attempt coordinator, implemented:** exact
+   reviewed-scenario preflight, current disclosure/permit revalidation,
+   consume-before-call ordering, one injected deterministic fake call, no retry,
+   strict candidate loading, and reviewed-scenario validation. It adds no
+   concrete provider, credential, network, Console, persistence, or execution
+   port and proves no provider evidence.
 4. **Review-only Agent Console:** project natural-language input, the required
    intent-disclosure gate, provider/model and profile display, validation errors,
-   and Scope Sheet review in the independent Console. `Start` remains disabled
-   until this surface is stable and accessible.
-5. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
+   and Scope Sheet review in the independent Console. This no-key surface may be
+   activated independently; `Start` remains disabled until it is stable and
+   accessible.
+5. **Future live provider-intent adapter:** revalidate current route, account data
+   controls, task, profile, and draft identity; use the pre-consumed boundary for
+   one tool-free request with no automatic retry. This requires separate
+   activation and exact live-provider scope and is deferred under the current
+   no-E3/no-API-key direction.
+6. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
    email draft, with exact output verification and send permanently forbidden.
-6. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel
+7. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel
    roles one at a time, each with its own evidence gate.
-7. **Control and recovery composition:** add Pause/Takeover/Resume, one Decision
+8. **Control and recovery composition:** add Pause/Takeover/Resume, one Decision
    Card, E-stop, forced restart, fresh-context resume, and exact cleanup.
-8. **Formal evidence freeze:** retain fixtures, manifests, digests, recordings,
+9. **Formal evidence freeze:** retain fixtures, manifests, digests, recordings,
    sanitized traces, receipts, provider scope, cost, failures, and waivers.
 
 ## Presentation modes

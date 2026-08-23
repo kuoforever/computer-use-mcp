@@ -1820,14 +1820,104 @@ def resolve_reviewed_formal_demo_scenario(
         digest,
         code="FORMAL_DEMO_SCENARIO_PIN_MISMATCH",
     )
+    reviewed_pin = _FORMAL_DEMO_V1_SCENARIO_PINS_BY_ID.get(selected_id)
     scenario = FORMAL_DEMO_V1_SCENARIOS_BY_ID.get(selected_id)
     if (
-        scenario is None
+        reviewed_pin != (version, selected_digest)
+        or scenario is None
         or scenario.version != version
         or scenario.content_digest != selected_digest
     ):
         raise FormalDemoContractError("FORMAL_DEMO_SCENARIO_PIN_MISMATCH")
     return scenario
+
+
+def _validated_task_intent_snapshot(intent: object) -> TaskIntent:
+    """Rebuild one exact TaskIntent so frozen-instance tampering cannot pass."""
+
+    if type(intent) is not TaskIntent:
+        raise FormalDemoContractError("FORMAL_DEMO_INTENT_VALIDATION_INVALID")
+    invalid = False
+    snapshot: TaskIntent | None = None
+    try:
+        budgets = intent.budgets
+        invalid = (
+            type(intent.version) is not int
+            or type(intent.source_task_digest) is not str
+            or type(intent.scenario_id) is not str
+            or type(intent.outcome_id) is not str
+            or type(intent.requested_roles) is not tuple
+            or any(type(role) is not SemanticRole for role in intent.requested_roles)
+            or type(intent.requested_outputs) is not tuple
+            or any(type(output) is not str for output in intent.requested_outputs)
+            or type(intent.constraint_ids) is not tuple
+            or any(type(item) is not str for item in intent.constraint_ids)
+            or type(intent.risk_ceiling) is not DemoRiskCeiling
+            or type(budgets) is not DemoBudgets
+            or any(type(getattr(budgets, field)) is not int for field in _BUDGET_FIELDS)
+        )
+        if not invalid:
+            snapshot = TaskIntent(
+                version=intent.version,
+                source_task_digest=intent.source_task_digest,
+                scenario_id=intent.scenario_id,
+                outcome_id=intent.outcome_id,
+                requested_roles=intent.requested_roles,
+                requested_outputs=intent.requested_outputs,
+                constraint_ids=intent.constraint_ids,
+                risk_ceiling=intent.risk_ceiling,
+                budgets=DemoBudgets(
+                    provider_calls=budgets.provider_calls,
+                    tool_calls=budgets.tool_calls,
+                    side_effects=budgets.side_effects,
+                    retries=budgets.retries,
+                    artifacts=budgets.artifacts,
+                ),
+            )
+    except BaseException:
+        invalid = True
+    if invalid or snapshot is None:
+        raise FormalDemoContractError("FORMAL_DEMO_INTENT_VALIDATION_INVALID")
+    return snapshot
+
+
+def _reviewed_scenario_snapshot(scenario: object) -> DemoScenarioSpec:
+    """Resolve and detach one immutable copy from the mutable module binding."""
+
+    if type(scenario) is not DemoScenarioSpec:
+        raise FormalDemoContractError("FORMAL_DEMO_INTENT_VALIDATION_INVALID")
+    supplied_digest = scenario.content_digest
+    reviewed_scenario = resolve_reviewed_formal_demo_scenario(
+        scenario.scenario_id,
+        version=scenario.version,
+        digest=supplied_digest,
+    )
+    if reviewed_scenario is not scenario and reviewed_scenario != scenario:
+        raise FormalDemoContractError("FORMAL_DEMO_SCENARIO_PIN_MISMATCH")
+    snapshot = decode_demo_scenario_spec(reviewed_scenario.canonical_json())
+    if (
+        snapshot.content_digest != supplied_digest
+        or reviewed_scenario.content_digest != supplied_digest
+        or scenario.content_digest != supplied_digest
+    ):
+        raise FormalDemoContractError("FORMAL_DEMO_SCENARIO_PIN_MISMATCH")
+    return snapshot
+
+
+def validate_task_intent_for_reviewed_scenario(
+    intent: TaskIntent,
+    scenario: DemoScenarioSpec,
+) -> TaskIntent:
+    """Validate untrusted intent data against one exact built-in scenario pin.
+
+    This is a validate-only boundary.  It does not resolve application profiles,
+    compile a Scope Sheet, grant ``START``, or open an execution port.
+    """
+
+    intent_snapshot = _validated_task_intent_snapshot(intent)
+    scenario_snapshot = _reviewed_scenario_snapshot(scenario)
+    _validate_intent_against_scenario(intent_snapshot, scenario_snapshot)
+    return intent_snapshot
 
 
 FORMAL_DEMO_V1_SCENARIO = DemoScenarioSpec(
@@ -1979,6 +2069,17 @@ FORMAL_DEMO_V1_SCENARIOS_BY_ID: Mapping[str, DemoScenarioSpec] = MappingProxyTyp
     {FORMAL_DEMO_V1_SCENARIO.scenario_id: FORMAL_DEMO_V1_SCENARIO}
 )
 
+_FORMAL_DEMO_V1_SCENARIO_PINS_BY_ID: Mapping[str, tuple[int, str]] = (
+    MappingProxyType(
+        {
+            FORMAL_DEMO_V1_SCENARIO.scenario_id: (
+                FORMAL_DEMO_V1_SCENARIO.version,
+                FORMAL_DEMO_V1_SCENARIO.content_digest,
+            )
+        }
+    )
+)
+
 
 __all__ = [
     "APPLICATION_ROLE_PROFILE_VERSION",
@@ -2010,4 +2111,5 @@ __all__ = [
     "decode_task_intent_artifact",
     "resolve_reviewed_formal_demo_profile",
     "resolve_reviewed_formal_demo_scenario",
+    "validate_task_intent_for_reviewed_scenario",
 ]
