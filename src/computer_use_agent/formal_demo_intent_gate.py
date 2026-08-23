@@ -946,7 +946,7 @@ class IntentCompileGate:
                     == self._disclosure.task_intent_version
                     and permit.content_digest == self._issued_permit_digest
                 )
-            except Exception:
+            except BaseException:
                 matches = False
             if not matches:
                 self._state = IntentCompileGateState.CANCELLED
