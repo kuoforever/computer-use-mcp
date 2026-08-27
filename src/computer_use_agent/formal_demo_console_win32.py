@@ -778,7 +778,7 @@ class Win32FormalDemoConsoleApi:
                 _DETAIL_EDIT_ID,
                 ex_style=_WS_EX_CLIENTEDGE,
             ),
-            ack_label=create(hwnd, "STATIC", "Exact COMPILE", _SS_LEFT | _SS_NOPREFIX, _ACK_LABEL_ID),
+            ack_label=create(hwnd, "STATIC", "COMPILE", _SS_LEFT | _SS_NOPREFIX, _ACK_LABEL_ID),
             ack_edit=create(
                 hwnd,
                 "EDIT",

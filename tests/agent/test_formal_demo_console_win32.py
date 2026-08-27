@@ -332,7 +332,11 @@ def test_hidden_400_percent_fixed_copy_fits_real_native_font(
                 )
                 assert client.bottom - client.top >= extent.cy
                 padding = 16 if control in button_handles else 0
-                assert client.right - client.left >= extent.cx + padding
+                assert client.right - client.left >= extent.cx + padding, (
+                    text,
+                    client.right - client.left,
+                    extent.cx + padding,
+                )
         finally:
             gdi32.SelectObject(dc, previous)
             assert user32.ReleaseDC(wintypes.HWND(hwnd), dc)
