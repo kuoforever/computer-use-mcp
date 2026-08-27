@@ -90,8 +90,77 @@ jobs:
       - name: Install wheel into clean environment
         shell: pwsh
         run: |
-          python -m venv .wheel-venv
+          python -m venv .console-wheel-venv
+          if ($LASTEXITCODE -ne 0) { throw "Console wheel environment creation failed" }
           $wheelPath = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          .\.console-wheel-venv\Scripts\python.exe -m pip install --disable-pip-version-check $wheelPath
+          if ($LASTEXITCODE -ne 0) { throw "Console base-wheel install failed" }
+          $consolePython = (Resolve-Path .\.console-wheel-venv\Scripts\python.exe).Path
+          $consoleCommand = (Resolve-Path .\.console-wheel-venv\Scripts\guarded-desktop-agent-console.exe).Path
+          Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:DASHSCOPE_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:ARK_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:MOONSHOT_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:DEEPSEEK_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:ZAI_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:MINIMAX_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:LOCAL_OPENAI_API_KEY -ErrorAction SilentlyContinue
+          Push-Location $env:RUNNER_TEMP
+          try {
+            & $consoleCommand --help
+            if ($LASTEXITCODE -ne 0) { throw "Console help smoke failed" }
+            $description = & $consoleCommand --provider openai --model wheel-smoke --describe
+            if ($LASTEXITCODE -ne 0) { throw "Console describe smoke failed" }
+            $payload = $description | ConvertFrom-Json
+            if (
+              $payload.scope_available -ne $false -or
+              $payload.start_enabled -ne $false -or
+              $payload.provider_request_started -ne $false
+            ) {
+              throw "Console describe authority boundary failed"
+            }
+            $nativeSmoke = @'
+          import importlib.util
+
+          assert importlib.util.find_spec("openai") is None
+          assert importlib.util.find_spec("anthropic") is None
+
+          from computer_use_agent.formal_demo_console import (
+              FormalDemoConsoleCallbacks,
+              FormalDemoConsoleSession,
+              build_console_route,
+          )
+          from computer_use_agent.formal_demo_console_win32 import Win32FormalDemoConsoleApi
+
+          api = Win32FormalDemoConsoleApi()
+          session = FormalDemoConsoleSession(
+              build_console_route(provider_id="openai", model_id="wheel-smoke"),
+              identity_factory=lambda: "wheel-smoke",
+          )
+          callbacks = FormalDemoConsoleCallbacks(
+              on_review=lambda: None,
+              on_acknowledge=lambda: None,
+              on_reset=lambda: None,
+              on_cancel=lambda: None,
+          )
+          hwnd = api.create(title="wheel smoke", callbacks=callbacks)
+          try:
+              api.apply(hwnd, session.view())
+              assert not api.start_control_enabled(hwnd)
+          finally:
+              try:
+                  api.destroy(hwnd)
+              finally:
+                  api.dispose()
+          '@
+            & $consolePython -c $nativeSmoke
+            if ($LASTEXITCODE -ne 0) { throw "Console native base-wheel smoke failed" }
+          } finally {
+            Pop-Location
+          }
+          python -m venv .wheel-venv
+          if ($LASTEXITCODE -ne 0) { throw "Agent wheel environment creation failed" }
           $wheelSpec = '{0}[agent-openai,agent-anthropic]' -f $wheelPath
           .\.wheel-venv\Scripts\python.exe -m pip install --disable-pip-version-check $wheelSpec
           .\.wheel-venv\Scripts\guarded-desktop-agent.exe --help

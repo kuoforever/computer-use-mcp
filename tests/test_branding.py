@@ -32,6 +32,9 @@ def test_distribution_exposes_canonical_and_compatibility_commands() -> None:
     assert project["scripts"] == {
         "guarded-desktop-mcp": "computer_use_mcp.server:main",
         "guarded-desktop-agent": "computer_use_agent.cli:main",
+        "guarded-desktop-agent-console": (
+            "computer_use_agent.formal_demo_console_launcher:main"
+        ),
         "computer-use-mcp": "computer_use_mcp.server:main",
         "computer-use-agent": "computer_use_agent.cli:main",
     }

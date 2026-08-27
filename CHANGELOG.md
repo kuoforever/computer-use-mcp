@@ -56,6 +56,20 @@ a version number states what is packaged, never what has been verified.
 
 ### Added
 
+- **No-key Review-only Formal Demo Console.** Added the independent
+  `guarded-desktop-agent-console` Windows entry for one process-local draft,
+  exact operator-selected model plus reviewed provider route/profile disclosure,
+  fixed validation codes, and
+  one inert permit after exact `COMPILE`. It reads no Agent config, credential,
+  or provider environment; makes no provider request; reports the built-in
+  Scope unavailable and email role `UNSELECTED`; and keeps a native `Start`
+  control disabled, outside the tab order, and without a callback. Hidden Win32
+  tests cover actual focus routing, work-area/DPI reflow, resize/minimize,
+  callback failure cleanup, repeated native lifecycle, and inert clicks. The
+  base-wheel smoke runs without provider SDK extras. This adds no permit
+  consumption, positive Scope, Runner, MCP, desktop-automation, application,
+  persistence, Full Cycle, Provider/Desktop/Application evidence, or complete
+  Formal Demo claim.
 - **Formal Demo local intent-disclosure gate.** Added a pure-local typed v1
   disclosure that renders the exact sensitive task and exact provider route
   validated against reviewed static routing rules, with a conservative warning,

@@ -24,12 +24,16 @@
 只读提问、一个固定 Chrome-to-Word 工作流、配置检查、Pre-run Review、Task
 Center 和协作式控制各有自己的命令。
 
-当前**没有**可以接收任意自然语言任务的统一 Agent Console，也没有通用的
-`recipe list -> review -> start -> status` 产品入口。内部已经有离线-only 的
+当前**没有**可以理解并执行任意自然语言任务的统一 Agent Console，也没有通用的
+`recipe list -> review -> start -> status` 产品入口。现在已有一个独立的
+Review-only Windows Console；它只接收一段进程内草稿，展示用户原样选择的 model、
+静态审核过的 provider route/profile 与本地 disclosure，并在 exact `COMPILE` 后签发一个不可执行
+permit。内部也已有离线-only 的
 `TaskIntent`、scenario、role profile、通用 Scope Sheet，以及敏感本地 disclosure /
-exact `COMPILE` 的进程内 permit 合同，但没有命令、serialized gate loader、
-provider call、可执行 adapter、durable run 或应用证据；独立 Demo launcher 仍未
-实现，不能从这些数据合同推断为当前产品能力。当前授权工作和安全恢复点只看
+exact `COMPILE` 的进程内 permit 合同。这个 Console 不读 Agent 配置、API key 或
+provider 环境变量，不调用 provider；它明确显示 Scope unavailable，并让原生
+`Start` 永久禁用。它没有 permit consume、Runner、MCP、桌面自动化、应用、持久化
+或 durable run 路径；这里显示的 model 也不代表 readiness 或 compatibility，不能从该入口推断完整产品能力。当前授权工作和安全恢复点只看
 [Project status](PROJECT_STATUS.md)，能力及证据只看
 [Capability status](docs/CAPABILITY_STATUS.md)。
 
@@ -37,6 +41,7 @@ provider call、可执行 adapter、durable run 或应用证据；独立 Demo la
 
 | 需求 | 当前入口 | 真实边界 |
 | --- | --- | --- |
+| 本地审阅 Formal Demo 意图 | `guarded-desktop-agent-console --provider <provider> --model <model>` | 只到 disclosure 和不可执行 `COMPILE` permit；Scope 不可用、`Start` 禁用，不读 key、不发 provider 请求 |
 | 询问前台文档内容 | `guarded-desktop-agent ask` | 一到四次已审核的只读观察；不能规划桌面副作用 |
 | 运行现有产品工作流 | `guarded-desktop-agent review public-web-word`，再执行 `guarded-desktop-agent workflow public-web-word` | 只覆盖固定公开网页到全新 Word 文档；不是任意网页或任意办公任务 |
 | 检查安装和配置 | `guarded-desktop-agent config setup/settings/doctor` | 配置与 readiness；不等于开始任务或授予桌面权限 |
@@ -89,7 +94,8 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 下列内容已经分清 owner；其中标明的内部离线合同不是当前可执行命令、产品入口或
 真实应用证据：
 
-1. **统一 Host 前门：**计划中的 `Agent Console -> TaskIntent -> Host validation
+1. **统一 Host 前门：**Review-only Console 已实现到本地 disclosure 和 inert
+   `COMPILE` permit；完整的 `Agent Console -> TaskIntent -> Host validation
    -> Scope Sheet -> review/start/status` 只负责收集意图和展示 Host 验证后的范围；
    它不会获得桌面权限，后续仍必须进入现有 Runner、唯一 MCP server 和 Windows
    Driver。自然语言如果要发送给 provider 生成 `TaskIntent`，发送前还必须本地展示
@@ -103,8 +109,9 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
    `UNSELECTED`，完整产品场景会确定性停止。原始任务只保留在本地内存 disclosure
    与显示中，permit/receipt 只绑定其 digest；没有 serialized gate loader，也不
    提供跨进程 exactly-once。
-   Console、provider intent call、launcher、可执行应用 adapter、
-   durable run 和正式证据仍未实现。详见[Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
+   独立 Review-only Console/launcher 已实现，但 provider intent call、正向 Scope
+   编译、`START`、可执行应用 adapter、durable run 和正式证据仍未实现。详见
+   [Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
 3. **Application Coverage Set A：**BOSS、Google Docs、WeChat 继续作为独立的
    真实应用覆盖与证据用例，不再定义 Formal Demo，也不是自动获得优先级的
    “Wave 1”。详见[应用评估矩阵](docs/APPLICATION_EVALUATION_MATRIX.md)。
@@ -114,7 +121,8 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 
 ## 怎么下指令（How to ask）
 
-今天没有一个统一 Console 可以理解并执行任意指令。请先说明你是在**使用当前
+今天仍没有一个统一 Console 可以理解并执行任意指令；Review-only Console 不会
+执行。请先说明你是在**使用当前
 能力**，还是在**要求修改项目**。
 
 使用当前只读能力时，把问题写成明确且可验证的结果，例如：

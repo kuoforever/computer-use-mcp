@@ -56,7 +56,7 @@ material from the canonical project and evidence owners.
 | I am reviewing explicit OpenAI stateless replay | [Stateless replay](STATELESS_REPLAY.md) |
 | I need day-scale batches, resumability, or cross-session handoff | [Long-running tasks](LONG_RUNNING_TASKS.md) |
 | I need accurate Codex/Claude completion polling before a host sends a mobile notification | [Long-running tasks](LONG_RUNNING_TASKS.md#host-visible-completion-and-mobile-notification) and [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
-| I need the selected independent product-demo story and its two internal offline contract slices | [Formal Demo v1](FORMAL_DEMO_V1.md) |
+| I need the selected independent product-demo story, its four bounded slices, and the no-key Review-only Console boundary | [Formal Demo v1](FORMAL_DEMO_V1.md) |
 | I need independent real-application coverage cases from BOSS/Docs/WeChat and Douyin through Office, ERP, CRM, ticketing, communication, identity, remote desktop, and legacy UI | [Application evaluation matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | I need the clean fixed-code BOSS multi-item restart result | [BOSS clean item/restart evidence](BOSS_ITEM_RESTART_CLEAN_EVIDENCE.md) |
 | I am implementing the bounded BOSS semantic result or per-item observation ladder | [BOSS semantic extraction contract](BOSS_SEMANTIC_EXTRACTION_CONTRACT.md) |
@@ -141,7 +141,7 @@ material from the canonical project and evidence owners.
 | H8B dependency/join evidence | Offline bounded graph/cycle matrix, local join reduction, deterministic one-ready-leaf selection, global external serialization, strict decode/tamper, and restart evidence |
 | H8C safe-choice evidence | Offline Host-order gate matrix, worker overlap, immutable selection, exact eligible fallback, prohibited-stop matrix, atomic CAS, strict decode/tamper, and restart evidence |
 | Long-running tasks | Campaigns, item ledgers, batches, resumability, liveness, deterministic cross-session handoff, and the planned host-terminal polling contract |
-| Formal Demo v1 | Selected independent GitHub/PDF/Excel/Word/email-draft product story, implemented internal offline v1 scenario/Scope and typed local disclosure/permit contracts, planned Host front door, staged delivery, and formal evidence boundary; not an executable product or application evidence |
+| Formal Demo v1 | Selected independent GitHub/PDF/Excel/Word/email-draft product story, implemented internal offline v1 scenario/Scope and typed local disclosure/permit contracts, plus an independent no-key Review-only Console that stops with Scope unavailable and `Start` disabled; the complete product and application evidence remain absent |
 | Application evaluation matrix | Independent staged real-application coverage workloads, failure-mechanism scoring, cross-application cases, and promotion gates; not product priority or the Formal Demo story |
 | Universal GUI final showcase | Future final one-campaign integration showcase spanning already eligible mechanisms, fault injection, operator UX, token evidence, and presentation cuts |
 | Token efficiency | Observation escalation, image/delta policy, item-local context, batching, and cost measurement |

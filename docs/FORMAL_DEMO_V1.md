@@ -1,15 +1,18 @@
 # Formal Demo v1
 
-> **Status: the `GDA-DEMO-007A`, `GDA-DEMO-007B`, and `GDA-DEMO-007C` internal
-> offline contract slices are implemented; the Formal Demo product is not
-> executable.** This
+> **Status: `GDA-DEMO-007A` through `GDA-DEMO-007D` are implemented and
+> offline verified; only the bounded Review-only Console is independently
+> executable. The complete Formal Demo product is not executable.** This
 > document owns the selected Formal Demo v1 story and its staged delivery
 > boundary. The implemented slices add inert v1 scenario/Scope contracts, a
 > pure-local intent disclosure and exact `COMPILE` permit, and a provider-neutral
 > one-attempt coordinator exercised only through injected deterministic fakes.
-> They do not add a Console, concrete provider adapter or request, credential
-> access, launcher, executable application adapter, durable run, Formal Demo
-> evidence, or authority to activate later work.
+> The independent Windows Console can collect one in-memory draft, display the
+> reviewed route/profile disclosure, and issue one inert permit; it explicitly
+> reports Scope unavailable and keeps native `Start` disabled. These slices add
+> no concrete provider adapter or request, credential access, executable
+> application adapter, durable run, Formal Demo evidence, or authority to
+> activate later work.
 > [Project status](../PROJECT_STATUS.md) remains the only operational tracker.
 
 ## Decision
@@ -40,9 +43,10 @@ an alternate tool port.
 
 ~~~text
 operator
-  -> planned Agent Console
-  -> local intent-disclosure review contract [implemented internally; no command]
-  -> exact COMPILE process-local permit [implemented; no provider request]
+  -> Review-only Agent Console [implemented independent Windows command]
+  -> local intent-disclosure review contract [implemented]
+  -> exact COMPILE process-local permit [issued but never consumed by Console]
+  -> Scope unavailable / Start disabled [current executable stop]
   -> one-attempt Host coordinator [implemented internally; injected fake only]
   -> concrete tool-free provider adapter/call [planned; no credential wiring]
   -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
@@ -195,6 +199,36 @@ pre-consumed one-attempt boundary without tools or automatic retry, and treat th
 returned candidate as untrusted. A local-only intent compiler could replace that
 call, but it cannot be silently selected as a provider fallback.
 
+### `GDA-DEMO-007D` no-key Review-only Agent Console
+
+`src/computer_use_agent/formal_demo_console.py`,
+`formal_demo_console_win32.py`, and `formal_demo_console_launcher.py` add the
+independent `guarded-desktop-agent-console` Windows entry. The launcher accepts
+only explicit non-secret provider/model/route identity arguments and resolves
+them against the static reviewed catalog. It does not load Agent configuration,
+inspect credential or provider environment variables, construct a provider
+client, or open a network, Runner, MCP, Driver, desktop-automation, application,
+filesystem, persistence, Full Cycle, or telemetry port.
+
+One raw task remains in the process-local session and native controls. The
+Console renders the exact reviewed disclosure, all five role-profile design
+bindings, the email role's `UNSELECTED` state, and fixed content-free validation
+codes. Exact `COMPILE` can issue one permit in the existing locked gate, but the
+Console exposes no consume, provider-request, start, dispatch, retry, or replay
+method. Reset and close abandon the local attempt. The Scope Sheet remains
+honestly unavailable because this slice has no candidate and the complete
+built-in scenario still lacks a selected email adapter.
+
+`Start unavailable` is a genuinely disabled native button: it has no tab stop,
+default-button role, callback, hotkey, or execution handler. Native component
+tests exercise real hidden Win32 controls, dialog-key routing, child-control
+Escape close, work-area bounding, large-text reflow, resize/minimize safety,
+inert button clicks, and repeated window lifecycle. Wheel smoke installs the
+base package without provider SDK extras and creates/applies/destroys the native
+window from outside the repository. This is Implemented/Offline evidence only;
+it is not retained Provider, Desktop E4, Application, human accessibility,
+localization, visual-design, multi-display, or Formal Demo acceptance evidence.
+
 ## Selected role profiles and boundaries
 
 | Role | Formal Demo target | Required boundary before implementation can be accepted |
@@ -229,6 +263,9 @@ connect either product silently.
 11. Emit a bounded Completion/Failure Receipt with cost, calls, retries,
     uncertain outcomes, cleanup, and retained evidence references.
 
+`GDA-DEMO-007D` implements only steps 1-4 at the Review-only boundary. It then
+shows Scope unavailable and disabled `Start`; steps 5-11 remain unimplemented.
+
 ## Planned product-state projection
 
 The Console must project the existing durable run and control state; it must not
@@ -250,6 +287,10 @@ authority:
 
 Console close, process restart, or display failure cannot change the durable run
 outcome. `UNCERTAIN` is visibly distinct from success and ordinary failure.
+
+The current Review-only Console implements only Draft, Intent disclosure ready,
+and Compile permit issued. It has no durable run to project and cannot enter any
+later state in this table.
 
 ## Failure and control requirements
 
@@ -285,11 +326,16 @@ Writing this plan activates none of them.
    strict candidate loading, and reviewed-scenario validation. It adds no
    concrete provider, credential, network, Console, persistence, or execution
    port and proves no provider evidence.
-4. **Review-only Agent Console:** project natural-language input, the required
-   intent-disclosure gate, provider/model and profile display, validation errors,
-   and Scope Sheet review in the independent Console. This no-key surface may be
-   activated independently; `Start` remains disabled until it is stable and
-   accessible.
+4. **`GDA-DEMO-007D` — Review-only Agent Console, implemented:** independently
+   launch one in-memory Windows draft, exact operator-selected model plus
+   reviewed provider route/profile disclosure,
+   five honest role bindings, fixed validation failures, and one inert exact
+   `COMPILE` permit. Scope is explicitly unavailable and native `Start` is
+   unconditionally disabled with no callback. The slice reads no credential or
+   provider environment, consumes no permit, and opens no provider, network,
+   Runner, MCP, Driver, desktop-automation, application, persistence, or Full
+   Cycle port. Automated native component and base-wheel tests are offline
+   evidence, not human accessibility or live product acceptance.
 5. **Future live provider-intent adapter:** revalidate current route, account data
    controls, task, profile, and draft identity; use the pre-consumed boundary for
    one tool-free request with no automatic retry. This requires separate
