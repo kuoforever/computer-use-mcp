@@ -1,11 +1,11 @@
 # Project status
 
-> **Mode: `GDA-DEMO-007D` is the single active repository item.** The user
-> explicitly activated the no-key Review-only Agent Console on 2026-08-27.
-> **Exact next:** implement and offline-verify one independently launchable,
-> in-memory Console through the existing exact `COMPILE` permit while keeping
-> `Start` disabled and the unavailable Scope Sheet state explicit. Cloud and
-> local E3 plus every live-provider or credential-dependent task remain deferred.
+> **Mode: no executable repository item is active.** `GDA-DEMO-007D` completed
+> through PR #361 as merge `bd513b2` under the no-E3/no-API-key direction.
+> **Exact next:** stop for user review. Cloud and local E3 plus every live-provider
+> or credential-dependent task remain deferred. Permit consumption, positive
+> built-in Scope, `START`, Runner/MCP/desktop/application work, executable role
+> adapters, and the complete Formal Demo remain inactive.
 > The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
 > No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
@@ -34,7 +34,9 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
-| `GDA-DEMO-007D` | Active | Add the independently launchable no-key Review-only Agent Console through one in-memory exact `COMPILE` permit | Collect one bounded natural-language draft; display the exact operator-selected model plus reviewed provider route/profile identity and local disclosure without implying readiness; issue only one inert process-local permit after exact `COMPILE`; show content-free validation failures and the honest unavailable Scope Sheet state; keep `Start` unconditionally disabled. Stop rather than consuming the permit, calling `compile_task_intent_once`, reading credential values or environment variables, opening network/provider/Runner/MCP/Driver/desktop-automation/application/persistence ports, inventing a Scope Sheet, or promoting Provider/Desktop/Application/E4/release evidence |
+
+No row is active. A branch name, archived plan, capability gate, or dated
+evidence record is never permission to start another item.
 
 ## Exact next and preserved resume points
 
@@ -43,7 +45,7 @@ That archive is historical context, not a second tracker.
 | Cloud provider E3 | Deferred by the user on 2026-08-23 | None until the user explicitly resumes one exact provider/model/region/account scope; never inherit evidence across routes, regions, or models |
 | Local provider E3 | Deferred by the user | None until the user explicitly resumes one named loopback server/model scope |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
-| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A`, `GDA-DEMO-007B`, and `GDA-DEMO-007C` merged; `GDA-DEMO-007D` is active for the no-key Review-only Console only. Inert scenario/Scope, typed local disclosure/permit, and provider-neutral injected-fake one-attempt contracts remain offline verified | Complete and offline-verify only the exact active Console row. Live provider/E3, permit consumption, positive built-in Scope compilation, `START`, Runner/MCP/desktop/application work, executable role adapters, and formal evidence remain deferred |
+| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A` through `GDA-DEMO-007D` merged. Inert scenario/Scope, typed local disclosure/permit, provider-neutral injected-fake one-attempt coordination, and the independent no-key Review-only Console are offline verified. The Console stops with Scope unavailable and native `Start` disabled | Stop for user review. Live provider/E3, permit consumption, positive built-in Scope compilation, `START`, Runner/MCP/desktop/application work, executable role adapters, and formal evidence remain deferred and require a separately activated exact row |
 | [Application coverage](docs/APPLICATION_EVALUATION_MATRIX.md) | Planned evidence program, not active | BOSS, Google Docs, WeChat, and their legacy cross-application scenario remain representative Coverage Set A cases. They do not define the Formal Demo story or project priority; promote each case only through its own retained gates |
 | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration gate, not active | Assemble only after selected application, safety, authority, observation, operator-UX, and enterprise gates retain executable evidence. Its 3-minute edit is not Formal Demo v1 |
 | Hierarchical control and learning | H1-H8 and L0-L4 complete only at their recorded bounded offline or injected-runtime scopes; L5 inactive | L5 requires separate privacy, security, evaluation, deployment, and rollback consent |
@@ -82,7 +84,7 @@ production safety.
 | Campaign | Manifest-routed general worker implemented/internal/offline-only; BOSS has narrower retained identity/restart evidence; semantic and 100-item gates remain open |
 | Control and learning | H1-H8 and L0-L4 complete only at their recorded bounded scopes; no automatic promotion, training, or broad application claim |
 | Full Cycle | Lane A and freeze validation complete; baseline `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9` frozen; consumer paused; Lane B separately deferred |
-| Latest complete local gate | `2674 passed, 38 skipped`; Ruff; mypy over 170 source files; docs consistency over 13 reviewed tools; 2026-08-23. This is a dated offline snapshot, not provider, desktop, application, E4, release, or permanent capability evidence |
+| Latest complete local gate | `2746 passed, 38 skipped`; Ruff; mypy over 173 source files; docs consistency over 13 reviewed tools; final clean base-wheel reinstall/native hidden-window smoke; 2026-08-27. This is a dated offline/native-component snapshot, not provider, desktop, application, E4, release, human-accessibility, or permanent capability evidence |
 
 ## Non-negotiable invariants
 
@@ -117,6 +119,7 @@ the current handoff.
 | `GDA-DEMO-007A` | Complete; merged | Add the first inert internal Formal Demo v1 contract slice | Commit `48249cb`; PR #355 passed wheel plus Python 3.11/3.12/3.13 with zero comment, review, requested change, unresolved thread, conflict, or head drift and merged as `0514906`; both implementation-branch copies were removed. Four strict versioned data contracts, Host-reviewed exact pins, canonical digest/bounds, required reload pins, fail-closed compiler/loaders, and 57 focused tests were added without execution ports. Full local gate: `2594 passed, 38 skipped`; Ruff; mypy over 168 source files; docs-13; diff check; independent contract, safety/docs, and test/packaging reviews found no blocker. Provider/Desktop/Application remain `NO`; no Console, provider request, Runner/MCP/Driver startup, desktop/application access, launcher, live Demo evidence, Full Cycle change, L5, E4, or release promotion occurred |
 | `GDA-DEMO-007B` | Complete; merged | Add the pure-local typed intent disclosure and exact `COMPILE` permit boundary | Commit `66203be`; PR #357 passed wheel plus Python 3.11/3.12/3.13 with zero comment, review, requested change, unresolved thread, conflict, or head drift and merged as `cab2327`; both implementation-branch copies were removed. Exact static-routing-rule validation, conservative reviewed warning pins, sensitive local rendering, digest binding, one issue/consume per in-memory gate instance, returned-record tamper/drift, concurrency, same-gate replay, and no-port behavior are covered by 46 new gate tests within the 103-test combined `GDA-DEMO-007A`/`007B` focused set. Full local gate: `2640 passed, 38 skipped`; Ruff; mypy over 169 source files; docs-13; diff check; wheel inspection; independent contract/security, owner/capability, and test/packaging reviews found no blocker. Provider/Desktop/Application remain `NO`; no serialized gate loader, Console, provider request, Runner/MCP/Driver startup, desktop/application access, persistence, launcher, live Demo evidence, Full Cycle change, L5, E4, or release promotion occurred |
 | `GDA-DEMO-007C` | Complete; merged | Add a provider-neutral offline one-attempt `TaskIntent` coordinator behind the local permit | Commit `c1c5e82`; PR #359 passed wheel plus Python 3.11/3.12/3.13 with zero comment, review, requested change, unresolved thread, conflict, or head drift and merged as `2ade92b`; both implementation-branch copies were removed. Fixed reviewed-scenario pins and detached snapshots, strict post-construction `TaskIntent` rebuilding, descriptor-safe consume-before-call ordering, forced-overlap one-call concurrency, terminal no-retry behavior, and raw exception-context sanitization are covered by the 137-test combined `GDA-DEMO-007A`/`007B`/`007C` focused set. Full local gate: `2674 passed, 38 skipped`; Ruff; mypy over 170 source files; docs-13; diff check; wheel inspection; independent security, test/packaging, and docs/capability reviews found no blocker. Provider/Desktop/Application remain `NO`; no concrete provider port, credential/config/environment read, network, Console, persistence, Runner/MCP/Driver startup, desktop/application access, Full Cycle change, E3, E4, release, or evidence promotion occurred |
+| `GDA-DEMO-007D` | Complete; merged | Add the independent no-key Review-only Formal Demo Console through inert permit issue | Implementation commit `4f5fb0d`, final head `872a3fa`; PR #361's final head passed wheel plus Python 3.11/3.12/3.13 after the matrix exposed and closed cross-host native DPI/large-text seams, with zero comment, review, requested change, unresolved thread, conflict, base/head drift, or credential use, and merged as `bd513b2`; both feature-branch copies were removed. The pure-local controller and Windows launcher retain exact local text, reviewed route/profile display, one-success exact-`COMPILE` acknowledgement, fixed failures, clear reset/close/callback rollback, keyboard routing, work-area/DPI/400%-text reflow, disabled/inert native `Start`, and clean base-wheel startup without provider extras. Full local gate: `2746 passed, 38 skipped`; 74 focused Console/branding tests including 30 real Win32 native-component tests; Ruff; mypy over 173 source files; docs-13; diff check; final installed source hashes; independent architecture, contract/docs, and test/packaging reviews found no remaining P1/P2. Provider/Desktop/Application remain `NO`; no API key, E3, provider request, permit consumption, positive Scope, Runner/MCP/Driver/desktop-automation/application/persistence port, Full Cycle change, E4, release, human-accessibility, multi-display acceptance, or complete Formal Demo promotion occurred |
 
 ## Session protocol
 
@@ -162,8 +165,9 @@ evidence plan on a non-sensitive desktop.
 - Historical snapshots, archived plans, and archive tags are recoverability
   records, not resumable candidates or capability evidence.
 - User direction on 2026-08-23 defers Cloud and local E3 plus every live-provider
-  or credential-dependent task. The completed `GDA-DEMO-007C` slice did not
-  request, read, store, validate, or reuse an API key or credential; credentials
-  already present on the machine do not silently authorize later use.
+  or credential-dependent task. The completed `GDA-DEMO-007C` and
+  `GDA-DEMO-007D` slices did not request, read, store, validate, or reuse an API
+  key or credential; credentials already present on the machine do not silently
+  authorize later use.
 - If authority is missing, the active item is ambiguous, or checks/reviews/
   conflicts are unresolved, stop instead of selecting adjacent work.
