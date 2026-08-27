@@ -124,12 +124,14 @@ Runner, commits only strict provider JSON under a fixed no-preference
 classification policy, writes failure handoff when the still-gated OCR rung is
 denied without dispatch, and transfers a successful batch to a fresh run. It
 does not alter the retained one-call identity runtime and has no on-device
-semantic evidence. Formal Demo v1 now has two internal offline-only contract
-slices: four inert v1 data structures with exact reviewed pins and fail-closed
-compilation, plus a typed sensitive-local disclosure and exact `COMPILE` permit
-for one process-local gate instance. It has no serialized gate loader, Console,
-provider call, launcher,
-executable adapter, durable run, or Formal Demo evidence. The Universal GUI
+semantic evidence. Formal Demo v1 now has four bounded offline-verified slices:
+four inert v1 data structures with exact reviewed pins and fail-closed
+compilation; a typed sensitive-local disclosure and exact `COMPILE` permit for
+one process-local gate instance; a consume-before-injected-fake one-attempt
+coordinator; and an independently launchable no-key Review-only Windows Console.
+The Console stops at inert permit issue with Scope unavailable and native
+`Start` disabled. It has no provider call, permit consumption, executable
+adapter, durable run, or Formal Demo evidence. The Universal GUI
 final showcase and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
@@ -158,7 +160,7 @@ owns authorization and exact next action.
 
 | Program | Owner | Durable boundary |
 | --- | --- | --- |
-| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email draft. Internal inert v1 intent/scenario/profile/Scope plus typed local disclosure/exact-`COMPILE` permit contracts are offline verified. The permit is only single-use within one in-memory gate instance and makes no provider request; the Console, provider intent call, launcher, executable adapters, durable composition, and evidence remain unimplemented, and the email role is still `UNSELECTED` |
+| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email draft. Internal inert v1 intent/scenario/profile/Scope, typed local disclosure/exact-`COMPILE` permit, injected one-attempt coordinator, and the independent no-key Review-only Console/launcher are offline verified. The Console reads no key/config/provider environment, makes no provider request, shows Scope unavailable, and keeps native `Start` disabled; live provider intent, permit consumption, executable adapters, durable composition, and evidence remain unimplemented, and the email role is still `UNSELECTED` |
 | Application coverage | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) | BOSS, Google Docs, WeChat, and their legacy cross-application case are representative Coverage Set A evidence cases, not the Formal Demo or a product-priority sequence |
 | Universal GUI final showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration/presentation gate after the underlying mechanisms retain their own executable evidence; it is not Formal Demo v1 |
 

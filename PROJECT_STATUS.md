@@ -1,17 +1,16 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-DEMO-007C` completed
-> through PR #359 as merge `2ade92b` under the 2026-08-23 no-E3/no-API-key
-> direction.
-> **Exact next:** stop for user review. Cloud and local E3 plus every live-provider
-> or credential-dependent task remain deferred. A no-key Review-only Agent
-> Console is a possible separately bounded Formal Demo step, but it is not active
-> until the user explicitly selects it.
+> **Mode: `GDA-DEMO-007D` is the single active repository item.** The user
+> explicitly activated the no-key Review-only Agent Console on 2026-08-27.
+> **Exact next:** implement and offline-verify one independently launchable,
+> in-memory Console through the existing exact `COMPILE` permit while keeping
+> `Start` disabled and the unavailable Scope Sheet state explicit. Cloud and
+> local E3 plus every live-provider or credential-dependent task remain deferred.
 > The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
 > No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
 > `archive/gda-demo-006-pr231-5c403a5`. L5 remains inactive.
-> Updated: 2026-08-23.
+> Updated: 2026-08-27.
 
 This file is the single operational task registry. The complete pre-compaction
 closure and decision chronology is preserved in the
@@ -35,9 +34,7 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
-
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+| `GDA-DEMO-007D` | Active | Add the independently launchable no-key Review-only Agent Console through one in-memory exact `COMPILE` permit | Collect one bounded natural-language draft; display the exact operator-selected model plus reviewed provider route/profile identity and local disclosure without implying readiness; issue only one inert process-local permit after exact `COMPILE`; show content-free validation failures and the honest unavailable Scope Sheet state; keep `Start` unconditionally disabled. Stop rather than consuming the permit, calling `compile_task_intent_once`, reading credential values or environment variables, opening network/provider/Runner/MCP/Driver/desktop-automation/application/persistence ports, inventing a Scope Sheet, or promoting Provider/Desktop/Application/E4/release evidence |
 
 ## Exact next and preserved resume points
 
@@ -46,7 +43,7 @@ evidence record is never permission to start another item.
 | Cloud provider E3 | Deferred by the user on 2026-08-23 | None until the user explicitly resumes one exact provider/model/region/account scope; never inherit evidence across routes, regions, or models |
 | Local provider E3 | Deferred by the user | None until the user explicitly resumes one named loopback server/model scope |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
-| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A`, `GDA-DEMO-007B`, and `GDA-DEMO-007C` merged; inert scenario/Scope, typed local disclosure/permit, and provider-neutral injected-fake one-attempt contracts are offline verified. Console, live provider adapter/call, launcher, executable application adapters, and formal evidence remain unimplemented | Stop for user review. A no-key Review-only Agent Console may be activated only as a separate exact row; live provider/E3 work remains deferred. Do not construct a provider client, request credentials, restore retired `GDA-DEMO-006`, open MCP/desktop/application work, or infer provider, application, or Universal GUI acceptance |
+| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A`, `GDA-DEMO-007B`, and `GDA-DEMO-007C` merged; `GDA-DEMO-007D` is active for the no-key Review-only Console only. Inert scenario/Scope, typed local disclosure/permit, and provider-neutral injected-fake one-attempt contracts remain offline verified | Complete and offline-verify only the exact active Console row. Live provider/E3, permit consumption, positive built-in Scope compilation, `START`, Runner/MCP/desktop/application work, executable role adapters, and formal evidence remain deferred |
 | [Application coverage](docs/APPLICATION_EVALUATION_MATRIX.md) | Planned evidence program, not active | BOSS, Google Docs, WeChat, and their legacy cross-application scenario remain representative Coverage Set A cases. They do not define the Formal Demo story or project priority; promote each case only through its own retained gates |
 | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration gate, not active | Assemble only after selected application, safety, authority, observation, operator-UX, and enterprise gates retain executable evidence. Its 3-minute edit is not Formal Demo v1 |
 | Hierarchical control and learning | H1-H8 and L0-L4 complete only at their recorded bounded offline or injected-runtime scopes; L5 inactive | L5 requires separate privacy, security, evaluation, deployment, and rollback consent |

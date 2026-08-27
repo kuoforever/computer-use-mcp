@@ -76,18 +76,31 @@ and application-verified.
 
 ## Product entry points today
 
-The product does not yet have one unified Agent Console or a generic
+The product does not yet have one unified *executing* Agent Console or a generic
 `recipe list -> review -> start -> status` front door. Its current surfaces are
-separate bounded CLI entries: read-only `ask`, the fixed
+separate bounded entries: the independent Review-only Formal Demo Console,
+read-only `ask`, the fixed
 `review` / `workflow public-web-word` pair, setup and doctor, read-only Task
 Center, and fixed-workflow cooperative control. This separation is a current
 fact, not a recommendation that users assemble arbitrary workflows from them.
 
-The Host-owned front door and independent Demo launcher are not implemented.
 Internal offline-only `TaskIntent` / scenario / role-profile / generic Scope
 Sheet contracts plus a typed sensitive-local disclosure / exact-`COMPILE`
-process-local permit gate now exist, but they have no command, serialized gate
-loader, provider call, executable adapter, durable run, or application evidence. Its intended
+process-local permit gate now exist. The Review-only Windows entry can collect
+one local in-memory task, show the exact selected model and reviewed route/profile
+disclosure, and
+issue one inert permit after exact `COMPILE`:
+
+~~~powershell
+guarded-desktop-agent-console --provider openai --model <model-id>
+~~~
+
+That command reads no Agent config, API key, or provider environment variable;
+it makes no provider request. It explicitly shows Scope unavailable and keeps
+native `Start` disabled. It has no permit-consumption, Runner, MCP, desktop-
+automation, application, persistence, or durable-run path, and the model
+identity displayed there is not a readiness or compatibility claim. The full
+Host front door remains incomplete. Its intended
 relationship to the existing Runner/MCP authority is shown in the canonical
 [project architecture](docs/PROJECT_OVERVIEW.md); the selected planned product
 story is owned by [Formal Demo v1](docs/FORMAL_DEMO_V1.md). BOSS, Google Docs,
@@ -490,7 +503,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
 | Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
 | Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |
-| Review the selected independent product demonstration and its two internal offline contract slices | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
+| Review the selected independent product demonstration, its four bounded slices, and the no-key Review-only Console boundary | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
 | Run staged real-application coverage cases and benchmarks, independently of the Formal Demo | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
 | Review the future one-campaign final integration showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) |
 | Reduce model context and observation cost | [Token efficiency](docs/TOKEN_EFFICIENCY.md) |
