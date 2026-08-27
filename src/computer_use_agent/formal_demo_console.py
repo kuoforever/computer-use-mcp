@@ -37,7 +37,7 @@ from .provider_catalog import provider_profile, resolve_provider_route
 
 
 CONSOLE_TITLE = "Guarded Desktop Agent - Formal Demo Review"
-CONSOLE_MODE_LABEL = "REVIEW ONLY - NOTHING EXTERNAL HAS STARTED"
+CONSOLE_MODE_LABEL = "REVIEW ONLY - EXTERNAL WORK: NO"
 SCOPE_UNAVAILABLE_TEXT = "\n".join(
     (
         "Intent candidate: unavailable in Review-only mode.",

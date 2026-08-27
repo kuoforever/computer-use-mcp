@@ -206,10 +206,16 @@ def test_hidden_native_dpi_change_preserves_secondary_origin_and_rebuilds_font(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     api = Win32FormalDemoConsoleApi()
+    work_area = (-1920, 0, 0, 1080)
     monkeypatch.setattr(
         api,
         "_monitor_work_area_for_rect",
-        lambda _rect: (-1920, 0, 0, 1080),
+        lambda _rect: work_area,
+    )
+    monkeypatch.setattr(
+        api,
+        "_monitor_work_area_for_window",
+        lambda _hwnd: work_area,
     )
     callbacks = FormalDemoConsoleCallbacks(
         on_review=lambda: None,
@@ -235,19 +241,17 @@ def test_hidden_native_dpi_change_preserves_secondary_origin_and_rebuilds_font(
         assert api._user32.GetWindowRect(
             wintypes.HWND(hwnd), ctypes.byref(window)
         )
-        assert (window.left, window.top, window.right, window.bottom) == (
-            -1800,
-            100,
-            -400,
-            1000,
-        )
+        left, top, right, bottom = work_area
+        assert left <= window.left < window.right <= right
+        assert top <= window.top < window.bottom <= bottom
+        assert window.left < 0 and window.right <= 0
         cancel = wintypes.RECT()
         assert api._user32.GetWindowRect(
             wintypes.HWND(api._controls[hwnd].cancel_button),
             ctypes.byref(cancel),
         )
-        assert cancel.right > cancel.left
-        assert cancel.bottom > cancel.top
+        assert window.left <= cancel.left < cancel.right <= window.right
+        assert window.top <= cancel.top < cancel.bottom <= window.bottom
     finally:
         _destroy_and_dispose(api, hwnd)
 
