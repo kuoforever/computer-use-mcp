@@ -114,6 +114,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Console describe smoke failed" }
             $payload = $description | ConvertFrom-Json
             if (
+              $payload.mode -ne "offline_scope_review" -or
+              $payload.local_scope_compiler_available -ne $true -or
+              $payload.free_form_interpretation -ne $false -or
+              $payload.permit_consumed -ne $false -or
               $payload.scope_available -ne $false -or
               $payload.start_enabled -ne $false -or
               $payload.provider_request_started -ne $false
@@ -147,6 +151,14 @@ jobs:
           hwnd = api.create(title="wheel smoke", callbacks=callbacks)
           try:
               api.apply(hwnd, session.view())
+              assert not api.start_control_enabled(hwnd)
+              session.review("Compile the fixed built-in Formal Demo scope.")
+              reviewed = session.acknowledge("COMPILE")
+              assert reviewed.scope_available
+              assert not reviewed.start_enabled
+              assert "Host compiled locally" in reviewed.scope_text
+              assert "Provider request started: no." in reviewed.scope_text
+              api.apply(hwnd, reviewed)
               assert not api.start_control_enabled(hwnd)
           finally:
               try:

@@ -1,9 +1,10 @@
-"""Native Windows controls for the Review-only Formal Demo Agent Console.
+"""Native Windows controls for the Offline Scope Review Formal Demo Console.
 
 The backend contains ordinary input, read-only review, acknowledgement, reset,
-and cancel controls.  The Start button is created disabled, omitted from the tab
-order, and has no command handler.  This module receives no provider, permit,
-Runner, MCP, Driver, persistence, or execution callback.
+and cancel controls.  Acknowledgement may drive the pure local Host compiler
+through its controller callback.  The Start button is created disabled, omitted
+from the tab order, and has no command handler.  This module receives no
+provider, Runner, MCP, Driver, persistence, or execution callback.
 """
 
 from __future__ import annotations
@@ -527,6 +528,7 @@ class Win32FormalDemoConsoleApi:
             FormalDemoConsoleStage.DRAFT: controls.task_edit,
             FormalDemoConsoleStage.DISCLOSURE_READY: controls.ack_edit,
             FormalDemoConsoleStage.PERMIT_ISSUED: controls.reset_button,
+            FormalDemoConsoleStage.SCOPE_READY: controls.reset_button,
             FormalDemoConsoleStage.CANCELLED: controls.cancel_button,
         }[view.stage]
         self._user32.SetFocus(wintypes.HWND(focus_target))
@@ -769,7 +771,7 @@ class Win32FormalDemoConsoleApi:
             ),
             review_button=create(hwnd, "BUTTON", "Review disclosure", _WS_TABSTOP | _BS_PUSHBUTTON, _REVIEW_BUTTON_ID),
             reset_button=create(hwnd, "BUTTON", "Reset draft", _WS_TABSTOP | _BS_PUSHBUTTON, _RESET_BUTTON_ID),
-            detail_label=create(hwnd, "STATIC", "Review details (read only)", _SS_LEFT | _SS_NOPREFIX, _DETAIL_LABEL_ID),
+            detail_label=create(hwnd, "STATIC", "Scope review (read only)", _SS_LEFT | _SS_NOPREFIX, _DETAIL_LABEL_ID),
             detail_edit=create(
                 hwnd,
                 "RICHEDIT50W",
@@ -787,7 +789,7 @@ class Win32FormalDemoConsoleApi:
                 _ACK_EDIT_ID,
                 ex_style=_WS_EX_CLIENTEDGE,
             ),
-            ack_button=create(hwnd, "BUTTON", "Issue permit", _WS_TABSTOP | _BS_PUSHBUTTON, _ACK_BUTTON_ID),
+            ack_button=create(hwnd, "BUTTON", "Show Scope", _WS_TABSTOP | _BS_PUSHBUTTON, _ACK_BUTTON_ID),
             start_button=create(
                 hwnd,
                 "BUTTON",

@@ -7,9 +7,10 @@ JSON may select only Host-authored semantic identifiers; it cannot name tools,
 applications, adapters, arguments, permissions, actions, or recipients.
 
 The built-in product records are design bindings, not implementation or
-application evidence.  In particular, the email handoff adapter remains
-unselected, so compiling the full product scenario fails closed until a later
-explicit slice reviews one exact adapter.
+application evidence.  The email handoff role selects one inert Outlook
+Desktop test-account adapter identifier so the fixed local Scope can compile;
+that selection does not implement, load, authorize, or validate an adapter or
+application run.
 """
 
 from __future__ import annotations
@@ -2039,11 +2040,12 @@ FORMAL_DEMO_V1_ROLE_PROFILES = (
     ApplicationRoleProfile(
         profile_id="formal_handoff_email_v1",
         role=SemanticRole.HANDOFF,
-        application_label="Dedicated test-account email draft",
-        adapter_id=None,
-        binding_state=ProfileBindingState.UNSELECTED,
+        application_label="Outlook Desktop test-account email draft",
+        adapter_id="outlook_desktop_test_email_draft",
+        binding_state=ProfileBindingState.SELECTED,
         test_data_boundary=(
-            "A future exact email adapter, test account, fixed recipient, and attachment boundary."
+            "One future dedicated Outlook Desktop test account, fixed test recipient, "
+            "and exact verified report attachment boundary."
         ),
         reads=("Read only the verified report and attachment identity admitted by the scenario.",),
         changes=("Prepare, reopen, verify, and clean up one unsent test-account draft.",),

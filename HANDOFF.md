@@ -124,13 +124,14 @@ Runner, commits only strict provider JSON under a fixed no-preference
 classification policy, writes failure handoff when the still-gated OCR rung is
 denied without dispatch, and transfers a successful batch to a fresh run. It
 does not alter the retained one-call identity runtime and has no on-device
-semantic evidence. Formal Demo v1 now has four bounded offline-verified slices:
+semantic evidence. Formal Demo v1 now has five bounded offline-verified slices:
 four inert v1 data structures with exact reviewed pins and fail-closed
 compilation; a typed sensitive-local disclosure and exact `COMPILE` permit for
 one process-local gate instance; a consume-before-injected-fake one-attempt
-coordinator; and an independently launchable no-key Review-only Windows Console.
-The Console stops at inert permit issue with Scope unavailable and native
-`Start` disabled. It has no provider call, permit consumption, executable
+coordinator; an independently launchable no-key Review-only Windows Console;
+and an explicit Host-owned no-key local compiler that selects five inert role
+pins, consumes one permit, and displays the complete reviewed Scope. The
+Console stops with native `Start` disabled. It has no provider call, executable
 adapter, durable run, or Formal Demo evidence. The Universal GUI
 final showcase and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
@@ -160,7 +161,7 @@ owns authorization and exact next action.
 
 | Program | Owner | Durable boundary |
 | --- | --- | --- |
-| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> test-account email draft. Internal inert v1 intent/scenario/profile/Scope, typed local disclosure/exact-`COMPILE` permit, injected one-attempt coordinator, and the independent no-key Review-only Console/launcher are offline verified. The Console reads no key/config/provider environment, makes no provider request, shows Scope unavailable, and keeps native `Start` disabled; live provider intent, permit consumption, executable adapters, durable composition, and evidence remain unimplemented, and the email role is still `UNSELECTED` |
+| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> Outlook Desktop test-account email draft. Internal inert v1 intent/scenario/profile/Scope, typed local disclosure/exact-`COMPILE` permit, injected one-attempt coordinator, fixed Host-owned local compiler, five selected inert role pins, and the independent no-key Offline Scope Review Console/launcher are offline verified. The Console reads no key/config/provider environment, makes no provider request, consumes one local permit, displays the complete reviewed Scope with zero provider calls/retries, and keeps native `Start` disabled; live provider intent, executable adapters, durable composition, and evidence remain unimplemented |
 | Application coverage | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) | BOSS, Google Docs, WeChat, and their legacy cross-application case are representative Coverage Set A evidence cases, not the Formal Demo or a product-priority sequence |
 | Universal GUI final showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration/presentation gate after the underlying mechanisms retain their own executable evidence; it is not Formal Demo v1 |
 

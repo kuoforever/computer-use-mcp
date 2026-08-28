@@ -551,7 +551,7 @@ def test_repeated_native_adapter_disposal_releases_registered_classes() -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="native hidden-window contract")
-def test_hidden_native_buttons_reach_only_review_and_inert_compile() -> None:
+def test_hidden_native_buttons_reach_only_review_and_local_scope_compile() -> None:
     api = Win32FormalDemoConsoleApi()
     session = FormalDemoConsoleSession(
         build_console_route(provider_id="openai", model_id="gpt-reviewed"),
@@ -592,8 +592,11 @@ def test_hidden_native_buttons_reach_only_review_and_inert_compile() -> None:
         api._user32.SendMessageW(
             wintypes.HWND(controls.ack_button), 0x00F5, 0, 0
         )
-        assert session.stage is FormalDemoConsoleStage.PERMIT_ISSUED
+        assert session.stage is FormalDemoConsoleStage.SCOPE_READY
         assert int(api._user32.GetFocus() or 0) == controls.reset_button
+        detail = api._read_text(controls.detail_edit)
+        assert "Formal Demo Scope Sheet - Host compiled locally" in detail
+        assert "START: unavailable" in detail
         assert not api.start_control_enabled(hwnd)
     finally:
         _destroy_and_dispose(api, hwnd)

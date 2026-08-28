@@ -131,7 +131,7 @@ class FakeConsoleApi:
         self.calls.append("destroy")
 
 
-def test_review_only_session_starts_with_all_authority_false() -> None:
+def test_offline_scope_session_starts_with_all_authority_false() -> None:
     view = _session().view()
 
     assert view.stage is FormalDemoConsoleStage.DRAFT
@@ -141,7 +141,8 @@ def test_review_only_session_starts_with_all_authority_false() -> None:
     assert not view.start_enabled
     assert not view.scope_available
     assert "readiness unchecked" in view.route_text
-    assert "Scope Sheet: unavailable" in view.detail_text
+    assert "Scope Sheet: pending exact COMPILE" in view.detail_text
+    assert "Free-form interpretation: no" in view.detail_text
     assert "External work started: no" in view.detail_text
 
 
@@ -155,12 +156,14 @@ def test_all_five_role_profiles_are_honest_design_bindings() -> None:
         "report",
         "handoff",
     ]
-    assert all("readiness" in summary.note for summary in summaries[:4])
-    assert summaries[-1].binding_state == "unselected"
-    assert "blocks" in summaries[-1].note
+    assert all("readiness" in summary.note for summary in summaries)
+    assert summaries[-1].binding_state == "selected"
+    assert summaries[-1].application_label == (
+        "Outlook Desktop test-account email draft"
+    )
 
 
-def test_review_preserves_exact_local_task_and_issues_no_scope_or_start() -> None:
+def test_review_preserves_exact_local_task_before_scope_compilation() -> None:
     source = f"Use literal local text {SECRET}.\r\nKeep trailing spaces.  "
     session = _session()
 
@@ -170,7 +173,7 @@ def test_review_preserves_exact_local_task_and_issues_no_scope_or_start() -> Non
     assert view.task_text == source
     assert SECRET in view.disclosure_text
     assert "nothing external has started" in view.disclosure_text
-    assert "Scope Sheet: unavailable" in view.detail_text
+    assert "Scope Sheet: pending exact COMPILE" in view.detail_text
     assert not view.start_enabled
     assert not view.scope_available
     assert SECRET not in repr(session)
@@ -213,16 +216,19 @@ def test_utf8_boundary_and_display_escaping_are_exact() -> None:
     assert "\\u202e" in rendered
 
 
-def test_only_exact_compile_issues_one_inert_permit() -> None:
+def test_only_exact_compile_consumes_locally_and_returns_reviewed_scope() -> None:
     session = _session()
     session.review("Prepare a local review only.")
 
     view = session.acknowledge("COMPILE")
 
-    assert view.stage is FormalDemoConsoleStage.PERMIT_ISSUED
-    assert "inert process-local COMPILE permit" in view.detail_text
+    assert view.stage is FormalDemoConsoleStage.SCOPE_READY
+    assert "Formal Demo Scope Sheet - Host compiled locally" in view.detail_text
+    assert "outlook_desktop_test_email_draft" in view.scope_text
+    assert "Provider request started: no." in view.scope_text
+    assert "START: unavailable" in view.scope_text
     assert not view.start_enabled
-    assert not view.scope_available
+    assert view.scope_available
     assert not hasattr(session, "consume")
     assert not hasattr(session, "start")
     assert not hasattr(session, "dispatch")
@@ -244,7 +250,7 @@ def test_wrong_acknowledgement_is_terminal_and_never_enables_start(token: object
     assert session.acknowledge("COMPILE").stage is FormalDemoConsoleStage.CANCELLED
 
 
-def test_concurrent_acknowledgement_has_only_one_permit_state() -> None:
+def test_concurrent_acknowledgement_has_only_one_local_compilation() -> None:
     session = _session()
     session.review("Review this exact task.")
 
@@ -256,8 +262,9 @@ def test_concurrent_acknowledgement_has_only_one_permit_state() -> None:
         view.validation_code == "FORMAL_DEMO_INTENT_GATE_TERMINAL"
         for view in views
     ) == 7
-    assert all(view.stage is FormalDemoConsoleStage.PERMIT_ISSUED for view in views)
-    assert session.stage is FormalDemoConsoleStage.PERMIT_ISSUED
+    assert all(view.stage is FormalDemoConsoleStage.SCOPE_READY for view in views)
+    assert session.stage is FormalDemoConsoleStage.SCOPE_READY
+    assert all(view.scope_available for view in views)
     assert all(not view.start_enabled for view in views)
 
 
@@ -281,7 +288,7 @@ def test_reset_abandons_disclosure_or_permit_and_requires_new_identity() -> None
     assert identities.value == 2
 
 
-def test_cancel_drops_sensitive_local_state_without_consuming() -> None:
+def test_cancel_drops_sensitive_local_state_after_scope_review() -> None:
     session = _session()
     session.review(f"Review {SECRET}.")
     session.acknowledge("COMPILE")
@@ -291,6 +298,7 @@ def test_cancel_drops_sensitive_local_state_without_consuming() -> None:
     assert cancelled.stage is FormalDemoConsoleStage.CANCELLED
     assert cancelled.task_text == ""
     assert cancelled.disclosure_text == ""
+    assert cancelled.scope_text == ""
     assert SECRET not in cancelled.detail_text
     assert not cancelled.start_enabled
 
@@ -325,7 +333,8 @@ def test_window_api_has_no_start_callback_and_drives_only_review_compile_reset_c
 
     api.acknowledgement = "COMPILE"
     api.callbacks.on_acknowledge()
-    assert api.views[-1].stage is FormalDemoConsoleStage.PERMIT_ISSUED
+    assert api.views[-1].stage is FormalDemoConsoleStage.SCOPE_READY
+    assert api.views[-1].scope_available
     assert not api.views[-1].start_enabled
 
     api.callbacks.on_reset()

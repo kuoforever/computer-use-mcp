@@ -1,4 +1,4 @@
-"""Independent no-key launcher for the Review-only Formal Demo Console."""
+"""Independent no-key launcher for the Offline Scope Review Console."""
 
 from __future__ import annotations
 
@@ -23,9 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="guarded-desktop-agent-console",
         description=(
-            "Launch the local Review-only Formal Demo Console. This command reads "
-            "no config, credential, or provider environment variable and starts no "
-            "provider, Runner, MCP, desktop automation, application, or durable run."
+            "Launch the local Formal Demo Offline Scope Review Console. Its fixed "
+            "Host compiler can consume one local COMPILE permit and display a "
+            "reviewed Scope, while reading no config, credential, or provider "
+            "environment variable and starting no provider, Runner, MCP, desktop "
+            "automation, application, or durable run."
         ),
     )
     parser.add_argument("--provider", required=True, help="Reviewed provider identity.")
@@ -68,7 +70,7 @@ def _fixed_error(error: BaseException) -> str:
 def _describe(session: FormalDemoConsoleSession) -> int:
     view = session.view()
     payload = {
-        "mode": "review_only",
+        "mode": "offline_scope_review",
         "stage": view.stage.value,
         "provider": view.provider_id,
         "region": view.region,
@@ -87,8 +89,11 @@ def _describe(session: FormalDemoConsoleSession) -> int:
             for summary in view.role_summaries
         ],
         "credential_readiness_checked": False,
+        "local_scope_compiler_available": True,
+        "free_form_interpretation": False,
         "provider_request_started": False,
         "permit_issued": False,
+        "permit_consumed": False,
         "scope_available": False,
         "start_enabled": False,
         "runner_started": False,
