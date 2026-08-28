@@ -789,7 +789,7 @@ class Win32FormalDemoConsoleApi:
                 _ACK_EDIT_ID,
                 ex_style=_WS_EX_CLIENTEDGE,
             ),
-            ack_button=create(hwnd, "BUTTON", "Compile Scope", _WS_TABSTOP | _BS_PUSHBUTTON, _ACK_BUTTON_ID),
+            ack_button=create(hwnd, "BUTTON", "Show Scope", _WS_TABSTOP | _BS_PUSHBUTTON, _ACK_BUTTON_ID),
             start_button=create(
                 hwnd,
                 "BUTTON",
