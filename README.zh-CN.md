@@ -26,13 +26,14 @@ Center 和协作式控制各有自己的命令。
 
 当前**没有**可以理解并执行任意自然语言任务的统一 Agent Console，也没有通用的
 `recipe list -> review -> start -> status` 产品入口。现在已有一个独立的
-Review-only Windows Console；它只接收一段进程内草稿，展示用户原样选择的 model、
-静态审核过的 provider route/profile 与本地 disclosure，并在 exact `COMPILE` 后签发一个不可执行
-permit。内部也已有离线-only 的
+Offline Scope Review Windows Console；它只接收一段进程内草稿，展示用户原样选择的 model、
+静态审核过的 provider route/profile 与本地 disclosure，并在 exact `COMPILE` 后由固定
+Host 本地 compiler 一次性消费 permit、显示完整内置 Scope。内部也已有离线-only 的
 `TaskIntent`、scenario、role profile、通用 Scope Sheet，以及敏感本地 disclosure /
 exact `COMPILE` 的进程内 permit 合同。这个 Console 不读 Agent 配置、API key 或
-provider 环境变量，不调用 provider；它明确显示 Scope unavailable，并让原生
-`Start` 永久禁用。它没有 permit consume、Runner、MCP、桌面自动化、应用、持久化
+provider 环境变量，不调用 provider；自由文本只绑定 digest，不改变固定 Scope，
+预期运行的 provider call 与 retry 都是 0。它只选择了 inert 的 Outlook Desktop
+测试账户草稿设计 profile，并让原生 `Start` 永久禁用。它没有 Runner、MCP、桌面自动化、应用、持久化
 或 durable run 路径；这里显示的 model 也不代表 readiness 或 compatibility，不能从该入口推断完整产品能力。当前授权工作和安全恢复点只看
 [Project status](PROJECT_STATUS.md)，能力及证据只看
 [Capability status](docs/CAPABILITY_STATUS.md)。
@@ -41,7 +42,7 @@ provider 环境变量，不调用 provider；它明确显示 Scope unavailable�
 
 | 需求 | 当前入口 | 真实边界 |
 | --- | --- | --- |
-| 本地审阅 Formal Demo 意图 | `guarded-desktop-agent-console --provider <provider> --model <model>` | 只到 disclosure 和不可执行 `COMPILE` permit；Scope 不可用、`Start` 禁用，不读 key、不发 provider 请求 |
+| 本地审阅 Formal Demo Scope | `guarded-desktop-agent-console --provider <provider> --model <model>` | exact `COMPILE` 一次性消费本地 permit，以固定 Host mapping 显示完整内置 Scope；`Start` 禁用，不读 key、不发 provider 请求，不解释自由文本 |
 | 询问前台文档内容 | `guarded-desktop-agent ask` | 一到四次已审核的只读观察；不能规划桌面副作用 |
 | 运行现有产品工作流 | `guarded-desktop-agent review public-web-word`，再执行 `guarded-desktop-agent workflow public-web-word` | 只覆盖固定公开网页到全新 Word 文档；不是任意网页或任意办公任务 |
 | 检查安装和配置 | `guarded-desktop-agent config setup/settings/doctor` | 配置与 readiness；不等于开始任务或授予桌面权限 |
@@ -94,8 +95,8 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 下列内容已经分清 owner；其中标明的内部离线合同不是当前可执行命令、产品入口或
 真实应用证据：
 
-1. **统一 Host 前门：**Review-only Console 已实现到本地 disclosure 和 inert
-   `COMPILE` permit；完整的 `Agent Console -> TaskIntent -> Host validation
+1. **统一 Host 前门：**Offline Scope Review Console 已实现到本地 disclosure、
+   process-local `COMPILE` permit、固定 Host intent 与完整 Scope；完整的 `Agent Console -> TaskIntent -> Host validation
    -> Scope Sheet -> review/start/status` 只负责收集意图和展示 Host 验证后的范围；
    它不会获得桌面权限，后续仍必须进入现有 Runner、唯一 MCP server 和 Windows
    Driver。自然语言如果要发送给 provider 生成 `TaskIntent`，发送前还必须本地展示
@@ -104,13 +105,14 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
    [项目总览中的 current/planned architecture](docs/PROJECT_OVERVIEW.md)。
 2. **Formal Demo v1：**选定的产品故事是 GitHub Issues fixture -> PDF ->
    disposable Excel -> disposable Word -> test-account email draft（绝不发送）。
-   前两切片已实现四个 inert v1 数据合同，以及 typed 敏感本地 disclosure、
-   reviewed warning pin 和单 gate 实例 exact `COMPILE` permit；email role 仍是
-   `UNSELECTED`，完整产品场景会确定性停止。原始任务只保留在本地内存 disclosure
+   五个离线切片已实现四个 inert v1 数据合同、typed 敏感本地 disclosure、
+   reviewed warning pin、单 gate 实例 exact `COMPILE` permit、injected fake
+   coordinator，以及固定 no-key local Scope compiler。email role 已选择 inert 的
+   Outlook Desktop test-draft 设计绑定；这不代表 adapter 或应用可用。原始任务只保留在本地内存 disclosure
    与显示中，permit/receipt 只绑定其 digest；没有 serialized gate loader，也不
    提供跨进程 exactly-once。
-   独立 Review-only Console/launcher 已实现，但 provider intent call、正向 Scope
-   编译、`START`、可执行应用 adapter、durable run 和正式证据仍未实现。详见
+   独立 Offline Scope Review Console/launcher 已实现并能显示正向内置 Scope，
+   但 provider intent call、`START`、可执行应用 adapter、durable run 和正式证据仍未实现。详见
    [Formal Demo v1](docs/FORMAL_DEMO_V1.md)。
 3. **Application Coverage Set A：**BOSS、Google Docs、WeChat 继续作为独立的
    真实应用覆盖与证据用例，不再定义 Formal Demo，也不是自动获得优先级的
@@ -121,8 +123,8 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 
 ## 怎么下指令（How to ask）
 
-今天仍没有一个统一 Console 可以理解并执行任意指令；Review-only Console 不会
-执行。请先说明你是在**使用当前
+今天仍没有一个统一 Console 可以理解并执行任意指令；Offline Scope Review
+Console 不解释自由文本，也不会执行。请先说明你是在**使用当前
 能力**，还是在**要求修改项目**。
 
 使用当前只读能力时，把问题写成明确且可验证的结果，例如：
@@ -146,9 +148,10 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
 > 只审查当前架构和文档，不改 Runtime。列出 implemented、partial、planned，
 > 并指出每一项的 owner、证据和准确下一步。
 
-> 把 Formal Demo v1 的下一实现切片限定为离线、无 provider/MCP/desktop 的
-> typed local disclosure 与 exact `COMPILE` permit；保留 Full Cycle 和 provider
-> E3 恢复点，不实现 Console、provider request、应用 adapter 或 Demo 运行。
+> 在另行激活 Formal Demo 后续切片前，先重读 `PROJECT_STATUS.md`；保留当前
+> Offline Scope Review 的固定本地 mapping、永久禁用的 `Start`、Full Cycle 与
+> provider E3 恢复点，不把 Outlook 设计 profile 当成可执行 adapter，也不启动
+> provider、Runner、MCP、desktop、application 或 durable run。
 
 > 设计 OpenClaw-like 的产品入口时，只做 Host-owned front-door contract；复用
 > 现有 Runner/MCP，不增加 daemon、scheduler、plugin gateway、Multi-Agent 或

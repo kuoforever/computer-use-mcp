@@ -294,7 +294,7 @@ def test_scope_sheet_is_complete_host_compiled_and_non_authoritative() -> None:
     assert not hasattr(sheet, "dispatch")
 
 
-def test_reviewed_product_records_are_exact_inert_and_email_is_unselected() -> None:
+def test_reviewed_product_records_are_exact_inert_and_scope_compiles() -> None:
     profiles = FORMAL_DEMO_V1_ROLE_PROFILES
     handoff = next(profile for profile in profiles if profile.role is SemanticRole.HANDOFF)
 
@@ -303,24 +303,24 @@ def test_reviewed_product_records_are_exact_inert_and_email_is_unselected() -> N
     assert set(FORMAL_DEMO_V1_ROLE_PROFILES_BY_ID) == {
         profile.profile_id for profile in profiles
     }
-    assert handoff.binding_state is ProfileBindingState.UNSELECTED
-    assert handoff.adapter_id is None
+    assert handoff.binding_state is ProfileBindingState.SELECTED
+    assert handoff.application_label == "Outlook Desktop test-account email draft"
+    assert handoff.adapter_id == "outlook_desktop_test_email_draft"
     assert {
         "email_send",
         "email_schedule",
         "email_forward",
         "external_delivery",
     } <= set(handoff.forbidden_effects)
-    with pytest.raises(
-        FormalDemoContractError,
-        match="^FORMAL_DEMO_PROFILE_UNAVAILABLE$",
-    ):
-        compile_reviewed_generic_scope_sheet(
-            _intent(),
-            FORMAL_DEMO_V1_SCENARIO,
-            profiles,
-            resume_identity=RESUME_IDENTITY,
-        )
+    sheet = compile_reviewed_generic_scope_sheet(
+        _intent(),
+        FORMAL_DEMO_V1_SCENARIO,
+        profiles,
+        resume_identity=RESUME_IDENTITY,
+    )
+    assert sheet.reviewed_registry_pins_verified
+    assert tuple(item.role for item in sheet.applications) == tuple(SemanticRole)
+    assert sheet.applications[-1].adapter_id == "outlook_desktop_test_email_draft"
 
 
 def test_reviewed_profile_resolution_requires_exact_id_version_and_digest() -> None:

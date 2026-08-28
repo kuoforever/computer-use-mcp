@@ -19,7 +19,7 @@ def test_help_does_not_import_native_backend(capsys, monkeypatch) -> None:
     monkeypatch.setattr(builtins, "__import__", checked_import)
     with pytest.raises(SystemExit, match="^0$"):
         launcher.main(["--help"])
-    assert "Review-only Formal Demo Console" in capsys.readouterr().out
+    assert "Offline Scope Review Console" in capsys.readouterr().out
 
 
 def test_describe_is_no_key_and_does_not_import_native_backend(
@@ -48,10 +48,13 @@ def test_describe_is_no_key_and_does_not_import_native_backend(
     assert result == 0
     output = capsys.readouterr()
     payload = json.loads(output.out)
-    assert payload["mode"] == "review_only"
+    assert payload["mode"] == "offline_scope_review"
     assert payload["provider"] == "openai"
     assert payload["credential_readiness_checked"] is False
     assert payload["provider_request_started"] is False
+    assert payload["local_scope_compiler_available"] is True
+    assert payload["free_form_interpretation"] is False
+    assert payload["permit_consumed"] is False
     assert payload["scope_available"] is False
     assert payload["start_enabled"] is False
     assert payload["desktop_automation_started"] is False

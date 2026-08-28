@@ -37,8 +37,8 @@ four distinct maturity layers:
    platforms, the complete Formal Demo v1 front door and application adapters,
    complete real-application acceptance, the Universal GUI final
    showcase, and L5 remain planned or inactive at their documented evidence
-   levels. One independent Review-only Formal Demo Console now exists, but it
-   stops at an inert permit with Scope unavailable and `Start` disabled.
+   levels. One independent Offline Scope Review Formal Demo Console now reaches
+   a complete Host-compiled built-in Scope, but `Start` remains disabled.
 
 The central engineering idea is not “let a model click anywhere.” It is to
 separate observation, reasoning, authority, execution, durable evidence, and
@@ -53,13 +53,16 @@ exact-pin/digest, pure-local typed intent-disclosure/permit contracts, and
 provider-neutral one-attempt intent coordinator are implemented offline only.
 The coordinator is exercised through injected deterministic fakes and has no
 concrete provider, credential, configuration, environment, or network wiring.
-An independent Review-only Windows Console/launcher now collects one in-memory
+An independent Offline Scope Review Windows Console/launcher now collects one in-memory
 draft, shows the exact operator-selected model plus reviewed route/profile
-disclosure without implying readiness, and issues one inert permit;
-it reads no Agent config, credential, or provider environment, reports Scope
-unavailable, and keeps `Start` disabled. The live provider intent adapter/call,
-permit consumption, positive built-in Scope, executable application adapters,
-durable composition, and formal evidence do not exist yet. BOSS,
+disclosure without implying readiness, consumes one permit through an explicit
+Host-owned fixed local compiler, and displays the complete reviewed Scope. The
+email role selects an inert Outlook Desktop test-draft design profile. Free-form
+text binds identity only, `provider_calls` and retries are zero, and native
+`Start` remains disabled. It reads no Agent config, credential, or provider
+environment and makes no provider request. The live provider intent adapter/call,
+executable application adapters, durable composition, and formal evidence do
+not exist yet. BOSS,
 Google Docs, and WeChat instead belong to independent
 [Application Coverage Set A](APPLICATION_EVALUATION_MATRIX.md); coverage cases
 do not define the product Demo or operational priority. The still broader
@@ -136,10 +139,10 @@ implemented or partial projections and adapters
   -> OCR / document text / cropped image / optional browser observation
   -> passive progress / presence / Decision Cards
   -> local host terminal polling and read-only Task Center projection
-  -> Review-only Formal Demo Console through inert COMPILE permit issue
+  -> Offline Scope Review Formal Demo Console through local reviewed Scope
 
 planned or unverified expansion
-  -> complete Host-owned TaskIntent / generic Scope Sheet / START front door
+  -> live provider TaskIntent / START front door
   -> Formal Demo v1 provider and application-role adapters
   -> delta observation and remote/mobile delivery
   -> isolated workers / macOS / Linux / Android device driver
@@ -150,11 +153,11 @@ The MCP server remains the only desktop execution authority. Planner,
 campaign, recovery, UI, and learning layers may request or project work, but
 must not create a second native-action path.
 
-The user-facing entry is not unified today. The Review-only Console, `ask`, the fixed
+The user-facing entry is not unified today. The Offline Scope Review Console, `ask`, the fixed
 `review` / `workflow public-web-word` pair, configuration, Task Center, and
 cooperative control are separate CLI surfaces with different authority. The
-Review-only Console must not be inferred to provide the planned intent call,
-Scope, `Start`, or execution layers.
+Offline Scope Review Console must not be inferred to provide a live intent
+call, semantic free-form interpretation, `Start`, or execution layers.
 
 ## Executable surfaces today
 
@@ -162,7 +165,7 @@ Scope, `Start`, or execution layers.
 | --- | --- | --- | --- |
 | Desktop MCP server | `guarded-desktop-mcp` | Expose thirteen core Windows GUI tools plus one optional read-only browser observation over stdio | Implemented Windows runtime |
 | Agent Host | `guarded-desktop-agent` | Run bounded provider/MCP workflows and management commands | Experimental; scoped [E3](E3_EVIDENCE.md) and [E4](E4_EVIDENCE.md) evidence retained |
-| Formal Demo Review-only Console | `guarded-desktop-agent-console --provider <provider> --model <model>` | Collect one local in-memory draft, show the exact operator-selected model plus reviewed route/profile disclosure without implying readiness, and issue one inert permit after exact `COMPILE` | Implemented/offline verified; reads no Agent config/key/provider environment, makes no provider request, shows Scope unavailable, and has disabled native `Start` with no consume/dispatch path |
+| Formal Demo Offline Scope Review Console | `guarded-desktop-agent-console --provider <provider> --model <model>` | Collect one local in-memory draft, show the exact operator-selected model plus reviewed route/profile disclosure, and compile the fixed built-in Scope after exact `COMPILE` | Implemented/offline verified; consumes one process-local permit locally, reads no Agent config/key/provider environment, makes no provider request, does not interpret free-form text, and has disabled native `Start` with no dispatch path |
 | Quick Setup | `config setup` | Create one non-overwriting recommended strict configuration | Implemented; no credential write or process start |
 | Agent Controls | `config settings` / `config settings --json` | Explain purpose, connection, safety, interface, and exact readiness command | Implemented and inert; no authority or shortcut registration |
 | ShortcutBroker | `shortcuts run` | Explicitly own fixed open-controls and a strict configurable cooperative-pause-request shortcut | Implemented/offline verified; loaded-layout guard and foreground host only, no approve/resume/provider/MCP/desktop dispatch |
@@ -186,8 +189,8 @@ Scope, `Start`, or execution layers.
 Planner/Executor is exposed through product-facing `ask` and metadata-oriented
 `plan run`. Campaign commands remain deliberately bounded control/evidence
 surfaces rather than one automatic general-product loop.
-There is no unified executing Agent Console or `TaskIntent` candidate entry in
-this table; the Review-only command stops before both.
+There is no unified executing Agent Console or live `TaskIntent` candidate entry
+in this table; the Offline Scope Review command stops before `START`.
 
 ## Feature inventory
 
@@ -295,7 +298,7 @@ this table; the Review-only command stops before both.
 | Approval Inbox and local notification | Implemented / CLI-first, offline verified | Strict expiring identity/digest records supplement the bound Decision Card; optional Windows notification carries fixed wording only. Neither surface can decide, control, retry, replay, or dispatch, and native accessibility evidence remains open | [Approval Inbox](APPROVAL_INBOX.md) |
 | Public web to Word workflow | Implemented / exact scoped evidence | One installed fixed workflow lets a reviewed OpenAI model observe a fresh public Microsoft Support page, author a bounded brief, and write, save, reopen, visually verify, and clean up one disposable Word fixture through the existing Runner/MCP and Decision Card boundaries. The [retained result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md) does not establish arbitrary websites or applications | [Workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | Mobile notifications | Host capability; internal repository projection implemented | Local fixed-content approval attention exists, but mobile terminal/attention delivery remains absent; no MCP-log completion inference or repository mobile bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
-| Formal Demo v1 | Review-only front door and internal offline contracts implemented; complete product not executable | Inert v1 `TaskIntent`, scenario/profile pins, generic Scope, canonical binding, typed local disclosure/exact-`COMPILE` permit, consume-before-injected-fake coordinator, and independent no-key Review-only Console exist. The Console stops with Scope unavailable and `Start` disabled; the live provider call, permit consumption, positive built-in Scope, executable adapters, durable composition, and selected GitHub Issues -> PDF -> Excel -> Word -> unsent test-email run remain planned | [Formal Demo v1](FORMAL_DEMO_V1.md) |
+| Formal Demo v1 | Offline Scope Review front door and internal offline contracts implemented; complete product not executable | Inert v1 `TaskIntent`, scenario/profile pins, generic Scope, canonical binding, typed local disclosure/exact-`COMPILE` permit, consume-before-injected-fake coordinator, fixed Host-owned local compiler, five selected inert profiles, and independent no-key Console exist. The Console displays the complete reviewed built-in Scope with zero provider calls/retries and stops with `Start` disabled; the live provider call, executable adapters, durable composition, and selected GitHub Issues -> PDF -> Excel -> Word -> unsent Outlook test-draft run remain planned | [Formal Demo v1](FORMAL_DEMO_V1.md) |
 | Application Coverage Set A | Planned independent acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, and their legacy cross-application case remain representative mechanism coverage; they do not define the Formal Demo or project priority | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance coverage sets | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Universal GUI final showcase | Planned/final integration gate | One chaptered campaign composed only after its selected mechanisms are independently eligible, with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) |
@@ -327,7 +330,8 @@ this table; the Review-only command stops before both.
 | `src/computer_use_agent/formal_demo_contract.py` | Internal inert Formal Demo v1 intent/scenario/profile/Scope contracts, exact reviewed pins, bounded canonical binding, and fail-closed structural compilation without execution ports |
 | `src/computer_use_agent/formal_demo_intent_gate.py` | Internal typed sensitive-local intent disclosure plus exact `COMPILE` issue/consume gate; validates one exact route against static reviewed catalog/routing rules and one reviewed warning pin, opens no provider/execution/persistence port, and makes no durable or cross-process exactly-once claim |
 | `src/computer_use_agent/formal_demo_intent_request.py` | Provider-neutral offline one-attempt coordinator: exact reviewed-scenario preflight, permit consume before one injected call, strict untrusted-candidate validation, terminal no-retry behavior, and no concrete provider/credential/network/execution wiring |
-| `src/computer_use_agent/formal_demo_console.py`, `formal_demo_console_win32.py`, `formal_demo_console_launcher.py` | Independent no-key Review-only Formal Demo front door: one in-memory draft, reviewed route/profile disclosure, inert exact-`COMPILE` permit issue, honest unavailable Scope, and disabled native `Start`; no config/credential/provider/network/consume/Runner/MCP/desktop-automation/application/persistence port |
+| `src/computer_use_agent/formal_demo_local_scope.py` | Fixed Host-owned no-key compiler: exact registry preflight, one process-local permit consumption, non-interpreting built-in intent, reviewed Scope compilation, zero provider calls/retries, and no external or execution port |
+| `src/computer_use_agent/formal_demo_console.py`, `formal_demo_console_win32.py`, `formal_demo_console_launcher.py` | Independent no-key Offline Scope Review front door: one in-memory draft, reviewed route/profile disclosure, exact `COMPILE`, complete local Scope projection, and disabled native `Start`; no config/credential/provider/network/Runner/MCP/desktop-automation/application/persistence port |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
 | `src/computer_use_agent/planning.py`, `planner.py`, `plan_store.py` | Declarative plan compilation, provider port, and persistence |
 | `src/computer_use_agent/hierarchical_control.py` | Inert H1 node schema, canonical tree digest, reviewed limits, pure status reduction, and linear-plan projection |
@@ -377,19 +381,22 @@ These current surfaces are separate entries. In particular, the implemented
 `public-web-word` Scope Sheet is fixed to that one workflow, and Task Center is
 read-only; together they do not form a generic recipe or Console lifecycle.
 
-### Host front-door flow — implemented Review-only stop, planned continuation
+### Host front-door flow — implemented Offline Scope Review stop, planned continuation
 
 ~~~text
-natural-language outcome in Review-only Agent Console [implemented command]
+natural-language outcome in Offline Scope Review Agent Console [implemented command]
   -> local Host-fixed provider/data-use disclosure [implemented]
-  -> exact COMPILE acknowledgement [inert permit issued; not consumed]
-  -> Scope unavailable / Start disabled [current executable stop]
-  -> one-attempt Host coordinator [implemented; injected fake only]
-  -> concrete tool-free provider adapter/call [planned]
-  -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
-  -> Host validates reviewed application-role profiles
-  -> Host compiles generic Scope Sheet
-  -> explicit start acknowledgement (not action approval)
+  -> exact COMPILE acknowledgement [process-local permit]
+  +-> fixed local Host compiler [implemented; no free-form interpretation]
+  |   -> five exact inert role pins, including Outlook test-draft design
+  |   -> reviewed generic Scope Sheet [implemented]
+  |   -> Start unavailable / disabled [current executable stop]
+  +-> one-attempt Host coordinator [implemented; injected fake only]
+      -> concrete tool-free provider adapter/call [planned]
+      -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
+      -> Host validates reviewed application-role profiles
+      -> Host compiles generic Scope Sheet
+      -> explicit start acknowledgement (not action approval) [planned]
   -> existing planning / campaign / operator-control components
   -> existing Agent Runner policy + grounding + budgets + approval + WAL
   -> sole stdio MCP server
@@ -404,11 +411,12 @@ receipts. The disclosure gate and coordinator accept typed Host objects and
 expose no serialized loader, concrete provider adapter, credential lookup, or
 network path. Their one-use guarantee is limited to one in-memory gate instance;
 consume-before-fake ordering is not crash-safe exactly-once. The independent
-Review-only Console/launcher is a command, but it deliberately does not connect
-to that coordinator or consume its permit. The live provider call, product
-compiler integration, recipe lifecycle, positive Scope, and `Start` remain
-absent. No built-in full product path can
-compile while the exact email role remains `UNSELECTED`. Future product layers
+Offline Scope Review Console/launcher is a command. It consumes its permit only
+through the fixed local compiler, accepts no caller-supplied scope fields, and
+does not connect to the injected/provider coordinator. The live provider call,
+recipe lifecycle, and `Start` remain absent. The exact Outlook email role is a
+selected inert design binding without an executable adapter or application
+evidence. Future product layers
 may narrow and compose reviewed Host behavior but cannot select arbitrary
 tools, grant authority, bypass the Runner, or create a second desktop path.
 

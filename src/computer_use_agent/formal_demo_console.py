@@ -1,15 +1,14 @@
-"""Pure-local controller for the Review-only Formal Demo Agent Console.
+"""Pure-local controller for the Offline Scope Review Formal Demo Console.
 
-The Console is intentionally narrower than a workflow launcher.  It collects one
-in-memory draft, projects the existing reviewed intent disclosure, and may issue
-one process-local inert ``COMPILE`` permit.  It has no provider candidate port,
-permit-consumption method, ``START`` callback, persistence, Runner, MCP, Driver,
-desktop-automation, or application surface.
+The Console is intentionally narrower than a workflow launcher.  It collects
+one in-memory draft, projects the existing reviewed intent disclosure, and may
+consume one process-local ``COMPILE`` permit through the fixed Host-owned local
+compiler to display a complete reviewed Scope Sheet.
 
-The complete built-in Formal Demo scenario cannot currently produce a reviewed
-Scope Sheet because no intent candidate is available in this slice and the email
-role remains unselected.  The view therefore reports that state explicitly
-instead of manufacturing a scope from operator prose.
+Free-form task text binds identity but never selects roles, outputs, budgets,
+adapters, or authority.  There is no provider request, credential access,
+``START`` callback, persistence, Runner, MCP, Driver, desktop-automation, or
+application surface.
 """
 
 from __future__ import annotations
@@ -21,7 +20,11 @@ from enum import Enum
 from threading import RLock
 from typing import Never, Protocol, SupportsIndex, runtime_checkable
 
-from .formal_demo_contract import FORMAL_DEMO_V1_ROLE_PROFILES, ProfileBindingState
+from .formal_demo_contract import (
+    FORMAL_DEMO_V1_ROLE_PROFILES,
+    FormalDemoContractError,
+    ProfileBindingState,
+)
 from .formal_demo_intent_gate import (
     FormalDemoIntentDisclosure,
     FormalDemoIntentGateError,
@@ -33,17 +36,24 @@ from .formal_demo_intent_gate import (
     compile_intent_disclosure,
     reviewed_intent_disclosure_profiles,
 )
+from .formal_demo_local_scope import (
+    FormalDemoLocalScopeError,
+    LocalScopeCompilation,
+    compile_local_scope_once,
+    render_local_scope_review,
+)
 from .provider_catalog import provider_profile, resolve_provider_route
 
 
-CONSOLE_TITLE = "Guarded Desktop Agent - Formal Demo Review"
-CONSOLE_MODE_LABEL = "REVIEW ONLY - EXTERNAL WORK: NO"
-SCOPE_UNAVAILABLE_TEXT = "\n".join(
+CONSOLE_TITLE = "Guarded Desktop Agent - Formal Demo Scope Review"
+CONSOLE_MODE_LABEL = "OFFLINE SCOPE REVIEW - EXTERNAL WORK: NO"
+SCOPE_PENDING_TEXT = "\n".join(
     (
-        "Intent candidate: unavailable in Review-only mode.",
-        "Scope Sheet: unavailable until a candidate passes Host validation.",
-        "Required email profile: UNSELECTED; no email adapter is authorized.",
-        "Start: disabled.",
+        "Local intent compiler: Host-fixed built-in Formal Demo mapping.",
+        "Free-form interpretation: no; exact task text binds identity only.",
+        "Scope Sheet: pending exact COMPILE acknowledgement.",
+        "Provider request: disabled.",
+        "Start: unavailable and disabled.",
         "External work started: no.",
     )
 )
@@ -58,6 +68,7 @@ class FormalDemoConsoleStage(str, Enum):
     DRAFT = "draft"
     DISCLOSURE_READY = "disclosure_ready"
     PERMIT_ISSUED = "permit_issued"
+    SCOPE_READY = "scope_ready"
     CANCELLED = "cancelled"
 
 
@@ -92,12 +103,30 @@ class FormalDemoConsoleView:
     role_summaries: tuple[FormalDemoRoleSummary, ...]
     task_text: str = field(repr=False)
     disclosure_text: str = field(repr=False)
+    scope_text: str = field(default="", repr=False)
     validation_code: str | None = None
     start_enabled: bool = False
     scope_available: bool = False
 
     def __post_init__(self) -> None:
-        if self.start_enabled is not False or self.scope_available is not False:
+        expected_scope_available = self.stage is FormalDemoConsoleStage.SCOPE_READY
+        if (
+            type(self.stage) is not FormalDemoConsoleStage
+            or type(self.task_text) is not str
+            or type(self.disclosure_text) is not str
+            or type(self.scope_text) is not str
+            or type(self.scope_available) is not bool
+            or self.scope_available != expected_scope_available
+            or bool(self.scope_text) != self.scope_available
+            or self.start_enabled is not False
+            or (
+                self.validation_code is not None
+                and (
+                    type(self.validation_code) is not str
+                    or _FIXED_ERROR_CODE.fullmatch(self.validation_code) is None
+                )
+            )
+        ):
             raise FormalDemoConsoleError("FORMAL_DEMO_CONSOLE_AUTHORITY_INVALID")
 
     @property
@@ -135,14 +164,25 @@ class FormalDemoConsoleView:
             CONSOLE_MODE_LABEL,
             self.route_text,
             "Application-role design bindings (not readiness or evidence):\n" + role_text,
+            (
+                "This Console will consume COMPILE only through the fixed local "
+                "Host compiler. The selected provider route remains future identity "
+                "and disclosure context; no task text is sent in this slice."
+            ),
         ]
         if self.disclosure_text:
             sections.append(self.disclosure_text.rstrip("\n"))
-        sections.append(SCOPE_UNAVAILABLE_TEXT)
-        if self.stage is FormalDemoConsoleStage.PERMIT_ISSUED:
+        if self.scope_text:
+            sections.append(self.scope_text.rstrip("\n"))
+        else:
+            sections.append(SCOPE_PENDING_TEXT)
+        if (
+            self.stage is FormalDemoConsoleStage.PERMIT_ISSUED
+            and self.validation_code is not None
+        ):
             sections.append(
-                "One inert process-local COMPILE permit was issued. It has not been "
-                "consumed, and closing or resetting this Console abandons the attempt."
+                "One process-local COMPILE permit was issued but no Scope result was "
+                "returned. This attempt is terminal; close or reset to abandon it."
             )
         if self.validation_code is not None:
             sections.append(f"Validation stopped: {self.validation_code}")
@@ -268,6 +308,7 @@ class FormalDemoConsoleSession:
         self._gate: IntentCompileGate | None = None
         self._task_text = ""
         self._disclosure: FormalDemoIntentDisclosure | None = None
+        self._scope_result: LocalScopeCompilation | None = None
         self._validation_code: str | None = None
         self._cancelled = False
         self._lock = RLock()
@@ -297,6 +338,8 @@ class FormalDemoConsoleSession:
                 return FormalDemoConsoleStage.CANCELLED
             if self._gate is None:
                 return FormalDemoConsoleStage.DRAFT
+            if self._scope_result is not None:
+                return FormalDemoConsoleStage.SCOPE_READY
             state = self._gate.state
             if state is IntentCompileGateState.READY:
                 return FormalDemoConsoleStage.DISCLOSURE_READY
@@ -308,6 +351,11 @@ class FormalDemoConsoleSession:
         with self._lock:
             disclosure_text = (
                 "" if self._disclosure is None else self._disclosure.render()
+            )
+            scope_text = (
+                ""
+                if self._scope_result is None
+                else render_local_scope_review(self._scope_result)
             )
             return FormalDemoConsoleView(
                 stage=self.stage,
@@ -321,7 +369,9 @@ class FormalDemoConsoleSession:
                 role_summaries=_role_summaries(),
                 task_text=self._task_text,
                 disclosure_text=disclosure_text,
+                scope_text=scope_text,
                 validation_code=self._validation_code,
+                scope_available=self._scope_result is not None,
             )
 
     def review(self, task_text: object) -> FormalDemoConsoleView:
@@ -364,22 +414,36 @@ class FormalDemoConsoleSession:
             return self.view()
 
     def acknowledge(self, token: object) -> FormalDemoConsoleView:
-        """Issue one inert permit; this controller exposes no consume operation."""
+        """Issue and consume one permit through the fixed local Scope compiler."""
 
         with self._lock:
             if self._cancelled or self._gate is None:
                 self._validation_code = "FORMAL_DEMO_CONSOLE_DISCLOSURE_REQUIRED"
                 return self.view()
             try:
-                self._gate.acknowledge(token)
-            except FormalDemoIntentGateError as exc:
+                permit = self._gate.acknowledge(token)
+                if self._disclosure is None:
+                    raise FormalDemoConsoleError(
+                        "FORMAL_DEMO_CONSOLE_DISCLOSURE_REQUIRED"
+                    )
+                self._scope_result = compile_local_scope_once(
+                    gate=self._gate,
+                    permit=permit,
+                    current_disclosure=self._disclosure,
+                )
+            except (
+                FormalDemoConsoleError,
+                FormalDemoContractError,
+                FormalDemoIntentGateError,
+                FormalDemoLocalScopeError,
+            ) as exc:
                 self._validation_code = _fixed_code(
                     exc,
-                    "FORMAL_DEMO_CONSOLE_ACKNOWLEDGEMENT_INVALID",
+                    "FORMAL_DEMO_CONSOLE_SCOPE_COMPILATION_FAILED",
                 )
                 return self.view()
             except Exception:
-                self._validation_code = "FORMAL_DEMO_CONSOLE_ACKNOWLEDGEMENT_INVALID"
+                self._validation_code = "FORMAL_DEMO_CONSOLE_SCOPE_COMPILATION_FAILED"
                 return self.view()
             self._validation_code = None
             return self.view()
@@ -395,13 +459,14 @@ class FormalDemoConsoleSession:
                     pass
             self._gate = None
             self._disclosure = None
+            self._scope_result = None
             self._task_text = ""
             self._validation_code = None
             self._cancelled = False
             return self.view()
 
     def cancel(self) -> FormalDemoConsoleView:
-        """Abandon local data without consuming a permit or starting external work."""
+        """Abandon all local review data without starting external work."""
 
         with self._lock:
             if self._gate is not None and self._gate.state is IntentCompileGateState.READY:
@@ -411,6 +476,7 @@ class FormalDemoConsoleSession:
                     pass
             self._gate = None
             self._disclosure = None
+            self._scope_result = None
             self._task_text = ""
             self._validation_code = None
             self._cancelled = True
@@ -556,7 +622,7 @@ class FormalDemoConsoleWindow:
 __all__ = [
     "CONSOLE_MODE_LABEL",
     "CONSOLE_TITLE",
-    "SCOPE_UNAVAILABLE_TEXT",
+    "SCOPE_PENDING_TEXT",
     "FormalDemoConsoleCallbacks",
     "FormalDemoConsoleError",
     "FormalDemoConsoleSession",

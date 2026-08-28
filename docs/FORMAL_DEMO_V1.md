@@ -1,15 +1,17 @@
 # Formal Demo v1
 
-> **Status: `GDA-DEMO-007A` through `GDA-DEMO-007D` are implemented and
-> offline verified; only the bounded Review-only Console is independently
+> **Status: `GDA-DEMO-007A` through `GDA-DEMO-007E` are implemented and
+> offline verified; only the bounded Offline Scope Review Console is independently
 > executable. The complete Formal Demo product is not executable.** This
 > document owns the selected Formal Demo v1 story and its staged delivery
 > boundary. The implemented slices add inert v1 scenario/Scope contracts, a
 > pure-local intent disclosure and exact `COMPILE` permit, and a provider-neutral
 > one-attempt coordinator exercised only through injected deterministic fakes.
 > The independent Windows Console can collect one in-memory draft, display the
-> reviewed route/profile disclosure, and issue one inert permit; it explicitly
-> reports Scope unavailable and keeps native `Start` disabled. These slices add
+> reviewed route/profile disclosure, consume one local permit through a fixed
+> Host-owned no-key compiler, and display the complete built-in Scope; native
+> `Start` remains disabled. Free-form text binds identity but cannot change the
+> fixed scenario, roles, outputs, constraints, budgets, or adapters. These slices add
 > no concrete provider adapter or request, credential access, executable
 > application adapter, durable run, Formal Demo evidence, or authority to
 > activate later work.
@@ -43,15 +45,18 @@ an alternate tool port.
 
 ~~~text
 operator
-  -> Review-only Agent Console [implemented independent Windows command]
+  -> Offline Scope Review Agent Console [implemented independent Windows command]
   -> local intent-disclosure review contract [implemented]
-  -> exact COMPILE process-local permit [issued but never consumed by Console]
-  -> Scope unavailable / Start disabled [current executable stop]
-  -> one-attempt Host coordinator [implemented internally; injected fake only]
-  -> concrete tool-free provider adapter/call [planned; no credential wiring]
-  -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
-  -> Host validation against reviewed application-role profiles
-  -> Host-compiled Scope Sheet and explicit START
+  -> exact COMPILE process-local permit [implemented]
+  +-> fixed Host-owned local TaskIntent [implemented; no free-form interpretation]
+  |   -> exact reviewed role-profile pins [five selected inert design bindings]
+  |   -> Host-compiled complete Scope Sheet [implemented]
+  |   -> Start unavailable / disabled [current executable stop]
+  +-> one-attempt Host coordinator [implemented internally; injected fake only]
+      -> concrete tool-free provider adapter/call [planned; no credential wiring]
+      -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
+      -> Host validation against reviewed application-role profiles
+      -> Host-compiled Scope Sheet and explicit START [planned live path]
   -> existing H-tree / campaign control
   -> existing Agent Runner
   -> sole stdio MCP server
@@ -98,11 +103,12 @@ Structurally valid decoded scenario/profile data is not thereby reviewed. The
 public product compiler accepts only exact built-in scenario and profile
 `id`/version/digest pins. The internal structural compiler is exercised with
 synthetic test-only records and marks the resulting Scope Sheet as not
-registry-reviewed. Five target records exist: four contain selected inert
-symbolic design bindings, while the email role remains explicitly
-`UNSELECTED`. Compiling the complete built-in product scenario therefore stops
-with `FORMAL_DEMO_PROFILE_UNAVAILABLE`. This is expected and does not establish
-adapter availability or application evidence.
+registry-reviewed. Five target records exist and now contain selected inert
+symbolic design bindings. `GDA-DEMO-007E` selects Outlook Desktop for the
+dedicated test-account draft role, so the exact built-in registry can compile
+a complete Scope Sheet. Selection is contract data only: no adapter
+implementation, Outlook/account access, application readiness, or application
+evidence follows from it.
 
 Provider output remains untrusted data. The future Host path must reject
 refusal, truncation, malformed structure, unknown roles, unavailable profiles,
@@ -111,8 +117,9 @@ provider, durable-workflow, MCP, desktop, or application startup. Free-form
 task text never grants authority; typed Host-owned allowlists define the only
 admissible outcome, roles, outputs, constraints, risk, and budgets. The generic
 Scope Sheet says only that its compilation starts no external work and grants
-no execution authority; it does not claim that a separately reviewed intent
-provider call never occurred.
+no execution authority. The `GDA-DEMO-007E` local path records zero provider
+calls and zero retries; a future live path must disclose separately whether a
+provider call occurred before Scope compilation.
 
 ### `GDA-DEMO-007B` local intent disclosure and permit
 
@@ -202,7 +209,7 @@ call, but it cannot be silently selected as a provider fallback.
 ### `GDA-DEMO-007D` no-key Review-only Agent Console
 
 `src/computer_use_agent/formal_demo_console.py`,
-`formal_demo_console_win32.py`, and `formal_demo_console_launcher.py` add the
+`formal_demo_console_win32.py`, and `formal_demo_console_launcher.py` established the
 independent `guarded-desktop-agent-console` Windows entry. The launcher accepts
 only explicit non-secret provider/model/route identity arguments and resolves
 them against the static reviewed catalog. It does not load Agent configuration,
@@ -210,14 +217,13 @@ inspect credential or provider environment variables, construct a provider
 client, or open a network, Runner, MCP, Driver, desktop-automation, application,
 filesystem, persistence, Full Cycle, or telemetry port.
 
-One raw task remains in the process-local session and native controls. The
-Console renders the exact reviewed disclosure, all five role-profile design
-bindings, the email role's `UNSELECTED` state, and fixed content-free validation
-codes. Exact `COMPILE` can issue one permit in the existing locked gate, but the
-Console exposes no consume, provider-request, start, dispatch, retry, or replay
-method. Reset and close abandon the local attempt. The Scope Sheet remains
-honestly unavailable because this slice has no candidate and the complete
-built-in scenario still lacks a selected email adapter.
+At the `007D` boundary one raw task remained in the process-local session and
+native controls. The Console rendered the exact reviewed disclosure, four
+selected role-profile design bindings plus the email role's `UNSELECTED` state,
+and fixed content-free validation codes. Exact `COMPILE` issued one permit but
+exposed no consume, provider-request, start, dispatch, retry, or replay method;
+Scope remained unavailable. `GDA-DEMO-007E` extends that same command without
+rewriting this historical boundary.
 
 `Start unavailable` is a genuinely disabled native button: it has no tab stop,
 default-button role, callback, hotkey, or execution handler. Native component
@@ -229,6 +235,35 @@ window from outside the repository. This is Implemented/Offline evidence only;
 it is not retained Provider, Desktop E4, Application, human accessibility,
 localization, visual-design, multi-display, or Formal Demo acceptance evidence.
 
+### `GDA-DEMO-007E` no-key Offline Scope Review
+
+`src/computer_use_agent/formal_demo_local_scope.py` adds one explicit
+Host-owned local compiler. It accepts only the current gate, its exact issued
+permit, and the current disclosure; callers cannot supply a scenario, profile,
+adapter, output, constraint, risk, or budget. After exact registry preflight it
+consumes the process-local permit once, constructs the single built-in
+`TaskIntent`, and compiles the reviewed `GenericScopeSheet`. Free-form task text
+contributes only its digest and resume binding; it is not interpreted and
+cannot change the fixed scope. There is no fallback to a provider.
+
+The local intent fixes every required built-in role, output, constraint, and
+the scenario risk ceiling. Intended-run `provider_calls` and `retries` are both
+zero. The handoff registry pin now selects the inert
+`outlook_desktop_test_email_draft` design binding for a dedicated Outlook
+Desktop test-account draft. This selects a future target only; no executable
+adapter, account, recipient, attachment, Outlook process, or application
+evidence exists.
+
+After successful local compilation the Console projects `Review ready`, the
+complete human-readable Scope, registry and binding digests, fixed stops,
+residue, and forbidden effects. The route remains future identity/disclosure
+context and no task text is sent. The native Start control remains
+unconditionally disabled, outside the tab order, and without a callback,
+hotkey, or handler. Reset and close drop the process-local task, disclosure,
+consumption result, intent, and Scope. The module opens no configuration,
+credential, environment, Provider, network, filesystem, persistence, Runner,
+MCP, Driver, desktop, application, Full Cycle, or telemetry port.
+
 ## Selected role profiles and boundaries
 
 | Role | Formal Demo target | Required boundary before implementation can be accepted |
@@ -237,11 +272,12 @@ localization, visual-design, multi-display, or Formal Demo acceptance evidence.
 | Evidence | Versioned non-sensitive PDF fixture | Document text first, bounded OCR fallback only when separately allowed, citation/location verification, and no arbitrary file access |
 | Analysis | Disposable Excel workbook | Exact workbook/sheet/range identity, bounded values/formulas, save/reopen verification, and no unrelated workbook access |
 | Report | Disposable Word document | Bounded generated content, exact output path, save/reopen/readback verification, and no overwrite |
-| Handoff | Dedicated test-account email draft | Fixed test recipient boundary, subject/body/attachment verification, reopen and cleanup; `send`, `schedule`, `forward`, and external delivery are forbidden |
+| Handoff | Outlook Desktop dedicated test-account email draft | Fixed test recipient boundary, subject/body/attachment verification, reopen and cleanup; `send`, `schedule`, `forward`, and external delivery are forbidden |
 
-An exact email adapter—such as Outlook Desktop or Gmail Web—must be selected and
-reviewed in its own slice. “Email draft” is a semantic role, not permission to
-connect either product silently.
+Outlook Desktop is selected only as an inert reviewed design binding. “Email
+draft” and a selected profile are not permission to connect Outlook, an
+account, a recipient, or any application silently; implementation and evidence
+require their own later slice.
 
 ## Planned user journey
 
@@ -263,8 +299,12 @@ connect either product silently.
 11. Emit a bounded Completion/Failure Receipt with cost, calls, retries,
     uncertain outcomes, cleanup, and retained evidence references.
 
-`GDA-DEMO-007D` implements only steps 1-4 at the Review-only boundary. It then
-shows Scope unavailable and disabled `Start`; steps 5-11 remain unimplemented.
+`GDA-DEMO-007D` implemented steps 1-4 at the original Review-only boundary.
+`GDA-DEMO-007E` adds an explicit no-provider alternative for steps 5-7: exact
+`COMPILE` is consumed once, the Host maps only to the fixed built-in intent,
+and the complete Scope is displayed. It does not perform the live step 5 or
+interpret natural language. Step 8 remains unavailable and disabled; steps
+9-11 remain unimplemented.
 
 ## Planned product-state projection
 
@@ -277,8 +317,8 @@ authority:
 | --- | --- | --- |
 | Draft | Natural-language input exists only in the Console | edit, discard, or open the local intent-disclosure review |
 | Intent disclosure ready | The exact text, provider/model, purpose, and data-use warning are visible with zero external work | exact `COMPILE` acknowledgement or cancel |
-| Compile permit issued | One process-local gate instance holds an inert digest-bound permit; no provider request or durable run has started | future provider integration may atomically consume once, or the operator may abandon the process-local attempt |
-| Review ready | A candidate intent passed Host validation and a bound Scope Sheet is visible | exact `START` acknowledgement or cancel |
+| Compile permit issued | One process-local gate instance holds an inert digest-bound permit; no provider request or durable run has started | the fixed local compiler or a future provider integration may atomically consume once, or the operator may abandon the process-local attempt |
+| Review ready | A fixed local or future provider candidate intent passed Host validation and a bound Scope Sheet is visible | current Console: reset or cancel only; future separately authorized path: exact `START` or cancel |
 | Running | The reviewed durable run owns foreground execution | observe, pause, E-stop, or answer a Decision Card |
 | Attention | The run is blocked on approval, challenge, ambiguity, or human judgment | approve/deny only through the existing approval path, or take over |
 | Paused / yielded | The Agent has reached a durable boundary and released desktop authority | inspect, take over, resume request, or stop |
@@ -288,9 +328,10 @@ authority:
 Console close, process restart, or display failure cannot change the durable run
 outcome. `UNCERTAIN` is visibly distinct from success and ordinary failure.
 
-The current Review-only Console implements only Draft, Intent disclosure ready,
-and Compile permit issued. It has no durable run to project and cannot enter any
-later state in this table.
+The current Offline Scope Review Console implements Draft, Intent disclosure
+ready, the transient Compile permit, and Review ready through the fixed local
+compiler. It has no durable run, `START` transition, or execution authority and
+cannot enter Running or any later state in this table.
 
 ## Failure and control requirements
 
@@ -336,18 +377,27 @@ Writing this plan activates none of them.
    Runner, MCP, Driver, desktop-automation, application, persistence, or Full
    Cycle port. Automated native component and base-wheel tests are offline
    evidence, not human accessibility or live product acceptance.
-5. **Future live provider-intent adapter:** revalidate current route, account data
+5. **`GDA-DEMO-007E` — no-key Offline Scope Review, implemented:** select the
+   exact inert Outlook Desktop test-draft design profile, consume one issued
+   permit through the fixed Host-owned local compiler, construct only the
+   built-in intent with zero provider calls and retries, compile the complete
+   reviewed Scope, and project Review ready. Free-form text is digest binding,
+   not interpretation. Native `Start` remains disabled with no handler; no
+   provider, credential/config/environment, network, executable adapter,
+   Runner/MCP/Driver, desktop/application, persistence, or Full Cycle port is
+   added.
+6. **Future live provider-intent adapter:** revalidate current route, account data
    controls, task, profile, and draft identity; use the pre-consumed boundary for
    one tool-free request with no automatic retry. This requires separate
    activation and exact live-provider scope and is deferred under the current
    no-E3/no-API-key direction.
-6. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
+7. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
    email draft, with exact output verification and send permanently forbidden.
-7. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel
+8. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel
    roles one at a time, each with its own evidence gate.
-8. **Control and recovery composition:** add Pause/Takeover/Resume, one Decision
+9. **Control and recovery composition:** add Pause/Takeover/Resume, one Decision
    Card, E-stop, forced restart, fresh-context resume, and exact cleanup.
-9. **Formal evidence freeze:** retain fixtures, manifests, digests, recordings,
+10. **Formal evidence freeze:** retain fixtures, manifests, digests, recordings,
    sanitized traces, receipts, provider scope, cost, failures, and waivers.
 
 ## Presentation modes
