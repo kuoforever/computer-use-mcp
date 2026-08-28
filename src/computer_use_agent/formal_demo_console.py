@@ -46,7 +46,7 @@ from .provider_catalog import provider_profile, resolve_provider_route
 
 
 CONSOLE_TITLE = "Guarded Desktop Agent - Formal Demo Scope Review"
-CONSOLE_MODE_LABEL = "OFFLINE SCOPE REVIEW - EXTERNAL WORK: NO"
+CONSOLE_MODE_LABEL = "OFFLINE SCOPE - EXTERNAL WORK: NO"
 SCOPE_PENDING_TEXT = "\n".join(
     (
         "Local intent compiler: Host-fixed built-in Formal Demo mapping.",
