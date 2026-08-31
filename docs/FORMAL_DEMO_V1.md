@@ -1,20 +1,22 @@
 # Formal Demo v1
 
-> **Status: `GDA-DEMO-007A` through `GDA-DEMO-007E` are implemented and
+> **Status: `GDA-DEMO-007A` through `GDA-DEMO-007F` are implemented and
 > offline verified; only the bounded Offline Scope Review Console is independently
 > executable. The complete Formal Demo product is not executable.** This
 > document owns the selected Formal Demo v1 story and its staged delivery
 > boundary. The implemented slices add inert v1 scenario/Scope contracts, a
-> pure-local intent disclosure and exact `COMPILE` permit, and a provider-neutral
-> one-attempt coordinator exercised only through injected deterministic fakes.
+> pure-local intent disclosure and exact `COMPILE` permit, an async
+> provider-neutral one-attempt coordinator, and one exact OpenAI Responses
+> live-capable intent adapter plus internal Provider Scope composition.
 > The independent Windows Console can collect one in-memory draft, display the
 > reviewed route/profile disclosure, consume one local permit through a fixed
 > Host-owned no-key compiler, and display the complete built-in Scope; native
 > `Start` remains disabled. Free-form text binds identity but cannot change the
-> fixed scenario, roles, outputs, constraints, budgets, or adapters. These slices add
-> no concrete provider adapter or request, credential access, executable
-> application adapter, durable run, Formal Demo evidence, or authority to
-> activate later work.
+> fixed scenario, roles, outputs, constraints, budgets, or adapters. The exact
+> `openai/global/gpt-5.6-terra` adapter is not connected to the Console and has
+> no retained credentialed call: the current machine had no key, so Formal Demo
+> Provider evidence remains `NO`. These slices add no executable application adapter,
+> durable run, Formal Demo evidence, or authority to activate later work.
 > [Project status](../PROJECT_STATUS.md) remains the only operational tracker.
 
 ## Decision
@@ -52,11 +54,13 @@ operator
   |   -> exact reviewed role-profile pins [five selected inert design bindings]
   |   -> Host-compiled complete Scope Sheet [implemented]
   |   -> Start unavailable / disabled [current executable stop]
-  +-> one-attempt Host coordinator [implemented internally; injected fake only]
-      -> concrete tool-free provider adapter/call [planned; no credential wiring]
-      -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
-      -> Host validation against reviewed application-role profiles
-      -> Host-compiled Scope Sheet and explicit START [planned live path]
+  +-> async one-attempt Host coordinator [implemented internally]
+      -> exact OpenAI Responses adapter [implemented; live-capable, offline verified]
+      -> SDK credential/client resolution only after permit consumption
+      -> strict TaskIntent decode + reviewed-scenario validation [implemented]
+      -> Host validation against reviewed application-role profiles [implemented]
+      -> Host-compiled Provider Scope result [implemented internally]
+      -> Console live mode and explicit START [planned]
   -> existing H-tree / campaign control
   -> existing Agent Runner
   -> sole stdio MCP server
@@ -191,20 +195,19 @@ control flow or fixed error codes without the original exception context. This
 boundary does not resolve application profiles, compile a Scope Sheet, grant
 `START`, or open durable workflow or execution authority.
 
-The module ships no concrete port implementation or fake in production source,
-provider SDK/client/factory, configuration or environment read, API-key path,
-network/socket/HTTP call, filesystem store, CLI/Console, persistence, Runner,
-MCP, Driver, desktop, application, or Full Cycle integration. Its deterministic
-tests inject an in-test fake only. This proves process-local at-most-once ordering,
-not crash-safe or process-wide exactly-once, provider compatibility, or that any
-external request occurred.
+The coordinator module itself still ships no concrete port, Provider factory,
+credential/configuration/environment read, network transport, filesystem
+store, CLI/Console, persistence, Runner, MCP, Driver, desktop, application, or
+Full Cycle integration. `GDA-DEMO-007F` supplies the separately reviewed async
+port. The coordinator's deterministic fake tests prove process-local
+consume-before-await and at-most-once ordering, not crash-safe or process-wide
+exactly-once behavior or that an external request occurred.
 
-The future live intent call remains external work and is unimplemented and
-deferred. A future separately authorized concrete adapter must revalidate current
-route, account data controls, task, profile, and draft identity, use this
-pre-consumed one-attempt boundary without tools or automatic retry, and treat the
-returned candidate as untrusted. A local-only intent compiler could replace that
-call, but it cannot be silently selected as a provider fallback.
+The concrete adapter revalidates the exact route, account-review assertion,
+task, profile, scenario, and draft bindings; it uses the pre-consumed boundary
+without tools, continuation, fallback, or automatic retry and treats returned
+text as untrusted. A local-only intent compiler remains a separately explicit
+alternative and is never selected as a Provider fallback.
 
 ### `GDA-DEMO-007D` no-key Review-only Agent Console
 
@@ -264,6 +267,40 @@ consumption result, intent, and Scope. The module opens no configuration,
 credential, environment, Provider, network, filesystem, persistence, Runner,
 MCP, Driver, desktop, application, Full Cycle, or telemetry port.
 
+### `GDA-DEMO-007F` exact OpenAI live-capable intent and Scope path
+
+`src/computer_use_agent/providers/openai_intent.py` implements one exact async
+`IntentCandidatePort` for `openai/global/gpt-5.6-terra`. Construction is inert.
+Before a port can be bound, the Host requires a content-free account-scope
+digest and the exact account/data-controls review token. The activation binds
+that review to the disclosure, source-task digest, route, reviewed warning
+profile, scenario, and draft/resume identity without storing an account
+identifier or credential value.
+
+The SDK client and `OPENAI_API_KEY` are resolved lazily inside
+`create_candidate`, after the coordinator has consumed the exact permit and
+before the sole awaited request. The request uses the exact model, fixed Host
+instructions, canonical task/scenario JSON, strict `TaskIntent v1` JSON Schema,
+bounded output, and `store=false`; it includes no tools, continuation,
+metadata, account/draft/profile digests, screenshots, files, desktop state, or
+automatic retry. Incomplete output becomes terminal truncation, explicit
+refusal remains terminal refusal, and malformed envelopes, oversize text,
+route or binding drift, setup/network errors, and replay fail with fixed
+content-free errors.
+
+`src/computer_use_agent/formal_demo_provider_scope.py` awaits that existing
+one-attempt coordinator and then compiles only the exact built-in scenario and
+five reviewed profiles into `GenericScopeSheet`. Its result separately records
+that one external Provider call occurred before Scope compilation, with zero
+retries and `Start` still false. This prevents the local Console's zero-call
+receipt from being reused for a Provider path.
+
+The path is implemented and deterministic fake-wire/offline verified, but it
+is not connected to the Console or another product command. The current
+environment had no OpenAI credential, so the explicit opt-in live gate was
+skipped and no Provider compatibility, account, cost, latency, Desktop,
+Application, E4, or complete-Demo evidence is claimed.
+
 ## Selected role profiles and boundaries
 
 | Role | Formal Demo target | Required boundary before implementation can be accepted |
@@ -303,8 +340,10 @@ require their own later slice.
 `GDA-DEMO-007E` adds an explicit no-provider alternative for steps 5-7: exact
 `COMPILE` is consumed once, the Host maps only to the fixed built-in intent,
 and the complete Scope is displayed. It does not perform the live step 5 or
-interpret natural language. Step 8 remains unavailable and disabled; steps
-9-11 remain unimplemented.
+interpret natural language. `GDA-DEMO-007F` implements an internal exact
+OpenAI alternative for steps 5-7, but it is neither Console-exposed nor live
+Provider-verified. Step 8 remains unavailable and disabled; steps 9-11 remain
+unimplemented.
 
 ## Planned product-state projection
 
@@ -386,11 +425,15 @@ Writing this plan activates none of them.
    provider, credential/config/environment, network, executable adapter,
    Runner/MCP/Driver, desktop/application, persistence, or Full Cycle port is
    added.
-6. **Future live provider-intent adapter:** revalidate current route, account data
-   controls, task, profile, and draft identity; use the pre-consumed boundary for
-   one tool-free request with no automatic retry. This requires separate
-   activation and exact live-provider scope and is deferred under the current
-   no-E3/no-API-key direction.
+6. **`GDA-DEMO-007F` — exact OpenAI live-capable provider-intent adapter,
+   implemented/offline verified:** revalidate the exact
+   `openai/global/gpt-5.6-terra` route, account-review assertion, task, profile,
+   scenario, and draft identity; lazily resolve the SDK/key only after permit
+   consumption; make at most one tool-free structured-output request with no
+   continuation, fallback, or automatic retry; strictly Host-validate the
+   candidate; and compile the reviewed internal Provider Scope result. The
+   Console is not wired to this path, `Start` remains disabled, and the missing
+   credential means no live Formal Demo Provider evidence exists.
 7. **First real vertical:** GitHub Issues fixture -> disposable Word -> dedicated
    email draft, with exact output verification and send permanently forbidden.
 8. **Evidence and analysis expansion:** add the reviewed PDF and disposable Excel

@@ -180,9 +180,14 @@ def openai_client_from_environment(
     workspace_id: str | None = None,
     base_url: str | None = None,
     legacy_credentials: bool = False,
+    max_retries: int | None = None,
 ) -> Any:
     """Construct an OpenAI-SDK client bound to one reviewed provider."""
 
+    if max_retries is not None and (
+        type(max_retries) is not int or max_retries < 0
+    ):
+        raise ProviderSetupError("PROVIDER_MAX_RETRIES_INVALID")
     profile = provider_profile(provider)
     if profile.protocol not in {
         ProviderProtocol.OPENAI_RESPONSES,
@@ -224,7 +229,13 @@ def openai_client_from_environment(
             if isinstance(credential, str) and credential.strip()
             else "local-openai-no-key"
         )
-        return AsyncOpenAI(api_key=api_key, base_url=route.base_url)
+        if max_retries is None:
+            return AsyncOpenAI(api_key=api_key, base_url=route.base_url)
+        return AsyncOpenAI(
+            api_key=api_key,
+            base_url=route.base_url,
+            max_retries=max_retries,
+        )
     except Exception as exc:
         raise _client_initialization_error(
             provider,

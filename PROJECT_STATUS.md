@@ -1,16 +1,27 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-DEMO-007E` completed
-> through PR #363 as merge `b5a4d30` under the no-E3/no-API-key direction.
-> **Exact next:** stop for user review. Cloud and local E3 plus every
-> live-provider or credential-dependent task remain deferred. Provider intent,
-> `START`, executable role adapters, Runner/MCP/desktop/application work,
-> durable execution, and the complete Formal Demo remain inactive.
+> **Mode: one executable repository item is active.** `GDA-DEMO-007F` was
+> activated by the user on 2026-08-30 after `GDA-DEMO-007E` completed through
+> PR #363 as merge `b5a4d30`.
+> **Exact next:** implement the exact `openai` / `global` /
+> `gpt-5.6-terra` Formal Demo live-capable `IntentCandidatePort` and internal
+> one-attempt Provider Scope path. The account is selected only by the
+> process-local `OPENAI_API_KEY` binding, and a live call requires a separately
+> recorded current account/data-controls preflight. Credential/client creation
+> must occur only inside the already pre-consumed port boundary; the request is
+> tool-free, has no automatic retry, and Provider output remains untrusted.
+> The current machine has no configured credential, so implementation and
+> offline/full-repository validation proceed first and no
+> `GDA-DEMO-007F`-specific Provider evidence may be claimed unless the exact
+> credentialed gate later runs.
+> `START`, Console live-mode exposure, executable role adapters,
+> Runner/MCP/desktop/application work, durable execution, and the complete
+> Formal Demo remain inactive.
 > The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
 > No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
 > `archive/gda-demo-006-pr231-5c403a5`. L5 remains inactive.
-> Updated: 2026-08-28.
+> Updated: 2026-08-31.
 
 This file is the single operational task registry. The complete pre-compaction
 closure and decision chronology is preserved in the
@@ -34,18 +45,19 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
+| `GDA-DEMO-007F` | Active | Add one concrete OpenAI Responses `IntentCandidatePort` plus the internal exact `COMPILE` -> pre-consume -> one tool-free candidate -> strict Host validation -> reviewed Scope path for `openai` / `global` / `gpt-5.6-terra`. The adapter may become live only through the exact process credential binding; it has no fallback route and no Console, `START`, execution, desktop, application, persistence, or Full Cycle authority | Offline acceptance requires exact request/schema and route binding, lazy credential/client construction after consumption, exactly one call, zero tools and automatic retry, strict refusal/truncation/malformed/oversized/widened-output failure, sanitized errors, successful reviewed Scope compilation, focused tests, the complete repository gate, packaging smoke, and independent security/test/docs review. A credentialed call is a separate final gate within this row: run it only after current account/data-controls preflight, retain only sanitized exact-tuple evidence, and do not block or inflate the Implemented/Offline result when no credential exists. Stop before `START`, Console live-mode wiring, Runner, MCP, Driver, desktop, application, durable run, E4, release, or complete-Demo work |
 
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Cloud provider E3 | Deferred by the user on 2026-08-23 | None until the user explicitly resumes one exact provider/model/region/account scope; never inherit evidence across routes, regions, or models |
-| Local provider E3 | Deferred by the user | None until the user explicitly resumes one named loopback server/model scope |
+| Formal Demo Provider gate | The prior blanket provider deferral was lifted on 2026-08-30 only for the exact, narrower `GDA-DEMO-007F` OpenAI tuple; this is not the general E3 ordinary tool-cycle gate | Implement and offline-verify the exact adapter first. Run its credentialed one-call TaskIntent gate only after a current account/data-controls preflight; never inherit evidence across accounts, routes, regions, or models |
+| Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
-| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A` through `GDA-DEMO-007E` merged. Inert scenario/Scope contracts, typed local disclosure/permit, provider-neutral injected-fake coordination, and the independent no-key Offline Scope Review Console with one Host-fixed positive built-in Scope are offline verified. Native `Start` remains disabled | Stop for user review. Live provider/E3, free-form provider intent, executable role adapters, `START`, Runner/MCP/desktop/application work, durable composition, and formal evidence remain deferred and require a separately activated exact row |
+| [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | `GDA-DEMO-007A` through `GDA-DEMO-007E` merged. `GDA-DEMO-007F` is active only for the exact OpenAI live-capable internal intent/Scope adapter boundary. Native `Start` remains disabled | Complete the `007F` Implemented/Offline gate and run no live call without its current exact account preflight. Free-form intent on the Console, executable role adapters, `START`, Runner/MCP/desktop/application work, durable composition, and formal evidence remain inactive |
 | [Application coverage](docs/APPLICATION_EVALUATION_MATRIX.md) | Planned evidence program, not active | BOSS, Google Docs, WeChat, and their legacy cross-application scenario remain representative Coverage Set A cases. They do not define the Formal Demo story or project priority; promote each case only through its own retained gates |
 | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration gate, not active | Assemble only after selected application, safety, authority, observation, operator-UX, and enterprise gates retain executable evidence. Its 3-minute edit is not Formal Demo v1 |
 | Hierarchical control and learning | H1-H8 and L0-L4 complete only at their recorded bounded offline or injected-runtime scopes; L5 inactive | L5 requires separate privacy, security, evaluation, deployment, and rollback consent |
@@ -165,10 +177,12 @@ evidence plan on a non-sensitive desktop.
   provider resume point, and exact next action in this file.
 - Historical snapshots, archived plans, and archive tags are recoverability
   records, not resumable candidates or capability evidence.
-- User direction on 2026-08-23 defers Cloud and local E3 plus every live-provider
-  or credential-dependent task. The completed `GDA-DEMO-007C`,
-  `GDA-DEMO-007D`, and `GDA-DEMO-007E` slices did not request, read, store,
-  validate, or reuse an API key or credential; credentials already present on
-  the machine do not silently authorize later use.
+- User direction on 2026-08-30 lifted the prior blanket Cloud/local E3 and
+  credential-dependent deferral. That broad authorization activates only the
+  single exact `GDA-DEMO-007F` row above; it does not activate another route,
+  local model, desktop/application slice, Lane B, L5, E4, or release gate.
+  The completed `GDA-DEMO-007C`, `GDA-DEMO-007D`, and `GDA-DEMO-007E` slices
+  remain no-key evidence. A credential value is never inferred, printed,
+  persisted, or treated as authority merely because the task is authorized.
 - If authority is missing, the active item is ambiguous, or checks/reviews/
   conflicts are unresolved, stop instead of selecting adjacent work.

@@ -319,6 +319,41 @@ def test_local_openai_setup_and_client_use_an_optional_nonsecret_key(
     ]
 
 
+def test_openai_client_can_disable_sdk_retries_exactly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    constructed: list[dict[str, object]] = []
+
+    class RecordingClient:
+        def __init__(self, **kwargs: object) -> None:
+            constructed.append(kwargs)
+
+    openai_module = ModuleType("openai")
+    openai_module.AsyncOpenAI = RecordingClient  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "openai", openai_module)
+    monkeypatch.setattr(provider_setup, "find_spec", lambda _name: object())
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    provider_setup.openai_client_from_environment(
+        "openai",
+        region="global",
+        max_retries=0,
+    )
+
+    assert constructed == [
+        {
+            "api_key": "test-key",
+            "base_url": "https://api.openai.com/v1",
+            "max_retries": 0,
+        }
+    ]
+    with pytest.raises(
+        provider_setup.ProviderSetupError,
+        match="^PROVIDER_MAX_RETRIES_INVALID$",
+    ):
+        provider_setup.openai_client_from_environment(max_retries=True)
+
+
 def test_qwen_toml_round_trip_keeps_nonsecret_workspace_endpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
