@@ -1,7 +1,7 @@
 # Project overview
 
 > **Status: canonical orientation map, verified against the repository on
-> 2026-08-27.** This page explains the complete project shape without promoting
+> 2026-08-31.** This page explains the complete project shape without promoting
 > planned work to runtime capability. Exact behavior remains owned by the
 > linked contract documents; current evidence remains owned by
 > [Capability status](CAPABILITY_STATUS.md).
@@ -50,9 +50,12 @@ The selected future [Formal Demo v1](FORMAL_DEMO_V1.md) product story is an
 independently launched GitHub Issues, PDF, Excel, Word, and unsent test-email
 workflow. Its internal inert v1 `TaskIntent`, scenario/profile, generic Scope,
 exact-pin/digest, pure-local typed intent-disclosure/permit contracts, and
-provider-neutral one-attempt intent coordinator are implemented offline only.
-The coordinator is exercised through injected deterministic fakes and has no
-concrete provider, credential, configuration, environment, or network wiring.
+async provider-neutral one-attempt intent coordinator are implemented. One
+exact `openai/global/gpt-5.6-terra` Responses intent adapter and internal
+Provider Scope composition are live-capable and offline verified; SDK/key
+resolution occurs only inside the pre-consumed port call. No credential was
+available for a retained live request, so Formal-Demo-specific Provider
+evidence remains absent.
 An independent Offline Scope Review Windows Console/launcher now collects one in-memory
 draft, shows the exact operator-selected model plus reviewed route/profile
 disclosure without implying readiness, consumes one permit through an explicit
@@ -60,9 +63,9 @@ Host-owned fixed local compiler, and displays the complete reviewed Scope. The
 email role selects an inert Outlook Desktop test-draft design profile. Free-form
 text binds identity only, `provider_calls` and retries are zero, and native
 `Start` remains disabled. It reads no Agent config, credential, or provider
-environment and makes no provider request. The live provider intent adapter/call,
-executable application adapters, durable composition, and formal evidence do
-not exist yet. BOSS,
+environment and makes no provider request. The new Provider path is internal
+and not connected to that Console. Console live mode, executable application
+adapters, durable composition, and formal evidence do not exist yet. BOSS,
 Google Docs, and WeChat instead belong to independent
 [Application Coverage Set A](APPLICATION_EVALUATION_MATRIX.md); coverage cases
 do not define the product Demo or operational priority. The still broader
@@ -142,8 +145,8 @@ implemented or partial projections and adapters
   -> Offline Scope Review Formal Demo Console through local reviewed Scope
 
 planned or unverified expansion
-  -> live provider TaskIntent / START front door
-  -> Formal Demo v1 provider and application-role adapters
+  -> Console exposure and live evidence for the exact Provider TaskIntent path
+  -> Formal Demo v1 START and application-role adapters
   -> delta observation and remote/mobile delivery
   -> isolated workers / macOS / Linux / Android device driver
   -> complete cross-application and release acceptance
@@ -156,8 +159,9 @@ must not create a second native-action path.
 The user-facing entry is not unified today. The Offline Scope Review Console, `ask`, the fixed
 `review` / `workflow public-web-word` pair, configuration, Task Center, and
 cooperative control are separate CLI surfaces with different authority. The
-Offline Scope Review Console must not be inferred to provide a live intent
-call, semantic free-form interpretation, `Start`, or execution layers.
+Offline Scope Review Console must not be inferred to expose the internal
+live-capable intent adapter, semantic free-form interpretation, `Start`, or
+execution layers.
 
 ## Executable surfaces today
 
@@ -189,8 +193,9 @@ call, semantic free-form interpretation, `Start`, or execution layers.
 Planner/Executor is exposed through product-facing `ask` and metadata-oriented
 `plan run`. Campaign commands remain deliberately bounded control/evidence
 surfaces rather than one automatic general-product loop.
-There is no unified executing Agent Console or live `TaskIntent` candidate entry
-in this table; the Offline Scope Review command stops before `START`.
+There is no unified executing Agent Console or product-facing live `TaskIntent`
+candidate entry in this table; the Offline Scope Review command stops before
+`START`.
 
 ## Feature inventory
 
@@ -298,7 +303,7 @@ in this table; the Offline Scope Review command stops before `START`.
 | Approval Inbox and local notification | Implemented / CLI-first, offline verified | Strict expiring identity/digest records supplement the bound Decision Card; optional Windows notification carries fixed wording only. Neither surface can decide, control, retry, replay, or dispatch, and native accessibility evidence remains open | [Approval Inbox](APPROVAL_INBOX.md) |
 | Public web to Word workflow | Implemented / exact scoped evidence | One installed fixed workflow lets a reviewed OpenAI model observe a fresh public Microsoft Support page, author a bounded brief, and write, save, reopen, visually verify, and clean up one disposable Word fixture through the existing Runner/MCP and Decision Card boundaries. The [retained result](PUBLIC_WEB_WORD_PRODUCT_EVIDENCE.md) does not establish arbitrary websites or applications | [Workflow contract](PUBLIC_WEB_WORD_WORKFLOW.md) |
 | Mobile notifications | Host capability; internal repository projection implemented | Local fixed-content approval attention exists, but mobile terminal/attention delivery remains absent; no MCP-log completion inference or repository mobile bridge | [Operator experience](OPERATOR_EXPERIENCE.md#remote-and-mobile-notification-semantics) |
-| Formal Demo v1 | Offline Scope Review front door and internal offline contracts implemented; complete product not executable | Inert v1 `TaskIntent`, scenario/profile pins, generic Scope, canonical binding, typed local disclosure/exact-`COMPILE` permit, consume-before-injected-fake coordinator, fixed Host-owned local compiler, five selected inert profiles, and independent no-key Console exist. The Console displays the complete reviewed built-in Scope with zero provider calls/retries and stops with `Start` disabled; the live provider call, executable adapters, durable composition, and selected GitHub Issues -> PDF -> Excel -> Word -> unsent Outlook test-draft run remain planned | [Formal Demo v1](FORMAL_DEMO_V1.md) |
+| Formal Demo v1 | Offline Scope Review front door plus exact internal OpenAI intent/Scope path implemented; complete product not executable | Inert v1 `TaskIntent`, scenario/profile pins, generic Scope, canonical binding, typed local disclosure/exact-`COMPILE` permit, async consume-before-await coordinator, one exact live-capable OpenAI Responses port, internal Provider Scope result, fixed Host-owned local compiler, five selected inert profiles, and independent no-key Console exist. The Provider path is not Console-connected and has no retained credentialed result. The Console displays only the local reviewed built-in Scope with zero provider calls/retries and stops with `Start` disabled; executable adapters, durable composition, and the selected GitHub Issues -> PDF -> Excel -> Word -> unsent Outlook test-draft run remain planned | [Formal Demo v1](FORMAL_DEMO_V1.md) |
 | Application Coverage Set A | Planned independent acceptance | BOSS read-only, Google Docs long document, WeChat draft-only, and their legacy cross-application case remain representative mechanism coverage; they do not define the Formal Demo or project priority | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Broader applications | Planned | Media/design, Office/data, remote/system, legacy, and enterprise governance coverage sets | [Application matrix](APPLICATION_EVALUATION_MATRIX.md) |
 | Universal GUI final showcase | Planned/final integration gate | One chaptered campaign composed only after its selected mechanisms are independently eligible, with faults, takeover, tokens, authority, and retained artifacts | [Universal GUI final showcase](UNIVERSAL_GUI_DEMO.md) |
@@ -329,7 +334,8 @@ in this table; the Offline Scope Review command stops before `START`.
 | `src/computer_use_agent/public_web_word.py`, `pre_run_review.py` | Fixed workflow/profile guard plus the Host-compiled Scope Sheet, versioned JSON, and human rendering without external ports |
 | `src/computer_use_agent/formal_demo_contract.py` | Internal inert Formal Demo v1 intent/scenario/profile/Scope contracts, exact reviewed pins, bounded canonical binding, and fail-closed structural compilation without execution ports |
 | `src/computer_use_agent/formal_demo_intent_gate.py` | Internal typed sensitive-local intent disclosure plus exact `COMPILE` issue/consume gate; validates one exact route against static reviewed catalog/routing rules and one reviewed warning pin, opens no provider/execution/persistence port, and makes no durable or cross-process exactly-once claim |
-| `src/computer_use_agent/formal_demo_intent_request.py` | Provider-neutral offline one-attempt coordinator: exact reviewed-scenario preflight, permit consume before one injected call, strict untrusted-candidate validation, terminal no-retry behavior, and no concrete provider/credential/network/execution wiring |
+| `src/computer_use_agent/formal_demo_intent_request.py` | Provider-neutral async one-attempt coordinator: exact reviewed-scenario preflight, permit consume before the first await, strict untrusted-candidate validation, and terminal no-retry behavior; the coordinator itself has no provider/credential/network/execution wiring |
+| `src/computer_use_agent/providers/openai_intent.py`, `formal_demo_provider_scope.py` | Exact `openai/global/gpt-5.6-terra` live-capable intent port and internal reviewed Scope composition: content-free account-review/task/draft binding, lazy post-consumption SDK/key resolution, one tool-free strict structured-output request, no retry/fallback/continuation, fixed error handling, and an honest one-call/zero-retry pre-Scope result; no Console/START/Runner/MCP/desktop/application/persistence port |
 | `src/computer_use_agent/formal_demo_local_scope.py` | Fixed Host-owned no-key compiler: exact registry preflight, one process-local permit consumption, non-interpreting built-in intent, reviewed Scope compilation, zero provider calls/retries, and no external or execution port |
 | `src/computer_use_agent/formal_demo_console.py`, `formal_demo_console_win32.py`, `formal_demo_console_launcher.py` | Independent no-key Offline Scope Review front door: one in-memory draft, reviewed route/profile disclosure, exact `COMPILE`, complete local Scope projection, and disabled native `Start`; no config/credential/provider/network/Runner/MCP/desktop-automation/application/persistence port |
 | `src/computer_use_agent/continuation.py`, `recovery.py`, `reconstruction.py` | Sensitive WAL, crash classification, and bounded recovery |
@@ -381,7 +387,7 @@ These current surfaces are separate entries. In particular, the implemented
 `public-web-word` Scope Sheet is fixed to that one workflow, and Task Center is
 read-only; together they do not form a generic recipe or Console lifecycle.
 
-### Host front-door flow — implemented Offline Scope Review stop, planned continuation
+### Host front-door flow — implemented local stop and internal Provider alternative
 
 ~~~text
 natural-language outcome in Offline Scope Review Agent Console [implemented command]
@@ -391,12 +397,13 @@ natural-language outcome in Offline Scope Review Agent Console [implemented comm
   |   -> five exact inert role pins, including Outlook test-draft design
   |   -> reviewed generic Scope Sheet [implemented]
   |   -> Start unavailable / disabled [current executable stop]
-  +-> one-attempt Host coordinator [implemented; injected fake only]
-      -> concrete tool-free provider adapter/call [planned]
-      -> strict TaskIntent decode + reviewed-scenario validation [implemented fake-only]
-      -> Host validates reviewed application-role profiles
-      -> Host compiles generic Scope Sheet
-      -> explicit start acknowledgement (not action approval) [planned]
+  +-> async one-attempt Host coordinator [implemented]
+      -> exact OpenAI Responses intent adapter [implemented internally]
+      -> lazy SDK/key resolution after permit consumption
+      -> strict TaskIntent decode + reviewed-scenario validation [implemented]
+      -> Host validates exact reviewed application-role profiles [implemented]
+      -> Host compiles internal Provider Scope result [implemented]
+      -> Console live-mode projection and explicit START [planned]
   -> existing planning / campaign / operator-control components
   -> existing Agent Runner policy + grounding + budgets + approval + WAL
   -> sole stdio MCP server
@@ -404,16 +411,19 @@ natural-language outcome in Offline Scope Review Agent Console [implemented comm
 ~~~
 
 The inert `TaskIntent`, scenario/profile, generic Scope, local disclosure /
-permit contracts, and injected-port one-attempt coordinator are implemented as
-internal source modules. The sensitive surfaces keep the exact task only in
+permit contracts, async one-attempt coordinator, exact OpenAI intent port, and
+Provider Scope composition are implemented as internal source modules. The
+sensitive surfaces keep the exact task only in
 trusted in-process memory and copy only its digest into canonical bindings and
 receipts. The disclosure gate and coordinator accept typed Host objects and
-expose no serialized loader, concrete provider adapter, credential lookup, or
-network path. Their one-use guarantee is limited to one in-memory gate instance;
-consume-before-fake ordering is not crash-safe exactly-once. The independent
+expose no serialized loader or direct network path. The exact OpenAI port is
+the only concrete Formal Demo Provider boundary; it reads the environment and
+constructs the async SDK client lazily after consumption. The one-use guarantee
+is limited to one in-memory gate/port instance and is not crash-safe exactly-once.
+The independent
 Offline Scope Review Console/launcher is a command. It consumes its permit only
 through the fixed local compiler, accepts no caller-supplied scope fields, and
-does not connect to the injected/provider coordinator. The live provider call,
+does not connect to the Provider coordinator. A retained live call, Console
 recipe lifecycle, and `Start` remain absent. The exact Outlook email role is a
 selected inert design binding without an executable adapter or application
 evidence. Future product layers
@@ -439,16 +449,18 @@ The frozen Full Cycle Lane A manifest remains the thirteen-core-tool surface. A
 core tool/schema change therefore needs an explicit versioned compatibility
 decision; a planned Demo cannot silently widen that external contract.
 
-The planned live tool-free `TaskIntent` request is also not zero external work.
+The implemented internal live-capable tool-free `TaskIntent` request is not
+zero external work when invoked.
 The internal gate renders the Host-fixed exact text, provider/model, purpose,
 and conservative data-use boundary and issues one process-local inert permit
-after exact `COMPILE`. The offline coordinator now validates an exact reviewed
-scenario, consumes that permit before one injected call, rejects terminal or
-widened candidates, and never retries; it ships no concrete provider port or
-credential/network wiring. A future activated live adapter must still revalidate
-the current route/account boundary and use the consumed-attempt seam with no
-automatic retry. The later generic Scope Sheet and `START` bind the full
-execution scope; neither acknowledgement grants action authority.
+after exact `COMPILE`. The async coordinator validates the reviewed scenario
+and consumes that permit before the exact OpenAI port may resolve its SDK/key or
+await one request. The port revalidates the current route/account-review/task/
+profile/draft binding, rejects terminal or widened candidates, and never
+retries. Its internal Scope result records that the call preceded compilation.
+The later Console projection and `START` bind the full execution scope; neither
+acknowledgement grants action authority. No live compatibility evidence exists
+until the separately explicit credentialed gate passes.
 
 ### Planned campaign-to-mobile flow
 

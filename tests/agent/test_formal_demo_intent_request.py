@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from threading import Barrier, Event, Lock
-from typing import Callable
+from typing import Awaitable, Callable
 
 import pytest
 
@@ -142,7 +142,7 @@ class ScriptedIntentPort:
         self._lock = Lock()
         self.calls: list[IntentCandidateRequest] = []
 
-    def create_candidate(self, request: IntentCandidateRequest) -> object:
+    async def create_candidate(self, request: IntentCandidateRequest) -> object:
         with self._lock:
             self.calls.append(request)
             if not self._script:
@@ -173,14 +173,16 @@ def _compile(
     current_disclosure: FormalDemoIntentDisclosure | None = None,
     scenario: DemoScenarioSpec = FORMAL_DEMO_V1_SCENARIO,
 ) -> IntentCandidateAttempt:
-    return compile_task_intent_once(
-        gate=gate,
-        permit=permit,
-        current_disclosure=(
-            disclosure if current_disclosure is None else current_disclosure
-        ),
-        scenario=scenario,
-        port=port,  # type: ignore[arg-type]
+    return asyncio.run(
+        compile_task_intent_once(
+            gate=gate,
+            permit=permit,
+            current_disclosure=(
+                disclosure if current_disclosure is None else current_disclosure
+            ),
+            scenario=scenario,
+            port=port,  # type: ignore[arg-type]
+        )
     )
 
 
@@ -272,11 +274,15 @@ def test_port_descriptor_is_not_entered_until_after_consumption() -> None:
         @property
         def create_candidate(
             self,
-        ) -> Callable[[IntentCandidateRequest], IntentCandidateResponse]:
+        ) -> Callable[
+            [IntentCandidateRequest], Awaitable[IntentCandidateResponse]
+        ]:
             self.lookups += 1
             assert gate.state is IntentCompileGateState.CONSUMED
 
-            def complete(_request: IntentCandidateRequest) -> IntentCandidateResponse:
+            async def complete(
+                _request: IntentCandidateRequest,
+            ) -> IntentCandidateResponse:
                 self.calls += 1
                 return _completed_candidate()
 

@@ -65,6 +65,7 @@ line-length = 100
 [tool.pytest.ini_options]
 markers = [
     "openai_integration: opt-in live OpenAI Responses API test with a harmless fake MCP child",
+    "formal_demo_openai_integration: opt-in one-call OpenAI Formal Demo TaskIntent and Scope gate with no tools or desktop path",
     "anthropic_integration: opt-in live Claude Messages API test with a harmless fake MCP child",
     "kimi_integration: opt-in live Kimi Chat Completions API matrix with a harmless fake MCP child",
     "deepseek_integration: opt-in live DeepSeek Chat Completions API matrix with a harmless fake MCP child",

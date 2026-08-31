@@ -1,10 +1,10 @@
-"""Offline one-attempt coordination for a Formal Demo TaskIntent candidate.
+"""One-attempt coordination for a Formal Demo TaskIntent candidate.
 
 This module owns only the Host-side ordering seam behind the process-local
 ``IntentCompileGate``. It has no provider implementation, provider factory,
 credential/configuration access, network transport, CLI, persistence, Runner,
-MCP, desktop, or application port. Production wiring remains a later,
-separately authorized slice.
+MCP, desktop, or application port. A separately reviewed async port may perform
+the one external request only after this module consumes the local permit.
 
 The injected port is deliberately narrow so deterministic fakes can prove that
 the permit is consumed before the single call and that every terminal outcome
@@ -321,9 +321,9 @@ class IntentCandidateResponse:
 
 
 class IntentCandidatePort(Protocol):
-    """Injected one-call candidate compiler; no implementation is shipped here."""
+    """Injected async one-call candidate compiler."""
 
-    def create_candidate(
+    async def create_candidate(
         self,
         request: IntentCandidateRequest,
         /,
@@ -426,7 +426,7 @@ def _raise_contract_error(code: str) -> Never:
     raise FormalDemoContractError(code)
 
 
-def compile_task_intent_once(
+async def compile_task_intent_once(
     *,
     gate: IntentCompileGate,
     permit: IntentCompilePermit,
@@ -434,7 +434,7 @@ def compile_task_intent_once(
     scenario: DemoScenarioSpec,
     port: IntentCandidatePort,
 ) -> IntentCandidateAttempt:
-    """Consume one permit before one injected call and validate its candidate.
+    """Consume one permit before one awaited call and validate its candidate.
 
     Port failures are normalized without their text. Cancellation and process
     control signals are re-raised as sanitized built-in instances after
@@ -492,7 +492,7 @@ def compile_task_intent_once(
         if not callable(create_candidate):
             port_terminal = _PortTerminal.INVALID
         else:
-            response = create_candidate(request)
+            response = await create_candidate(request)
     except BaseException as exc:
         port_terminal = _classify_port_exception(exc)
     if port_terminal is not None:

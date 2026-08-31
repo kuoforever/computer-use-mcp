@@ -443,7 +443,7 @@ own current E4 decision and run. Approval denial, stale/mismatched approval,
 grounding drift, repeated actions, and post-action verification also retain
 their deterministic unit-level fake-port coverage.
 
-## Opt-in provider E3 runs
+## Opt-in provider E3 runs and the narrower Formal Demo gate
 
 The live-provider module uses the real OpenAI Responses API but launches only
 the harmless `tests/agent/fixtures/stdio_mcp_server.py` child. It never imports
@@ -470,6 +470,33 @@ observation, one final model turn, one tool call, and zero side effects. It
 asserts the bounded CLI metadata; the Planner and tool-free final request are
 the only provider calls. Do not enable either test in credential-free CI or
 point it at the real desktop MCP executable.
+
+The Formal Demo has a separate, narrower one-call gate. It hard-pins
+`openai/global/gpt-5.6-terra`, requires an operator-supplied content-free
+account-scope digest plus the exact current account/data-controls review token,
+and sends one fixed non-sensitive task only after exact `COMPILE` permit
+consumption. It supplies no tools, MCP child, screenshot, file, continuation,
+retry, fallback, `START`, desktop, or application port; `store=false` is fixed.
+All four opt-in inputs are required, so possession of a key alone cannot start
+the test:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,agent-openai]"
+$env:CUMCP_RUN_FORMAL_DEMO_OPENAI_LIVE = "1"
+$env:OPENAI_API_KEY = "..."
+$env:CUMCP_FORMAL_DEMO_OPENAI_ACCOUNT_SCOPE_DIGEST = "<lowercase-64-hex-digest>"
+$env:CUMCP_FORMAL_DEMO_OPENAI_ACCOUNT_REVIEW_TOKEN = `
+  "OPENAI_ACCOUNT_DATA_CONTROLS_REVIEWED"
+.\.venv\Scripts\python.exe -m pytest `
+  tests\agent\test_openai_formal_demo_intent_live.py `
+  -m formal_demo_openai_integration -q
+~~~
+
+A pass supports only that exact, narrower Formal Demo TaskIntent wire and reviewed internal Scope
+composition at the tested commit/account/model route. A skip or deterministic
+fake pass is not Formal-Demo-specific Provider evidence, does not satisfy the
+general E3 ordinary tool-cycle definition, and does not promote the
+Console, Desktop, Application, E4, complete Formal Demo, or release cells.
 
 The Claude module has the same two cases, bounds, and fake-child guarantee:
 
