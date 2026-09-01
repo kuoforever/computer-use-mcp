@@ -612,9 +612,14 @@ def verify_discovered_tools(
 ) -> None:
     """Fail closed unless local discovery exactly matches names and schemas."""
 
-    descriptors = tuple(discovered_tools)
-    if not all(isinstance(tool, MCPToolDescriptor) for tool in descriptors):
-        raise ToolRegistryMismatchError("MCP discovery returned malformed tool descriptors")
+    discovered = tuple(discovered_tools)
+    descriptors: list[MCPToolDescriptor] = []
+    for tool in discovered:
+        if not isinstance(tool, MCPToolDescriptor):
+            raise ToolRegistryMismatchError(
+                "MCP discovery returned malformed tool descriptors"
+            )
+        descriptors.append(tool)
     names = tuple(tool.name for tool in descriptors)
     if len(set(names)) != len(names):
         raise ToolRegistryMismatchError("MCP discovery returned duplicate tool names")

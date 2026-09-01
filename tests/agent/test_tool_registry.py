@@ -57,6 +57,12 @@ def _png(width: int = 1, height: int = 1) -> bytes:
     )
 
 
+class _MalformedDescriptorLookalike:
+    @property
+    def name(self) -> str:
+        raise AssertionError("malformed descriptors must be rejected before attribute access")
+
+
 def test_registry_contains_the_exact_thirteen_core_reviewed_mcp_tools() -> None:
     assert EXPECTED_TOOL_NAMES == {
         "ui_snapshot",
@@ -180,6 +186,20 @@ def test_mcp_output_schema_mismatch_fails_closed() -> None:
 def test_mcp_discovery_mismatches_fail_closed(discovered: tuple[object, ...], message: str) -> None:
     with pytest.raises(ToolRegistryMismatchError, match=message):
         verify_discovered_tools(discovered)
+
+
+@pytest.mark.parametrize("malformed_index", [0, 6, 12])
+def test_mcp_discovery_rejects_every_malformed_position_before_attribute_access(
+    malformed_index: int,
+) -> None:
+    descriptors: list[object] = list(reviewed_mcp_descriptors())
+    descriptors[malformed_index] = _MalformedDescriptorLookalike()
+
+    with pytest.raises(
+        ToolRegistryMismatchError,
+        match="^MCP discovery returned malformed tool descriptors$",
+    ):
+        verify_discovered_tools(descriptors)
 
 
 @pytest.mark.parametrize(
