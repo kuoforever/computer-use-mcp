@@ -1,23 +1,25 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-008` completed
-> through commit `7930026`, PR #381, and merge `44544a3`; both feature-branch
-> copies were removed and merge-main CI run `33480403288` passed.
-> **Exact next (inactive; separate activation required):** `GDA-MAINT-009` is
-> the next activatable candidate, not an active repository item. Await explicit
-> user activation before creating its branch or changing its scoped files. If
-> activated, resolve the one independently reproduced `var-annotated` error for
-> `claimed_baselines` in `computer_use_agent.desktop_mcp`, then remove that
-> module's whole-module `ignore_errors` override and synchronize only the
-> mechanically derived development-lock binding header. Preserve valid behavior
-> and serialized output; change no Runtime, schema, registry digest, data lane,
-> Provider, desktop, or application behavior; add no cast, `type: ignore`, or
-> exemption. Prove the isolated diagnostic falls only from one error to zero,
-> mypy override/ignore/target counts change only from `25/25/1` to `24/24/0`,
-> configured mypy still checks 176 source files, the lock dependency body is
-> unchanged, and the focused plus complete repository gates, schema JSON, and
-> registry digests remain unchanged. Stop before `config`, another module, or
-> any Runtime/schema/data-lane/live change.
+> **Mode: one executable repository item is active.** `GDA-MAINT-009` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-008` tracker
+> closeout merged through PR #382 as `c311851` and passed merge-main CI run
+> `33482703596`.
+> **Exact next:** complete `GDA-MAINT-009` only by resolving the one
+> independently reproduced `var-annotated` error for `claimed_baselines` in
+> `computer_use_agent.desktop_mcp`, then remove that module's whole-module
+> `ignore_errors` override and synchronize only the mechanically derived
+> development-lock binding header. Narrow the untrusted session attribute from
+> `object` through the existing `frozenset` and supported-subset checks; preserve
+> valid behavior and serialized output; add no `Any`, cast, `type: ignore`, or
+> exemption. Prove supported frozen subsets and the missing-attribute empty
+> fallback remain valid while mutable collections, unknown baselines, and
+> non-string frozen members fail with `MCP_PROTOCOL_ERROR`, close the generation,
+> and never reach discovery or dispatch. Prove the isolated diagnostic falls
+> only from one error to zero, mypy override/ignore/target counts change only
+> from `25/25/1` to `24/24/0`, configured mypy still checks 176 source files,
+> the lock dependency body is unchanged, and the focused plus complete repository
+> gates, schema JSON, and registry digests remain unchanged. Stop before
+> `config`, another module, or any Runtime/schema/data-lane/live change.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -50,15 +52,18 @@ That archive is historical context, not a second tracker.
 
 ## Current authorization
 
-No executable repository item is active. A branch name, archived plan,
-capability gate, or dated evidence record is never permission to start another
-item.
+| ID | State | Bounded outcome | Acceptance and stop condition |
+| --- | --- | --- | --- |
+| `GDA-MAINT-009` | Active | Resolve only the one `claimed_baselines` typing error in `computer_use_agent.desktop_mcp`, characterize its existing fail-closed baseline validation, remove only that module's whole-module mypy exemption, and synchronize its mechanically derived development-lock binding header | Acceptance requires isolated mypy one error to zero; override/ignore/target counts `25/25/1` to `24/24/0`; configured mypy over the same 176 source files; supported/missing baseline success plus mutable/unknown/non-string fail-closed characterization; exact lock-body preservation; no schema or registry-digest drift; and the focused plus complete repository gates. Stop on any behavior drift, file outside the five-path ceiling, dependency-body edit, `Any`, cast, ignore, new exemption, `config` or another module, changed Runtime/schema/data lane, live surface, or failing/unresolved PR state |
+
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-008` is merged and closed. The `computer_use_agent.providers.anthropic_planner` whole-module exemption is absent; mypy now has 25 override tables, 25 `ignore_errors = true` entries, and zero target overrides for that module while configured mypy still checks 176 source files. The `computer_use_agent.desktop_mcp` exemption remains present; its isolated diagnostic reports exactly one `var-annotated` error for `claimed_baselines` | Await separate explicit user activation of `GDA-MAINT-009`. If activated, close that exact error, remove only the `computer_use_agent.desktop_mcp` override, and synchronize only the derived lock header. Preserve valid behavior and serialized output, add no cast/ignore/exemption, prove the isolated diagnostic falls from one error to zero and override/ignore/target counts change only from `25/25/1` to `24/24/0`, retain configured mypy-176 plus focused/full gates and schema/digests, and stop before `config` or another module |
+| Core type debt | `GDA-MAINT-009` is the only active tranche. The `computer_use_agent.providers.anthropic_planner` whole-module exemption is absent. At activation, mypy had 25 override tables, 25 `ignore_errors = true` entries, and one target override for `computer_use_agent.desktop_mcp`; that module's isolated diagnostic reported exactly one `var-annotated` error for `claimed_baselines` | Narrow only the untrusted baseline claim from `object` through the existing validation, add the bounded characterization, remove only the `computer_use_agent.desktop_mcp` override, and synchronize only the derived lock header. Prove isolated one to zero, counts `25/25/1` to `24/24/0`, configured mypy-176 plus focused/full gates and schema/digests, and stop before `config` or another module |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
