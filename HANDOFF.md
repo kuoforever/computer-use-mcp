@@ -133,8 +133,8 @@ that displays the complete reviewed Scope; and one exact OpenAI Responses
 live-capable intent adapter plus internal Provider Scope path. The adapter is not
 connected to the Console, which stops with native `Start` disabled. The current
 account/data-controls preflight and process-local credential were not supplied,
-so the credentialed gate did not run and no Formal Demo Provider evidence was
-promoted. Executable application adapters, durable composition, and complete
+so the credentialed gate did not run (`Provider evidence: NO`; `Start:
+disabled`). Executable application adapters, durable composition, and complete
 Formal Demo evidence remain absent; see the owning
 [Formal Demo v1 contract](docs/FORMAL_DEMO_V1.md). The Universal GUI
 final showcase and additional

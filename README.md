@@ -505,7 +505,7 @@ See the exact parameters, ref lifecycle, safeguards, and errors in
 | See completed and future work | [Roadmap](docs/EXECUTION_PLAN.md) |
 | Review the planned full Agent Host | [Agent implementation plan](docs/AGENT_IMPLEMENTATION_PLAN.md) |
 | Design day-scale resumable work | [Long-running tasks](docs/LONG_RUNNING_TASKS.md) |
-| Review the selected independent product demonstration, its implemented/offline slices, exact Provider boundary, and disabled execution surface | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
+| Review the selected independent product demonstration through `GDA-DEMO-007F` (`Provider evidence: NO`; `Start: disabled`) | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) |
 | Run staged real-application coverage cases and benchmarks, independently of the Formal Demo | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) |
 | Review the future one-campaign final integration showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) |
 | Reduce model context and observation cost | [Token efficiency](docs/TOKEN_EFFICIENCY.md) |

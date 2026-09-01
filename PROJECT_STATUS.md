@@ -1,21 +1,27 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-DEMO-007F` is
-> Implemented/Offline complete through PR #365 as merge `adcfa64` for the exact
-> `openai` / `global` / `gpt-5.6-terra` Formal Demo intent/Scope boundary.
-> **Exact next:** hard stop until the exact current account/data-controls
-> preflight and process-local `OPENAI_API_KEY` binding are both supplied. Only
-> then may the separately gated one-call TaskIntent check run, with no tools,
-> retry, fallback, or execution authority and with only sanitized exact-tuple
-> evidence retained. No `GDA-DEMO-007F`-specific Provider evidence exists yet.
-> General E3, `START`, Console live-mode exposure, executable role adapters,
+> **Mode: one executable repository item is active.** `GDA-MAINT-001` was
+> activated by the user on 2026-09-01 after the `GDA-DEMO-007F` documentation
+> closeout merged through PR #366 as `5ce641e`.
+> **Exact next:** harden repository-only quality gates: derive Formal Demo
+> summary checks from the owner contract, add LF/binary Git attributes, make
+> the Python 3.13 quality gate use the existing hash lock, isolate a floating
+> dependency canary, run static checks once, retain Python 3.11/3.12/3.13
+> compatibility tests, run stress/report gates only on 3.13, and pin Actions to
+> immutable commits. This detour may change documentation, repository checks,
+> tests, text attributes, and CI only; it may not change Runtime behavior or run
+> live Provider/desktop/application gates.
+> The exact `GDA-DEMO-007F` Provider gate remains paused until a current
+> account/data-controls preflight and process-local `OPENAI_API_KEY` are both
+> supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
+> E3, `START`, Console live-mode exposure, executable role adapters,
 > Runner/MCP/desktop/application work, durable execution, and the complete
 > Formal Demo remain inactive.
 > The Full Cycle Runtime baseline remains frozen at
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
 > No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
 > `archive/gda-demo-006-pr231-5c403a5`. L5 remains inactive.
-> Updated: 2026-08-31.
+> Updated: 2026-09-01.
 
 This file is the single operational task registry. The complete pre-compaction
 closure and decision chronology is preserved in the
@@ -39,14 +45,16 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
+| `GDA-MAINT-001` | Active | Harden repository documentation and CI truth without changing product behavior | Acceptance requires owner-derived Formal Demo semantic checks and negative tests, explicit LF/binary attributes, an immutable-SHA Actions workflow whose Python 3.13 main gate installs the current hash lock, one separate floating canary, one static pass, retained Python 3.11/3.12/3.13 offline compatibility, 3.13-only stress/report artifacts, focused contract tests, and the complete repository gate. Stop on stale lock, missing wheel/hash support, changed required-check compatibility, live-surface need, Runtime behavior change, or any failing/unresolved PR state |
 
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
+| Repository quality gates | `GDA-MAINT-001` is the only active maintenance detour; current CI repeats static and stress/report work across the compatibility matrix, installs floating dependencies in every quality job, uses mutable Actions tags, and has no owner-derived Formal Demo summary or repository EOL contract | Complete only the bounded repository/checker/test/CI hardening above, preserve the four required check contexts, and stop before Runtime or live-surface work |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |

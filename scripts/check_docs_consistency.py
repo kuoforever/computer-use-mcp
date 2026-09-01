@@ -1,4 +1,4 @@
-"""Fail fast when current-state documentation drifts from the reviewed tool registry.
+"""Fail fast when current-state documentation drifts from its owner contracts.
 
 The reviewed registry in ``computer_use_agent.tool_registry`` is the canonical
 source for the desktop MCP tool surface. Documents that describe the *current*
@@ -151,6 +151,49 @@ _DIGIT_COUNT = re.compile(
 # Hand-maintained pytest totals such as "903 passed, 5 skipped".
 _TEST_TOTAL = re.compile(r"\b\d{2,}\s+passed\b")
 
+FORMAL_DEMO_OWNER_DOC = "docs/FORMAL_DEMO_V1.md"
+FORMAL_DEMO_SUMMARY_DOCS: tuple[str, ...] = (
+    "README.md",
+    "README.zh-CN.md",
+    "HANDOFF.md",
+    "docs/README.md",
+)
+_FORMAL_DEMO_RANGE = re.compile(
+    r"`(?P<first>GDA-DEMO-(?P<series>\d{3})(?P<first_suffix>[A-Z]))`\s+"
+    r"through\s+"
+    r"`(?P<last>GDA-DEMO-(?P=series)(?P<last_suffix>[A-Z]))`\s+"
+    r"are\s+implemented\s+and\s+offline\s+verified",
+    re.IGNORECASE,
+)
+_FORMAL_DEMO_OWNER_PROVIDER_EVIDENCE = re.compile(
+    r"Provider evidence remains `(?P<value>[A-Z]+)`",
+    re.IGNORECASE,
+)
+_FORMAL_DEMO_OWNER_START_STATE = re.compile(
+    r"native\s+`Start`\s+remains\s+(?P<value>enabled|disabled)",
+    re.IGNORECASE,
+)
+_FORMAL_DEMO_SUMMARY_PROVIDER_EVIDENCE = re.compile(
+    r"\bProvider evidence\s*(?:(?:remains|is)\s+|[:=]\s*|仍为\s*)"
+    r"`?(?P<value>[A-Z]+)`?",
+    re.IGNORECASE,
+)
+_FORMAL_DEMO_SUMMARY_START_STATE = re.compile(
+    r"(?:native\s+)?`?Start`?\s*(?:(?:remains|is)\s+|[:=]\s*)"
+    r"(?P<value>enabled|disabled)\b",
+    re.IGNORECASE,
+)
+_FORMAL_DEMO_ENGLISH_SLICE_COUNT = re.compile(
+    r"\b(?P<value>" + _ENGLISH_WORDS + r"|\d{1,2})\s+"
+    r"(?:(?:bounded|implemented|offline(?:-verified)?)\s+){0,3}slices\b",
+    re.IGNORECASE,
+)
+_FORMAL_DEMO_CHINESE_SLICE_COUNT = re.compile(
+    r"(?P<value>"
+    + "|".join(sorted(CHINESE_NUMBERS, key=len, reverse=True))
+    + r"|\d{1,2})\s*个\s*(?:有界|离线)?\s*切片"
+)
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -166,6 +209,15 @@ class Finding:
             f"    expected: {self.expected}\n"
             f"    actual:   {self.actual}"
         )
+
+
+@dataclass(frozen=True)
+class FormalDemoOwnerState:
+    first_slice_id: str
+    terminal_slice_id: str
+    slice_count: int
+    provider_evidence: str
+    start_state: str
 
 
 def _read_lines(relative_path: str) -> list[str]:
@@ -257,6 +309,167 @@ def check_no_handwritten_test_totals() -> list[Finding]:
                             "move the running total to CI, or move the claim into a dated "
                             "evidence record"
                         ),
+                    )
+                )
+    return findings
+
+
+def _formal_demo_status_block() -> str:
+    text = (REPO_ROOT / FORMAL_DEMO_OWNER_DOC).read_text(encoding="utf-8")
+    status_lines: list[str] = []
+    collecting = False
+    for line in text.splitlines():
+        if line.startswith("> **Status:"):
+            collecting = True
+        if not collecting:
+            continue
+        if not line.startswith(">"):
+            break
+        status_lines.append(line.removeprefix(">").strip())
+    if not status_lines:
+        raise ValueError("owner status banner is missing")
+    return " ".join(status_lines)
+
+
+def _formal_demo_owner_state() -> FormalDemoOwnerState:
+    status = _formal_demo_status_block()
+    range_match = _FORMAL_DEMO_RANGE.search(status)
+    provider_match = _FORMAL_DEMO_OWNER_PROVIDER_EVIDENCE.search(status)
+    start_match = _FORMAL_DEMO_OWNER_START_STATE.search(status)
+    missing = [
+        label
+        for label, match in (
+            ("implemented/offline slice range", range_match),
+            ("Provider evidence state", provider_match),
+            ("native Start state", start_match),
+        )
+        if match is None
+    ]
+    if missing:
+        raise ValueError("owner status banner is missing " + ", ".join(missing))
+    assert range_match is not None
+    assert provider_match is not None
+    assert start_match is not None
+    first_suffix = range_match.group("first_suffix").upper()
+    last_suffix = range_match.group("last_suffix").upper()
+    if ord(last_suffix) < ord(first_suffix):
+        raise ValueError("owner slice range is reversed")
+    return FormalDemoOwnerState(
+        first_slice_id=range_match.group("first").upper(),
+        terminal_slice_id=range_match.group("last").upper(),
+        slice_count=ord(last_suffix) - ord(first_suffix) + 1,
+        provider_evidence=provider_match.group("value").upper(),
+        start_state=start_match.group("value").lower(),
+    )
+
+
+def _line_number(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def _slice_count_value(value: str) -> int:
+    if value.isdigit():
+        return int(value)
+    lowered = value.lower()
+    if lowered in ENGLISH_NUMBERS:
+        return ENGLISH_NUMBERS[lowered]
+    return CHINESE_NUMBERS[value]
+
+
+def check_formal_demo_summary_state() -> list[Finding]:
+    """Derived summaries must agree with the Formal Demo owner status banner."""
+    try:
+        owner = _formal_demo_owner_state()
+    except ValueError as exc:
+        return [
+            Finding(
+                path=FORMAL_DEMO_OWNER_DOC,
+                line=1,
+                expected=(
+                    "a parseable implemented/offline slice range, Provider evidence "
+                    "state, and native Start state"
+                ),
+                actual=str(exc),
+                detail="Formal Demo owner state cannot be derived",
+            )
+        ]
+
+    findings: list[Finding] = []
+    for relative_path in FORMAL_DEMO_SUMMARY_DOCS:
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        if owner.terminal_slice_id not in text:
+            findings.append(
+                Finding(
+                    path=relative_path,
+                    line=1,
+                    expected=f"the owner terminal slice `{owner.terminal_slice_id}`",
+                    actual="terminal slice marker missing",
+                    detail="Formal Demo summary does not identify the owner terminal slice",
+                )
+            )
+
+        provider_matches = list(_FORMAL_DEMO_SUMMARY_PROVIDER_EVIDENCE.finditer(text))
+        if not provider_matches:
+            findings.append(
+                Finding(
+                    path=relative_path,
+                    line=1,
+                    expected=f"Provider evidence: {owner.provider_evidence}",
+                    actual="Provider evidence marker missing",
+                    detail="Formal Demo summary omits the owner Provider evidence state",
+                )
+            )
+        for match in provider_matches:
+            actual = match.group("value").upper()
+            if actual != owner.provider_evidence:
+                findings.append(
+                    Finding(
+                        path=relative_path,
+                        line=_line_number(text, match.start()),
+                        expected=f"Provider evidence: {owner.provider_evidence}",
+                        actual=match.group(0),
+                        detail="Formal Demo Provider evidence disagrees with the owner",
+                    )
+                )
+
+        start_matches = list(_FORMAL_DEMO_SUMMARY_START_STATE.finditer(text))
+        if not start_matches:
+            findings.append(
+                Finding(
+                    path=relative_path,
+                    line=1,
+                    expected=f"Start: {owner.start_state}",
+                    actual="Start state marker missing",
+                    detail="Formal Demo summary omits the owner native Start state",
+                )
+            )
+        for match in start_matches:
+            actual = match.group("value").lower()
+            if actual != owner.start_state:
+                findings.append(
+                    Finding(
+                        path=relative_path,
+                        line=_line_number(text, match.start()),
+                        expected=f"Start: {owner.start_state}",
+                        actual=match.group(0),
+                        detail="Formal Demo Start state disagrees with the owner",
+                    )
+                )
+
+        slice_count_matches = (
+            *_FORMAL_DEMO_ENGLISH_SLICE_COUNT.finditer(text),
+            *_FORMAL_DEMO_CHINESE_SLICE_COUNT.finditer(text),
+        )
+        for match in slice_count_matches:
+            actual = _slice_count_value(match.group("value"))
+            if actual != owner.slice_count:
+                findings.append(
+                    Finding(
+                        path=relative_path,
+                        line=_line_number(text, match.start()),
+                        expected=f"a Formal Demo slice count of {owner.slice_count}",
+                        actual=f"{match.group(0)!r} (={actual})",
+                        detail="Formal Demo slice count disagrees with the owner range",
                     )
                 )
     return findings
@@ -444,6 +657,7 @@ def run_checks() -> list[Finding]:
         *check_tool_counts(len(expected_names)),
         *check_tool_names(expected_names),
         *check_no_handwritten_test_totals(),
+        *check_formal_demo_summary_state(),
         *check_relative_links(),
         *check_single_active_item_registry(),
         *check_status_markers(),

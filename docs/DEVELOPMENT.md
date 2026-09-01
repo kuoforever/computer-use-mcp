@@ -36,6 +36,13 @@ py -3.12 -m venv .venv-312
 .\.venv-312\Scripts\python.exe -m pip install -e ".[dev]"
 ~~~
 
+The required Python 3.13 quality cell installs the hash-locked baseline and
+then installs the checkout editable with no dependency resolution. Python
+3.11/3.12 remain floating compatibility cells because the current lock is
+explicitly 3.13-only. A separate scheduled or manually dispatched Python 3.13
+floating canary runs the offline suite to reveal upstream dependency drift
+without making pull-request resolution non-deterministic.
+
 When using a legacy non-UTF-8 console, set `$env:PYTHONUTF8 = "1"` before
 running scripts that emit non-ASCII text.
 
@@ -55,6 +62,11 @@ endings cannot cause a false stale-lock result. Review the dependency and hash
 diff. The bootstrap and offline contract test fail closed when
 `pyproject.toml` changes without a matching lock update.
 
+The repository `.gitattributes` makes tracked text LF-canonical and marks
+binary document/image/archive formats explicitly. Do not work around an EOL
+diff with a global Git setting or a mass renormalization inside an unrelated
+feature slice.
+
 ## Fast validation
 
 ~~~powershell
@@ -70,9 +82,13 @@ Run these checks for documentation-only changes as appropriate; code changes
 that touch a driver, safety boundary, or action path need the matching desktop
 smoke as well.
 
-GitHub Actions repeats the offline suite on Windows/Python 3.11-3.13 and runs a
-clean wheel-install smoke. It never enables live provider or desktop tests.
-See [Release checklist](RELEASE.md).
+GitHub Actions preserves the required `Offline quality (Python 3.11/3.12/3.13)`
+contexts and repeats the offline suite across all three versions. Only the
+locked 3.13 cell runs Ruff, mypy, documentation consistency, crash/replay, and
+deterministic report gates; their reports are uploaded once. The separate
+scheduled/manual floating canary and the clean wheel-install smoke do not enable
+live provider or desktop tests. Every third-party Action is pinned to an
+immutable commit. See [Release checklist](RELEASE.md).
 
 For a clean release-candidate checkout, `guarded-desktop-agent release preflight`
 composes the same local checks and writes sanitized evidence plus retained

@@ -111,8 +111,8 @@ macOS、Linux、多显示器坐标以及隔离 worker 编排都仍在路线图�
    固定 no-key local Scope compiler、独立 Offline Scope Review Console，以及一个
    精确 `openai` / `global` / `gpt-5.6-terra` live-capable intent adapter 和内部
    Provider Scope path。该 adapter 未连接 Console；当前账号/data-controls preflight
-   与 process-local credential 均未提供，因此 credentialed live gate 未运行，
-   Provider evidence 仍为 `NO`。email role 只选择了 inert Outlook Desktop
+   与 process-local credential 均未提供，因此 credentialed live gate 未运行：
+   `Provider evidence: NO`；native `Start: disabled`。email role 只选择了 inert Outlook Desktop
    test-draft 设计绑定，不代表可执行 adapter 或应用可用。原始任务只保留在本地
    内存 disclosure 与显示中，permit/receipt 只绑定其 digest；没有 serialized
    gate loader，也不提供跨进程 exactly-once。`START`、可执行应用 adapter、
