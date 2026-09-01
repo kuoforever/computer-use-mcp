@@ -1,14 +1,17 @@
 # Project status
 
-> **Mode: one executable repository item is active.** `GDA-MAINT-002` was
-> activated by the user on 2026-09-01 after the `GDA-MAINT-001` tracker
-> closeout merged through PR #368 as `0cf7d51`.
-> **Exact next:** complete only the first core type-debt tranche in
-> `computer_use_agent.types`: resolve the current four mypy errors without
-> changing Runtime behavior, remove only that module's `ignore_errors`
-> override, add focused regressions for the affected call-summary/trace
-> narrowing, and pass the complete repository gate. Stop on any behavior,
-> schema, data-lane, broader-module, or live-surface change.
+> **Mode: no executable repository item is active.** `GDA-MAINT-002` completed
+> as implementation commit `157d5ab`; PR #369 passed all four required checks
+> with no review, comment, unresolved thread, conflict, or head drift, merged as
+> `730d715`, removed both feature-branch copies, and passed merge-main CI.
+> **Exact next:** activate only one separately bounded `GDA-MAINT-003`
+> `computer_use_agent.tool_registry` schema-typing tranche before edits. An
+> isolated diagnostic reports 94 errors in that module; this first tranche may
+> resolve only the 41 schema-construction `dict-item` errors plus the one schema
+> export error and remove the stale export `type: ignore`. Exact schema JSON and
+> registry digests must remain unchanged. Do not add a cast, `type: ignore`, or
+> module exemption; stop before the six descriptor-narrowing errors, the 46
+> argument-validation errors, or any Runtime/schema/data-lane/live change.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -43,16 +46,15 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
-| `GDA-MAINT-002` | Active | Remove the pre-existing whole-module mypy exemption from `computer_use_agent.types` without changing behavior | Acceptance requires resolving only the four independently reproduced mypy errors, removing only this module's `ignore_errors` override, focused call-summary/trace narrowing regressions, and the complete repository gate. Stop on serialized output, schema, Runtime/data-lane behavior, another exempt module, live surface, runner/recovery/driver scope, or any failing/unresolved PR state |
 
-A branch name, archived plan, capability gate, or dated evidence record is
-never permission to start another item.
+No row is active. A branch name, archived plan, capability gate, or dated
+evidence record is never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-002` is the only active tranche. `computer_use_agent.types` remains under a pre-existing module-level mypy exemption; a no-config isolated diagnostic reports four errors in that module | Resolve only those four errors with behavior-preserving narrowing, remove only the `computer_use_agent.types` exemption, add focused regression coverage, and stop before another exempt module or any Runtime/schema/data-lane behavior change |
+| Core type debt | `GDA-MAINT-002` is merged and cleaned; `computer_use_agent.types` has no module exemption. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports 94 errors: 41 schema-construction `dict-item`, one schema-export, six descriptor-narrowing, and 46 argument-validation errors | Activate `GDA-MAINT-003` as the sole row and resolve only the first 42 schema construction/export errors. Remove the stale export ignore, add no cast/ignore/exemption, prove exact schema JSON and registry-digest zero drift, and leave the six descriptor plus 46 argument-validation errors for separately activated tranches |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
@@ -95,7 +97,7 @@ production safety.
 | Campaign | Manifest-routed general worker implemented/internal/offline-only; BOSS has narrower retained identity/restart evidence; semantic and 100-item gates remain open |
 | Control and learning | H1-H8 and L0-L4 complete only at their recorded bounded scopes; no automatic promotion, training, or broad application claim |
 | Full Cycle | Lane A and freeze validation complete; baseline `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9` frozen; consumer paused; Lane B separately deferred |
-| Latest complete local gate | `2852 passed, 39 skipped`; Ruff; mypy over 176 source files; docs consistency over 13 reviewed tools; clean hash-lock bootstrap and dependency check; locked wheel build; crash reconstruction `22 passed`; stateless replay `11 passed`; deterministic eval `13/13` with zero safety escapes; 2026-09-01. This is a dated offline repository snapshot, not `GDA-DEMO-007F`-specific Provider, desktop, application, E4, release, human-accessibility, or permanent capability evidence |
+| Latest complete local gate | `2858 passed, 39 skipped`; Ruff; mypy over 176 source files; docs consistency over 13 reviewed tools; diff check; clean hash-lock bootstrap and dependency check; locked wheel build; 2026-09-01. This is a dated offline repository snapshot, not `GDA-DEMO-007F`-specific Provider, desktop, application, E4, release, human-accessibility, or permanent capability evidence |
 
 ## Non-negotiable invariants
 
@@ -124,6 +126,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
+| `GDA-MAINT-002` | Complete; merged | Remove the whole-module mypy exemption from `computer_use_agent.types` without changing valid behavior or serialization | Commit `157d5ab`; PR #369 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, requested change, unresolved thread, conflict, or head drift, merged as `730d715`, removed both feature-branch copies, and passed merge-main CI run `33464339922`. Four independently reproduced errors were closed with explicit fail-closed LedgerEvent invariant checks; no cast or `type: ignore` was added, only the `computer_use_agent.types` exemption was removed, and the dependency-lock body remained unchanged. Six defense-in-depth cases joined the `39 passed` focused types/trace/environment gate. Full local gate: `2858 passed, 39 skipped`; Ruff; mypy-176; docs-13; diff check; clean hash-lock bootstrap and dependency check; locked wheel build. No valid Runtime, serialized output, schema, data-lane, Runner/recovery/driver, Provider, desktop, or application behavior changed, and no live test ran |
 | `GDA-MAINT-001` | Complete; merged | Harden repository documentation and CI truth without changing product behavior | Commit `79b7ff1`; PR #367 preserved all four required check contexts, passed wheel plus Python 3.11/3.12/3.13, had zero review, comment, requested change, unresolved thread, conflict, or head drift, and merged as `a6a45d0`; both feature-branch copies were removed. Owner-derived Formal Demo summary checks and negative tests, LF/binary attributes, immutable-SHA Actions, a hash-locked Python 3.13 main gate, separate scheduled/manual floating canary, one 3.13 static/stress/report pass, retained compatibility matrix, and contract tests are complete. Local gate: `2852 passed, 39 skipped`; Ruff; mypy-176; docs-13; diff check; clean hash-lock bootstrap and dependency check; focused `16 passed`; locked wheel build; crash `22 passed`; replay `11 passed`; eval `13/13` with zero safety escapes. No Runtime behavior changed and no live Provider/desktop/application test ran |
 | `GDA-DOCS-004A` | Complete; merged | Reconciled current truth across tracker and owner documents | Commit `e3308a8`; PR #350 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, or unresolved thread and merged as `b3fefde`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, 400-line status, diff check, and independent truth/editorial/safety reviews. No Runtime/tool behavior or evidence level changed |
 | `GDA-DOCS-004B` | Complete; merged | Compact current status and archive chronology | Commit `60a18b4`; PR #351 passed wheel plus Python 3.11/3.12/3.13 with no review, comment, unresolved thread, conflict, or head drift and merged as `3dc8183`; both branch copies were removed. Local gate: `2537 passed, 38 skipped`, Ruff, mypy-167, docs-13, compact-status bound, diff check, and independent truth/link/safety reviews. No executable row remains active; the regional-account provider-E3 wait state is exact next |
