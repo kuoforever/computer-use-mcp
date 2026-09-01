@@ -535,7 +535,7 @@ class StdioDesktopMCP:
             await self._drop_locked(suppress_errors=True)
             raise MCPBridgeError("MCP_TRANSPORT_ERROR")
         self._session = session
-        claimed_baselines = getattr(
+        claimed_baselines: object = getattr(
             session, "satisfied_safety_baselines", frozenset()
         )
         if (

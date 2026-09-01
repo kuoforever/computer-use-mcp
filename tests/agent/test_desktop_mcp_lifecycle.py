@@ -188,6 +188,7 @@ def test_start_verifies_registry_before_dispatch_and_close_is_idempotent(
         descriptors = await bridge.discover_tools()
         assert len(descriptors) == 13
         assert bridge.generation == 1
+        assert bridge.satisfied_safety_baselines == frozenset()
 
         result = await bridge.call_tool(_call())
         assert result.status is ToolResultStatus.SUCCESS
@@ -219,6 +220,78 @@ def test_server_instructions_attest_only_the_exact_reviewed_safety_baseline() ->
     assert _safety_baselines_from_instructions(
         "typed_text_audit_redaction"
     ) == frozenset()
+
+
+def test_supported_session_safety_baseline_subset_is_exposed(
+    tmp_path: Path,
+) -> None:
+    session = ScriptedSession()
+    claimed_baselines = frozenset({"typed_text_audit_redaction"})
+    session.satisfied_safety_baselines = claimed_baselines
+    factory = FakeSessionFactory(session)
+    bridge = StdioDesktopMCP(_launch(tmp_path), session_factory=factory)
+
+    async def scenario() -> None:
+        descriptors = await bridge.discover_tools()
+        assert len(descriptors) == 13
+        assert bridge.generation == 1
+        assert bridge.satisfied_safety_baselines == claimed_baselines
+        await bridge.close()
+
+    asyncio.run(scenario())
+
+    assert session.list_cursors == [None]
+    assert session.calls == []
+    assert factory.enter_calls == 1
+    assert factory.exit_calls == 1
+
+
+@pytest.mark.parametrize(
+    "claimed_baselines",
+    [
+        pytest.param(
+            {"typed_text_audit_redaction"},
+            id="mutable-set",
+        ),
+        pytest.param(
+            ["typed_text_audit_redaction"],
+            id="mutable-list",
+        ),
+        pytest.param(
+            frozenset({"unknown_baseline"}),
+            id="unknown-frozen-baseline",
+        ),
+        pytest.param(
+            frozenset({1}),
+            id="non-string-frozen-member",
+        ),
+    ],
+)
+def test_untrusted_session_safety_baselines_fail_before_discovery_or_dispatch(
+    tmp_path: Path,
+    claimed_baselines: object,
+) -> None:
+    session = ScriptedSession()
+    session.satisfied_safety_baselines = claimed_baselines
+    factory = FakeSessionFactory(session)
+    bridge = StdioDesktopMCP(_launch(tmp_path), session_factory=factory)
+
+    async def scenario() -> object:
+        with pytest.raises(MCPBridgeError) as raised:
+            await bridge.discover_tools()
+        assert raised.value.code == "MCP_PROTOCOL_ERROR"
+        assert bridge.generation == 0
+        assert bridge.satisfied_safety_baselines == frozenset()
+        return await bridge.call_tool(_call())
+
+    result = asyncio.run(scenario())
+
+    assert result.status is ToolResultStatus.TRANSPORT_ERROR
+    assert result.code == "MCP_TRANSPORT_ERROR"
+    assert session.list_cursors == []
+    assert session.calls == []
+    assert factory.enter_calls == 1
+    assert factory.exit_calls == 1
 
 
 def test_supervisor_task_can_call_and_close_after_discovery_task_returns(tmp_path: Path) -> None:
