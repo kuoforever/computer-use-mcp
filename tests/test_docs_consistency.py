@@ -1,7 +1,8 @@
 """Documentation drift gate.
 
 These tests run the same checker CI runs, plus negative cases proving the
-checker actually fails when the tool surface or a stale running total drifts.
+checker actually fails when the tool surface, Formal Demo summary, or a stale
+running total drifts.
 """
 
 from __future__ import annotations
@@ -95,3 +96,69 @@ def test_retained_evidence_records_are_not_checked() -> None:
     # Guard the specific historical claims this PR deliberately left alone.
     boss = (REPO_ROOT / "docs" / "BOSS_EVIDENCE.md").read_text(encoding="utf-8")
     assert "reviewed eight tools" in boss
+
+
+def _write_formal_demo_owner(tmp_path: Path) -> None:
+    owner = tmp_path / "docs" / "FORMAL_DEMO_V1.md"
+    owner.parent.mkdir(parents=True)
+    owner.write_text(
+        "# Formal Demo v1\n\n"
+        "> **Status: `GDA-DEMO-007A` through `GDA-DEMO-007F` are implemented and\n"
+        "> offline verified. Native `Start` remains disabled.\n"
+        "> Provider evidence remains `NO`.**\n",
+        encoding="utf-8",
+    )
+
+
+def test_formal_demo_summary_state_is_derived_from_owner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _write_formal_demo_owner(tmp_path)
+    summary = tmp_path / "README.md"
+    summary.write_text(
+        "Six bounded slices through GDA-DEMO-007F. "
+        "Provider evidence: NO. Start: disabled.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(checker, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(checker, "FORMAL_DEMO_SUMMARY_DOCS", ("README.md",))
+
+    assert checker.check_formal_demo_summary_state() == []
+
+
+def test_stale_formal_demo_summary_is_reported(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _write_formal_demo_owner(tmp_path)
+    summary = tmp_path / "README.md"
+    summary.write_text(
+        "Five bounded slices through GDA-DEMO-007E. "
+        "Provider evidence: YES. Start: enabled.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(checker, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(checker, "FORMAL_DEMO_SUMMARY_DOCS", ("README.md",))
+
+    findings = checker.check_formal_demo_summary_state()
+
+    assert len(findings) == 4
+    rendered = "\n".join(finding.render() for finding in findings)
+    assert "GDA-DEMO-007F" in rendered
+    assert "Provider evidence: NO" in rendered
+    assert "Start: disabled" in rendered
+    assert "slice count of 6" in rendered
+
+
+def test_malformed_formal_demo_owner_status_is_reported(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    owner = tmp_path / "docs" / "FORMAL_DEMO_V1.md"
+    owner.parent.mkdir(parents=True)
+    owner.write_text("# Formal Demo v1\n\n> **Status: planned.**\n", encoding="utf-8")
+    monkeypatch.setattr(checker, "REPO_ROOT", tmp_path)
+
+    findings = checker.check_formal_demo_summary_state()
+
+    assert len(findings) == 1
+    assert findings[0].path == "docs/FORMAL_DEMO_V1.md"
+    assert "cannot be derived" in findings[0].detail
