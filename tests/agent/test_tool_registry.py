@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -313,6 +314,97 @@ def test_scroll_and_drag_accept_bounded_grounded_coordinates() -> None:
 
     assert validate_tool_arguments("scroll", scroll) == scroll
     assert validate_tool_arguments("drag", drag) == drag
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments", "message"),
+    [
+        (
+            "scroll",
+            {"x": 10, "y": 20, "delta_x": True},
+            "delta_x must be an integer",
+        ),
+        (
+            "drag",
+            {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": "250"},
+            "duration_ms must be an integer",
+        ),
+        (
+            "capture_region",
+            {"x": "0", "y": 0, "w": 1, "h": 1},
+            "x must be an integer",
+        ),
+    ],
+)
+def test_integer_argument_type_errors_keep_exact_public_messages(
+    name: str,
+    arguments: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ToolValidationError, match=f"^{message}$"):
+        validate_tool_arguments(name, arguments)
+
+
+def test_required_field_owner_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_schema = to_json_value(get_tool_spec("list_windows").input_schema)
+    assert isinstance(input_schema, dict)
+    input_schema["required"] = [1]
+    malformed = replace(
+        get_tool_spec("list_windows"),
+        input_schema=input_schema,
+    )
+    monkeypatch.setattr("computer_use_agent.tool_registry.get_tool_spec", lambda _: malformed)
+
+    with pytest.raises(
+        ToolValidationError,
+        match="^reviewed schema for list_windows is malformed$",
+    ):
+        validate_tool_arguments("list_windows", {})
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments", "malformed_field"),
+    [
+        (
+            "scroll",
+            {"x": 10, "y": 20, "delta_x": "120"},
+            "delta_x",
+        ),
+        (
+            "drag",
+            {"x": 10, "y": 20, "to_x": 30, "to_y": 40, "duration_ms": "250"},
+            "duration_ms",
+        ),
+        (
+            "capture_region",
+            {"x": "0", "y": 0, "w": 1, "h": 1},
+            "x",
+        ),
+    ],
+)
+def test_integer_argument_owner_drift_fails_closed(
+    name: str,
+    arguments: dict[str, object],
+    malformed_field: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_schema = to_json_value(get_tool_spec(name).input_schema)
+    assert isinstance(input_schema, dict)
+    properties = input_schema.get("properties")
+    assert isinstance(properties, dict)
+    field_schema = properties.get(malformed_field)
+    assert isinstance(field_schema, dict)
+    field_schema["type"] = "string"
+    malformed = replace(get_tool_spec(name), input_schema=input_schema)
+    monkeypatch.setattr("computer_use_agent.tool_registry.get_tool_spec", lambda _: malformed)
+
+    with pytest.raises(
+        ToolValidationError,
+        match=rf"^reviewed schema for {name}\.{malformed_field} is malformed$",
+    ):
+        validate_tool_arguments(name, arguments)
 
 
 @pytest.mark.parametrize(

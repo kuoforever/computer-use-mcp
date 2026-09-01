@@ -1,9 +1,10 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-004` completed
-> through commit `e697204`, PR #373, and merge `6794f54`; both feature-branch
-> copies were removed and merge-main CI run `33469720345` passed.
-> **Exact next:** separately activate `GDA-MAINT-005` for only the 46
+> **Mode: one executable repository item is active.** `GDA-MAINT-005` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-004` tracker
+> closeout merged through PR #374 as `7153927` and passed merge-main CI run
+> `33470661937`.
+> **Exact next:** complete `GDA-MAINT-005` for only the 46
 > independently reproduced argument-validation errors in
 > `computer_use_agent.tool_registry`: two `arg-type` plus 44 `operator` errors.
 > Use explicit fail-closed value narrowing in `_validate_scalar` and
@@ -43,15 +44,18 @@ That archive is historical context, not a second tracker.
 
 ## Current authorization
 
-No executable repository item is active. A branch name, archived plan,
-capability gate, or dated evidence record is never permission to start another
-item.
+| ID | State | Bounded outcome | Acceptance and stop condition |
+| --- | --- | --- | --- |
+| `GDA-MAINT-005` | Active | Remove only the remaining 46 argument-validation typing errors from `computer_use_agent.tool_registry` without changing reviewed argument behavior | Acceptance requires explicit fail-closed required-field and validated-integer narrowing, focused valid/invalid and malformed-owner coverage, an isolated zero-error diagnostic for the module, no schema or registry-digest drift, and the complete repository gate. Stop on a cast, new ignore/exemption, module-exemption removal, edit outside argument validation, changed Runtime/schema/data lane, live surface, or any failing/unresolved PR state |
+
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-004` is merged and closed. `computer_use_agent.types` has no module exemption; the schema-construction/export and descriptor-narrowing tranches are complete without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` now reports exactly 46 argument-validation errors: two `arg-type` plus 44 `operator` errors | Separately activate `GDA-MAINT-005` for only the 46 argument-validation errors. Use explicit fail-closed value narrowing, add no cast/ignore/exemption, preserve reviewed validation behavior and schema/digests, and stop before removing the module exemption or entering another module |
+| Core type debt | `GDA-MAINT-005` is the only active tranche. `computer_use_agent.types` has no module exemption; the schema-construction/export and descriptor-narrowing tranches are complete without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports exactly 46 argument-validation errors: two `arg-type` plus 44 `operator` errors | Resolve only the 46 argument-validation errors with explicit fail-closed required-field and validated-integer narrowing. Add no cast/ignore/exemption, preserve reviewed validation behavior and schema/digests, and stop before removing the module exemption or entering another module |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |

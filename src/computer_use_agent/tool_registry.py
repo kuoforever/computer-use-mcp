@@ -698,6 +698,14 @@ def _validate_scalar(name: str, value: object, schema: Mapping[str, object]) -> 
     return value
 
 
+def _require_validated_integer(tool_name: str, field_name: str, value: JSONValue) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ToolValidationError(
+            f"reviewed schema for {tool_name}.{field_name} is malformed"
+        )
+    return value
+
+
 def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[str, JSONValue]:
     """Validate fixed schemas before dispatch; dynamic grounding is later policy."""
 
@@ -717,7 +725,12 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[
     required = schema.get("required", ())
     if not isinstance(required, (list, tuple)):
         raise ToolValidationError(f"reviewed schema for {name} is malformed")
-    missing = [field for field in required if field not in arguments]
+    required_fields: list[str] = []
+    for field in required:
+        if not isinstance(field, str):
+            raise ToolValidationError(f"reviewed schema for {name} is malformed")
+        required_fields.append(field)
+    missing = [field for field in required_fields if field not in arguments]
     if missing:
         raise ToolValidationError(f"{name} is missing required argument(s): {', '.join(missing)}")
 
@@ -736,8 +749,8 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[
         if has_coordinates and not {"x", "y"}.issubset(validated):
             raise ToolValidationError("click coordinates require both x and y")
     if name == "scroll":
-        delta_x = validated.get("delta_x", 0)
-        delta_y = validated.get("delta_y", 0)
+        delta_x = _require_validated_integer(name, "delta_x", validated.get("delta_x", 0))
+        delta_y = _require_validated_integer(name, "delta_y", validated.get("delta_y", 0))
         if (delta_x, delta_y) == (0, 0):
             raise ToolValidationError("scroll requires a non-zero wheel delta")
         if abs(delta_x) > 2400 or abs(delta_y) > 2400:
@@ -748,11 +761,18 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> dict[
             validated["to_y"],
         ):
             raise ToolValidationError("drag start and end coordinates must differ")
-        duration = validated.get("duration_ms", 250)
+        duration = _require_validated_integer(
+            name,
+            "duration_ms",
+            validated.get("duration_ms", 250),
+        )
         if duration < 0 or duration > 5000:
             raise ToolValidationError("drag duration_ms must be between 0 and 5000")
     if name in _REGION_TOOLS:
-        x, y, w, h = (validated[field] for field in ("x", "y", "w", "h"))
+        x = _require_validated_integer(name, "x", validated["x"])
+        y = _require_validated_integer(name, "y", validated["y"])
+        w = _require_validated_integer(name, "w", validated["w"])
+        h = _require_validated_integer(name, "h", validated["h"])
         if x < 0 or y < 0 or w <= 0 or h <= 0:
             raise ToolValidationError(
                 f"{name} region must be positive and within the primary display"
