@@ -149,10 +149,6 @@ module = "computer_use_agent.providers.anthropic_final"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_agent.providers.anthropic_planner"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_agent.providers.openai"
 ignore_errors = true
 
