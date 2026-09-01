@@ -1,9 +1,10 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-003` completed
-> through commit `4e5507c`, PR #371, and merge `3296d70`; both feature-branch
-> copies were removed and merge-main CI run `33467154622` passed.
-> **Exact next:** separately activate `GDA-MAINT-004` for only the six
+> **Mode: one executable repository item is active.** `GDA-MAINT-004` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-003` tracker
+> closeout merged through PR #372 as `0de9c06` and passed merge-main CI run
+> `33468523690`.
+> **Exact next:** complete `GDA-MAINT-004` for only the six
 > independently reproduced descriptor-narrowing errors in
 > `computer_use_agent.tool_registry.verify_discovered_tools`. Use explicit
 > fail-closed descriptor construction, preserve malformed/duplicate/name/input-
@@ -43,15 +44,18 @@ That archive is historical context, not a second tracker.
 
 ## Current authorization
 
-No executable repository item is active. A branch name, archived plan,
-capability gate, or dated evidence record is never permission to start another
-item.
+| ID | State | Bounded outcome | Acceptance and stop condition |
+| --- | --- | --- | --- |
+| `GDA-MAINT-004` | Active | Remove only the six descriptor-narrowing typing errors from `computer_use_agent.tool_registry.verify_discovered_tools` without changing reviewed discovery behavior | Acceptance requires explicit fail-closed `MCPToolDescriptor` construction, focused malformed/duplicate/name/input/output behavior coverage, an isolated diagnostic proving exactly the 46 argument-validation errors remain, no schema or registry-digest drift, and the complete repository gate. Stop on a cast, new ignore/exemption, argument-validation edit, changed Runtime/schema/data lane, live surface, or any failing/unresolved PR state |
+
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-003` is merged and closed. `computer_use_agent.types` has no module exemption; the 42 schema-construction/export errors and stale export ignore are removed without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` now reports exactly 52 errors: six descriptor-narrowing and 46 argument-validation errors | Separately activate `GDA-MAINT-004` for only the six descriptor-narrowing errors. Use explicit fail-closed descriptor construction, add no cast/ignore/exemption, preserve reviewed behavior, and leave the 46 argument-validation errors unchanged for later `GDA-MAINT-005` activation |
+| Core type debt | `GDA-MAINT-004` is the only active tranche. `computer_use_agent.types` has no module exemption; `GDA-MAINT-003` removed the 42 schema-construction/export errors and stale export ignore without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports exactly 52 errors: six descriptor-narrowing and 46 argument-validation errors | Resolve only the six descriptor-narrowing errors with explicit fail-closed descriptor construction. Add no cast/ignore/exemption, preserve reviewed discovery behavior and schema/digests, and leave the 46 argument-validation errors unchanged for later `GDA-MAINT-005` activation |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
