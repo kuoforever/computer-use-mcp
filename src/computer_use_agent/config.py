@@ -801,35 +801,71 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     )
 
     state_dir_value = agent.get("state_dir")
-    state_dir = default_state_dir() if state_dir_value is None else _require_absolute_path(
-        state_dir_value, "agent state_dir"
-    )
+    if state_dir_value is None:
+        state_dir = default_state_dir()
+    else:
+        if not isinstance(state_dir_value, str):
+            raise ConfigError("agent state_dir must be a non-empty absolute path")
+        state_dir = _require_absolute_path(state_dir_value, "agent state_dir")
     policy_version = agent.get("policy_version", "phase0")
     if not isinstance(policy_version, str) or not policy_version.strip():
         raise ConfigError("[agent].policy_version must be a non-empty string")
 
-    provider_config = ProviderConfig(
-        name=_read_nonempty_string(provider, "name", "provider"),
-        model=_read_nonempty_string(provider, "model", "provider"),
-        base_url=provider.get("base_url"),
-        region=provider.get("region"),
-        workspace_id=provider.get("workspace_id"),
-        max_request_bytes=_read_nonnegative_int(
-            provider,
-            "max_request_bytes",
-            "provider",
-            DEFAULT_PROVIDER_REQUEST_BYTES,
-        ),
-        context_window_tokens=_read_positive_int(
-            provider, "context_window_tokens", "provider"
-        ),
-        output_token_reserve=_read_positive_int(
-            provider, "output_token_reserve", "provider"
-        ),
-        request_timeout_seconds=provider.get(
-            "request_timeout_seconds", DEFAULT_PROVIDER_TIMEOUT_SECONDS
-        ),
+    provider_name = _read_nonempty_string(provider, "name", "provider")
+    provider_model = _read_nonempty_string(provider, "model", "provider")
+    provider_base_url = provider.get("base_url")
+    provider_region = provider.get("region")
+    provider_workspace_id = provider.get("workspace_id")
+    provider_max_request_bytes = _read_nonnegative_int(
+        provider,
+        "max_request_bytes",
+        "provider",
+        DEFAULT_PROVIDER_REQUEST_BYTES,
     )
+    provider_context_window_tokens = _read_positive_int(
+        provider, "context_window_tokens", "provider"
+    )
+    provider_output_token_reserve = _read_positive_int(
+        provider, "output_token_reserve", "provider"
+    )
+    provider_request_timeout_seconds = provider.get(
+        "request_timeout_seconds", DEFAULT_PROVIDER_TIMEOUT_SECONDS
+    )
+    if provider_name not in SUPPORTED_PROVIDERS:
+        choices = ", ".join(sorted(SUPPORTED_PROVIDERS))
+        raise ConfigError(f"provider name must be one of: {choices}")
+    if provider_base_url is not None and not isinstance(provider_base_url, str):
+        raise ConfigError("provider base_url must be a string or omitted")
+    if provider_region is not None and not isinstance(provider_region, str):
+        raise ConfigError("provider region must be a string or omitted")
+    if provider_workspace_id is not None and not isinstance(
+        provider_workspace_id, str
+    ):
+        raise ConfigError("provider workspace_id must be a string or omitted")
+    if isinstance(provider_request_timeout_seconds, bool) or not isinstance(
+        provider_request_timeout_seconds, int
+    ):
+        provider_timeout_type_invalid = True
+        narrowed_provider_timeout = DEFAULT_PROVIDER_TIMEOUT_SECONDS
+    else:
+        provider_timeout_type_invalid = False
+        narrowed_provider_timeout = provider_request_timeout_seconds
+    provider_config = ProviderConfig(
+        name=provider_name,
+        model=provider_model,
+        base_url=provider_base_url,
+        region=provider_region,
+        workspace_id=provider_workspace_id,
+        max_request_bytes=provider_max_request_bytes,
+        context_window_tokens=provider_context_window_tokens,
+        output_token_reserve=provider_output_token_reserve,
+        request_timeout_seconds=narrowed_provider_timeout,
+    )
+    if provider_timeout_type_invalid:
+        raise ConfigError(
+            "provider request_timeout_seconds must be between "
+            f"{MIN_PROVIDER_TIMEOUT_SECONDS} and {MAX_PROVIDER_TIMEOUT_SECONDS}"
+        )
 
     raw_args = mcp.get("args", [])
     if not isinstance(raw_args, list) or not all(isinstance(arg, str) for arg in raw_args):
@@ -854,21 +890,43 @@ def load_agent_config(path: str | Path) -> AgentConfig:
     approval_required = policy.get("require_approval_for_actions", True)
     if not isinstance(approval_required, bool):
         raise ConfigError("[policy].require_approval_for_actions must be boolean")
+    policy_mode = policy.get("mode", READ_ONLY_MODE)
+    action_approval_policy = policy.get(
+        "action_approval_policy", ALL_SIDE_EFFECTS_APPROVAL
+    )
+    max_model_turns = _read_nonnegative_int(policy, "max_model_turns", "policy", 12)
+    max_tool_calls = _read_nonnegative_int(policy, "max_tool_calls", "policy", 32)
+    max_side_effects = _read_nonnegative_int(
+        policy, "max_side_effects", "policy", 8
+    )
+    max_context_events = _read_nonnegative_int(
+        policy, "max_context_events", "policy", 128
+    )
+    max_input_tokens = _read_nonnegative_int(
+        policy, "max_input_tokens", "policy", 1_000_000
+    )
+    if not isinstance(policy_mode, str) or policy_mode not in {
+        READ_ONLY_MODE,
+        APPROVED_ACTIONS_MODE,
+    }:
+        raise ConfigError(
+            f"policy mode must be {READ_ONLY_MODE!r} or {APPROVED_ACTIONS_MODE!r}"
+        )
+    if policy_mode == APPROVED_ACTIONS_MODE and not approval_required:
+        raise ConfigError("approved_actions mode still requires a host approval boundary")
+    if not isinstance(action_approval_policy, str):
+        raise ConfigError(
+            "action_approval_policy must be 'all_side_effects' or 'high_risk_only'"
+        )
     policy_config = PolicyConfig(
-        mode=policy.get("mode", READ_ONLY_MODE),
+        mode=policy_mode,
         require_approval_for_actions=approval_required,
-        action_approval_policy=policy.get(
-            "action_approval_policy", ALL_SIDE_EFFECTS_APPROVAL
-        ),
-        max_model_turns=_read_nonnegative_int(policy, "max_model_turns", "policy", 12),
-        max_tool_calls=_read_nonnegative_int(policy, "max_tool_calls", "policy", 32),
-        max_side_effects=_read_nonnegative_int(policy, "max_side_effects", "policy", 8),
-        max_context_events=_read_nonnegative_int(
-            policy, "max_context_events", "policy", 128
-        ),
-        max_input_tokens=_read_nonnegative_int(
-            policy, "max_input_tokens", "policy", 1_000_000
-        ),
+        action_approval_policy=action_approval_policy,
+        max_model_turns=max_model_turns,
+        max_tool_calls=max_tool_calls,
+        max_side_effects=max_side_effects,
+        max_context_events=max_context_events,
+        max_input_tokens=max_input_tokens,
     )
     continuation_enabled = continuation.get("enabled", False)
     if not isinstance(continuation_enabled, bool):
