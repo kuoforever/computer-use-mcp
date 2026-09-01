@@ -1,17 +1,15 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-002` completed
-> as implementation commit `157d5ab`; PR #369 passed all four required checks
-> with no review, comment, unresolved thread, conflict, or head drift, merged as
-> `730d715`, removed both feature-branch copies, and passed merge-main CI.
-> **Exact next:** activate only one separately bounded `GDA-MAINT-003`
-> `computer_use_agent.tool_registry` schema-typing tranche before edits. An
-> isolated diagnostic reports 94 errors in that module; this first tranche may
-> resolve only the 41 schema-construction `dict-item` errors plus the one schema
-> export error and remove the stale export `type: ignore`. Exact schema JSON and
-> registry digests must remain unchanged. Do not add a cast, `type: ignore`, or
-> module exemption; stop before the six descriptor-narrowing errors, the 46
-> argument-validation errors, or any Runtime/schema/data-lane/live change.
+> **Mode: one executable repository item is active.** `GDA-MAINT-003` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-002` tracker
+> closeout merged through PR #370 as `8c3f9a9` and passed merge-main CI.
+> **Exact next:** complete only the first `computer_use_agent.tool_registry`
+> schema-typing tranche. Resolve the 41 independently reproduced
+> schema-construction `dict-item` errors plus the one schema-export error and
+> remove the stale export `type: ignore`. Exact schema JSON and registry digests
+> must remain unchanged. Do not add a cast, `type: ignore`, or module exemption;
+> stop before the six descriptor-narrowing errors, the 46 argument-validation
+> errors, or any Runtime/schema/data-lane/live change.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -46,15 +44,16 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
+| `GDA-MAINT-003` | Active | Remove only the first 42 schema construction/export typing errors from `computer_use_agent.tool_registry` without changing its reviewed contracts | Acceptance requires typed schema constants, explicit fail-closed object narrowing for the exported schema copies, removal of the stale export ignore, an isolated diagnostic proving exactly the six descriptor plus 46 argument-validation errors remain, canonical schema-JSON and core/optional registry-digest zero-drift tests, and the complete repository gate. Stop on a cast, new ignore/exemption, descriptor/argument-validation edit, changed schema/digest/Runtime/data lane, live surface, or any failing/unresolved PR state |
 
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-002` is merged and cleaned; `computer_use_agent.types` has no module exemption. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports 94 errors: 41 schema-construction `dict-item`, one schema-export, six descriptor-narrowing, and 46 argument-validation errors | Activate `GDA-MAINT-003` as the sole row and resolve only the first 42 schema construction/export errors. Remove the stale export ignore, add no cast/ignore/exemption, prove exact schema JSON and registry-digest zero drift, and leave the six descriptor plus 46 argument-validation errors for separately activated tranches |
+| Core type debt | `GDA-MAINT-003` is the only active tranche. `computer_use_agent.types` has no module exemption. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports 94 errors: 41 schema-construction `dict-item`, one schema-export, six descriptor-narrowing, and 46 argument-validation errors | Resolve only the first 42 schema construction/export errors. Remove the stale export ignore, add no cast/ignore/exemption, prove exact schema JSON and registry-digest zero drift, and stop with the six descriptor plus 46 argument-validation errors unchanged for separately activated tranches |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |

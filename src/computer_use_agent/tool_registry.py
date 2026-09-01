@@ -142,42 +142,61 @@ def _mcp_schema(
 
 
 _SCOPE_PATTERN = r"^(?:foreground|all|[1-9][0-9]*)$"
-_SCOPE = {
+_SCOPE: dict[str, JSONValue] = {
     "type": "string",
     "pattern": _SCOPE_PATTERN,
 }
-_NONEMPTY_STRING = {"type": "string", "minLength": 1}
-_OPTIONAL_REF = {"type": "string", "minLength": 1}
-_INTEGER = {"type": "integer"}
-_MCP_INTEGER = {"type": "integer"}
-_MCP_SCOPE = {"default": "foreground", "title": "Scope", "type": "string"}
-_MCP_STRING = {"type": "string"}
-_MCP_OPTIONAL_REF = {
+_NONEMPTY_STRING: dict[str, JSONValue] = {"type": "string", "minLength": 1}
+_OPTIONAL_REF: dict[str, JSONValue] = {"type": "string", "minLength": 1}
+_INTEGER: dict[str, JSONValue] = {"type": "integer"}
+_MCP_INTEGER: dict[str, JSONValue] = {"type": "integer"}
+_MCP_SCOPE: dict[str, JSONValue] = {
+    "default": "foreground",
+    "title": "Scope",
+    "type": "string",
+}
+_MCP_STRING: dict[str, JSONValue] = {"type": "string"}
+_MCP_OPTIONAL_REF: dict[str, JSONValue] = {
     "anyOf": [{"type": "string"}, {"type": "null"}],
     "default": None,
     "title": "Ref",
 }
-_MCP_OPTIONAL_X = {
+_MCP_OPTIONAL_X: dict[str, JSONValue] = {
     "anyOf": [{"type": "integer"}, {"type": "null"}],
     "default": None,
     "title": "X",
 }
-_MCP_OPTIONAL_Y = {
+_MCP_OPTIONAL_Y: dict[str, JSONValue] = {
     "anyOf": [{"type": "integer"}, {"type": "null"}],
     "default": None,
     "title": "Y",
 }
-_MCP_ZERO_INTEGER = {"default": 0, "title": "Delta", "type": "integer"}
-_MCP_DURATION = {"default": 250, "title": "Duration Ms", "type": "integer"}
-_BROWSER_DETAIL = {"type": "string", "enum": ["semantic", "text", "both"]}
-_MCP_BROWSER_DETAIL = {
+_MCP_ZERO_INTEGER: dict[str, JSONValue] = {
+    "default": 0,
+    "title": "Delta",
+    "type": "integer",
+}
+_MCP_DURATION: dict[str, JSONValue] = {
+    "default": 250,
+    "title": "Duration Ms",
+    "type": "integer",
+}
+_BROWSER_DETAIL: dict[str, JSONValue] = {
+    "type": "string",
+    "enum": ["semantic", "text", "both"],
+}
+_MCP_BROWSER_DETAIL: dict[str, JSONValue] = {
     "default": "semantic",
     "enum": ["semantic", "text", "both"],
     "title": "Detail",
     "type": "string",
 }
-_BROWSER_PAGE_INDEX = {"type": "integer", "minimum": 0, "maximum": 31}
-_MCP_BROWSER_PAGE_INDEX = {
+_BROWSER_PAGE_INDEX: dict[str, JSONValue] = {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 31,
+}
+_MCP_BROWSER_PAGE_INDEX: dict[str, JSONValue] = {
     "default": 0,
     "title": "Page Index",
     "type": "integer",
@@ -524,7 +543,13 @@ def get_tool_spec(name: str) -> ToolSpec:
 def reviewed_tool_schemas() -> tuple[dict[str, JSONValue], ...]:
     """Return fresh JSON-serializable provider schemas without shared mutability."""
 
-    return tuple(to_json_value(tool.input_schema) for tool in REVIEWED_TOOLS)  # type: ignore[return-value]
+    schemas: list[dict[str, JSONValue]] = []
+    for tool in REVIEWED_TOOLS:
+        schema = to_json_value(tool.input_schema)
+        if not isinstance(schema, dict):
+            raise ToolRegistryMismatchError("reviewed tool input schema is not a JSON object")
+        schemas.append(schema)
+    return tuple(schemas)
 
 
 def reviewed_registry_digest(
