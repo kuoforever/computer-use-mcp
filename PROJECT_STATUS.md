@@ -1,23 +1,24 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-009` completed
-> through commit `c05d335`, PR #383, and merge `82543c9`; both feature-branch
-> copies were removed and merge-main CI run `33486842649` passed.
-> **Exact next (inactive; separate activation required):** `GDA-MAINT-010` is
-> the next activatable candidate, not an active repository item. Await explicit
-> user activation before creating its branch or changing its scoped files. If
-> activated, resolve only the seven independently reproduced `arg-type` errors
-> in `computer_use_agent.config`, then remove that module's whole-module
+> **Mode: one executable repository item is active.** `GDA-MAINT-010` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-009` tracker
+> closeout merged through PR #384 as `60f58ed` and passed merge-main CI run
+> `33488319541`.
+> **Exact next:** complete `GDA-MAINT-010` only by resolving the seven
+> independently reproduced `arg-type` errors in `computer_use_agent.config`,
+> then remove that module's whole-module
 > `ignore_errors` override and synchronize only the mechanically derived
-> development-lock binding header. Preserve valid configuration parsing,
-> validation, defaults, public errors, and serialized output; change no Runtime,
-> schema, registry digest, data lane, Provider, desktop, or application behavior;
-> add no `Any`, cast, `type: ignore`, or exemption. Prove the isolated diagnostic
-> falls only from seven errors to zero, mypy override/ignore/target counts change
-> only from `24/24/1` to `23/23/0`, configured mypy still checks 176 source files,
+> development-lock binding header. Narrow the untrusted state directory,
+> provider optional strings and timeout, and policy strings through explicit
+> runtime checks that retain the existing exact errors, defaults, and range
+> rules. Preserve accepted TOML, serialized output, provider routing, and policy
+> semantics; add no `Any`, cast, `type: ignore`, or exemption. Prove malformed
+> TOML fails closed through `load_agent_config`, the isolated diagnostic falls
+> only from seven errors to zero, mypy override/ignore/target counts change only
+> from `24/24/1` to `23/23/0`, configured mypy still checks 176 source files,
 > the lock dependency body is unchanged, and the focused plus complete repository
 > gates, schema JSON, and registry digests remain unchanged. Stop before
-> `continuation`, another module, or any Runtime/schema/data-lane/live change.
+> `continuation`, another module, or any Provider/Runtime/data-lane/live change.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -50,15 +51,18 @@ That archive is historical context, not a second tracker.
 
 ## Current authorization
 
-No executable repository item is active. A branch name, archived plan,
-capability gate, or dated evidence record is never permission to start another
-item.
+| ID | State | Bounded outcome | Acceptance and stop condition |
+| --- | --- | --- | --- |
+| `GDA-MAINT-010` | Active | Resolve only the seven configuration-construction typing errors in `computer_use_agent.config`, characterize the existing malformed-TOML failures, remove only that module's whole-module mypy exemption, and synchronize its mechanically derived development-lock binding header | The five-path ceiling is `PROJECT_STATUS.md`, `src/computer_use_agent/config.py`, `tests/agent/test_config.py`, `pyproject.toml`, and `requirements/dev-py313-windows.lock`. Acceptance requires isolated mypy seven errors to zero; override/ignore/target counts `24/24/1` to `23/23/0`; configured mypy over the same 176 source files; exact existing errors for state directory, three optional provider strings, timeout boolean/non-integer, and two policy strings; exact lock-body preservation; no schema or registry-digest drift; and the focused plus complete repository gates. Stop on accepted/default/serialization/route/policy behavior drift, a file outside the ceiling, dependency-body edit, `Any`, cast, ignore, new exemption, `continuation` or another module, Provider/Runtime/data-lane/live expansion, or failing/unresolved PR state |
+
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-009` is merged and closed. The `computer_use_agent.desktop_mcp` whole-module exemption is absent; mypy now has 24 override tables, 24 `ignore_errors = true` entries, and zero target overrides for that module while configured mypy still checks 176 source files. The `computer_use_agent.config` exemption remains present; its isolated diagnostic reports exactly seven `arg-type` errors | Await separate explicit user activation of `GDA-MAINT-010`. If activated, close those exact seven errors, remove only the `computer_use_agent.config` override, and synchronize only the derived lock header. Preserve valid behavior and serialized output, add no `Any`/cast/ignore/exemption, prove the isolated diagnostic falls from seven errors to zero and override/ignore/target counts change only from `24/24/1` to `23/23/0`, retain configured mypy-176 plus focused/full gates and schema/digests, and stop before `continuation` or another module |
+| Core type debt | `GDA-MAINT-010` is the only active tranche. At activation, mypy had 24 override tables, 24 `ignore_errors = true` entries, and one target override for `computer_use_agent.config`; that module's isolated diagnostic reported exactly seven `arg-type` errors across state directory, provider optional strings/timeout, and policy strings | Narrow only those seven untrusted values through existing-equivalent fail-closed checks, add the bounded malformed-TOML characterization, remove only the `computer_use_agent.config` override, and synchronize only the derived lock header. Prove isolated seven to zero, counts `24/24/1` to `23/23/0`, configured mypy-176 plus focused/full gates and schema/digests, and stop before `continuation` or another module |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |

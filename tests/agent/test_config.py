@@ -115,6 +115,174 @@ def test_provider_request_timeout_defaults_and_is_bounded(
             )
 
 
+@pytest.mark.parametrize(
+    ("section", "setting", "expected_error"),
+    [
+        pytest.param(
+            "agent",
+            "state_dir = 7",
+            "agent state_dir must be a non-empty absolute path",
+            id="state-dir-non-string",
+        ),
+        pytest.param(
+            "provider",
+            "base_url = 7",
+            "provider base_url must be a string or omitted",
+            id="provider-base-url-non-string",
+        ),
+        pytest.param(
+            "provider",
+            "region = false",
+            "provider region must be a string or omitted",
+            id="provider-region-non-string",
+        ),
+        pytest.param(
+            "provider",
+            'workspace_id = ["workspace"]',
+            "provider workspace_id must be a string or omitted",
+            id="provider-workspace-non-string",
+        ),
+        pytest.param(
+            "provider",
+            "request_timeout_seconds = true",
+            "provider request_timeout_seconds must be between 1 and 600",
+            id="provider-timeout-boolean",
+        ),
+        pytest.param(
+            "provider",
+            "request_timeout_seconds = 1.5",
+            "provider request_timeout_seconds must be between 1 and 600",
+            id="provider-timeout-non-integer",
+        ),
+        pytest.param(
+            "policy",
+            "mode = 7",
+            "policy mode must be 'read_only' or 'approved_actions'",
+            id="policy-mode-non-string",
+        ),
+        pytest.param(
+            "policy",
+            "action_approval_policy = false",
+            "action_approval_policy must be 'all_side_effects' or 'high_risk_only'",
+            id="action-approval-policy-non-string",
+        ),
+    ],
+)
+def test_load_agent_config_rejects_malformed_scalar_types_with_exact_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    section: str,
+    setting: str,
+    expected_error: str,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    if section == "provider":
+        config_text = _config_text(tmp_path, provider_extra=setting)
+    else:
+        config_text = _config_text(tmp_path)
+        if section == "agent":
+            state_dir_line = next(
+                line for line in config_text.splitlines() if line.startswith("state_dir = ")
+            )
+            config_text = config_text.replace(state_dir_line, setting, 1)
+        else:
+            config_text += f"\n[policy]\n{setting}\n"
+    path = tmp_path / "malformed-scalar.toml"
+    path.write_text(config_text, encoding="utf-8")
+
+    with pytest.raises(ConfigError) as raised:
+        load_agent_config(path)
+    assert str(raised.value) == expected_error
+
+
+@pytest.mark.parametrize(
+    (
+        "provider_name",
+        "provider_extra",
+        "policy_text",
+        "expected_error",
+    ),
+    [
+        pytest.param(
+            "unsupported",
+            "base_url = 7",
+            "",
+            "provider name must be one of: anthropic, deepseek, doubao, glm, "
+            "kimi, local_openai, minimax, openai, qwen",
+            id="provider-name-before-base-url-type",
+        ),
+        pytest.param(
+            "unsupported",
+            "request_timeout_seconds = true",
+            "",
+            "provider name must be one of: anthropic, deepseek, doubao, glm, "
+            "kimi, local_openai, minimax, openai, qwen",
+            id="provider-name-before-timeout-type",
+        ),
+        pytest.param(
+            "openai",
+            'base_url = "https://example.invalid/v1"\n'
+            "request_timeout_seconds = true",
+            "",
+            "provider base_url must be omitted for a reviewed-region provider",
+            id="provider-route-before-timeout-type",
+        ),
+        pytest.param(
+            "openai",
+            "",
+            '[policy]\nmode = "invalid"\naction_approval_policy = false',
+            "policy mode must be 'read_only' or 'approved_actions'",
+            id="policy-mode-before-action-policy-type",
+        ),
+        pytest.param(
+            "openai",
+            "",
+            '[policy]\nmode = "approved_actions"\n'
+            "require_approval_for_actions = false\n"
+            "action_approval_policy = false",
+            "approved_actions mode still requires a host approval boundary",
+            id="policy-boundary-before-action-policy-type",
+        ),
+        pytest.param(
+            "openai",
+            "base_url = 7\nmax_request_bytes = true",
+            "",
+            "[provider].max_request_bytes must be a non-negative integer",
+            id="provider-numeric-reader-preempts-base-url-type",
+        ),
+        pytest.param(
+            "openai",
+            "",
+            "[policy]\naction_approval_policy = false\nmax_model_turns = true",
+            "[policy].max_model_turns must be a non-negative integer",
+            id="policy-numeric-reader-preempts-action-policy-type",
+        ),
+    ],
+)
+def test_load_agent_config_preserves_mixed_malformation_error_precedence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_name: str,
+    provider_extra: str,
+    policy_text: str,
+    expected_error: str,
+) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+    config_text = _config_text(tmp_path, provider_extra=provider_extra)
+    config_text = config_text.replace(
+        'name = "openai"', f'name = "{provider_name}"', 1
+    )
+    if policy_text:
+        config_text += f"\n{policy_text}\n"
+    path = tmp_path / "mixed-malformation.toml"
+    path.write_text(config_text, encoding="utf-8")
+
+    with pytest.raises(ConfigError) as raised:
+        load_agent_config(path)
+    assert type(raised.value) is ConfigError
+    assert str(raised.value) == expected_error
+
+
 def test_provider_token_window_defaults_and_is_bounded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
