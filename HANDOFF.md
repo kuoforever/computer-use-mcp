@@ -124,15 +124,19 @@ Runner, commits only strict provider JSON under a fixed no-preference
 classification policy, writes failure handoff when the still-gated OCR rung is
 denied without dispatch, and transfers a successful batch to a fresh run. It
 does not alter the retained one-call identity runtime and has no on-device
-semantic evidence. Formal Demo v1 now has five bounded offline-verified slices:
-four inert v1 data structures with exact reviewed pins and fail-closed
-compilation; a typed sensitive-local disclosure and exact `COMPILE` permit for
-one process-local gate instance; a consume-before-injected-fake one-attempt
-coordinator; an independently launchable no-key Review-only Windows Console;
-and an explicit Host-owned no-key local compiler that selects five inert role
-pins, consumes one permit, and displays the complete reviewed Scope. The
-Console stops with native `Start` disabled. It has no provider call, executable
-adapter, durable run, or Formal Demo evidence. The Universal GUI
+semantic evidence. Formal Demo v1 is implemented and offline verified through
+`GDA-DEMO-007F`: inert v1 contracts with reviewed pins and fail-closed
+compilation; a typed sensitive-local disclosure and exact `COMPILE` permit; a
+provider-neutral consume-before-await one-attempt coordinator; an independently
+launchable no-key Review-only Windows Console; a fixed Host-owned local compiler
+that displays the complete reviewed Scope; and one exact OpenAI Responses
+live-capable intent adapter plus internal Provider Scope path. The adapter is not
+connected to the Console, which stops with native `Start` disabled. The current
+account/data-controls preflight and process-local credential were not supplied,
+so the credentialed gate did not run and no Formal Demo Provider evidence was
+promoted. Executable application adapters, durable composition, and complete
+Formal Demo evidence remain absent; see the owning
+[Formal Demo v1 contract](docs/FORMAL_DEMO_V1.md). The Universal GUI
 final showcase and additional
 platform-driver layers (macOS, Linux, and an ADB-transport Android device
 driver behind the same contract — [ADR-008](docs/adr/008-android-device-driver-behind-driver-contract.md))
@@ -161,7 +165,7 @@ owns authorization and exact next action.
 
 | Program | Owner | Durable boundary |
 | --- | --- | --- |
-| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> Outlook Desktop test-account email draft. Internal inert v1 intent/scenario/profile/Scope, typed local disclosure/exact-`COMPILE` permit, injected one-attempt coordinator, fixed Host-owned local compiler, five selected inert role pins, and the independent no-key Offline Scope Review Console/launcher are offline verified. The Console reads no key/config/provider environment, makes no provider request, consumes one local permit, displays the complete reviewed Scope with zero provider calls/retries, and keeps native `Start` disabled; live provider intent, executable adapters, durable composition, and evidence remain unimplemented |
+| Formal Demo v1 | [Formal Demo v1](docs/FORMAL_DEMO_V1.md) | Selected product story: independent Host-owned Agent Console and GitHub Issues -> PDF -> disposable Excel -> disposable Word -> Outlook Desktop test-account email draft. The internal contracts, five inert reviewed role pins, provider-neutral one-attempt coordinator, fixed local compiler, and no-key Offline Scope Review Console are offline verified; the Console makes no provider request and keeps native `Start` disabled. The exact OpenAI Responses live-capable intent adapter and internal Provider Scope path are also implemented/offline, but are not connected to the Console and their credentialed gate has not run. Executable application adapters, durable composition, and complete Formal Demo evidence remain absent |
 | Application coverage | [Application evaluation matrix](docs/APPLICATION_EVALUATION_MATRIX.md) | BOSS, Google Docs, WeChat, and their legacy cross-application case are representative Coverage Set A evidence cases, not the Formal Demo or a product-priority sequence |
 | Universal GUI final showcase | [Universal GUI final showcase](docs/UNIVERSAL_GUI_DEMO.md) | Future final integration/presentation gate after the underlying mechanisms retain their own executable evidence; it is not Formal Demo v1 |
 
