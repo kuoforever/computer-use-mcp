@@ -185,10 +185,6 @@ module = "computer_use_agent.runner"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_agent.tool_registry"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_agent.trace"
 ignore_errors = true
 

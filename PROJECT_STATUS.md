@@ -1,16 +1,19 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-005` completed
-> through commit `13bb197`, PR #375, and merge `70a7add`; both feature-branch
-> copies were removed and merge-main CI run `33472000827` passed.
-> **Exact next:** separately activate `GDA-MAINT-006` only to remove the now-
-> stale `computer_use_agent.tool_registry` whole-module `ignore_errors`
-> override. The module already passes the isolated follow-import diagnostic
-> with zero errors. Change no source or test behavior and add no cast,
-> `type: ignore`, or exemption. Prove the configured mypy scope/count changes only
-> as expected while the isolated diagnostic, complete repository gate, schema
-> JSON, and registry digests remain unchanged. Stop before another module or
-> any Runtime/schema/data-lane/live change.
+> **Mode: one executable repository item is active.** `GDA-MAINT-006` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-005` tracker
+> closeout merged through PR #376 as `8a5e3b5` and passed merge-main CI run
+> `33473171919`.
+> **Exact next:** complete `GDA-MAINT-006` only by removing the now-stale
+> `computer_use_agent.tool_registry` whole-module `ignore_errors` override.
+> Synchronize only the mechanically derived development-lock binding header;
+> leave its dependency body unchanged. Change no source or test behavior and
+> add no cast, `type: ignore`, or exemption. Prove the mypy
+> override/ignore/target counts change only from
+> `28/28/1` to `27/27/0`, configured mypy still checks 176 source files, and
+> the isolated zero-error diagnostic, complete repository gate, schema JSON,
+> and registry digests remain unchanged. Stop before another module or any
+> Runtime/schema/data-lane/live change.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -43,15 +46,18 @@ That archive is historical context, not a second tracker.
 
 ## Current authorization
 
-No executable repository item is active. A branch name, archived plan,
-capability gate, or dated evidence record is never permission to start another
-item.
+| ID | State | Bounded outcome | Acceptance and stop condition |
+| --- | --- | --- | --- |
+| `GDA-MAINT-006` | Active | Remove only the stale `computer_use_agent.tool_registry` whole-module mypy exemption and synchronize its mechanically derived development-lock binding header without changing the lock body or source/test behavior | Acceptance requires override/ignore/target counts `28/28/1` to `27/27/0`, configured mypy over the same 176 source files, an isolated zero-error diagnostic, exact lock-body preservation, no schema or registry-digest drift, and the complete repository gate. Stop on any source/test edit, dependency-body edit, cast, ignore, new exemption, another module, changed Runtime/schema/data lane, live surface, or failing/unresolved PR state |
+
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-005` is merged and closed. The schema-construction/export, descriptor-narrowing, and argument-validation tranches are complete without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` now reports zero errors; its whole-module `ignore_errors` override remains present and is stale | Separately activate `GDA-MAINT-006` only to remove the stale `computer_use_agent.tool_registry` override. Change no source/test behavior, add no cast/ignore/exemption, prove the configured mypy scope/count changes only as expected plus isolated zero and the full gate, preserve schema/digests, and stop before entering another module |
+| Core type debt | `GDA-MAINT-006` is the only active tranche. The schema-construction/export, descriptor-narrowing, and argument-validation tranches are complete without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports zero errors; only its whole-module `ignore_errors` override and the mechanically bound dev-lock hash header may change | Remove only the stale `computer_use_agent.tool_registry` override and synchronize only the derived lock header. Change no lock body or source/test behavior, add no cast/ignore/exemption, prove override/ignore/target counts `28/28/1` to `27/27/0`, configured mypy-176 plus isolated zero and the full gate, preserve schema/digests, and stop before entering another module |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
