@@ -1,17 +1,16 @@
 # Project status
 
-> **Mode: one executable repository item is active.** `GDA-MAINT-004` was
-> activated by the user on 2026-09-01 after the `GDA-MAINT-003` tracker
-> closeout merged through PR #372 as `0de9c06` and passed merge-main CI run
-> `33468523690`.
-> **Exact next:** complete `GDA-MAINT-004` for only the six
-> independently reproduced descriptor-narrowing errors in
-> `computer_use_agent.tool_registry.verify_discovered_tools`. Use explicit
-> fail-closed descriptor construction, preserve malformed/duplicate/name/input-
-> and output-schema behavior, and add no cast, `type: ignore`, or module
-> exemption. Stop before the 46 argument-validation errors or any
-> Runtime/schema/data-lane/live change; those 46 errors remain a later,
-> separately activated `GDA-MAINT-005` tranche.
+> **Mode: no executable repository item is active.** `GDA-MAINT-004` completed
+> through commit `e697204`, PR #373, and merge `6794f54`; both feature-branch
+> copies were removed and merge-main CI run `33469720345` passed.
+> **Exact next:** separately activate `GDA-MAINT-005` for only the 46
+> independently reproduced argument-validation errors in
+> `computer_use_agent.tool_registry`: two `arg-type` plus 44 `operator` errors.
+> Use explicit fail-closed value narrowing in `_validate_scalar` and
+> `validate_tool_arguments`, preserve accepted/rejected values, exact error
+> messages, returned JSON, schema JSON, and registry digests, and add no cast,
+> `type: ignore`, or module exemption. Stop before removing the module exemption
+> or making any Runtime/schema/data-lane/live change.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -44,18 +43,15 @@ That archive is historical context, not a second tracker.
 
 ## Current authorization
 
-| ID | State | Bounded outcome | Acceptance and stop condition |
-| --- | --- | --- | --- |
-| `GDA-MAINT-004` | Active | Remove only the six descriptor-narrowing typing errors from `computer_use_agent.tool_registry.verify_discovered_tools` without changing reviewed discovery behavior | Acceptance requires explicit fail-closed `MCPToolDescriptor` construction, focused malformed/duplicate/name/input/output behavior coverage, an isolated diagnostic proving exactly the 46 argument-validation errors remain, no schema or registry-digest drift, and the complete repository gate. Stop on a cast, new ignore/exemption, argument-validation edit, changed Runtime/schema/data lane, live surface, or any failing/unresolved PR state |
-
-A branch name, archived plan, capability gate, or dated evidence record is
-never permission to start another item.
+No executable repository item is active. A branch name, archived plan,
+capability gate, or dated evidence record is never permission to start another
+item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-004` is the only active tranche. `computer_use_agent.types` has no module exemption; `GDA-MAINT-003` removed the 42 schema-construction/export errors and stale export ignore without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` reports exactly 52 errors: six descriptor-narrowing and 46 argument-validation errors | Resolve only the six descriptor-narrowing errors with explicit fail-closed descriptor construction. Add no cast/ignore/exemption, preserve reviewed discovery behavior and schema/digests, and leave the 46 argument-validation errors unchanged for later `GDA-MAINT-005` activation |
+| Core type debt | `GDA-MAINT-004` is merged and closed. `computer_use_agent.types` has no module exemption; the schema-construction/export and descriptor-narrowing tranches are complete without schema/digest drift. A follow-import isolated diagnostic for `computer_use_agent.tool_registry` now reports exactly 46 argument-validation errors: two `arg-type` plus 44 `operator` errors | Separately activate `GDA-MAINT-005` for only the 46 argument-validation errors. Use explicit fail-closed value narrowing, add no cast/ignore/exemption, preserve reviewed validation behavior and schema/digests, and stop before removing the module exemption or entering another module |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
@@ -98,7 +94,7 @@ production safety.
 | Campaign | Manifest-routed general worker implemented/internal/offline-only; BOSS has narrower retained identity/restart evidence; semantic and 100-item gates remain open |
 | Control and learning | H1-H8 and L0-L4 complete only at their recorded bounded scopes; no automatic promotion, training, or broad application claim |
 | Full Cycle | Lane A and freeze validation complete; baseline `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9` frozen; consumer paused; Lane B separately deferred |
-| Latest complete local gate | `2860 passed, 39 skipped`; Ruff; mypy over 176 source files; docs consistency over 13 reviewed tools; diff check; clean hash-lock bootstrap and dependency check; locked wheel build; crash reconstruction `22 passed`; stateless replay `11 passed`; deterministic evaluation `13/13` with zero safety escapes; 2026-09-01. This is a dated offline repository snapshot, not `GDA-DEMO-007F`-specific Provider, desktop, application, E4, release, human-accessibility, or permanent capability evidence |
+| Latest complete local gate | `2863 passed, 39 skipped`; Ruff; mypy over 176 source files; docs consistency over 13 reviewed tools; diff check; clean hash-lock bootstrap and dependency check; locked wheel build; crash reconstruction `22 passed`; stateless replay `11 passed`; deterministic evaluation `13/13` with zero safety escapes; 2026-09-01. This is a dated offline repository snapshot, not `GDA-DEMO-007F`-specific Provider, desktop, application, E4, release, human-accessibility, or permanent capability evidence |
 
 ## Non-negotiable invariants
 
@@ -127,6 +123,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
+| `GDA-MAINT-004` | Complete; merged | Remove only the six descriptor-narrowing typing errors from `computer_use_agent.tool_registry.verify_discovered_tools` without changing reviewed discovery behavior | Commit `e697204`; PR #373 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, requested change, unresolved thread, conflict, or head drift, merged as `6794f54`, removed both feature-branch copies, and passed merge-main CI run `33469720345`. Discovery is still fully materialized before validation, then each value is explicitly narrowed into a typed descriptor list or rejected with the existing fail-closed message before attribute access; no cast, ignore, or exemption was added. First/middle/last hostile lookalikes joined the existing malformed/duplicate/name/input/output coverage. The isolated diagnostic fell from 52 to exactly 46 errors: two argument `arg-type` plus 44 `operator`; provider schema JSON SHA-256 remains `56b2531166b1856481a505f1cf2da5362c3a802c83b49787920abb56ff7e81ee`; core and optional registry digests remain `3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb` and `8aae88ff4cb4265ba16f770615ccc2cbd84434e51e03a9569f493a88a443f042`. Focused tool-registry gate: `49 passed`. Full local gate: `2863 passed, 39 skipped`; Ruff; mypy-176; docs-13; diff check; clean hash-lock bootstrap and dependency check; locked wheel build; crash `22 passed`; replay `11 passed`; eval `13/13` with zero safety escapes. No Runtime, schema JSON, registry digest, data lane, Provider, desktop, or application behavior changed, and no live test ran |
 | `GDA-MAINT-003` | Complete; merged | Remove only the first 42 schema construction/export typing errors from `computer_use_agent.tool_registry` without changing its reviewed contracts | Commit `4e5507c`; PR #371 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, requested change, unresolved thread, conflict, or head drift, merged as `3296d70`, removed both feature-branch copies, and passed merge-main CI run `33467154622`. Sixteen reviewed schema constants are explicitly typed; exported schema copies now fail closed on an impossible malformed owner value; the stale export ignore is removed; no cast, ignore, or exemption was added. Canonical schema JSON SHA-256 remains `56b2531166b1856481a505f1cf2da5362c3a802c83b49787920abb56ff7e81ee`; core and optional registry digests remain `3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb` and `8aae88ff4cb4265ba16f770615ccc2cbd84434e51e03a9569f493a88a443f042`. The isolated diagnostic fell from 94 to exactly 52 errors: six descriptor-narrowing plus 46 argument-validation. Focused tool-registry gate: `46 passed`. Full local gate: `2860 passed, 39 skipped`; Ruff; mypy-176; docs-13; diff check; clean hash-lock bootstrap and dependency check; locked wheel build; crash `22 passed`; replay `11 passed`; eval `13/13` with zero safety escapes. No Runtime, schema JSON, registry digest, data lane, Provider, desktop, or application behavior changed, and no live test ran |
 | `GDA-MAINT-002` | Complete; merged | Remove the whole-module mypy exemption from `computer_use_agent.types` without changing valid behavior or serialization | Commit `157d5ab`; PR #369 passed wheel plus Python 3.11/3.12/3.13 with zero review, comment, requested change, unresolved thread, conflict, or head drift, merged as `730d715`, removed both feature-branch copies, and passed merge-main CI run `33464339922`. Four independently reproduced errors were closed with explicit fail-closed LedgerEvent invariant checks; no cast or `type: ignore` was added, only the `computer_use_agent.types` exemption was removed, and the dependency-lock body remained unchanged. Six defense-in-depth cases joined the `39 passed` focused types/trace/environment gate. Full local gate: `2858 passed, 39 skipped`; Ruff; mypy-176; docs-13; diff check; clean hash-lock bootstrap and dependency check; locked wheel build. No valid Runtime, serialized output, schema, data-lane, Runner/recovery/driver, Provider, desktop, or application behavior changed, and no live test ran |
 | `GDA-MAINT-001` | Complete; merged | Harden repository documentation and CI truth without changing product behavior | Commit `79b7ff1`; PR #367 preserved all four required check contexts, passed wheel plus Python 3.11/3.12/3.13, had zero review, comment, requested change, unresolved thread, conflict, or head drift, and merged as `a6a45d0`; both feature-branch copies were removed. Owner-derived Formal Demo summary checks and negative tests, LF/binary attributes, immutable-SHA Actions, a hash-locked Python 3.13 main gate, separate scheduled/manual floating canary, one 3.13 static/stress/report pass, retained compatibility matrix, and contract tests are complete. Local gate: `2852 passed, 39 skipped`; Ruff; mypy-176; docs-13; diff check; clean hash-lock bootstrap and dependency check; focused `16 passed`; locked wheel build; crash `22 passed`; replay `11 passed`; eval `13/13` with zero safety escapes. No Runtime behavior changed and no live Provider/desktop/application test ran |
