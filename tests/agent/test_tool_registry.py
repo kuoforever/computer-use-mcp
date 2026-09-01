@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 
 import pytest
@@ -78,6 +79,21 @@ def test_registry_contains_the_exact_thirteen_core_reviewed_mcp_tools() -> None:
     assert (
         reviewed_registry_digest()
         == "3112fbb88ad1398d4dc466cd0b2adff7199ace387d281f9c952ead7b961ed2bb"
+    )
+
+
+def test_provider_schema_json_and_optional_registry_digest_are_pinned() -> None:
+    canonical_schemas = json.dumps(
+        reviewed_tool_schemas(),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+    assert hashlib.sha256(canonical_schemas.encode("utf-8")).hexdigest() == (
+        "56b2531166b1856481a505f1cf2da5362c3a802c83b49787920abb56ff7e81ee"
+    )
+    assert reviewed_registry_digest(OPTIONAL_TOOL_NAMES) == (
+        "8aae88ff4cb4265ba16f770615ccc2cbd84434e51e03a9569f493a88a443f042"
     )
 
 
@@ -341,6 +357,15 @@ def test_provider_schema_exports_are_json_copies_and_cannot_mutate_the_registry(
     schemas[0]["properties"]["scope"]["type"] = "integer"
 
     assert get_tool_spec("ui_snapshot").input_schema["properties"]["scope"]["type"] == "string"
+
+
+def test_provider_schema_export_fails_closed_if_copy_is_not_an_object(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("computer_use_agent.tool_registry.to_json_value", lambda _: [])
+
+    with pytest.raises(ToolRegistryMismatchError, match="schema is not a JSON object"):
+        reviewed_tool_schemas()
 
 
 def test_result_contract_rejects_image_content_for_text_tools() -> None:
