@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,46 @@ from computer_use_agent.reconstruction import (
 
 
 NOW = datetime(2030, 1, 1, tzinfo=UTC)
+
+
+class _MappingProbeError(RuntimeError):
+    pass
+
+
+class _StatefulMapping(Mapping[str, object]):
+    def __init__(
+        self,
+        data: Mapping[str, object],
+        *,
+        sequences: Mapping[str, tuple[object, ...]] | None = None,
+        failures: Mapping[str, tuple[int, str]] | None = None,
+    ) -> None:
+        self._data = data
+        self._sequences = {} if sequences is None else sequences
+        self._failures = {} if failures is None else failures
+        self._reads: dict[str, int] = {}
+
+    def __getitem__(self, key: str) -> object:
+        read = self._reads.get(key, 0) + 1
+        self._reads[key] = read
+        failure = self._failures.get(key)
+        if failure is not None and read == failure[0]:
+            raise _MappingProbeError(failure[1])
+        sequence = self._sequences.get(key)
+        if sequence is not None:
+            return sequence[min(read - 1, len(sequence) - 1)]
+        return self._data[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+
+class _ExceptionalItemsMapping(_StatefulMapping):
+    def items(self) -> object:
+        raise _MappingProbeError("ROOT_ITEMS_FAILED")
 
 
 def _payload(run_id: str = "run_1") -> dict[str, object]:
@@ -275,6 +316,105 @@ def test_v6_empty_advertised_tool_scope_is_valid(tmp_path: Path) -> None:
     written = write_continuation(tmp_path.resolve(), payload)
 
     assert written.payload["advertised_tool_names"] == []
+
+
+@pytest.mark.parametrize(
+    ("field", "second_read", "accepted"),
+    [
+        ("model_turns_used", 2, True),
+        ("model_turns_used", 4, False),
+        ("max_model_turns", 2, True),
+        ("max_model_turns", 0, False),
+    ],
+)
+def test_budget_comparison_preserves_stateful_uint_results(
+    field: str, second_read: int, accepted: bool
+) -> None:
+    payload = _payload()
+    payload["payload_digest"] = "0" * 64
+    budget = payload["budget"]
+    assert isinstance(budget, dict)
+    payload["budget"] = _StatefulMapping(
+        budget,
+        sequences={field: (budget[field], second_read, second_read)},
+    )
+
+    if not accepted:
+        with pytest.raises(ContinuationError, match="^CONTINUATION_INVALID$"):
+            ContinuationEnvelope.from_payload(payload, now=NOW, verify_digest=False)
+        return
+
+    envelope = ContinuationEnvelope.from_payload(
+        payload, now=NOW, verify_digest=False
+    )
+    stored_budget = envelope.payload["budget"]
+    assert isinstance(stored_budget, dict)
+    assert stored_budget[field] == second_read
+
+
+@pytest.mark.parametrize(
+    "second_read",
+    [False, -1, 1.5, "9", [1], None, {"unexpected": 1}, (1,)],
+)
+@pytest.mark.parametrize("field", ["model_turns_used", "max_model_turns"])
+def test_budget_comparison_rejects_stateful_non_uint_second_reads(
+    field: str,
+    second_read: object,
+) -> None:
+    payload = _payload()
+    payload["payload_digest"] = "0" * 64
+    budget = payload["budget"]
+    assert isinstance(budget, dict)
+    payload["budget"] = _StatefulMapping(
+        budget,
+        sequences={field: (budget[field], second_read, second_read)},
+    )
+
+    with pytest.raises(ContinuationError, match="^CONTINUATION_INVALID$"):
+        ContinuationEnvelope.from_payload(payload, now=NOW, verify_digest=False)
+
+
+def test_budget_comparison_reads_both_values_before_narrowing() -> None:
+    payload = _payload()
+    payload["payload_digest"] = "0" * 64
+    budget = payload["budget"]
+    observation = payload["observation"]
+    assert isinstance(budget, dict) and isinstance(observation, dict)
+    payload["budget"] = _StatefulMapping(
+        budget,
+        sequences={"model_turns_used": (1, False)},
+        failures={"max_model_turns": (2, "RIGHT_MAXIMUM_FAILED")},
+    )
+    observation["verified_epoch"] = 2
+
+    with pytest.raises(_MappingProbeError, match="^RIGHT_MAXIMUM_FAILED$"):
+        ContinuationEnvelope.from_payload(payload, now=NOW, verify_digest=False)
+
+
+def test_stable_custom_mappings_preserve_canonical_persisted_bytes(
+    tmp_path: Path,
+) -> None:
+    payload = _payload()
+    ordinary_state = (tmp_path / "ordinary").resolve()
+    custom_state = (tmp_path / "custom").resolve()
+
+    ordinary = write_continuation(ordinary_state, payload)
+    custom = write_continuation(custom_state, _StatefulMapping(payload))
+
+    assert custom == ordinary
+    assert continuation_path(custom_state, "run_1").read_bytes() == continuation_path(
+        ordinary_state, "run_1"
+    ).read_bytes()
+
+
+def test_canonical_root_narrowing_preserves_mapping_items_failure() -> None:
+    payload = _payload()
+    payload["payload_digest"] = "0" * 64
+
+    with pytest.raises(_MappingProbeError, match="^ROOT_ITEMS_FAILED$"):
+        ContinuationEnvelope.from_payload(
+            _ExceptionalItemsMapping(payload), now=NOW, verify_digest=False
+        )
 
 
 @pytest.mark.parametrize(
