@@ -239,6 +239,131 @@ def test_ledger_requires_safe_call_summaries_and_globally_unique_call_identity()
         )
 
 
+def test_run_state_correlates_a_call_summary_with_its_matching_result() -> None:
+    call = _call()
+    summary = SafeArgumentSummary.from_tool_call(call, sensitive_arguments=())
+    call_event = LedgerEvent(
+        event_id="event_1",
+        kind=LedgerEventKind.TOOL_CALL,
+        identity=call.identity,
+        safe_argument_summary=summary,
+    )
+    result_event = LedgerEvent(
+        event_id="event_2",
+        kind=LedgerEventKind.TOOL_RESULT,
+        identity=call.identity,
+        tool_result=ToolResult(
+            identity=call.identity,
+            tool_name=call.name,
+            status=ToolResultStatus.SUCCESS,
+            dispatch=DispatchCertainty.DISPATCHED,
+        ),
+    )
+
+    state = RunState(
+        run_id="run_1",
+        task="Inspect",
+        policy_version="phase0",
+        observation_epoch=0,
+        budgets=RunBudget(max_model_turns=1, max_tool_calls=1, max_side_effects=0),
+        event_log=(call_event, result_event),
+    )
+
+    assert state.event_log == (call_event, result_event)
+    assert state.event_log[0].safe_argument_summary is summary
+    assert state.event_log[1].tool_result is result_event.tool_result
+
+
+def test_run_state_rejects_a_result_for_a_different_issued_tool() -> None:
+    call = _call()
+    call_event = LedgerEvent(
+        event_id="event_1",
+        kind=LedgerEventKind.TOOL_CALL,
+        identity=call.identity,
+        safe_argument_summary=SafeArgumentSummary.from_tool_call(call, sensitive_arguments=()),
+    )
+    result_event = LedgerEvent(
+        event_id="event_2",
+        kind=LedgerEventKind.TOOL_RESULT,
+        identity=call.identity,
+        tool_result=ToolResult(
+            identity=call.identity,
+            tool_name="screenshot",
+            status=ToolResultStatus.ACTION_ERROR,
+            dispatch=DispatchCertainty.DISPATCHED,
+            code="DRIVER_ERROR",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="must match its issued tool name"):
+        RunState(
+            run_id="run_1",
+            task="Inspect",
+            policy_version="phase0",
+            observation_epoch=0,
+            budgets=RunBudget(max_model_turns=1, max_tool_calls=1, max_side_effects=0),
+            event_log=(call_event, result_event),
+        )
+
+
+@pytest.mark.parametrize("field_name", ("identity", "safe_argument_summary"))
+def test_run_state_rechecks_tampered_tool_call_invariants(field_name: str) -> None:
+    call = _call()
+    call_event = LedgerEvent(
+        event_id="event_1",
+        kind=LedgerEventKind.TOOL_CALL,
+        identity=call.identity,
+        safe_argument_summary=SafeArgumentSummary.from_tool_call(call, sensitive_arguments=()),
+    )
+    object.__setattr__(call_event, field_name, None)
+
+    with pytest.raises(
+        ValueError,
+        match="a tool-call event requires identity and a safe argument summary",
+    ):
+        RunState(
+            run_id="run_1",
+            task="Inspect",
+            policy_version="phase0",
+            observation_epoch=0,
+            budgets=RunBudget(max_model_turns=1, max_tool_calls=1, max_side_effects=0),
+            event_log=(call_event,),
+        )
+
+
+@pytest.mark.parametrize("field_name", ("identity", "tool_result"))
+def test_run_state_rechecks_tampered_tool_result_invariants(field_name: str) -> None:
+    call = _call()
+    call_event = LedgerEvent(
+        event_id="event_1",
+        kind=LedgerEventKind.TOOL_CALL,
+        identity=call.identity,
+        safe_argument_summary=SafeArgumentSummary.from_tool_call(call, sensitive_arguments=()),
+    )
+    result_event = LedgerEvent(
+        event_id="event_2",
+        kind=LedgerEventKind.TOOL_RESULT,
+        identity=call.identity,
+        tool_result=ToolResult(
+            identity=call.identity,
+            tool_name=call.name,
+            status=ToolResultStatus.SUCCESS,
+            dispatch=DispatchCertainty.DISPATCHED,
+        ),
+    )
+    object.__setattr__(result_event, field_name, None)
+
+    with pytest.raises(ValueError, match="a tool-result event requires identity and a ToolResult"):
+        RunState(
+            run_id="run_1",
+            task="Inspect",
+            policy_version="phase0",
+            observation_epoch=0,
+            budgets=RunBudget(max_model_turns=1, max_tool_calls=1, max_side_effects=0),
+            event_log=(call_event, result_event),
+        )
+
+
 def test_run_state_rejects_a_verified_epoch_after_the_current_epoch() -> None:
     event = LedgerEvent(event_id="event_1", kind=LedgerEventKind.USER_TASK, payload={"task": "Inspect"})
     budget = RunBudget(max_model_turns=1, max_tool_calls=1, max_side_effects=0)

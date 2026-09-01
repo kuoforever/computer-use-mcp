@@ -1,11 +1,9 @@
 # Project status
 
-> **Mode: no executable repository item is active.** `GDA-MAINT-001` completed
-> as implementation commit `79b7ff1`; PR #367 passed all four required checks
-> with no review, comment, unresolved thread, conflict, or head drift, merged as
-> `a6a45d0`, and removed both feature-branch copies.
-> **Exact next:** activate only one separately bounded `GDA-MAINT-002` core
-> type-debt tranche before edits. Its first scope is
+> **Mode: one executable repository item is active.** `GDA-MAINT-002` was
+> activated by the user on 2026-09-01 after the `GDA-MAINT-001` tracker
+> closeout merged through PR #368 as `0cf7d51`.
+> **Exact next:** complete only the first core type-debt tranche in
 > `computer_use_agent.types`: resolve the current four mypy errors without
 > changing Runtime behavior, remove only that module's `ignore_errors`
 > override, add focused regressions for the affected call-summary/trace
@@ -45,15 +43,16 @@ That archive is historical context, not a second tracker.
 
 | ID | State | Bounded outcome | Acceptance and stop condition |
 | --- | --- | --- | --- |
+| `GDA-MAINT-002` | Active | Remove the pre-existing whole-module mypy exemption from `computer_use_agent.types` without changing behavior | Acceptance requires resolving only the four independently reproduced mypy errors, removing only this module's `ignore_errors` override, focused call-summary/trace narrowing regressions, and the complete repository gate. Stop on serialized output, schema, Runtime/data-lane behavior, another exempt module, live surface, runner/recovery/driver scope, or any failing/unresolved PR state |
 
-No row is active. A branch name, archived plan, capability gate, or dated
-evidence record is never permission to start another item.
+A branch name, archived plan, capability gate, or dated evidence record is
+never permission to start another item.
 
 ## Exact next and preserved resume points
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-001` repository-quality hardening is merged and cleaned. `computer_use_agent.types` remains under a pre-existing module-level mypy exemption; a no-config isolated diagnostic reports four errors in that module | Activate `GDA-MAINT-002` as the sole row, resolve only those four errors with behavior-preserving narrowing, remove only the `computer_use_agent.types` exemption, add focused regression coverage, and stop before another exempt module or any Runtime/schema/data-lane behavior change |
+| Core type debt | `GDA-MAINT-002` is the only active tranche. `computer_use_agent.types` remains under a pre-existing module-level mypy exemption; a no-config isolated diagnostic reports four errors in that module | Resolve only those four errors with behavior-preserving narrowing, remove only the `computer_use_agent.types` exemption, add focused regression coverage, and stop before another exempt module or any Runtime/schema/data-lane behavior change |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |

@@ -770,22 +770,27 @@ class RunState:
             if event.identity is not None and event.identity.run_id != self.run_id:
                 raise ValueError("ledger call identity must belong to this run")
             if event.kind is LedgerEventKind.TOOL_CALL:
+                if event.identity is None or event.safe_argument_summary is None:
+                    raise ValueError(
+                        "a tool-call event requires identity and a safe argument summary"
+                    )
                 if event.identity in issued_calls:
                     raise ValueError("ledger cannot issue the same call identity twice")
                 issued_calls[event.identity] = event.safe_argument_summary
-            elif event.kind in {LedgerEventKind.TOOL_RESULT, LedgerEventKind.POLICY_DECISION}:
+            elif event.kind is LedgerEventKind.TOOL_RESULT:
+                if event.identity is None or event.tool_result is None:
+                    raise ValueError("a tool-result event requires identity and a ToolResult")
                 if event.identity not in issued_calls:
                     raise ValueError("ledger result or policy decision must follow its tool call")
-                if (
-                    event.kind is LedgerEventKind.TOOL_RESULT
-                    and event.tool_result.tool_name != issued_calls[event.identity].tool_name
-                ):
+                if event.tool_result.tool_name != issued_calls[event.identity].tool_name:
                     raise ValueError("ledger tool result must match its issued tool name")
-                if (
-                    event.kind is LedgerEventKind.TOOL_RESULT
-                    and event.tool_result.status is ToolResultStatus.UNKNOWN_OUTCOME
-                ):
+                if event.tool_result.status is ToolResultStatus.UNKNOWN_OUTCOME:
                     has_unknown_outcome = True
+            elif event.kind is LedgerEventKind.POLICY_DECISION:
+                if event.identity is None or event.policy_decision is None:
+                    raise ValueError("a policy event requires identity and a PolicyDecision")
+                if event.identity not in issued_calls:
+                    raise ValueError("ledger result or policy decision must follow its tool call")
         if has_unknown_outcome and self.recovery_status is not RecoveryStatus.UNKNOWN_OUTCOME:
             raise ValueError("an unknown tool outcome requires unknown_outcome recovery status")
 
