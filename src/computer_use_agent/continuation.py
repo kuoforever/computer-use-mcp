@@ -330,7 +330,11 @@ class ContinuationEnvelope:
             ("tool_calls_used", "max_tool_calls"),
             ("side_effects_used", "max_side_effects"),
         ):
-            if budget[used] > budget[maximum]:
+            used_value = budget[used]
+            maximum_value = budget[maximum]
+            used_count = _uint(used_value, "CONTINUATION_INVALID")
+            maximum_count = _uint(maximum_value, "CONTINUATION_INVALID")
+            if used_count > maximum_count:
                 raise ContinuationError("CONTINUATION_INVALID")
 
         observation = _object(
@@ -470,7 +474,10 @@ class ContinuationEnvelope:
         supplied_digest = _digest(root.get("payload_digest"), "CONTINUATION_INVALID")
         if verify_digest and supplied_digest != _payload_digest(root):
             raise ContinuationError("CONTINUATION_DIGEST_MISMATCH")
-        return cls(to_json_value(root))
+        canonical = to_json_value(root)
+        if not isinstance(canonical, dict):
+            raise ContinuationError("CONTINUATION_INVALID")
+        return cls(canonical)
 
 
 def _validate_openai_initial_input(
