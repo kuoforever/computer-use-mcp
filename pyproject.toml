@@ -101,10 +101,6 @@ module = "computer_use_agent.cli"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_agent.demo_campaign"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_agent.evaluation"
 ignore_errors = true
 

@@ -106,6 +106,17 @@ class FaultInjector(Protocol):
         """Raise :class:`InjectedDemoFault` to simulate a crash, or return."""
 
 
+def _after_dispatch_intent_callback(
+    injector: FaultInjector, *, ordinal: int
+) -> Callable[[], None]:
+    """Bind one ordinal while retaining callback-time injector lookup."""
+
+    def check() -> None:
+        injector.check(DemoFaultPoint.AFTER_DISPATCH_INTENT, ordinal=ordinal)
+
+    return check
+
+
 class NoFaultInjector:
     """Production default. Never crashes."""
 
@@ -720,8 +731,8 @@ def _process_batch(
 
         receipt = sink.dispatch(
             idempotency_key(campaign_id, claimed.item_key),
-            after_intent=lambda ordinal=claimed.ordinal: injector.check(
-                DemoFaultPoint.AFTER_DISPATCH_INTENT, ordinal=ordinal
+            after_intent=_after_dispatch_intent_callback(
+                injector, ordinal=claimed.ordinal
             ),
         )
         injector.check(DemoFaultPoint.AFTER_SIDE_EFFECT_COMPLETION, ordinal=claimed.ordinal)
