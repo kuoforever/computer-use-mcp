@@ -145,10 +145,6 @@ module = "computer_use_agent.release"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_agent.report"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_agent.runner"
 ignore_errors = true
 

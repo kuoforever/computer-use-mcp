@@ -175,6 +175,47 @@ def test_empty_report_is_read_only(tmp_path: Path) -> None:
 
     report = build_run_report(state_dir)
 
-    assert report["run_count"] == 0
-    assert report["success_rate"] == 0.0
+    assert report == {
+        "report_version": 1,
+        "run_count": 0,
+        "terminal_run_count": 0,
+        "incomplete_run_count": 0,
+        "metrics_run_count": 0,
+        "duration_run_count": 0,
+        "success_rate": 0.0,
+        "phase_counts": {phase.value: 0 for phase in RunPhase},
+        "failure_codes": {},
+        "totals": {
+            "model_calls": 0,
+            "tool_calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "provider_latency_ms": 0,
+            "tool_latency_ms": 0,
+            "tool_failures": 0,
+            "image_results": 0,
+            "retry_count": 0,
+            "run_duration_ms": 0,
+        },
+        "averages": {
+            "provider_latency_ms": 0.0,
+            "tool_latency_ms": 0.0,
+            "run_duration_ms": 0.0,
+        },
+    }
+    assert type(report["phase_counts"]) is dict
+    assert tuple(report["phase_counts"]) == tuple(phase.value for phase in RunPhase)
+    assert type(report["totals"]) is dict
+    assert tuple(report["totals"]) == (
+        "model_calls",
+        "tool_calls",
+        "input_tokens",
+        "output_tokens",
+        "provider_latency_ms",
+        "tool_latency_ms",
+        "tool_failures",
+        "image_results",
+        "retry_count",
+        "run_duration_ms",
+    )
     assert not state_dir.exists()

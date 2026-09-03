@@ -140,9 +140,9 @@ def build_run_report(state_dir: Path) -> dict[str, JSONValue]:
         "metrics_run_count": metrics_run_count,
         "duration_run_count": duration_run_count,
         "success_rate": 0.0 if terminal_count == 0 else success_count / terminal_count,
-        "phase_counts": phase_counts,
+        "phase_counts": dict(phase_counts),
         "failure_codes": dict(sorted(failure_codes.items())),
-        "totals": totals,
+        "totals": dict(totals),
         "averages": {
             "provider_latency_ms": (
                 0.0 if model_calls == 0 else totals["provider_latency_ms"] / model_calls
