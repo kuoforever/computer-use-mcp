@@ -65,7 +65,7 @@ class AuditLog:
         """Build an allowlisted, non-reversible typed-input audit summary."""
 
         text = args.get("text")
-        out = {
+        out: dict[str, object] = {
             "text_present": "text" in args,
             "text_length": len(text) if isinstance(text, str) else None,
             "ref_supplied": args.get("ref") is not None,
