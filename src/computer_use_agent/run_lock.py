@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -172,10 +173,14 @@ class RunLock:
     def _acquire_os_lock(descriptor: int) -> None:
         os.lseek(descriptor, 0, os.SEEK_SET)
         if os.name == "nt":
+            if sys.platform != "win32":
+                raise OSError("inconsistent operating-system lock platform")
             import msvcrt
 
             msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
             return
+        if sys.platform == "win32":
+            raise OSError("inconsistent operating-system lock platform")
         import fcntl
 
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -184,10 +189,14 @@ class RunLock:
     def _release_os_lock(descriptor: int) -> None:
         os.lseek(descriptor, 0, os.SEEK_SET)
         if os.name == "nt":
+            if sys.platform != "win32":
+                raise OSError("inconsistent operating-system lock platform")
             import msvcrt
 
             msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
             return
+        if sys.platform == "win32":
+            raise OSError("inconsistent operating-system lock platform")
         import fcntl
 
         fcntl.flock(descriptor, fcntl.LOCK_UN)
