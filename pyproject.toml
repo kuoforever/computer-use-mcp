@@ -109,10 +109,6 @@ module = "computer_use_agent.executor_final_reconciliation"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_agent.plan_store"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_agent.providers.anthropic"
 ignore_errors = true
 
