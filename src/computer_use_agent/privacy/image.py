@@ -213,7 +213,11 @@ class LocalPrivacyImageRedactor:
             or len(visual_regions) > MAX_VISUAL_PRIVACY_REGIONS
         ):
             raise PrivacyError("PRIVACY_IMAGE_ANALYSIS_INVALID")
-        for region in (*runs, *visual_regions):
+        regions: tuple[RecognizedImageText | VisualPrivacyRegion, ...] = (
+            *runs,
+            *visual_regions,
+        )
+        for region in regions:
             if region.x + region.width > image.width or region.y + region.height > image.height:
                 raise PrivacyError("PRIVACY_IMAGE_ANALYSIS_INVALID")
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 
+import pytest
 from PIL import Image as PILImage
 
 from computer_use_agent.config import PrivacyConfig
@@ -356,3 +357,48 @@ def test_optional_visual_detector_redacts_reviewed_regions_without_restoration()
     rendered = PILImage.open(io.BytesIO(protected.images[0].data)).convert("RGB")
     assert rendered.getpixel((88, 38)) == (0, 0, 0)
     assert privacy.restore_text("[VISUAL:QR]") == "[VISUAL:QR]"
+
+
+@pytest.mark.parametrize(
+    "region",
+    (
+        VisualPrivacyRegion("qr", 200, 10, 30, 20),
+        VisualPrivacyRegion("face", 10, 50, 20, 20),
+    ),
+)
+def test_visual_detector_regions_must_stay_within_image_bounds(
+    region: VisualPrivacyRegion,
+) -> None:
+    privacy = _session()
+    image = _image()
+    result = ToolResult(
+        identity=CallIdentity("run_privacy", "turn_1", "call_visual_bounds"),
+        tool_name="screenshot",
+        status=ToolResultStatus.SUCCESS,
+        dispatch=DispatchCertainty.DISPATCHED,
+        images=(image,),
+    )
+    recognizer = _ImageRecognizer(())
+
+    class Detector:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def detect(
+            self, source: ImageContent
+        ) -> tuple[VisualPrivacyRegion, ...]:
+            self.calls += 1
+            assert source is image
+            return (region,)
+
+    detector = Detector()
+    with pytest.raises(PrivacyError, match="^PRIVACY_IMAGE_ANALYSIS_INVALID$"):
+        asyncio.run(
+            LocalPrivacyImageRedactor(
+                recognizer,
+                visual_detector=detector,
+            ).redact(result, privacy)
+        )
+
+    assert recognizer.calls == 1
+    assert detector.calls == 1
