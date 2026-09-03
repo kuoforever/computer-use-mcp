@@ -449,6 +449,55 @@ def test_audit_log_type_records_only_allowlisted_non_reversible_metadata(
     _assert_secret_absent(raw, secret)
 
 
+def test_audit_log_non_type_args_are_bounded_and_records_append_in_order(
+    tmp_path: Path,
+) -> None:
+    audit = AuditLog(tmp_path / "nested" / "actions.jsonl")
+    long_label = "x" * 121
+
+    first = audit.record(
+        "click",
+        {"label": long_label, "count": 3},
+        result={"observed": True},
+    )
+    second = audit.record("scroll", {"delta_y": -120}, decision="gate_denied")
+    saved = [
+        json.loads(line)
+        for line in audit.path.read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert first["args"] == {"label": ("x" * 120) + "…", "count": 3}
+    assert first["result"] == {"observed": True}
+    assert saved == [first, second]
+
+
+def test_audit_log_concurrent_records_remain_complete_and_unique(
+    tmp_path: Path,
+) -> None:
+    audit = AuditLog(tmp_path / "actions.jsonl")
+    start = Event()
+
+    def write_record(ordinal: int) -> dict:
+        assert start.wait(timeout=5)
+        return audit.record("click", {"ordinal": ordinal})
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(write_record, ordinal) for ordinal in range(32)]
+        start.set()
+        returned = [future.result(timeout=5) for future in futures]
+
+    saved = [
+        json.loads(line)
+        for line in audit.path.read_text(encoding="utf-8").splitlines()
+    ]
+    returned_by_ordinal = {record["args"]["ordinal"]: record for record in returned}
+    saved_by_ordinal = {record["args"]["ordinal"]: record for record in saved}
+
+    assert len(saved) == 32
+    assert saved_by_ordinal == returned_by_ordinal
+    assert set(saved_by_ordinal) == set(range(32))
+
+
 @pytest.mark.parametrize(
     (
         "idle_seconds",

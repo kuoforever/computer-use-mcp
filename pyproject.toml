@@ -165,9 +165,5 @@ module = "computer_use_agent.trace"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_mcp.audit"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_mcp.drivers.windows"
 ignore_errors = true
