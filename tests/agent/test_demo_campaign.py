@@ -125,18 +125,41 @@ def test_crash_after_dispatch_intent_parks_the_item_and_never_replays(tmp_path: 
     """F2: the effect may or may not have happened, so nothing may be retried."""
 
     store, sink, lock = _prepare(tmp_path, 5)
+    scripted = ScriptedFaultInjector(DemoFaultPoint.AFTER_DISPATCH_INTENT, 3)
+    pending_keys_at_check_lookup: list[tuple[str, ...]] = []
+
+    class LookupObservedFaultInjector:
+        def __getattribute__(self, name: str) -> object:
+            if name == "check":
+                pending_keys_at_check_lookup.append(sink.pending_keys())
+            return object.__getattribute__(self, name)
+
+        def check(self, point: DemoFaultPoint, *, ordinal: int) -> None:
+            scripted.check(point, ordinal=ordinal)
+
+    injector = LookupObservedFaultInjector()
     try:
-        with pytest.raises(InjectedDemoFault):
+        with pytest.raises(InjectedDemoFault) as captured:
             run_demo_campaign(
                 store,
                 sink,
                 campaign_id=CAMPAIGN_ID,
                 run_id="run-1",
                 now=START,
-                injector=ScriptedFaultInjector(DemoFaultPoint.AFTER_DISPATCH_INTENT, 3),
+                injector=injector,
             )
         pending_key = idempotency_key(CAMPAIGN_ID, "demo-item-0003")
+        assert captured.value.point is DemoFaultPoint.AFTER_DISPATCH_INTENT
+        assert captured.value.ordinal == 3
+        assert scripted.fired is True
+        assert pending_keys_at_check_lookup[-1] == (pending_key,)
+        assert sink.accepted_keys() == (
+            idempotency_key(CAMPAIGN_ID, "demo-item-0001"),
+            idempotency_key(CAMPAIGN_ID, "demo-item-0002"),
+        )
+        assert sink.pending_keys() == (pending_key,)
         assert sink.outcome_for(pending_key) is SideEffectOutcome.PENDING
+        assert sink.duplicate_attempts() == ()
     finally:
         lock.release()
 
