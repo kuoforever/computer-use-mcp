@@ -377,8 +377,8 @@ class PrivacySession:
                 return any(contains_token(item) for item in value.values())
             return False
 
-        contains_token = contains_token(call.arguments)
-        if not contains_token:
+        has_token = contains_token(call.arguments)
+        if not has_token:
             return call
         if call.name != "find" or set(call.arguments) - {"query", "scope"}:
             raise PrivacyError("PRIVACY_TOOL_RESTORE_DENIED")

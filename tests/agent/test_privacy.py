@@ -139,6 +139,51 @@ def test_only_find_can_resolve_reversible_tokens_for_local_dispatch() -> None:
         raise AssertionError("token was restored for an unreviewed tool sink")
 
 
+def test_token_free_local_call_returns_the_original_call() -> None:
+    privacy = _session()
+    call = ToolCall(
+        CallIdentity("run_privacy", "turn_1", "call_plain"),
+        "find",
+        {"query": "Save", "scope": "foreground"},
+    )
+
+    assert privacy.resolve_local_call(call) is call
+
+
+def test_local_find_denies_secret_query_and_tokenized_scope() -> None:
+    privacy = _session()
+    secret = "sk-local-secret"
+    secret_query = privacy.protect_text(f"api_key={secret}")
+    scope_token = privacy.protect_text("alice@example.com")
+    cases = (
+        (
+            ToolCall(
+                CallIdentity("run_privacy", "turn_1", "call_secret"),
+                "find",
+                {"query": secret_query, "scope": "foreground"},
+            ),
+            "PRIVACY_SECRET_RESTORE_DENIED",
+        ),
+        (
+            ToolCall(
+                CallIdentity("run_privacy", "turn_1", "call_scope"),
+                "find",
+                {"query": "Save", "scope": scope_token},
+            ),
+            "PRIVACY_TOOL_RESTORE_DENIED",
+        ),
+    )
+
+    for call, expected_code in cases:
+        try:
+            privacy.resolve_local_call(call)
+        except PrivacyError as exc:
+            assert str(exc) == expected_code
+            assert secret not in str(exc)
+        else:
+            raise AssertionError(f"{expected_code} path was accepted")
+
+
 def test_text_only_privacy_mode_rejects_screenshot_requests() -> None:
     privacy = _session(image_redaction=False)
     call = ToolCall(
