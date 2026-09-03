@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import TypedDict
 
 from .campaign import (
     CAMPAIGN_VERSION,
@@ -136,6 +137,14 @@ def _event_id(status: CampaignHostStatus) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+class _ProjectionCounts(TypedDict):
+    discovered_count: int
+    completed_count: int
+    retryable_count: int
+    uncertain_count: int
+    last_checkpoint_at: str
+
+
 def _projection(
     *,
     campaign_id: str,
@@ -233,7 +242,7 @@ def project_campaign_control_snapshot(
     if liveness.heartbeat.heartbeat_at is not None:
         checkpoint_times.append(liveness.heartbeat.heartbeat_at.isoformat())
     last_checkpoint_at = max(checkpoint_times, key=datetime.fromisoformat)
-    counts = {
+    counts: _ProjectionCounts = {
         "discovered_count": items.discovered_count,
         "completed_count": items.completed_count,
         "retryable_count": items.retryable_count,

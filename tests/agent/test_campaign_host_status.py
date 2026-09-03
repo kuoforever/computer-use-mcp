@@ -178,6 +178,35 @@ def test_nonrunning_states_never_emit_completion(
     assert not decision.should_continue_polling
 
 
+def test_completed_projection_event_identity_is_stable() -> None:
+    projection = CampaignHostStatus(
+        campaign_id="campaign_1",
+        status=HostTaskStatus.COMPLETED,
+        discovered_count=3,
+        completed_count=3,
+        retryable_count=0,
+        uncertain_count=0,
+        last_checkpoint_at="2026-07-19T00:20:00+00:00",
+    )
+    expected_event_id = (
+        "3c822657fad2d2006655781dd5c2e36722a0262b68dc8e73c0c440a8b9ca526a"
+    )
+
+    assert projection.event_id == expected_event_id
+    assert projection.as_json() == {
+        "campaign_version": 2,
+        "campaign_id": "campaign_1",
+        "status": "COMPLETED",
+        "discovered_count": 3,
+        "completed_count": 3,
+        "retryable_count": 0,
+        "uncertain_count": 0,
+        "last_checkpoint_at": "2026-07-19T00:20:00+00:00",
+        "attention_code": None,
+        "event_id": expected_event_id,
+    }
+
+
 def test_completed_projection_emits_exactly_once_across_host_restart(tmp_path: Path) -> None:
     store, lock = _store(tmp_path)
     try:
