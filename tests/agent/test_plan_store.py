@@ -15,6 +15,7 @@ from computer_use_agent.plan_store import (
 )
 from computer_use_agent.planning import (
     PlanStepStatus,
+    PlanValidationError,
     TaskPlan,
     compile_task_plan,
 )
@@ -138,6 +139,90 @@ def test_reader_rejects_unknown_tampered_drifted_or_mismatched_state(
 
         with pytest.raises(PlanStoreError):
             store.read("run_1")
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value", "cause_message"),
+    [
+        ("requires_approval", 1, "requires_approval must be boolean"),
+        ("contract_version", True, "plan contract version is unsupported"),
+        ("contract_version", 2, "plan contract version is unsupported"),
+    ],
+)
+def test_reader_rejects_malformed_exact_scalars_without_mutating_the_file(
+    tmp_path: Path,
+    field: str,
+    invalid_value: object,
+    cause_message: str,
+) -> None:
+    store, lock = _locked_store(tmp_path)
+    try:
+        store.create(_plan())
+        path = task_plan_path((tmp_path / "state").resolve(), "run_1")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if field == "requires_approval":
+            payload["plan"]["steps"][0][field] = invalid_value
+        else:
+            payload["plan"][field] = invalid_value
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        before = path.read_bytes()
+
+        with pytest.raises(PlanStoreError, match="^PLAN_STORE_INVALID$") as exc_info:
+            store.read("run_1")
+
+        assert isinstance(exc_info.value.__cause__, PlanValidationError)
+        assert str(exc_info.value.__cause__) == cause_message
+        assert path.read_bytes() == before
+    finally:
+        lock.release()
+
+
+def test_reader_preserves_approval_validation_priority_over_later_step_fields(
+    tmp_path: Path,
+) -> None:
+    store, lock = _locked_store(tmp_path)
+    try:
+        store.create(_plan())
+        path = task_plan_path((tmp_path / "state").resolve(), "run_1")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        first_step = payload["plan"]["steps"][0]
+        first_step["requires_approval"] = 1
+        first_step["tool_name"] = None
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        before = path.read_bytes()
+
+        with pytest.raises(PlanStoreError, match="^PLAN_STORE_INVALID$") as exc_info:
+            store.read("run_1")
+
+        assert isinstance(exc_info.value.__cause__, PlanValidationError)
+        assert str(exc_info.value.__cause__) == "requires_approval must be boolean"
+        assert path.read_bytes() == before
+    finally:
+        lock.release()
+
+
+@pytest.mark.parametrize("earlier_field", ["plan_id", "task_digest", "registry_digest"])
+def test_reader_preserves_metadata_validation_priority_over_contract_version(
+    tmp_path: Path,
+    earlier_field: str,
+) -> None:
+    store, lock = _locked_store(tmp_path)
+    try:
+        store.create(_plan())
+        path = task_plan_path((tmp_path / "state").resolve(), "run_1")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["plan"]["contract_version"] = True
+        payload["plan"][earlier_field] = "invalid value"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        before = path.read_bytes()
+
+        with pytest.raises(PlanStoreError, match="^PLAN_STORE_INVALID$") as exc_info:
+            store.read("run_1")
+
+        assert exc_info.value.__cause__ is None
+        assert path.read_bytes() == before
     finally:
         lock.release()
 

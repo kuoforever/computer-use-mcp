@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Mapping
 
 from .planning import (
+    PLAN_CONTRACT_VERSION,
     PlanStep,
     PlanStepAction,
     PlanStepStatus,
@@ -96,6 +97,22 @@ def _require_identifier(value: object) -> str:
     return value
 
 
+def _require_plan_step_approval(value: object) -> bool:
+    if not isinstance(value, bool):
+        raise PlanValidationError("requires_approval must be boolean")
+    return value
+
+
+def _require_plan_contract_version(value: object) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value != PLAN_CONTRACT_VERSION
+    ):
+        raise PlanValidationError("plan contract version is unsupported")
+    return value
+
+
 def _is_unsafe_path(path: Path) -> bool:
     try:
         info = path.lstat()
@@ -165,16 +182,23 @@ def _decode_plan(value: object, *, expected_run_id: str) -> TaskPlan:
                     tool_name=raw_step.get("tool_name"),
                     arguments=raw_arguments,
                     effect=effect,
-                    requires_approval=raw_step.get("requires_approval"),
+                    requires_approval=_require_plan_step_approval(
+                        raw_step.get("requires_approval")
+                    ),
                 )
             )
+        raw_contract_version = value.get("contract_version")
+        plan_id = _require_identifier(value.get("plan_id"))
+        task_digest = _require_digest(value.get("task_digest"))
+        registry_digest = _require_digest(value.get("registry_digest"))
+        plan_steps = tuple(steps)
         plan = TaskPlan(
-            contract_version=value.get("contract_version"),
-            plan_id=_require_identifier(value.get("plan_id")),
+            contract_version=_require_plan_contract_version(raw_contract_version),
+            plan_id=plan_id,
             run_id=expected_run_id,
-            task_digest=_require_digest(value.get("task_digest")),
-            registry_digest=_require_digest(value.get("registry_digest")),
-            steps=tuple(steps),
+            task_digest=task_digest,
+            registry_digest=registry_digest,
+            steps=plan_steps,
         )
     except (PlanValidationError, ValueError, TypeError) as exc:
         raise PlanStoreError("PLAN_STORE_INVALID") from exc
