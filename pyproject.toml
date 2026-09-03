@@ -93,10 +93,6 @@ module = "computer_use_agent.campaign"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "computer_use_agent.campaign_host_status"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "computer_use_agent.campaign_resume"
 ignore_errors = true
 
