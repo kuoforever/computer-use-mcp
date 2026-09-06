@@ -8,12 +8,15 @@ Runner route, provider, automatic export, or desktop execution capability.
 
 ## Contract and ownership
 
-`computer_use_agent.gui_observation.collect_gui_observation` takes a version-1
+`computer_use_agent.gui_observation.collect_gui_observation` is async and takes a version-1
 task containing only `request_id`, positive numeric `target_scope`, and a target
 `name` / `role`. A trusted internal `ObservationSource` supplies three actual
 `ToolCall` / `ToolResult` pairs, the Host's generation / observation epoch,
 strict metadata inspections, and the issuing Session's ref-to-native-ID lookup.
 The caller cannot supply the four missing Host facts or choose result epochs.
+Reads, inspections and ref resolution are awaited to match the async
+`DesktopMCPPort`; cancellation propagates without retry or a partial bundle.
+`state()` is a synchronous read of the Host's current in-memory ledger state.
 
 The coordinator requests `list_windows`, explicitly scoped `ui_snapshot`, then
 `screenshot`. Calls must succeed, share run / turn / generation, have unique IDs

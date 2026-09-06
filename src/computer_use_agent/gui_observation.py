@@ -25,9 +25,9 @@ class ObservationSource(Protocol):
     """Future Host adapter must use the sole Runner/MCP path and actual ledger stamps."""
 
     def state(self) -> tuple[int, int]: ...
-    def inspect(self, scope: str) -> VerifiedGuiState: ...
-    def read(self, tool: str, arguments: Mapping[str, str]) -> StampedObservation: ...
-    def resolve_ref(self, ref: str) -> str: ...
+    async def inspect(self, scope: str) -> VerifiedGuiState: ...
+    async def read(self, tool: str, arguments: Mapping[str, str]) -> StampedObservation: ...
+    async def resolve_ref(self, ref: str) -> str: ...
 
 
 class _ResultRow(TypedDict):
@@ -67,7 +67,7 @@ def _canonical(value: object) -> bytes:
     ).encode()
 
 
-def collect_gui_observation(
+async def collect_gui_observation(
     task: dict,
     source: ObservationSource,
     *,
@@ -111,7 +111,7 @@ def collect_gui_observation(
         raise GuiMetadataError("GUI_BUDGET_INVALID")
     started = clock()
     generation, initial_epoch = _state(source)
-    before = source.inspect(scope)
+    before = await source.inspect(scope)
     rows: dict[str, _ResultRow] = {}
     previous_epoch = initial_epoch
     identities = set()
@@ -123,7 +123,7 @@ def collect_gui_observation(
         ("snapshot", "ui_snapshot", {"scope": scope}),
         ("screenshot", "screenshot", {}),
     ]:
-        stamp = source.read(tool, arguments)
+        stamp = await source.read(tool, arguments)
         call, result = stamp.call, stamp.result
         if (
             call.name != tool
@@ -174,7 +174,7 @@ def collect_gui_observation(
             raise GuiMetadataError("GUI_IMAGE_INVALID")
         if not 0 <= clock() - started <= max_seconds:
             raise GuiMetadataError("GUI_OBSERVATION_TIMEOUT")
-    after = source.inspect(scope)
+    after = await source.inspect(scope)
     if before != after or _state(source) != (generation, previous_epoch):
         raise GuiMetadataError("GUI_OBSERVATION_CHANGED")
     elapsed = clock() - started
@@ -214,7 +214,7 @@ def collect_gui_observation(
             raise GuiMetadataError("GUI_SNAPSHOT_INCOMPLETE")
         number, role, name, x, y, w, h, state_text = match.groups()
         ref = "ref_" + number
-        native_id = source.resolve_ref(ref)
+        native_id = await source.resolve_ref(ref)
         control = visible.get(native_id)
         if control is None or native_id in matched or ref in states:
             raise GuiMetadataError("GUI_REF_MISMATCH")

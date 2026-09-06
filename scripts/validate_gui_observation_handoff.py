@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import copy
 import hashlib
 import json
@@ -46,7 +47,9 @@ def main() -> None:
     )
 
     fixtures = runpy.run_path(str(ROOT / "tests" / "agent" / "test_gui_observation.py"))
-    bundle = collect_gui_observation(fixtures["TASK"], fixtures["FakeSource"](), clock=lambda: 1.0)
+    bundle = asyncio.run(
+        collect_gui_observation(fixtures["TASK"], fixtures["FakeSource"](), clock=lambda: 1.0)
+    )
     payload = bundle.to_dict()
     task, results, facts = (payload[key] for key in ("task", "results", "host_facts"))
     incomplete = project_observation(task, results, bundle.image)

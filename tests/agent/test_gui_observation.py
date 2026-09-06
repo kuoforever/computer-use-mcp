@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 from contextlib import nullcontext
 from dataclasses import replace
 import sys
@@ -8,7 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from computer_use_agent.gui_observation import StampedObservation, collect_gui_observation
+from computer_use_agent.gui_observation import (
+    StampedObservation,
+    collect_gui_observation as collect_async,
+)
 from computer_use_agent.types import (
     CallIdentity,
     DispatchCertainty,
@@ -37,6 +41,10 @@ TASK = dict(
 )
 
 
+def collect_gui_observation(*args, **kwargs):
+    return asyncio.run(collect_async(*args, **kwargs))
+
+
 class FakeSource:
     def __init__(self, fault=""):
         self.fault = fault
@@ -52,7 +60,7 @@ class FakeSource:
     def state(self):
         return self.generation, self.epoch
 
-    def inspect(self, scope):
+    async def inspect(self, scope):
         self.inspections += 1
         if self.fault == "property":
             raise GuiMetadataError("GUI_PROPERTY_READ_FAILED")
@@ -60,12 +68,12 @@ class FakeSource:
             return replace(self.metadata, controls=(replace(self.control, focused=False),))
         return self.metadata
 
-    def resolve_ref(self, ref):
+    async def resolve_ref(self, ref):
         if self.fault == "ref":
             return "unknown"
         return self.session._native_by_ref.get(ref, "")
 
-    def read(self, tool, arguments):
+    async def read(self, tool, arguments):
         self.epoch += 1
         self.calls.append(tool)
         identity = CallIdentity("gui-run", "gui-turn", f"read-{self.epoch}")
@@ -258,8 +266,8 @@ def test_windows_reader_uses_checked_os_facts_without_desktop_io(monkeypatch, fa
 @pytest.mark.parametrize("text", ["", "malformed", '* 314 | e | "x"\n  314 | e | "x"'])
 def test_malformed_window_text_is_rejected(text):
     class Source(FakeSource):
-        def read(self, tool, arguments):
-            stamp = super().read(tool, arguments)
+        async def read(self, tool, arguments):
+            stamp = await super().read(tool, arguments)
             if tool == "list_windows":
                 return replace(stamp, result=replace(stamp.result, sanitized_text=text))
             return stamp
@@ -270,9 +278,9 @@ def test_malformed_window_text_is_rejected(text):
 
 def test_ref_resolution_cannot_mutate_ledger_after_endpoint_check():
     class Source(FakeSource):
-        def resolve_ref(self, ref):
+        async def resolve_ref(self, ref):
             self.epoch += 1
-            return super().resolve_ref(ref)
+            return await super().resolve_ref(ref)
 
     with pytest.raises(GuiMetadataError, match="GUI_LEDGER_CHANGED"):
         collect_gui_observation(TASK, Source(), clock=lambda: 1.0)
@@ -283,3 +291,26 @@ def test_invalid_task_never_reads_source():
     with pytest.raises(GuiMetadataError, match="GUI_TARGET_INVALID"):
         collect_gui_observation({**TASK, "target": {"name": "D\n", "role": "edit"}}, source)
     assert not source.calls and source.inspections == 0
+
+
+def test_cancelled_async_read_does_not_retry_or_return_facts():
+    async def scenario():
+        entered = asyncio.Event()
+
+        class Source(FakeSource):
+            async def read(self, tool, arguments):
+                self.calls.append(tool)
+                entered.set()
+                await asyncio.Future()
+                raise AssertionError("unreachable")
+
+        source = Source()
+        task = asyncio.create_task(collect_async(TASK, source))
+        await entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert source.calls == ["list_windows"]
+        assert source.inspections == 1
+
+    asyncio.run(scenario())
