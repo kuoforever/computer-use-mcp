@@ -1,6 +1,10 @@
 # Project status
 
-> **Mode: no executable repository item active — `GDA-MAINT-019` complete.**
+> **Mode: `GDA-GUI-001` implemented / offline validated — publication handoff.**
+> The owner explicitly continued model-lifecycle PR #96's observation handoff
+> on 2026-09-06. This slice implements strict metadata reads and an internal
+> read-only coordinator, validated with fake drivers only. No CLI, new MCP tool,
+> Runner dispatch, model or live route is enabled. `GDA-MAINT-019` remains complete.
 > The reviewed five-path implementation was committed as `858358e`,
 > PR #403 passed CI run `33735075329` with a clear review/comment/thread/conflict/
 > base/head/behind audit, and squash-merged as `0fdb911`. Both implementation-
@@ -11,10 +15,11 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** independently diagnose clean `main`, then explicitly activate
-> exactly one next Core exemption in this tracker before changing implementation
-> files. No successor is selected or executable yet. Stop before Runtime,
-> Provider, real desktop, application, data-lane, API-key, E3, or live work.
+> **Exact next:** publish the validated `GDA-GUI-001` slice through clear PR gates,
+> then return its receipt to model-lifecycle. Concrete Host-source integration
+> remains unwired and needs its own named Runtime row. Core diagnosis is deferred
+> at `0237f3104a1aeb9263627782df4c3fadc7e6ffe0`; do not select another exemption.
+> Provider, real desktop, application, data-lane, API-key, E3 and live work remain inactive.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -25,7 +30,7 @@
 > `324ff2fb5911e332ddb5c5f90eb41296e8faf7a9`; consumer work remains paused.
 > No live Formal Demo acceptance or evidence run is active. `GDA-DEMO-006` remains retired under tag
 > `archive/gda-demo-006-pr231-5c403a5`. L5 remains inactive.
-> Updated: 2026-09-04.
+> Updated: 2026-09-06.
 
 This file is the single operational task registry. The complete pre-compaction
 closure and decision chronology is preserved in the
@@ -49,12 +54,15 @@ That archive is historical context, not a second tracker.
 
 `GDA-MAINT-019` is closed. Its tracker closeout merged through PR #404 as
 `53c9b84`, both closeout-branch copies were removed, and exact merge-main CI run
-`33738250300` passed. No implementation item is currently active. A successor
-may be selected only by an independent clean-`main` diagnosis and must be
-explicitly activated here as exactly one Core exemption before any source,
-test, configuration, dependency, or derived-lock mutation.
+`33738250300` passed. The owner activated only `GDA-GUI-001`, the offline
+observation-producer handoff from model-lifecycle PR #96. Implement an internal
+typed coordinator and strict optional Windows metadata reader, tests and owning
+documentation. The implementation and local gates now pass; only scoped
+publication and model-lifecycle handoff remain in this slice. No dependency or
+reviewed tool-schema change was made. The
+next Core exemption remains unselected and deferred at the clean starting HEAD.
 
-No other source, test, configuration, dependency, Runtime, Provider, real
+No other source, test, configuration, dependency, Provider, real
 desktop, application, data-lane, API-key, E3, or live change is authorized.
 
 A branch name, archived plan, capability gate, configuration entry, or dated
@@ -64,7 +72,8 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Core type debt | `GDA-MAINT-019` implementation PR #403 is merged as `0fdb911`; tracker closeout PR #404 is merged as `53c9b84`; both branch pairs are removed; exact merge-main CI runs `33735693887` and `33738250300` pass; isolated mypy is `2 -> 0`; counts are `15/15/1 -> 14/14/0`; configured mypy still checks 176 source files; no successor is active | Independently diagnose clean `main`, select exactly one remaining whole-module Core exemption, and activate that single target in this tracker before changing implementation files |
+| GUI observation producer | `GDA-GUI-001` implemented/offline validated; strict optional Windows metadata reader and coordinator; [contract and reproduction](docs/GUI_OBSERVATION_PRODUCER_V1.md) | Publish through clear PR gates and return the receipt to model-lifecycle. No concrete Host source or live route is active; a successor requires a named Runtime row |
+| Core type debt | `GDA-MAINT-019` remains closed with its recorded 176-file check; 14 exemptions remain; no successor is active | Deferred during `GDA-GUI-001`. Resume independent diagnosis from clean `main` only when this tracker makes it the single active objective |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
 | Local provider E3 | The prior blanket deferral was lifted, but no loopback server/model row is active | None until a named loopback server/model scope becomes the single active row |
 | Full Cycle | Runtime freeze complete; consumer paused | Resume only on explicit user direction. Lane B / `FC-BRIDGE-003` still requires its separate consent, security, and privacy review |
@@ -136,6 +145,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
+| `GDA-GUI-001` | Implemented / offline validated; publication handoff | Derive strict window/frame/control facts and compare observation endpoints, actual typed result identities and supplied Host ledger stamps before creating a bound inert bundle | 32 focused tests including six Windows-reader paths with OS calls replaced; full suite `2967 passed, 39 skipped`; Ruff, mypy-178, docs-13, dependency and diff checks pass; crash/replay 33 pass; deterministic eval 13/13 with zero escapes; wheel build and installed-wheel synthetic producer smoke pass. Pinned model consumer `924c07db6c72cbcae4ae941d1191272f0ffc9e14` projects the producer fixture (four missing groups become zero), compiles one inert `click_ref`, and rejects four changed-data/context checks. This is synthetic interface evidence only, not model inference, real collection, OS-atomic coherence, authenticity, dispatch authority or Chrome-to-Word success. The concrete `ObservationSource` Host adapter remains unwired. Historical source-pinned reports and all Full Cycle/Provider/data-lane resume points remain unchanged. Next: clear publication and consumer handoff; activate a separately bounded Host integration row before further Runtime implementation |
 | `GDA-MAINT-019` | Complete; merged | Resolve only the two untyped persisted-plan scalar narrowings in `computer_use_agent.plan_store` without changing valid-plan bytes, validation priority, failure identity, lock/CAS/digest/atomic-write behavior, or read non-mutation | Implementation commit `858358e`; PR #403 passed CI run `33735075329` with wheel plus Python 3.11/3.12/3.13 and zero comment, review, requested change, unresolved thread, conflict, behind count, or head/base drift; squash merge `0fdb911` removed both implementation-branch copies and passed exact merge-main CI `33735693887` plus same-SHA dependency-graph run `33735698517`. Tracker closeout PR #404 passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-branch copies, and passed exact merge-main CI `33738250300`. Clean `main` at `d1c5634` independently reproduced 15 whole-module exemptions and exactly 200 hidden errors. The target contributed only `plan_store.py:168` and `plan_store.py:172 [arg-type]`: `requires_approval` was `Any | None` rather than `bool`, and `contract_version` was `Any | None` rather than `int`. The five-path repair adds two exact rejecting private validators at the existing decoder boundaries; preserves metadata-before-contract and approval-before-later-step validation priority, valid-plan serialization, fixed `PlanValidationError -> PLAN_STORE_INVALID` identity, and unchanged failed-read bytes; removes only the target override; and updates only the derived lock header. Direct tests are `19 passed`; exact consumers are `116 passed`; full local is `2935 passed, 39 skipped`; isolated mypy is `2 -> 0`; counts are `15/15/1 -> 14/14/0`; configured mypy-176, Ruff, docs-13, contracts-16, dependency, diff, installed-wheel, crash-22, replay-11, and eval-13/13 zero-escape gates pass. The lock dependency body remains byte-identical with SHA-256 `91125f2184c0e7ce774a0c708c0976cfae6db830bc2590e8ecb7196ba2e480b0`; the synchronized header is `37452533319e54e07dacc575c430a8ca8040232aa06d3b5ff1039cd41a5f2331`; the wheel SHA-256 is `70e82281cc20958ebbf1c3ebe869608ffaa8ea20a0d32b9fc463dc9d99dbb3e9`. Two independent reviews found no P0-P2. No `Any`, cast, ignore, coercion, public type, Runtime, Provider, Runner/MCP, desktop/application, Full Cycle/data-lane, API-key, E3, L5, E4, release, or live expansion was added. No successor is active; independently diagnose clean `main` and explicitly activate exactly one next Core type-debt target before implementation |
 | `GDA-MAINT-018` | Complete; merged | Resolve only the four `computer_use_agent.privacy.image` heterogeneous-region tuple typing errors without changing privacy analysis or redaction behavior | Implementation commit `e238405`; PR #401 passed wheel plus Python 3.11/3.12/3.13 with zero comment, review, requested change, unresolved thread, conflict, behind count, or head/base drift, merged as squash `9feadfc`, removed both implementation-branch copies, and passed exact merge-main CI run `33729854961` plus same-SHA dependency-graph run `33729858850`. Clean `main` at `b4704a3` had exactly 16 whole-module overrides and 204 hidden errors; the target contributed exactly four `image.py:217 [attr-defined]` errors because mypy joined `(*runs, *visual_regions)` as `tuple[object, ...]`. The strict five-path repair adds one explicit local `tuple[RecognizedImageText | VisualPrivacyRegion, ...]` annotation around the same combined tuple, directly characterizes right and bottom overflow from `VisualPrivacyRegion` as `PRIVACY_IMAGE_ANALYSIS_INVALID`, removes only the target override, and updates only the derived lock header. Construction/evaluation/iteration order, identity, OCR/visual limits, exact comparisons and first failure, error codes, pixels/labels, cancellation, and the default-absent detector remain unchanged; no branch, public type, dependency, detector, or OCR activation was added. Privacy is `16 passed`; fake-Runner redaction integration is `1 passed`; full local is `2928 passed, 39 skipped`; isolated mypy is `4 -> 0`; counts are `16/16/1 -> 15/15/0`; configured mypy-176, Ruff, docs-13, contracts-16, dependency, diff, crash-22, replay-11, eval-13/13 zero-escape, and offline installed-wheel privacy smoke pass. The lock dependency body remains byte-identical with SHA-256 `91125f2184c0e7ce774a0c708c0976cfae6db830bc2590e8ecb7196ba2e480b0`; its derived header is `a0eb5c79dba8e6fd2f1c9e735184bf278f8279218e07819317e3fe2239ca7c2b`. Independent type/runtime-equivalence and privacy/publication-scope reviews found no P0-P2. After this tracker-only closeout is published, independently diagnose and activate the next single Core type-debt target |
 | `GDA-MAINT-017` | Complete; merged | Resolve only the typed callback-construction seam in the synthetic offline `demo_campaign` fake sink without changing idempotency identity, ordinal binding, durable `PENDING`/`ACCEPTED` order, injected exception behavior, recovery, or no-replay guarantees | Implementation commit `6045d78`; PR #399 passed wheel plus Python 3.11/3.12/3.13 with zero comment, review, requested change, unresolved thread, conflict, behind count, or head/base drift, merged as squash `34a7696`, removed both implementation-branch copies, and passed exact merge-main CI run `33725543557` plus same-SHA dependency-graph run `33725548221`. Three independent clean-main scans reproduced exactly `demo_campaign.py:723: Cannot infer type of lambda [misc]`; the complete 17-exemption matrix contained 205 errors. The strict five-path repair adds one typed private closure factory that captures the injector and integer ordinal without reading `.check`, then performs the same lookup and call inside the callback; this preserves the original post-`PENDING`, pre-`ACCEPTED` timing and avoids the earlier-lookup difference of `functools.partial`. The strengthened existing F2 test observes that the final `.check` lookup sees item 3 as the sole pending key and also pins exception point/ordinal and one-shot firing, items 1-2 as the exact accepted keys, item 3 as the sole pending unknown outcome, zero duplicate attempts, recovery classification, and no replay after restart; an eager bound-method/`partial` mutation is rejected. No runtime branch, `Any`, cast, ignore, public annotation, or Provider/Runtime/Runner/MCP/desktop/application/Full Cycle/data-lane port was added. Isolated mypy is `1 -> 0`; counts are `17/17/1 -> 16/16/0`; the dependency body remains byte-identical with SHA-256 `91125f2184c0e7ce774a0c708c0976cfae6db830bc2590e8ecb7196ba2e480b0`, and the synchronized header digest is `697141a2a0cd1e44cb3e089023b0102bf6add6458fc615f76a293df857097839`. Focused demo/benchmark/Temporal is `25 passed, 1 skipped`; full local is `2926 passed, 39 skipped`; Ruff, mypy-176, docs-13, docs/dependency/CI contracts-16, diff, local dependency, offline installed-wheel callback, crash-22, replay-11, and eval-13/13 zero-escape gates pass. Three independent semantic, safety/privacy, and clean publication-scope reviews found no remaining P0-P2. After this tracker-only closeout is published, independently diagnose and activate the next single Core type-debt target |

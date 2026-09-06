@@ -392,6 +392,40 @@ class WindowsDriver(Driver):
 
     # --- screen --------------------------------------------------------------
 
+    def inspect_gui_metadata(self, scope: str):
+        """Optional internal strict read; no public tool or Driver-v1 expansion."""
+        from ..gui_metadata import GuiMetadataError, VerifiedGuiState, strict_tree
+        try:
+            if type(scope) is not str or not 0 < len(scope) <= 20 or not scope.isascii() or not scope.isdecimal() or int(scope) <= 0:
+                raise GuiMetadataError("GUI_SCOPE_INVALID")
+            user32 = ctypes.windll.user32
+            hwnd = wintypes.HWND(int(scope))
+            if not user32.IsWindow(hwnd) or not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+                raise GuiMetadataError("GUI_WINDOW_UNAVAILABLE")
+            foreground = self._foreground_hwnd()
+            if foreground != int(scope):
+                raise GuiMetadataError("GUI_WINDOW_NOT_FOREGROUND")
+            rect = wintypes.RECT()
+            if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                raise GuiMetadataError("GUI_WINDOW_BOUNDS_FAILED")
+            window = (rect.left, rect.top, rect.right, rect.bottom)
+            with mss.mss() as screens:
+                primary = self._primary_monitor(screens)
+                frame = (primary["left"], primary["top"], primary["left"] + primary["width"], primary["top"] + primary["height"])
+            if frame[:2] != (0, 0) or not (0 <= window[0] < window[2] <= frame[2] and 0 <= window[1] < window[3] <= frame[3]):
+                raise GuiMetadataError("GUI_FRAME_UNSUPPORTED")
+            root = auto.ControlFromHandle(int(scope))
+            if root is None:
+                raise GuiMetadataError("GUI_ROOT_UNAVAILABLE")
+            controls = strict_tree(root, window)
+            if self._foreground_hwnd() != foreground:
+                raise GuiMetadataError("GUI_WINDOW_CHANGED")
+            return VerifiedGuiState(scope, str(foreground), window, frame, controls)
+        except GuiMetadataError:
+            raise
+        except Exception:
+            raise GuiMetadataError("GUI_METADATA_READ_FAILED") from None
+
     def capture_screen(self, region: Rect | None = None) -> Image:
         with mss.mss() as sct:
             primary = self._primary_monitor(sct)
