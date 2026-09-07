@@ -161,3 +161,29 @@ distinguish token cap, elapsed-time stop, missing EOS and malformed metadata
 before another separately scoped invocation. The present attempt is consumed.
 Final parent gate: eight tests passed, including three added after invocation for
 success-response binding/authority, resource bounds and transport-vs-shape separation.
+
+## Offline completion diagnostic repair
+
+Status: implemented and offline-tested after the consumed GDA-GUI-009 call.
+The same bounded slice now closes the identified diagnostic gap with worker
+response v3. When generation and decoding return, it computes a closed numeric
+completion record before rejecting resources or missing EOS: input/output token
+counts, elapsed generation seconds, peak allocated bytes, UTF-8 output byte count,
+last-token EOS match, and token/time threshold indicators. Unknown earlier
+failures have `completion=null`, never invented zero counters. Over-budget actual
+values remain reportable within separate telemetry bounds. No partial model text
+is returned on failure, no cap is raised and acceptance is unchanged.
+
+The two threshold flags are independent and may both be true; they do not identify
+which internal stopping criterion fired first. Tests cover normal EOS, token-only,
+time-only and simultaneous thresholds, resource rejection with retained counters,
+nonfinite/bool/unknown-field/forged-flag rejection and missing observations.
+Final gates: 18 worker tests and 9 parent tests passed. No inference used v3.
+The consumed v2 parent deliberately retains its old worker SHA and rejects v3;
+its offline fake-process tests explicitly inject the current test worker hash.
+The historical worker remains available at model base
+`e868f4b5c65c29245019f3ac8c6efa079289edf8`. Preserve the receipt unchanged.
+
+After publication and cleanup, the exact next is a separately scoped v3-aware
+completion diagnostic using reviewed metadata validation. No old request is
+replayed and no automatic model retry, browser/Word run or training is enabled.

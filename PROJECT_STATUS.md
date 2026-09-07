@@ -1,6 +1,6 @@
 # Project status
 
-> **Mode: `GDA-GUI-009` classified — missing normal generation completion.**
+> **Mode: `GDA-GUI-009` classified — completion diagnostics repaired offline.**
 > Runtime #413 merged as `70c33b16d4e8e1c4d1902c50a1973df3bf3fb8bb`;
 > model #104 as `e868f4b5c65c29245019f3ac8c6efa079289edf8`; branches cleaned.
 > Continue the exact next with one new diagnostic request using the unchanged
@@ -54,7 +54,7 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** publish `GDA-GUI-009`; then repair safe completion diagnostics.
+> **Exact next:** publish `GDA-GUI-009`; then scope the v3 completion diagnostic.
 > Its sole summary invocation failed with one reported generation entry and no
 > returned text/metrics; cause and summary quality remain unestablished. Safe
 > v2 stage diagnostics are offline-tested only. After cleanup, separately scope
@@ -217,7 +217,7 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Reference-summary diagnostic | `GDA-GUI-009` consumed: `EOS_CHECK` / `GENERATION_INCOMPLETE` | Publish; then offline repair of stop-condition counters; no retry, desktop, training or cloud route |
+| Reference-summary diagnostic | `GDA-GUI-009` consumed; stop counters repaired offline in worker v3 | Publish; then separately scope v3-aware diagnostic; no replay, desktop, training or cloud route |
 | Public-source summary readiness | `GDA-GUI-008` reviewed; one failed invocation, diagnostic repair offline-only | Publish and hand off; then separately scope repaired reference-summary diagnostic; no v1 replay |
 | Continuous Word artifact | `GDA-GUI-007` published in Runtime #412 and model #103; no retry | Preserve evidence; source/summary integration remains pending under `GDA-GUI-008` |
 | Disposable Word recovery | `GDA-GUI-006` published in Runtime #411 and model #102 | Preserve the original unknown and recovered receipts |
@@ -298,7 +298,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
-| `GDA-GUI-009` | Classified; publication handoff | Generation returned and resource checks passed, but no accepted EOS completion | [Receipt](docs/evidence/public-source-summary-stage-2026-09-07.json); one generation entry, zero retry/desktop calls; 8 parent and 14 worker tests passed. EOS IDs/tokenizer agree; no template thinking switch. Token/time stop distinction remains unknown. Next: safe completion-counter repair, offline only |
+| `GDA-GUI-009` | Classified; offline repair complete; publication handoff | Generation returned and resource checks passed, but no accepted EOS completion; v3 adds safe completion counters without another call | [Receipt](docs/evidence/public-source-summary-stage-2026-09-07.json) unchanged; one generation entry, zero retry/desktop calls; final 9 parent and 18 worker tests passed. EOS IDs/tokenizer agree. The consumed call's token/time distinction remains unknown. Next: scope v3-aware completion diagnostic |
 | `GDA-GUI-008` | Reviewed; publication handoff | Source/summary gaps identified; one local attempt failed without sufficient diagnosis; v2 diagnostic repair offline-tested | 14 model transport/shape/failure-injection tests passed. Generation entry 1, no summary or resource metrics, no retry or desktop call. [Review](docs/PUBLIC_SOURCE_SUMMARY_READINESS.md). Publish; then separately scope repaired reference diagnostic |
 | `GDA-GUI-005` | Validated real action; publication handoff | Same-Session fresh revalidation, scoped one-use approval, existing Runner/MCP UIA click and state read-back | One model call, one approval, one action, ten tools, epoch 9; changed/disabled button independently observed, input unchanged and fixture closed. [Receipt](docs/evidence/gui-single-action-native-2026-09-07.json). 18 new offline tests and static/docs/dependency checks pass. No model promotion, pointer injection or Chrome/Word claim. Next: publish and hand off, then scope Word artifact verification |
 | `GDA-GUI-004` | Validated; one real model proposal passed; publication handoff | Fresh native fixture capture projects in memory and one fixed local GUI-Owl + experimental LoRA generation compiles to an inert `click_ref` | [Receipt](docs/evidence/gui-inert-native-2026-09-07.json): one model request, 2.344 seconds, 9,317,841,408 peak allocated bytes, three Host reads, zero Host provider turns/side effects, unchanged input, fixture closed. 25 new offline tests; full 3020 passed / 39 skipped; Ruff, mypy-180, docs-13, dependency/diff pass. No fresh post-inference state, dispatch, browser workflow, model promotion or raw export. [Contract](docs/GUI_INERT_MODEL_PROBE_V1.md). Next: publish and hand off; consumed attempt has no retry |
