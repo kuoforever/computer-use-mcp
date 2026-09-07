@@ -1,6 +1,13 @@
 # Project status
 
-> **Mode: `GDA-GUI-005` validated — one real fixture action passed; publication.**
+> **Mode: `GDA-GUI-006` artifact verified after recovery — publication.**
+> The owner continued after Runtime PR #410 merged as
+> `1e19310863728a639c9624742e2e3d87d0a209e9` and model PR #101 merged as
+> `6b13e561b58057997dcf42d0e2133455bc3b95c0`; both branches were cleaned.
+> Activate one Word-only development diagnostic: one local screenshot proposal
+> for its editor, bounded Host-controlled fixed-text write/save, disk and reopened
+> document verification, and exact disposable-window cleanup. Models never grant
+> action authority. No Chrome run, summary-quality claim or model admission change.
 > The owner continued after Runtime PR #409 merged as
 > `4095012a890f682bc45d46b2bf53ae26828c4e6b` and model PR #100 merged as
 > `9721c7017ebd95ac107cdef33490b9fa86f49b43`; both branches were cleaned.
@@ -43,10 +50,11 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** publish the validated single `GDA-GUI-005` result,
-> then hand off its merged receipt. The real attempt passed and is consumed;
-> do not repeat it. Next scope decision: one disposable Word write/save/read-back
-> slice toward the original Chrome-to-Word demo; no Word run is active yet.
+> **Exact next:** publish the validated `GDA-GUI-006` recovered artifact evidence
+> and cross-repository handoff. After merge/cleanup, the next bounded objective is
+> one fresh uninterrupted Word attempt with the revised observation sequence;
+> no additional model request or browser run is active in this publication slice.
+> `GDA-GUI-005` passed, was published and is consumed; do not repeat it.
 > `GDA-GUI-004` stays consumed. Browser workflow and general provider E3 stay paused.
 > Core diagnosis is deferred
 > at `0237f3104a1aeb9263627782df4c3fadc7e6ffe0`; do not select another exemption.
@@ -110,7 +118,7 @@ docs-13, dependency and diff checks pass. The existing projector/native/LoRA
 checks remain green (18/20/13 tests); the prior LoRA threshold remains failed.
 Publication completed in Runtime PR #409 and model PR #100.
 
-The owner now activates only `GDA-GUI-005`. Add a separate one-use fixture and
+The predecessor `GDA-GUI-005` activated a separate one-use fixture and
 explicit opt-in diagnostic, retaining one MCP Session over capture, isolated
 local inference, fresh capture, scoped approval, semantic ref click and read-back.
 Reject changed frame/control/native identity, input, generation or proposal.
@@ -133,8 +141,25 @@ with 9,317,841,408 peak allocated bytes. [Receipt](docs/evidence/gui-single-acti
 and [contract](docs/GUI_SINGLE_ACTION_PROBE_V1.md) retain the bounded proof.
 18 new offline tests; full regression `3038 passed, 39 skipped`, one existing
 Pydantic warning; Ruff, mypy-180, docs-13, dependency/diff checks passed.
-Only scoped publication and handoff remain. This does not
+Runtime PR #410 and model PR #101 completed publication and cleanup. This does not
 promote the model or prove pointer injection, Word or Chrome coverage.
+
+The owner now activates only `GDA-GUI-006`, described in
+[the Word contract](docs/GUI_WORD_PROBE_V1.md). Its local model localized the
+editor and Runtime completed click, Ctrl+End and fixed-text typing. A post-type
+UIA read timed out; that ledger remains UNKNOWN_OUTCOME. A separately observed
+save-only recovery then passed, followed by a read-only reopen in a new Word
+process. No type or model call was replayed. The artifact hash is
+`3fe9dd6b36e7b136373d5ce817b35c0e328db827713d06c7ba5c606a2f05b476`.
+Both disposable windows are closed. [Safe receipt](docs/evidence/gui-word-native-2026-09-07.json)
+retains the failed/unknown attempts and successful recovery phases. The full
+revised main sequence is not yet one uninterrupted real success. Model admission,
+browser work and all deferred gates remain unchanged. Scoped publication remains.
+Final local validation: `3069 passed, 39 skipped`, one existing Pydantic warning;
+31 new Word harness tests pass. Ruff over src/tests/scripts, mypy over 180 source
+files, docs consistency over 13 reviewed tools, pip check and git diff check pass.
+The model-side new and predecessor worker tests pass 5/5, native/projector checks
+pass 20/18, and the 13-test LoRA audit retains the failed admission result.
 
 No other source, test, configuration, dependency, Provider, real
 desktop, application, data-lane, API-key, E3, or live change is authorized.
@@ -146,7 +171,8 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Single-use fixture action | `GDA-GUI-005` real attempt passed; 18 new offline tests; no retry | Finish regression, publish and hand off; then scope a disposable Word write/save/read-back gate |
+| Disposable Word artifact | `GDA-GUI-006` recovered save and reopened body verified; [contract](docs/GUI_WORD_PROBE_V1.md) | Complete scoped checks/publication/handoff; next objective is one fresh uninterrupted Word attempt |
+| Single-use fixture action | `GDA-GUI-005` published in Runtime #410 and model #101; no retry | Consumed historical evidence; use the Word slice above |
 | Real-window inert proposal | `GDA-GUI-004` validated; [contract](docs/GUI_INERT_MODEL_PROBE_V1.md); no action | Complete scoped publication and handoff; no model retry or successor action run |
 | Single-window observation | `GDA-GUI-003` merged in PR #408; model receipt PR #99; [contract](docs/GUI_READONLY_PROBE_V1.md) | Reuse unchanged collector/fixture; historical receipt stays frozen |
 | GUI Host/Session integration | `GDA-GUI-002` merged in PR #407; model receipt PR #98; [contract](docs/GUI_HOST_SOURCE_V1.md) | Use the source only in the separately authorized `GDA-GUI-003` probe; preserve historical pins |
