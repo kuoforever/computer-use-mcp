@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "date": "2026-09-07",
+  "scope": "one_native_fixture_UIA_action_with_fresh_revalidation_and_state_readback",
+  "runtime_base": "4095012a890f682bc45d46b2bf53ae26828c4e6b",
+  "model_commit": "9721c7017ebd95ac107cdef33490b9fa86f49b43",
+  "runtime_probe_sha256": "e83dba2a876143209c68f74422f9760c41ccbf2835931b5883dfb959d4bdd1e9",
+  "fixture_sha256": "e4f45ae903a9c4b7ee87ae59c9ba320f64b095b411d78d1635a66bc9713a771a",
+  "receipt": {
+    "action_dispatched": true,
+    "approval_requests": 1,
+    "backend": "uia",
+    "code": "SINGLE_ACTION_VERIFIED",
+    "host_model_turns": 0,
+    "input_unchanged": true,
+    "metrics": {
+      "adapter_sha256": "3654fc21a2cea688754b800f9b10a49ae5e931f6ceb7eec080bfd83931fd0445",
+      "generation_seconds": 2.562999999994645,
+      "image_sha256": "b6b250e86254272492ab5e4fac0ac1a4f4af3e7ab1e70312812bd9632e1b05b2",
+      "input_tokens": 781,
+      "model_id": "mPLUG/GUI-Owl-1.5-4B-Instruct",
+      "output_tokens": 27,
+      "peak_allocated_bytes": 9317841408,
+      "raw_output_sha256": "bcf71a976d5a1878ac4119c2a8cf0e9969b4b2747f634b0688ac42cb666e2340",
+      "revision": "3f061c2c562cc860c42bf32542a70e07a7ff4840"
+    },
+    "model_requests": 1,
+    "observation_epoch": 9,
+    "outcome": "PASS",
+    "phase": "SUCCESS",
+    "postcondition_verified": true,
+    "raw_observations_exported": false,
+    "run_id": "gui-action-a74b8ac5694d46b0b3813a476f41a594",
+    "side_effects": 1,
+    "tool_calls": 10,
+    "version": 1,
+    "worker_invocations": 1
+  },
+  "checkpoint_verified": {
+    "event_count": 31,
+    "image_results": 3,
+    "screenshot_results": 3,
+    "tool_failures": 0,
+    "tool_latency_ms": 2504,
+    "model_calls": 0,
+    "retry_count": 0
+  },
+  "independent_desktop_observation": {
+    "before_button_enabled": true,
+    "after_completed_button_disabled": true,
+    "fixture_closed": true
+  },
+  "limitations": [
+    "Single synthetic fixture and semantic UIA click; not OS pointer-input evidence.",
+    "One local-model request; no task success rate, general Provider integration or Chrome-to-Word completion.",
+    "Model admission remains failed; no weights, training, promotion or default route changed.",
+    "No raw screenshots or model prose retained; actual output cannot be independently recompiled.",
+    "Input ticks and endpoint equality are supporting evidence, not atomic capture or complete external-interference exclusion."
+  ]
+}

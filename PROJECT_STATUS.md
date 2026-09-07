@@ -1,6 +1,13 @@
 # Project status
 
-> **Mode: `GDA-GUI-004` validated — scoped publication and model handoff.**
+> **Mode: `GDA-GUI-005` validated — one real fixture action passed; publication.**
+> The owner continued after Runtime PR #409 merged as
+> `4095012a890f682bc45d46b2bf53ae26828c4e6b` and model PR #100 merged as
+> `9721c7017ebd95ac107cdef33490b9fa86f49b43`; both branches were cleaned.
+> Activate only a development fixture action diagnostic: one fixed local-model
+> proposal, fresh same-Session revalidation, one scoped Host approval, existing
+> Runner/MCP semantic ref click, and read-back of a single-use button transition.
+> Defaults, browser work, model admission and automatic rich exports stay unchanged.
 > `GDA-GUI-003` merged through PR #408 as `58fc86266f51a43e4becf4488a1b5da1c71f8715`;
 > model handoff PR #99 merged as `9d023f40718079a97e9a294bf5fe424f21b88a09`.
 > The requested fresh synthetic-window diagnostic passed once: fixed GUI-Owl
@@ -36,11 +43,11 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** publish the validated `GDA-GUI-004` result and model handoff.
-> Its one valid attempt is consumed; no rerun. A successor must review fresh
-> post-inference Runtime revalidation and one observable fixture action before
-> activating any action run. No successor is active. Browser workflow and
-> general provider E3 remain paused.
+> **Exact next:** publish the validated single `GDA-GUI-005` result,
+> then hand off its merged receipt. The real attempt passed and is consumed;
+> do not repeat it. Next scope decision: one disposable Word write/save/read-back
+> slice toward the original Chrome-to-Word demo; no Word run is active yet.
+> `GDA-GUI-004` stays consumed. Browser workflow and general provider E3 stay paused.
 > Core diagnosis is deferred
 > at `0237f3104a1aeb9263627782df4c3fadc7e6ffe0`; do not select another exemption.
 > Other Provider, desktop/application, data-lane, API-key, E3 and live work remain inactive.
@@ -79,7 +86,7 @@ That archive is historical context, not a second tracker.
 `GDA-MAINT-019` is closed. Its tracker closeout merged through PR #404 as
 `53c9b84`, both closeout-branch copies were removed, and exact merge-main CI run
 `33738250300` passed. `GDA-GUI-001` and its model-lifecycle receipt are merged.
-The owner now activates only `GDA-GUI-004`: reuse the explicit opt-in fixture
+The predecessor `GDA-GUI-004` reused the explicit opt-in fixture
 and existing Host/stdio MCP collection, followed by one isolated local GUI-Owl
 4B plus experimental LoRA inference. The model-side worker has no desktop
 interface. Its one request is counted separately from the observation-only
@@ -101,7 +108,33 @@ Pydantic lifespan warning remains. PR #408 and model PR #99 completed that publi
 regression: `3020 passed, 39 skipped`, one existing warning; Ruff, mypy-180,
 docs-13, dependency and diff checks pass. The existing projector/native/LoRA
 checks remain green (18/20/13 tests); the prior LoRA threshold remains failed.
-Only scoped publication and the model handoff remain.
+Publication completed in Runtime PR #409 and model PR #100.
+
+The owner now activates only `GDA-GUI-005`. Add a separate one-use fixture and
+explicit opt-in diagnostic, retaining one MCP Session over capture, isolated
+local inference, fresh capture, scoped approval, semantic ref click and read-back.
+Reject changed frame/control/native identity, input, generation or proposal.
+The Host permit authorizes only the freshly verified fixed fixture click once;
+it is based on the explicit diagnostic opt-in, never model text. Existing policy,
+approval binding, WAL, human-input/e-stop/allowlist gates and one-side-effect
+budget remain effective. UIA actions are opted in only for this child process;
+the fixture changes its button text once and disables it. No pointer injection
+claim is made. The Host reserves its existing verification provider-turn capacity
+but does not call a provider; the external model request remains separately counted.
+Unknown action outcomes stop without replay. Preserve all frozen evidence and
+deferred Full Cycle, core and Formal Demo/Provider resume points below.
+
+The real attempt `gui-action-a74b8ac5694d46b0b3813a476f41a594` passed: one
+experimental local-model request, one approval, one semantic UIA action, ten
+charged tool calls and observation epoch 9. Same-Session revalidation passed;
+read-back and independent desktop observation showed `Completed once` disabled.
+Input remained unchanged and the fixture was closed. Generation was 2.563 seconds
+with 9,317,841,408 peak allocated bytes. [Receipt](docs/evidence/gui-single-action-native-2026-09-07.json)
+and [contract](docs/GUI_SINGLE_ACTION_PROBE_V1.md) retain the bounded proof.
+18 new offline tests; full regression `3038 passed, 39 skipped`, one existing
+Pydantic warning; Ruff, mypy-180, docs-13, dependency/diff checks passed.
+Only scoped publication and handoff remain. This does not
+promote the model or prove pointer injection, Word or Chrome coverage.
 
 No other source, test, configuration, dependency, Provider, real
 desktop, application, data-lane, API-key, E3, or live change is authorized.
@@ -113,6 +146,7 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
+| Single-use fixture action | `GDA-GUI-005` real attempt passed; 18 new offline tests; no retry | Finish regression, publish and hand off; then scope a disposable Word write/save/read-back gate |
 | Real-window inert proposal | `GDA-GUI-004` validated; [contract](docs/GUI_INERT_MODEL_PROBE_V1.md); no action | Complete scoped publication and handoff; no model retry or successor action run |
 | Single-window observation | `GDA-GUI-003` merged in PR #408; model receipt PR #99; [contract](docs/GUI_READONLY_PROBE_V1.md) | Reuse unchanged collector/fixture; historical receipt stays frozen |
 | GUI Host/Session integration | `GDA-GUI-002` merged in PR #407; model receipt PR #98; [contract](docs/GUI_HOST_SOURCE_V1.md) | Use the source only in the separately authorized `GDA-GUI-003` probe; preserve historical pins |
@@ -189,6 +223,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
+| `GDA-GUI-005` | Validated real action; publication handoff | Same-Session fresh revalidation, scoped one-use approval, existing Runner/MCP UIA click and state read-back | One model call, one approval, one action, ten tools, epoch 9; changed/disabled button independently observed, input unchanged and fixture closed. [Receipt](docs/evidence/gui-single-action-native-2026-09-07.json). 18 new offline tests and static/docs/dependency checks pass. No model promotion, pointer injection or Chrome/Word claim. Next: publish and hand off, then scope Word artifact verification |
 | `GDA-GUI-004` | Validated; one real model proposal passed; publication handoff | Fresh native fixture capture projects in memory and one fixed local GUI-Owl + experimental LoRA generation compiles to an inert `click_ref` | [Receipt](docs/evidence/gui-inert-native-2026-09-07.json): one model request, 2.344 seconds, 9,317,841,408 peak allocated bytes, three Host reads, zero Host provider turns/side effects, unchanged input, fixture closed. 25 new offline tests; full 3020 passed / 39 skipped; Ruff, mypy-180, docs-13, dependency/diff pass. No fresh post-inference state, dispatch, browser workflow, model promotion or raw export. [Contract](docs/GUI_INERT_MODEL_PROBE_V1.md). Next: publish and hand off; consumed attempt has no retry |
 | `GDA-GUI-003` | Validated; real probe passed; publication handoff | Explicit opt-in development launch and disposable synthetic native window feed the existing Host/stdio MCP source | [Native receipt](docs/evidence/gui-readonly-native-2026-09-07.json): PASS, SUCCESS, one button, epoch/tool calls 3, model turns/side effects 0, input unchanged, no raw observation export. Fixture closed after the run. Focused tests: 60 passed (11 new); full suite: 2995 passed, 39 skipped; Ruff, mypy-180, docs-13, dependency/diff pass. No browser/model/action or Lane B evidence. [Contract](docs/GUI_READONLY_PROBE_V1.md). Next: clear scoped publication, return the receipt to the consumer |
 | `GDA-GUI-002` | Implemented / offline validated; publication handoff | Connect the async coordinator to genuine Runner result/epoch/budget bookkeeping and actual Session refs over a default-off resource on the same MCP connection | 16 new integration tests pass, including real SDK memory-stream client/server and Session, disabled resource, schema/ref/state rejection, ordinary tool-budget exhaustion, actual session reconnect, timeout, metadata cancellation, cleanup failure and preserved tool-cancellation UNKNOWN_OUTCOME. Full suite `2984 passed, 39 skipped`; Ruff, mypy-180, docs-13, dependency/diff checks; crash/replay 33; deterministic eval 13/13 with zero escapes; wheel build and all 16 tests against installed package pass. The model consumer pinned at `42428dde8b706be9d70003358c183d16ab057e9a` projects the genuine-code/fake-desktop bundle and compiles an inert `click_ref`; generation is 1, ledger epoch and charged tool calls are 3, metadata reads are 2, model turns and side effects are 0. No real desktop, model call, CLI activation, new model tool, dependency, automatic rich export or live evidence exists. Next: clear publication and consumer receipt; live read-only readiness requires separate scope activation |
