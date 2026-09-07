@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-07",
+  "runtime_base_commit": "5c4e5a92192b35f806ffce39a9c2edc50b5cdd5a",
+  "probe_script_sha256": "6232cea4348ca988f1fd87bac27f648250f4ff6dd92aefa7dd45151d32c4d10b",
+  "fixture_script_sha256": "9a8e8fef1b691f8afdaf258fc6fce1d66fa888280c19c454e8e98333a9b48151",
+  "receipt": {
+    "code": "OBSERVATION_COLLECTED",
+    "control_count": 1,
+    "evidence": "real_host_stdio_mcp_native_window",
+    "execution_authorized": false,
+    "input_unchanged": true,
+    "model_turns": 0,
+    "observation_epoch": 3,
+    "outcome": "PASS",
+    "phase": "SUCCESS",
+    "raw_observations_exported": false,
+    "run_id": "gui-readonly-b9db48ef96ee460aaf7673871d706934",
+    "side_effects": 0,
+    "tool_calls": 3,
+    "version": 1
+  },
+  "fixture_closed_after_run": true,
+  "scope": "One synthetic native Windows fixture; no model/action or browser workflow evidence."
+}

@@ -2,6 +2,11 @@
 
 Status: implemented for offline integration only. Date: 2026-09-07.
 
+This page records the `GDA-GUI-002` slice. Its separately authorized successor,
+[single-window read-only probe](GUI_READONLY_PROBE_V1.md), now provides an opt-in
+development launcher and bounded native-window evidence. Historical tests and
+consumer pins below remain unchanged.
+
 `GDA-GUI-002` connects the observation coordinator to real Runner bookkeeping
 and real MCP Session refs. The OS-facing driver and desktop contents are fake
 in all retained tests. There is no model invocation, live desktop evidence,
