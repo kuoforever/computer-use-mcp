@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "date": "2026-09-07",
+  "scope": "one_real_native_synthetic_fixture_snapshot_one_inert_local_proposal",
+  "runtime_base": "58fc86266f51a43e4becf4488a1b5da1c71f8715",
+  "model_base": "9d023f40718079a97e9a294bf5fe424f21b88a09",
+  "runtime_probe_sha256": "de2155ea4eec8400777da4687c1249b6981b7a3dfc671b10ae728747f9cfd0ba",
+  "model_worker_sha256": "8c39c77494388fd6011a29c4050e0b9705fcb23ec8e0fc7fe4a2e4b80b490827",
+  "fixture_sha256": "9a8e8fef1b691f8afdaf258fc6fce1d66fa888280c19c454e8e98333a9b48151",
+  "fixture_closed": true,
+  "receipt": {
+    "code": "CLICK_REF_ACCEPTED",
+    "execution_authorized": false,
+    "host_model_turns": 0,
+    "input_unchanged": true,
+    "metrics": {
+      "adapter_sha256": "3654fc21a2cea688754b800f9b10a49ae5e931f6ceb7eec080bfd83931fd0445",
+      "generation_seconds": 2.3440000000118744,
+      "image_sha256": "68895d78d37b8a21456ac061d5396e921a36f3d504e71ba091315c7f59c69f17",
+      "input_tokens": 781,
+      "model_id": "mPLUG/GUI-Owl-1.5-4B-Instruct",
+      "output_tokens": 27,
+      "peak_allocated_bytes": 9317841408,
+      "raw_output_sha256": "bcf71a976d5a1878ac4119c2a8cf0e9969b4b2747f634b0688ac42cb666e2340",
+      "revision": "3f061c2c562cc860c42bf32542a70e07a7ff4840"
+    },
+    "model_requests": 1,
+    "observation_epoch": 3,
+    "outcome": "PASS",
+    "phase": "SUCCESS",
+    "post_inference_desktop_revalidated": false,
+    "raw_observations_exported": false,
+    "run_id": "gui-inert-5c04182d868243e080418482affc2a53",
+    "side_effects": 0,
+    "tool_calls": 3,
+    "version": 1,
+    "worker_invocations": 1
+  },
+  "checkpoint_verified": {
+    "event_count": 10,
+    "image_results": 1,
+    "screenshot_results": 1,
+    "tool_failures": 0,
+    "tool_latency_ms": 685,
+    "model_calls": 0,
+    "retry_count": 0
+  },
+  "limitations": [
+    "One snapshot-relative diagnostic, not task success rate or closed-loop action evidence.",
+    "No post-inference desktop revalidation; refs belong to the closed Session.",
+    "Previous LoRA admission threshold remains failed; runtime eligibility remains false.",
+    "No raw image or model prose retained; independent recompilation of the actual output is unavailable.",
+    "No Chrome or Word run; no default model route, provider integration, training or promotion."
+  ]
+}
