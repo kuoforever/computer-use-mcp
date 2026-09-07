@@ -1,14 +1,20 @@
 # Project status
 
-> **Mode: `GDA-GUI-002` implemented / offline validated — publication handoff.**
-> On 2026-09-07 the owner continued the real-code / fake-desktop integration.
+> **Mode: `GDA-GUI-003` validated — real read-only probe passed; publication handoff.**
+> The owner explicitly selected a fixed local test window after browser-tool
+> observation could not be verified. The opt-in harness collected one real
+> observation through the existing Runner/stdio MCP and native Windows driver.
+> Model calls and side effects remain disabled. Fixture setup is separate from
+> the read-only attempt. No browser-policy bypass or rich export is authorized.
+> `GDA-GUI-002` merged in PR #407 as `5c4e5a92192b35f806ffce39a9c2edc50b5cdd5a`;
+> model receipt PR #98 merged as `e51696ab5c0e10169695d200b31ba0b9b6a3aae6`.
 > `GDA-GUI-001` merged in PR #406 as `667868853813ee8d81abd82711b4657c8069981e`;
 > model-lifecycle handoff PR #97 merged as `42428dde8b706be9d70003358c183d16ab057e9a`.
-> This slice adds a default-off read-only Session resource on the existing MCP
-> connection and a Host source using the sole Runner call boundary. No model
-> invocation, live desktop run, action route, or automatic rich export is active.
-> The predecessor's strict metadata reader and coordinator remain offline-tested.
-> No CLI, new model tool, model invocation or live route is enabled.
+> Native run `gui-readonly-b9db48ef96ee460aaf7673871d706934` passed with one
+> control, three charged read-only calls, epoch 3, unchanged input, zero model
+> turns and zero side effects. The fixture was closed after collection.
+> Ordinary launch defaults and reviewed tools remain unchanged. No model/action
+> route or automatic rich export is enabled. This is not Chrome-to-Word evidence.
 > `GDA-MAINT-019` remains complete.
 > The reviewed five-path implementation was committed as `858358e`,
 > PR #403 passed CI run `33735075329` with a clear review/comment/thread/conflict/
@@ -20,13 +26,13 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** publish the validated `GDA-GUI-002` slice through clear PR
-> gates, then return the receipt to model-lifecycle. The next capability gate
-> is a separately scoped read-only observation of one real window; it is not
-> active and must not inherit live authority from these fake-driver tests.
+> **Exact next:** publish the validated scoped `GDA-GUI-003`
+> receipt through clear PR gates, then hand off to model-lifecycle. The next
+> capability gate is in-memory projection and inert proposal validation against
+> this real source; model inference and action execution are not active yet.
 > Core diagnosis is deferred
 > at `0237f3104a1aeb9263627782df4c3fadc7e6ffe0`; do not select another exemption.
-> Provider, real desktop, application, data-lane, API-key, E3 and live work remain inactive.
+> Other Provider, desktop/application, data-lane, API-key, E3 and live work remain inactive.
 > The exact `GDA-DEMO-007F` Provider gate remains paused until a current
 > account/data-controls preflight and process-local `OPENAI_API_KEY` are both
 > supplied; no `GDA-DEMO-007F`-specific Provider evidence exists yet. General
@@ -62,15 +68,19 @@ That archive is historical context, not a second tracker.
 `GDA-MAINT-019` is closed. Its tracker closeout merged through PR #404 as
 `53c9b84`, both closeout-branch copies were removed, and exact merge-main CI run
 `33738250300` passed. `GDA-GUI-001` and its model-lifecycle receipt are merged.
-The owner activated only `GDA-GUI-002`: implement the concrete async Host
-source, a bounded default-off Session resource over the existing MCP connection,
-and real-code/fake-desktop integration tests with owning documentation. Reuse
-the ordinary Runner bookkeeping, policy, budget, grounding and recorder boundary.
-Do not expose this resource to a provider, add an action path, invoke a model,
-run a real desktop, change dependencies or alter the reviewed tool schemas.
+The owner now activates only `GDA-GUI-003`: an explicit opt-in read-only launch
+harness and a synthetic local native test window. Run actual collection through
+the existing Host source, Runner and stdio MCP. Retain policy, budget, grounding,
+recorder, cleanup and strict metadata checks. No model calls, desktop actions,
+browser access, dependency changes or reviewed tool-schema changes belong here.
+Fixture launch/foreground preparation is separate from measured collection.
 The next Core exemption remains unselected and deferred.
-Implementation and local validation are complete; only scoped publication and
-model-lifecycle handoff remain. The full suite is `2984 passed, 39 skipped`.
+The predecessor is published in Runtime PR #407 and model PR #98. Its historical
+full suite remains `2984 passed, 39 skipped`; it is not live evidence.
+`GDA-GUI-003` now has one passing real native-window receipt and 11 new offline
+tests (60 focused tests total). Full regression: `2995 passed, 39 skipped`;
+Ruff, mypy-180, documentation-13, dependency and diff checks pass. The existing
+Pydantic lifespan warning remains. Only scoped publication and handoff remain.
 
 No other source, test, configuration, dependency, Provider, real
 desktop, application, data-lane, API-key, E3, or live change is authorized.
@@ -82,7 +92,8 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| GUI Host/Session integration | `GDA-GUI-002` implemented/offline validated; [contract and reproduction](docs/GUI_HOST_SOURCE_V1.md) | Publish through clear PR gates and return the receipt. A single-window live read-only gate requires its own scope and activation; no model/action route is active |
+| Single-window observation | `GDA-GUI-003` validated; fixed native-window probe passed; [contract](docs/GUI_READONLY_PROBE_V1.md) | Publish and hand off the actual receipt. No model/action run |
+| GUI Host/Session integration | `GDA-GUI-002` merged in PR #407; model receipt PR #98; [contract](docs/GUI_HOST_SOURCE_V1.md) | Use the source only in the separately authorized `GDA-GUI-003` probe; preserve historical pins |
 | GUI observation producer | `GDA-GUI-001` merged in PR #406 and handed off in model PR #97; [contract](docs/GUI_OBSERVATION_PRODUCER_V1.md) | Its concrete Host-source successor is `GDA-GUI-002`; retain the predecessor's historical pins |
 | Core type debt | `GDA-MAINT-019` remains closed with its recorded 176-file check; 14 exemptions remain; no successor is active | Deferred during `GDA-GUI-001`. Resume independent diagnosis from clean `main` only when this tracker makes it the single active objective |
 | Formal Demo Provider gate | `GDA-DEMO-007F` is Implemented/Offline complete and merged for the exact OpenAI tuple; no credential was configured, no live call ran, and this is not general E3 ordinary tool-cycle evidence | Wait for the exact current account/data-controls preflight plus process-local credential injection. If both are supplied, run only the separately gated one-call TaskIntent check; never inherit evidence across accounts, routes, regions, or models |
@@ -156,6 +167,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
+| `GDA-GUI-003` | Validated; real probe passed; publication handoff | Explicit opt-in development launch and disposable synthetic native window feed the existing Host/stdio MCP source | [Native receipt](docs/evidence/gui-readonly-native-2026-09-07.json): PASS, SUCCESS, one button, epoch/tool calls 3, model turns/side effects 0, input unchanged, no raw observation export. Fixture closed after the run. Focused tests: 60 passed (11 new); full suite: 2995 passed, 39 skipped; Ruff, mypy-180, docs-13, dependency/diff pass. No browser/model/action or Lane B evidence. [Contract](docs/GUI_READONLY_PROBE_V1.md). Next: clear scoped publication, return the receipt to the consumer |
 | `GDA-GUI-002` | Implemented / offline validated; publication handoff | Connect the async coordinator to genuine Runner result/epoch/budget bookkeeping and actual Session refs over a default-off resource on the same MCP connection | 16 new integration tests pass, including real SDK memory-stream client/server and Session, disabled resource, schema/ref/state rejection, ordinary tool-budget exhaustion, actual session reconnect, timeout, metadata cancellation, cleanup failure and preserved tool-cancellation UNKNOWN_OUTCOME. Full suite `2984 passed, 39 skipped`; Ruff, mypy-180, docs-13, dependency/diff checks; crash/replay 33; deterministic eval 13/13 with zero escapes; wheel build and all 16 tests against installed package pass. The model consumer pinned at `42428dde8b706be9d70003358c183d16ab057e9a` projects the genuine-code/fake-desktop bundle and compiles an inert `click_ref`; generation is 1, ledger epoch and charged tool calls are 3, metadata reads are 2, model turns and side effects are 0. No real desktop, model call, CLI activation, new model tool, dependency, automatic rich export or live evidence exists. Next: clear publication and consumer receipt; live read-only readiness requires separate scope activation |
 | `GDA-GUI-001` | Implemented / offline validated; publication handoff | Derive strict window/frame/control facts and compare observation endpoints, actual typed result identities and supplied Host ledger stamps before creating a bound inert bundle | 33 focused tests including cancellation and six Windows-reader paths with OS calls replaced; full suite `2968 passed, 39 skipped`; Ruff, mypy-178, docs-13, dependency and diff checks pass; crash/replay 33 pass; deterministic eval 13/13 with zero escapes; wheel build and installed-wheel synthetic producer smoke pass. Pinned model consumer `924c07db6c72cbcae4ae941d1191272f0ffc9e14` projects the producer fixture (four missing groups become zero), compiles one inert `click_ref`, and rejects four changed-data/context checks. This is synthetic interface evidence only, not model inference, real collection, OS-atomic coherence, authenticity, dispatch authority or Chrome-to-Word success. The concrete `ObservationSource` Host adapter remains unwired. Historical source-pinned reports and all Full Cycle/Provider/data-lane resume points remain unchanged. Next: clear publication and consumer handoff; activate a separately bounded Host integration row before further Runtime implementation |
 | `GDA-MAINT-019` | Complete; merged | Resolve only the two untyped persisted-plan scalar narrowings in `computer_use_agent.plan_store` without changing valid-plan bytes, validation priority, failure identity, lock/CAS/digest/atomic-write behavior, or read non-mutation | Implementation commit `858358e`; PR #403 passed CI run `33735075329` with wheel plus Python 3.11/3.12/3.13 and zero comment, review, requested change, unresolved thread, conflict, behind count, or head/base drift; squash merge `0fdb911` removed both implementation-branch copies and passed exact merge-main CI `33735693887` plus same-SHA dependency-graph run `33735698517`. Tracker closeout PR #404 passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-branch copies, and passed exact merge-main CI `33738250300`. Clean `main` at `d1c5634` independently reproduced 15 whole-module exemptions and exactly 200 hidden errors. The target contributed only `plan_store.py:168` and `plan_store.py:172 [arg-type]`: `requires_approval` was `Any | None` rather than `bool`, and `contract_version` was `Any | None` rather than `int`. The five-path repair adds two exact rejecting private validators at the existing decoder boundaries; preserves metadata-before-contract and approval-before-later-step validation priority, valid-plan serialization, fixed `PlanValidationError -> PLAN_STORE_INVALID` identity, and unchanged failed-read bytes; removes only the target override; and updates only the derived lock header. Direct tests are `19 passed`; exact consumers are `116 passed`; full local is `2935 passed, 39 skipped`; isolated mypy is `2 -> 0`; counts are `15/15/1 -> 14/14/0`; configured mypy-176, Ruff, docs-13, contracts-16, dependency, diff, installed-wheel, crash-22, replay-11, and eval-13/13 zero-escape gates pass. The lock dependency body remains byte-identical with SHA-256 `91125f2184c0e7ce774a0c708c0976cfae6db830bc2590e8ecb7196ba2e480b0`; the synchronized header is `37452533319e54e07dacc575c430a8ca8040232aa06d3b5ff1039cd41a5f2331`; the wheel SHA-256 is `70e82281cc20958ebbf1c3ebe869608ffaa8ea20a0d32b9fc463dc9d99dbb3e9`. Two independent reviews found no P0-P2. No `Any`, cast, ignore, coercion, public type, Runtime, Provider, Runner/MCP, desktop/application, Full Cycle/data-lane, API-key, E3, L5, E4, release, or live expansion was added. No successor is active; independently diagnose clean `main` and explicitly activate exactly one next Core type-debt target before implementation |
