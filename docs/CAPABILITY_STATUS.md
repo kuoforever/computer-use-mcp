@@ -21,6 +21,19 @@ test was attempted and failed unless a linked evidence record says so.
 
 ## Current dashboard
 
+### Bounded local Word diagnostic (2026-09-07)
+
+`GDA-GUI-007` has [one continuous real Word result](GUI_WORD_CONTINUOUS_EVIDENCE.md):
+one isolated local GUI-Owl request located the editor, then the existing
+Runner/MCP boundary completed four approved actions and verified the saved file.
+A new Word process read back the same complete body and artifact hash. Main and
+reopen runs total 23 tools, with zero tool failures/retries; both fixtures closed.
+This development harness is not an ordinary local Host Provider route, model
+admission, generated-summary result or local-model Chrome-to-Word evidence. The
+broader provider and product rows below do not inherit this narrow diagnostic.
+
+### Existing product boundaries
+
 The complete [Formal Demo v1](FORMAL_DEMO_V1.md) does not exist as an executable
 product surface. `GDA-DEMO-007A` implements and offline-verifies the internal
 inert v1 `TaskIntent`, `DemoScenarioSpec`, `ApplicationRoleProfile`, and

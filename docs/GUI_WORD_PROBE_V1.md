@@ -2,6 +2,11 @@
 
 Status: implemented; real artifact verified after recovery on 2026-09-07.
 
+Subsequent `GDA-GUI-007` evidence: the unchanged revised main sequence passed
+once continuously, followed by a new-process read-only reopen. See the
+[separate evidence](GUI_WORD_CONTINUOUS_EVIDENCE.md); the recovered history below
+retains its original outcome.
+
 `GDA-GUI-006` is a development-only, fixed-text Word readiness slice. The
 2026-09-07 attempt produced an artifact **after explicit recovery**; it was not
 an uninterrupted successful run. No Chrome source, summary generation, cloud
@@ -90,9 +95,10 @@ provider registration.
 
 ## Limits and next evidence
 
-The final revised main sequence has offline coverage; its real evidence is the
-separate localization/write and recovery/save/reopen phases above. It still needs
-one fresh uninterrupted attempt. No success-rate, broad Word-version/layout or
+At `GDA-GUI-006` closeout, the revised main sequence had offline coverage; its
+real evidence was the separate localization/write and recovery/save/reopen phases above. That closeout
+still needed one fresh uninterrupted attempt, now recorded separately in
+[the subsequent evidence](GUI_WORD_CONTINUOUS_EVIDENCE.md). No success-rate, broad Word-version/layout or
 complete Chrome-to-Word claim follows. Input checks invalidate changed input
 between calls; injected input legitimately changes the tick during actions, where
 MCP owns human-activity gating. This does not exclude every concurrent human or
