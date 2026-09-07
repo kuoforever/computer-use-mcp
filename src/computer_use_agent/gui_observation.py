@@ -67,14 +67,8 @@ def _canonical(value: object) -> bytes:
     ).encode()
 
 
-async def collect_gui_observation(
-    task: dict,
-    source: ObservationSource,
-    *,
-    clock: Callable[[], float] = time.monotonic,
-    max_seconds: float = 2.0,
-) -> ObservationBundle:
-    """Derive four Host fact groups from successful reads plus endpoint comparison."""
+def validate_gui_task(task: dict) -> dict:
+    """Validate and detach the task before a Host acquires resources."""
     # Copy before any callbacks. The new interface never accepts Host-fact booleans.
     if type(task) is not dict:
         raise GuiMetadataError("GUI_TASK_INVALID")
@@ -107,6 +101,19 @@ async def collect_gui_observation(
         or target["role"] not in {"button", "edit", "document"}
     ):
         raise GuiMetadataError("GUI_TARGET_INVALID")
+    return request
+
+
+async def collect_gui_observation(
+    task: dict,
+    source: ObservationSource,
+    *,
+    clock: Callable[[], float] = time.monotonic,
+    max_seconds: float = 2.0,
+) -> ObservationBundle:
+    """Derive four Host fact groups from successful reads plus endpoint comparison."""
+    request = validate_gui_task(task)
+    scope = request["target_scope"]
     if type(max_seconds) not in {int, float} or not 0 < max_seconds <= 5:
         raise GuiMetadataError("GUI_BUDGET_INVALID")
     started = clock()

@@ -40,6 +40,25 @@ class Session:
 
     # --- perception ----------------------------------------------------------
 
+    def inspect_gui_observation(self, scope: str):
+        """Internal read from this Session's driver and actual native/ref tables."""
+        from .gui_metadata import GuiMetadataError, VerifiedGuiState
+        from .gui_metadata_wire import SessionGuiMetadata, metadata_uri
+
+        metadata_uri(scope)
+        inspect = getattr(self.driver, "inspect_gui_metadata", None)
+        if not callable(inspect):
+            raise GuiMetadataError("GUI_METADATA_UNAVAILABLE")
+        state = inspect(scope)
+        if not isinstance(state, VerifiedGuiState) or state.scope != scope:
+            raise GuiMetadataError("GUI_METADATA_INVALID")
+        native_ids = {c.native_id for c in state.controls}
+        refs = tuple(
+            (ref, native) for ref, native in self._native_by_ref.items()
+            if native in native_ids and self._scope_by_ref.get(ref) == scope
+        )
+        return SessionGuiMetadata(state, refs)
+
     def ui_snapshot(self, scope: str = "foreground", max_nodes: int = 200) -> str:
         opts = PruneOpts(scope=scope, max_nodes=max_nodes)
         self._warm_up_browser_tree(opts)

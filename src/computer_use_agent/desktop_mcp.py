@@ -22,6 +22,10 @@ from typing import Any, Protocol
 
 from mcp import ClientSession, StdioServerParameters
 from PIL import Image as PILImage
+from pydantic import AnyUrl
+
+from computer_use_mcp.gui_metadata import GuiMetadataError
+from computer_use_mcp.gui_metadata_wire import SessionGuiMetadata, decode_metadata, metadata_uri
 
 from computer_use_mcp import (
     SAFETY_BASELINE_ATTESTATION_V1,
@@ -109,6 +113,8 @@ class MCPResultConversionError(ValueError):
 class _ClientSessionPort(Protocol):
     async def list_tools(self, cursor: str | None = None) -> object: ...
 
+    async def read_resource(self, uri: str) -> object: ...
+
     async def call_tool(
         self,
         name: str,
@@ -131,6 +137,9 @@ class _InitializedClientSession:
 
     async def list_tools(self, cursor: str | None = None) -> object:
         return await self._session.list_tools(cursor=cursor)
+
+    async def read_resource(self, uri: str) -> object:
+        return await self._session.read_resource(AnyUrl(uri))
 
     async def call_tool(
         self,
@@ -785,6 +794,36 @@ class StdioDesktopMCP:
             if result.status is ToolResultStatus.UNKNOWN_OUTCOME:
                 return await self._finish_post_dispatch(result)
             return result
+
+    async def inspect_gui_metadata(self, scope: str) -> SessionGuiMetadata:
+        """Bounded read on this same discovered MCP session; no reconnect/retry."""
+        uri = metadata_uri(scope)
+        async with self._operation_lock:
+            if (
+                self._closed or self._session is None
+                or self._verified_generation != self._generation
+                or self._session_owner_task is None or self._session_owner_task.done()
+            ):
+                raise GuiMetadataError("GUI_METADATA_SESSION_UNAVAILABLE")
+            try:
+                async with asyncio.timeout(min(self._timeout_seconds, 5.0)):
+                    raw = await self._session.read_resource(uri)
+                contents = getattr(raw, "contents", None)
+                if not isinstance(contents, list) or len(contents) != 1:
+                    raise GuiMetadataError("GUI_METADATA_INVALID")
+                item = contents[0]
+                if str(getattr(item, "uri", "")) != uri or getattr(item, "mimeType", None) != "application/json":
+                    raise GuiMetadataError("GUI_METADATA_INVALID")
+                text = getattr(item, "text", None)
+                if not isinstance(text, str):
+                    raise GuiMetadataError("GUI_METADATA_INVALID")
+                return decode_metadata(text, scope)
+            except asyncio.CancelledError:
+                await self._drop_locked(suppress_errors=True)
+                raise
+            except Exception:
+                await self._drop_locked(suppress_errors=True)
+                raise GuiMetadataError("GUI_METADATA_READ_FAILED") from None
 
     async def close(self) -> None:
         async with self._operation_lock:
