@@ -120,3 +120,70 @@ separately scoped reference-summary diagnostic with the repaired response contra
 Its new request/parent validation must be reviewed before invocation; the consumed
 v1 parent rejects v2 and must not be reused. Fresh Runtime source capture and
 generated-text Word integration stay pending.
+
+## GDA-GUI-009 stage diagnostic
+
+Status: activated after Runtime #413/model #104 merge and cleanup.
+Use new request `public-source-summary-stage-20260907`, the same pinned
+712-character reference, unchanged system prompt/model/adapter/caps, and the
+merged response-v2 worker with SHA-256
+`b5be14217184010aad8a2f113d6f83213cb780e5a801a821be0ea9c78fad4b40`.
+This is a diagnostic control, not a claim of freshly acquired webpage content.
+The model-owned `run_public_summary_diagnostic.py` pins the worker/reference,
+uses an exclusive new directory before one child invocation, validates v2 status,
+exit code, stage/reason, bindings and resources, and writes a content-free receipt.
+Timeout or malformed output retains unknown generation count and never retries.
+Success retains local output for separate shape and factual review; it does not
+authorize Word execution. Five injected-process tests and the existing fourteen
+worker boundary tests passed before the call. Preserve the consumed v1 attempt.
+Stop after the sole invocation and classify the observed stage; a new failure
+cannot retrospectively prove the stage of the old generic error.
+
+Result: the sole request returned `EOS_CHECK` / `GENERATION_INCOMPLETE`, with
+one reported generation entry and no retry. [Safe receipt](evidence/public-source-summary-stage-2026-09-07.json)
+binds the exact new parent, worker, source, prompt and request hashes. The worker
+reached its EOS check after generation returned, decoding completed, and the
+4096-byte output / 15 GB allocated-memory / 60-second generation checks passed.
+No complete summary or actual resource counters were returned. This does not
+distinguish max-token from max-time stopping or explain the old generic failure.
+
+Read-only inspection of the pinned checkpoint found generation EOS IDs
+`[151645, 151643]`, with tokenizer EOS `<|im_end|>` at 151645. The chat template
+ends with the ordinary assistant prefix and has no `enable_thinking` switch.
+No EOS configuration mismatch was found; no prompt, weights, limits or acceptance
+criteria were changed. This is a failed bounded completion, not summary-quality
+evidence and not a browser/Word run.
+
+The next bounded diagnostic repair is to retain safe completion counters and
+stop-condition flags on rejected output, without exposing model prose in the safe
+receipt or weakening normal completion/shape/factual gates. Offline tests must
+distinguish token cap, elapsed-time stop, missing EOS and malformed metadata
+before another separately scoped invocation. The present attempt is consumed.
+Final parent gate: eight tests passed, including three added after invocation for
+success-response binding/authority, resource bounds and transport-vs-shape separation.
+
+## Offline completion diagnostic repair
+
+Status: implemented and offline-tested after the consumed GDA-GUI-009 call.
+The same bounded slice now closes the identified diagnostic gap with worker
+response v3. When generation and decoding return, it computes a closed numeric
+completion record before rejecting resources or missing EOS: input/output token
+counts, elapsed generation seconds, peak allocated bytes, UTF-8 output byte count,
+last-token EOS match, and token/time threshold indicators. Unknown earlier
+failures have `completion=null`, never invented zero counters. Over-budget actual
+values remain reportable within separate telemetry bounds. No partial model text
+is returned on failure, no cap is raised and acceptance is unchanged.
+
+The two threshold flags are independent and may both be true; they do not identify
+which internal stopping criterion fired first. Tests cover normal EOS, token-only,
+time-only and simultaneous thresholds, resource rejection with retained counters,
+nonfinite/bool/unknown-field/forged-flag rejection and missing observations.
+Final gates: 18 worker tests and 9 parent tests passed. No inference used v3.
+The consumed v2 parent deliberately retains its old worker SHA and rejects v3;
+its offline fake-process tests explicitly inject the current test worker hash.
+The historical worker remains available at model base
+`e868f4b5c65c29245019f3ac8c6efa079289edf8`. Preserve the receipt unchanged.
+
+After publication and cleanup, the exact next is a separately scoped v3-aware
+completion diagnostic using reviewed metadata validation. No old request is
+replayed and no automatic model retry, browser/Word run or training is enabled.
