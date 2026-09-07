@@ -1,19 +1,16 @@
 # Project status
 
-> **Mode: `GDA-GUI-007` passed — continuous Word evidence publication.**
-> The owner continued after Runtime PR #411 merged as
-> `e112dd1455e5f349db353ffaa6e667d1f9390cbf` and model PR #102 merged as
-> `7188b9a84b9fda86cb2a59c1f7d5fa55b12815ac`; both branches were cleaned.
-> Reuse the unchanged Word harness and local worker for one new disposable
-> document, one model proposal, write/save and a separate read-only reopen.
-> Preserve all prior failed/unknown and recovered receipts; no automatic replay.
-> The owner continued after Runtime PR #410 merged as
-> `1e19310863728a639c9624742e2e3d87d0a209e9` and model PR #101 merged as
-> `6b13e561b58057997dcf42d0e2133455bc3b95c0`; both branches were cleaned.
-> Activate one Word-only development diagnostic: one local screenshot proposal
-> for its editor, bounded Host-controlled fixed-text write/save, disk and reopened
-> document verification, and exact disposable-window cleanup. Models never grant
-> action authority. No Chrome run, summary-quality claim or model admission change.
+> **Mode: `GDA-GUI-008` reviewed — summary failure and offline diagnostic repair.**
+> Runtime PR #412 merged as `4a9d97233077a6c9db1bcedec3ae55c38f15cf34`
+> and model PR #103 as `3bf4b2c281175919ea32ba31c218a6efeccf8c84`; both
+> branches were cleaned. The owner continued into the recorded readiness gate.
+> Review the fixed public source and existing observation/brief contracts, then
+> run one tool-free local summary probe against a public reference excerpt.
+> Reference retrieval is not Runtime Chrome evidence. No desktop dispatch,
+> cloud planner, training, default-route or model-admission change is active.
+> The Word predecessors are published: Runtime #411/#412 and model #102/#103.
+> Preserve their recovered and continuous receipts below. Both disposable
+> windows closed after the continuous attempt; no consumed attempt is replayed.
 > The owner continued after Runtime PR #409 merged as
 > `4095012a890f682bc45d46b2bf53ae26828c4e6b` and model PR #100 merged as
 > `9721c7017ebd95ac107cdef33490b9fa86f49b43`; both branches were cleaned.
@@ -56,7 +53,11 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** publish the passing `GDA-GUI-007` evidence and handoff.
+> **Exact next:** publish `GDA-GUI-008` readiness findings and model handoff.
+> Its sole summary invocation failed with one reported generation entry and no
+> returned text/metrics; cause and summary quality remain unestablished. Safe
+> v2 stage diagnostics are offline-tested only. After cleanup, separately scope
+> the repaired reference-summary diagnostic; do not replay the consumed v1 parent.
 > The single main attempt and new-process reopen passed and both windows closed;
 > do not repeat this consumed attempt. After merge/cleanup, the next bounded
 > objective is readiness for fixed public-page summary-to-Word integration.
@@ -188,6 +189,26 @@ were independently checked. Focused Word tests: 31 passed. Full local regression
 docs-13, dependency and diff checks pass; model worker/native/projector checks
 pass 5/5/20/18. No implementation or historical evidence files changed.
 
+The owner now activates `GDA-GUI-008`: inspect actual public reference content,
+record the existing source/summary guard limitations, and perform one separately
+counted tool-free local GUI-Owl summary generation in the model repository.
+Use the unchanged model/adapter and a new request; preserve old consumed probes.
+The new summary request/shape gate is development-only. It grants no execution
+authority and does not replace fresh Runtime source observation or semantic
+review. Word and browser fixture runs remain inactive during this readiness slice.
+The sole call returned `SUMMARY_WORKER_FAILED`, generation-entry count 1 and
+process exit 1. [Readiness review](docs/PUBLIC_SOURCE_SUMMARY_READINESS.md) and
+[receipt](docs/evidence/public-source-summary-readiness-2026-09-07.json) preserve
+the exact limits: no raw output, completion/resource metrics or causal diagnosis.
+Source/brief guard review found no current-URL check and only lexical factual
+grounding in the existing workflow; no product behavior was changed here.
+Model v2 safe stage/reason diagnostics now pass 14 offline boundary tests;
+there was no second invocation, desktop run or promotion. Publish these findings,
+then separately scope one repaired reference-summary diagnostic with a v2-aware
+parent. Historical v1 evidence and all deferred resume points remain unchanged.
+Current Runtime validation: `3069 passed, 39 skipped`, one existing warning;
+Ruff, mypy-180, docs-13, dependency and diff checks pass. No Runtime code changed.
+
 No other source, test, configuration, dependency, Provider, real
 desktop, application, data-lane, API-key, E3, or live change is authorized.
 
@@ -198,7 +219,8 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Continuous Word artifact | `GDA-GUI-007` passed; [evidence](docs/GUI_WORD_CONTINUOUS_EVIDENCE.md); no retry | Publish the evidence/handoff; next objective is fixed public-page summary-to-Word integration readiness |
+| Public-source summary readiness | `GDA-GUI-008` reviewed; one failed invocation, diagnostic repair offline-only | Publish and hand off; then separately scope repaired reference-summary diagnostic; no v1 replay |
+| Continuous Word artifact | `GDA-GUI-007` published in Runtime #412 and model #103; no retry | Preserve evidence; source/summary integration remains pending under `GDA-GUI-008` |
 | Disposable Word recovery | `GDA-GUI-006` published in Runtime #411 and model #102 | Preserve the original unknown and recovered receipts |
 | Single-use fixture action | `GDA-GUI-005` published in Runtime #410 and model #101; no retry | Consumed historical evidence; use the Word slice above |
 | Real-window inert proposal | `GDA-GUI-004` validated; [contract](docs/GUI_INERT_MODEL_PROBE_V1.md); no action | Complete scoped publication and handoff; no model retry or successor action run |
@@ -277,6 +299,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
+| `GDA-GUI-008` | Reviewed; publication handoff | Source/summary gaps identified; one local attempt failed without sufficient diagnosis; v2 diagnostic repair offline-tested | 14 model transport/shape/failure-injection tests passed. Generation entry 1, no summary or resource metrics, no retry or desktop call. [Review](docs/PUBLIC_SOURCE_SUMMARY_READINESS.md). Publish; then separately scope repaired reference diagnostic |
 | `GDA-GUI-005` | Validated real action; publication handoff | Same-Session fresh revalidation, scoped one-use approval, existing Runner/MCP UIA click and state read-back | One model call, one approval, one action, ten tools, epoch 9; changed/disabled button independently observed, input unchanged and fixture closed. [Receipt](docs/evidence/gui-single-action-native-2026-09-07.json). 18 new offline tests and static/docs/dependency checks pass. No model promotion, pointer injection or Chrome/Word claim. Next: publish and hand off, then scope Word artifact verification |
 | `GDA-GUI-004` | Validated; one real model proposal passed; publication handoff | Fresh native fixture capture projects in memory and one fixed local GUI-Owl + experimental LoRA generation compiles to an inert `click_ref` | [Receipt](docs/evidence/gui-inert-native-2026-09-07.json): one model request, 2.344 seconds, 9,317,841,408 peak allocated bytes, three Host reads, zero Host provider turns/side effects, unchanged input, fixture closed. 25 new offline tests; full 3020 passed / 39 skipped; Ruff, mypy-180, docs-13, dependency/diff pass. No fresh post-inference state, dispatch, browser workflow, model promotion or raw export. [Contract](docs/GUI_INERT_MODEL_PROBE_V1.md). Next: publish and hand off; consumed attempt has no retry |
 | `GDA-GUI-003` | Validated; real probe passed; publication handoff | Explicit opt-in development launch and disposable synthetic native window feed the existing Host/stdio MCP source | [Native receipt](docs/evidence/gui-readonly-native-2026-09-07.json): PASS, SUCCESS, one button, epoch/tool calls 3, model turns/side effects 0, input unchanged, no raw observation export. Fixture closed after the run. Focused tests: 60 passed (11 new); full suite: 2995 passed, 39 skipped; Ruff, mypy-180, docs-13, dependency/diff pass. No browser/model/action or Lane B evidence. [Contract](docs/GUI_READONLY_PROBE_V1.md). Next: clear scoped publication, return the receipt to the consumer |
