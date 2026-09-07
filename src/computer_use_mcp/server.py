@@ -151,6 +151,7 @@ def build_server(
     browser_observer=None,
     browser_observation_enabled: bool | None = None,
     uia_actions_enabled: bool | None = None,
+    gui_observation_enabled: bool = False,
 ) -> FastMCP:
     enable_dpi_awareness()
     native_boundary = NativeActionBoundary()
@@ -184,6 +185,8 @@ def build_server(
             except Exception:
                 native_boundary_ready = False
     session = Session(driver)
+    if type(gui_observation_enabled) is not bool:
+        raise ValueError("gui_observation_enabled must be a bool")
     activation_bindings: dict[str, _ObservedWindowOwner] = {}
     activation_bindings_lock = Lock()
     gate = Gate(allowlist if allowlist is not None else _env_list("CUMCP_ALLOWLIST", DEFAULT_ALLOWLIST), driver)
@@ -572,6 +575,16 @@ def build_server(
                           "('foreground' | a window id | 'all').")
     def ui_snapshot(scope: str = "foreground") -> str:
         return session.ui_snapshot(scope=scope)
+
+    if gui_observation_enabled:
+        @mcp.resource("gui-observation://session/{scope}", mime_type="application/json")
+        def gui_observation_metadata(scope: str) -> str:
+            # Explicit Host-only construction option; never enabled by CLI/env.
+            from .gui_metadata import GuiMetadataError
+            try:
+                return session.inspect_gui_observation(scope).encode()
+            except Exception:
+                raise GuiMetadataError("GUI_METADATA_UNAVAILABLE") from None
 
     @mcp.tool(description="Find elements whose name or role matches query; returns a ref subset.")
     def find(query: str, scope: str = "foreground") -> str:

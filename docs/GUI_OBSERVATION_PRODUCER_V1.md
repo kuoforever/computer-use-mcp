@@ -26,10 +26,11 @@ PNG bytes; neither is persisted or transmitted by this API. `to_dict()` returns
 a detached copy. Raw observations and images remain local sensitive data and
 must never enter the automatic Full Cycle export.
 
-A concrete Host `ObservationSource` adapter is **not implemented or wired** in
-this slice. It must later use the existing Runner/MCP boundary, actual ledger
-stamps and actual issuing Session refs. Arbitrary application callbacks do not
-become authenticated evidence merely by implementing this Python protocol.
+`GDA-GUI-001` did not include a concrete Host adapter. Its `GDA-GUI-002`
+successor now provides the [offline Host/Session integration](GUI_HOST_SOURCE_V1.md),
+using the existing Runner boundary and an explicit default-off MCP resource.
+Arbitrary application callbacks do not become authenticated evidence merely by
+implementing this Python protocol. A live/model-facing route remains inactive.
 
 ## How the four fact groups are derived
 
