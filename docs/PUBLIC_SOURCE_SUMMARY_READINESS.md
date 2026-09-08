@@ -187,3 +187,41 @@ The historical worker remains available at model base
 After publication and cleanup, the exact next is a separately scoped v3-aware
 completion diagnostic using reviewed metadata validation. No old request is
 replayed and no automatic model retry, browser/Word run or training is enabled.
+
+## GDA-GUI-010 completion measurement
+
+Status: active on 2026-09-08, after Runtime #414/model #105 merged and cleaned.
+The new `run_public_summary_completion.py` parent accepts only response v3,
+closed validated completion metadata, consistent stage/count/EOS evidence and
+the pinned worker `f0cae366ea330951e7a8f0349f4ab739a14370df85ce678876c331915917b563`.
+Request `public-source-summary-completion-20260908` uses the same pinned reference
+from 2026-09-07, unchanged model/adapter/prompt and the original 384-token,
+45-second soft / 60-second checked generation and 180-second process bounds.
+Review six parent tests before this one invocation. An exclusive directory
+consumes the local attempt. No automatic retry, cap change, raw failure output,
+fresh browser observation, Word run or model-admission change is authorized.
+Report the two threshold indicators independently; simultaneous true flags do
+not identify a unique first stopping criterion. Older receipts remain unchanged.
+
+Result: the sole invocation is consumed. The [safe receipt](evidence/public-source-summary-completion-2026-09-08.json)
+records `EOS_CHECK` / `GENERATION_INCOMPLETE`, 320 input tokens, 384 output tokens,
+29.516 seconds generation, 9,044,687,872 peak allocated bytes and 1,839 output
+UTF-8 bytes. The token threshold is reached and the time threshold is not;
+normal EOS is absent. Resource checks passed. This establishes token-limited
+completion for this attempt, without retrospectively identifying earlier causes.
+No partial prose was retained, so shape and factual quality remain unassessable.
+One model request, zero retries, zero desktop calls and zero side effects occurred.
+
+Final local gates: 7 new parent tests (6 before invocation), 18 worker tests,
+9 historical parent tests, Ruff, Runtime mypy (180 source files), docs consistency
+(13 reviewed tools; 9 tests), dependency and diff checks pass. Runtime source/scripts/tests, the
+model worker, the historical parent and older receipts are unchanged. This is a
+diagnostic result, not model promotion or Chrome-to-Word completion.
+
+After scoped publication and branch cleanup, the single next action is to prepare
+one bounded completion-budget control, retaining the same source/model/prompt and
+separate EOS, shape and factual gates. Validate the changed budget and telemetry
+offline before a newly scoped invocation. More tokens may extend unsuitable output;
+they do not guarantee a valid summary. Do not replay this consumed request or
+weaken acceptance. Browser capture and generated-content Word integration remain
+pending, with no additional training or cloud route active.
