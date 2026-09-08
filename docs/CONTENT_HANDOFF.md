@@ -67,10 +67,10 @@ Lane A export hook is added. Lane B remains separately gated. No model is promot
 
 ## First integration
 
-The existing `probe_gui_word.py` still uses its fixed synthetic NOTE and is
-unchanged. Its successor can accept a reviewed `BoundContentTask`, preserve the
-complete initial body, bind the actual artifact, revalidate before actions, and
-use existing write/save/readback/reopen checks. That integration needs its own
-tests; this interface is not a live Word run. A real source/summary producer and
+The existing `probe_gui_word.py` keeps its fixed synthetic NOTE by default. Its
+explicit Python `content_adapter` path now accepts a Host-reviewed handoff and
+uses exact content/artifact checks through the same Runner; see
+[Word content adapter](WORD_CONTENT_ADAPTER.md). It is tested offline, not a live
+Word run. A real source/summary producer and
 Chrome URL/body capture remain pending. Manual fixtures must never be labeled
 as model-generated summaries. Full Cycle freeze and Formal Demo pauses remain.

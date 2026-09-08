@@ -1,11 +1,11 @@
 # Project status
 
-> **Mode: `GDA-GUI-012` implemented offline — publication handoff.**
-> Runtime #416 merged as `e90c47a137a99c069730ca23f38b1356120b88ad`;
-> model #107 as `c1813afcc2aa2ebe3b43406b2414229d2c7c7262`; branches cleaned.
-> The owner requested a reusable content-task interface on 2026-09-08. Implement
-> a source/review/target-bound append-text contract and two synthetic profiles.
-> Validate exact readback/save/reopen bodies offline. No dispatch or live adapter.
+> **Mode: `GDA-GUI-013` implemented offline — publication handoff.**
+> Runtime #417 merged as `70c0a46bbd03727bcb55aa4e70157bdcf8c81923`;
+> model #108 as `439e4682d1ba40e70e36fc28dbeece4088c21c99`; branches cleaned.
+> The owner continued on 2026-09-08. Add an explicit Host-bound content adapter
+> to the existing Word probe, preserve its fixed-note default and sole Runner
+> boundary, and validate exact content/artifact/reopen binding with fake transport.
 > Preserve all consumed summary probes and the failed model-admission gate.
 > Runtime PR #412 merged as `4a9d97233077a6c9db1bcedec3ae55c38f15cf34`
 > and model PR #103 as `3bf4b2c281175919ea32ba31c218a6efeccf8c84`; both
@@ -54,8 +54,8 @@
 > gates plus two independent no-P0-P2 reviews pass. Tracker closeout PR #404
 > passed CI run `33737436878`, squash-merged as `53c9b84`, removed both closeout-
 > branch copies, and passed exact merge-main CI run `33738250300`.
-> **Exact next:** publish GDA-GUI-012 after final checks, then clean both branches.
-> Next bounded implementation: an offline Word adapter for the Host-reviewed task.
+> **Exact next:** publish GDA-GUI-013 after final CI, then clean both branches.
+> Next: prepare one disposable Word content run with fresh Host review and target binding.
 > No further budget escalation, inference, training, browser or Word run is active.
 > No automatic retry of any consumed request. The current token flag is true,
 > time flag false; partial prose was discarded and summary quality is unassessed.
@@ -217,7 +217,7 @@ evidence record is never permission to start another item outside that authority
 
 | Track | Current state | Next permitted action |
 | --- | --- | --- |
-| Content handoff | `GDA-GUI-012` implemented offline; publication handoff | 40 focused tests; reusable append-text binding; no execution route |
+| Content handoff | `GDA-GUI-013` offline complete; publication handoff | 99 focused tests; optional reviewed-content Word adapter through existing Runner |
 | Public-source summary readiness | `GDA-GUI-008` reviewed; one failed invocation, diagnostic repair offline-only | Publish and hand off; then separately scope repaired reference-summary diagnostic; no v1 replay |
 | Continuous Word artifact | `GDA-GUI-007` published in Runtime #412 and model #103; no retry | Preserve evidence; source/summary integration remains pending under `GDA-GUI-008` |
 | Disposable Word recovery | `GDA-GUI-006` published in Runtime #411 and model #102 | Preserve the original unknown and recovered receipts |
@@ -298,7 +298,7 @@ the current handoff.
 
 | ID | State | Outcome | Completion evidence / next handoff |
 | --- | --- | --- | --- |
-| `GDA-GUI-010` / `GDA-GUI-011` / `GDA-GUI-012` | 010/011 published; 012 offline complete | Reusable inert content handoff with two synthetic profiles | [Contract](docs/CONTENT_HANDOFF.md); 40 focused tests; full regression 3108/39 before final parser edge repair; no model/desktop call; next offline Word adapter |
+| `GDA-GUI-010` / `GDA-GUI-011` / `GDA-GUI-012` / `GDA-GUI-013` | 010-012 published; 013 offline complete | Optional Word adapter with exact content/artifact/reopen binding | [Adapter](docs/WORD_CONTENT_ADAPTER.md); 99 focused tests; full 3136/39 before final bounded durability-reader refinement; no native/model call |
 | `GDA-GUI-009` | Classified; offline repair complete; publication handoff | Generation returned and resource checks passed, but no accepted EOS completion; v3 adds safe completion counters without another call | [Receipt](docs/evidence/public-source-summary-stage-2026-09-07.json) unchanged; one generation entry, zero retry/desktop calls; final 9 parent and 18 worker tests passed. EOS IDs/tokenizer agree. The consumed call's token/time distinction remains unknown. Next: scope v3-aware completion diagnostic |
 | `GDA-GUI-008` | Reviewed; publication handoff | Source/summary gaps identified; one local attempt failed without sufficient diagnosis; v2 diagnostic repair offline-tested | 14 model transport/shape/failure-injection tests passed. Generation entry 1, no summary or resource metrics, no retry or desktop call. [Review](docs/PUBLIC_SOURCE_SUMMARY_READINESS.md). Publish; then separately scope repaired reference diagnostic |
 | `GDA-GUI-005` | Validated real action; publication handoff | Same-Session fresh revalidation, scoped one-use approval, existing Runner/MCP UIA click and state read-back | One model call, one approval, one action, ten tools, epoch 9; changed/disabled button independently observed, input unchanged and fixture closed. [Receipt](docs/evidence/gui-single-action-native-2026-09-07.json). 18 new offline tests and static/docs/dependency checks pass. No model promotion, pointer injection or Chrome/Word claim. Next: publish and hand off, then scope Word artifact verification |
