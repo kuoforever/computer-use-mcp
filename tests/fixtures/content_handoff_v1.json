@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "evidence_kind": "synthetic_offline_fixture",
+  "cases": [
+    {
+      "profile": {
+        "profile_id": "chrome-word-summary-v1",
+        "max_content_characters": 900,
+        "max_final_characters": 16000
+      },
+      "host_sources": [
+        {
+          "source_id": "chrome-word-source",
+          "text": "Synthetic page: a shared draft can be read in a browser. Editors can work together. Saving preserves the draft."
+        }
+      ],
+      "initial_text": "Synthetic document\n",
+      "candidate": {
+        "version": 1,
+        "task_id": "chrome-word-task",
+        "profile_id": "chrome-word-summary-v1",
+        "operation": "append_text",
+        "sources": [
+          {
+            "source_id": "chrome-word-source",
+            "content_sha256": "3bd7ae1c3d3645d2020dae1620f96f6a88d03ede5a602d5b4cb9d5f71839ed69"
+          }
+        ],
+        "target": {
+          "target_id": "chrome-word-target",
+          "initial_text_sha256": "6f3123cdfe12c02edadef82f5f295371e798474ac87dc45c1fd1d79439021c46"
+        },
+        "content": {
+          "text": "\nSOURCE BRIEF (SYNTHETIC)\nSource: Synthetic browser page\n- A shared draft can be read in a browser.\n- Editors can work together on the draft.\n- Saving preserves the document changes.",
+          "sha256": "0e52679bf154b06bb9ec1f2f83645490154d3706f562baf4d664d57d7a0b5089"
+        },
+        "acceptance": {
+          "expected_text_sha256": "052f19e9178bb8b71fa5a1e289f22f941fbf800ac9b6a203b4b21f0205e105f9",
+          "checks": [
+            "readback",
+            "saved",
+            "reopened"
+          ]
+        }
+      }
+    },
+    {
+      "profile": {
+        "profile_id": "local-note-append-v1",
+        "max_content_characters": 2000,
+        "max_final_characters": 16000
+      },
+      "host_sources": [
+        {
+          "source_id": "local-note-source",
+          "text": "Synthetic project note: the build passed and review remains pending."
+        }
+      ],
+      "initial_text": "",
+      "candidate": {
+        "version": 1,
+        "task_id": "local-note-task",
+        "profile_id": "local-note-append-v1",
+        "operation": "append_text",
+        "sources": [
+          {
+            "source_id": "local-note-source",
+            "content_sha256": "ee7c821acfcaaf06a03dcbca96895ea7f3f446a93954079aed961a68fcf102b6"
+          }
+        ],
+        "target": {
+          "target_id": "local-note-target",
+          "initial_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "content": {
+          "text": "Build passed. Review remains pending.\n",
+          "sha256": "c587aa66424c27c8f132299878436c38c45877ae5206bb9b1e48bc720023e8d0"
+        },
+        "acceptance": {
+          "expected_text_sha256": "c587aa66424c27c8f132299878436c38c45877ae5206bb9b1e48bc720023e8d0",
+          "checks": [
+            "readback",
+            "saved",
+            "reopened"
+          ]
+        }
+      }
+    }
+  ]
+}
