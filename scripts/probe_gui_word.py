@@ -376,7 +376,7 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
             finally:
                 run.prepared.close()
     record = read_run_record(runner.config.state_dir, run.state.run_id)["state"]
-    return dict(version=1, run_id=run.state.run_id, outcome=outcome, code=code,
+    receipt = dict(version=1, run_id=run.state.run_id, outcome=outcome, code=code,
                 phase=record["phase"], model_requests=requests, metrics=metrics,
                 tool_calls=record["budgets"]["tool_calls_used"],
                 host_model_turns=record["budgets"]["model_turns_used"],
@@ -384,9 +384,11 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
                 approval_requests=runner.ports.approvals.requests,
                 content_verified=verified, artifact_sha256=artifact_sha,
                 fixed_note_sha256=sha(NOTE.encode()) if content_adapter is None else None,
-                content_handoff=content_adapter.receipt() if content_adapter is not None else None,
                 reopened=reopen, save_only=save_only,
                 raw_observations_exported=False)
+    if content_adapter is not None:
+        receipt.update(version=2, content_handoff=content_adapter.receipt())
+    return receipt
 
 
 def main(argv=None):

@@ -166,6 +166,7 @@ def test_reviewed_content_save_and_separate_reopen_use_existing_runner(tmp_path,
     result, state, document = execute(tmp_path, monkeypatch, content_case=True)
     adapter = state["adapter"]
     assert result["outcome"] == "PASS", result
+    assert result["version"] == 2
     assert state["actions"][2] == ("type", {"text": adapter.task.content})
     assert result["approval_requests"] == result["side_effects"] == 4
     assert result["tool_calls"] == 22
@@ -210,6 +211,7 @@ def test_reviewed_reopen_requires_the_exact_saved_artifact(tmp_path, monkeypatch
 def test_word_sequence_uses_host_wal_approval_and_durable_readback(tmp_path, monkeypatch):
     result, state, document = execute(tmp_path, monkeypatch)
     assert result["outcome"] == "PASS", result
+    assert result["version"] == 1 and "content_handoff" not in result
     assert state["model"] == result["model_requests"] == 1
     assert state["actions"] == [("click", {"x": 500, "y": 400}),
         ("key", {"combo": "Ctrl+End"}), ("type", {"text": P["NOTE"]}), ("key", {"combo": "Ctrl+S"})]

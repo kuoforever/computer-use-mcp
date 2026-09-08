@@ -67,7 +67,9 @@ File-byte and UI checks
 are not an atomic snapshot and do not replace input-interference attribution.
 
 Receipts include digests/counts, phase and artifact binding, with no content or
-source prose. The nested generic `execution_authorized=false` remains a statement
+source prose. The explicit content path uses receipt version 2; the fixed-note
+default retains its original version-1 fields without a new null field.
+The nested generic `execution_authorized=false` remains a statement
 about the inert handoff; only Runtime's existing action permits authorize calls.
 No automatic Lane A export, Lane B activation or model promotion is introduced.
 The old fixed-note CLI, consumed receipts and summary failures remain unchanged.
