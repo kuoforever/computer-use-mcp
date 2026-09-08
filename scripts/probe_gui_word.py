@@ -30,6 +30,7 @@ from computer_use_agent.runner import AgentRunner, RunnerPorts, RunFailure
 from computer_use_agent.tool_registry import verify_discovered_tools
 from computer_use_agent.trace import RunPhase, RunRecorder, read_run_record
 from computer_use_agent.types import CallIdentity, ToolCall, PolicyDecision, PolicyDecisionKind
+from computer_use_agent.word_content_adapter import WordContentAdapter
 
 ROOT = Path(__file__).resolve().parents[1]
 INERT = runpy.run_path(str(ROOT / "scripts/probe_gui_inert_model.py"))
@@ -156,9 +157,11 @@ class WordPermit:
 
 
 class WordRun:
-    def __init__(self, runner, scope, title, tick):
+    def __init__(self, runner, scope, title, tick, *, strict_content=False):
         self.runner, self.scope, self.title, self.tick = runner, scope, title, tick
-        self.prepared = runner.prepare("Disposable Word fixed-text diagnostic", run_id="gui-word-" + uuid4().hex)
+        self.strict_content = strict_content
+        label = "Reviewed Word content diagnostic" if strict_content else "Disposable Word fixed-text diagnostic"
+        self.prepared = runner.prepare(label, run_id="gui-word-" + uuid4().hex)
         self.state = self.prepared.state
         self.recorder = RunRecorder(runner.config.state_dir, self.state.run_id)
         self.grounding = GroundingState()
@@ -227,19 +230,22 @@ class WordRun:
         if _document_text_content(raw, require_complete=True) is None:
             raise ValueError("DOCUMENT_INCOMPLETE")
         blocks = INERT["strict_json"](raw)["blocks"]
-        candidates = [b for b in blocks if normalized(b["text"]) == normalized(expected)]
+        equal = (lambda a, b: a == b) if self.strict_content else (lambda a, b: normalized(a) == normalized(b))
+        candidates = [b for b in blocks if equal(b["text"], expected)]
         if len(candidates) != 1:
             raise ValueError("DOCUMENT_MISMATCH")
         box = candidates[0].get("bbox")
         if (type(box) is not list or len(box) != 4 or any(type(v) is not int for v in box)
                 or box[2] <= 0 or box[3] <= 0):
             raise ValueError("DOCUMENT_BLOCK_UNGROUNDED")
-        if normalized(body_text(raw, self.scope, box)) != normalized(expected):
+        body = body_text(raw, self.scope, box)
+        if not equal(body, expected):
             raise ValueError("DOCUMENT_MISMATCH")
+        return body
 
 
 async def probe(scope, document, api=None, *, reopen=False, save_only=False, tick=READ["input_tick"], runner=None,
-                worker=INERT["local_worker"]):
+                worker=INERT["local_worker"], content_adapter: WordContentAdapter | None = None):
     config = config_for()
     if runner is None:
         runner = AgentRunner(config, RunnerPorts(FakeModelProvider(), StdioDesktopMCP(config.mcp), WordPermit()))
@@ -248,12 +254,15 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
             or runner.config.continuation.enabled or runner.config.privacy.enabled
             or any(p is not None for p in (runner.ports.control, runner.ports.presence, runner.ports.progress))):
         raise ValueError("CONFIGURATION_REJECTED")
-    original = _document_text(document)
-    if not reopen and "LOCAL GUI WORD READINESS" in original:
+    original = (content_adapter.begin(document, reopen=reopen, save_only=save_only)
+                if content_adapter is not None else _document_text(document))
+    note = content_adapter.task.content if content_adapter is not None else NOTE
+    equal = (lambda a, b: a == b) if content_adapter is not None else (lambda a, b: normalized(a) == normalized(b))
+    if content_adapter is None and not reopen and "LOCAL GUI WORD READINESS" in original:
         raise ValueError("ATTEMPT_ALREADY_CONSUMED")
-    if not reopen and document.read_bytes() != _packaged_template_bytes():
+    if content_adapter is None and not reopen and document.read_bytes() != _packaged_template_bytes():
         raise ValueError("FIXTURE_TEMPLATE_MISMATCH")
-    run = WordRun(runner, scope, document.name, tick)
+    run = WordRun(runner, scope, document.name, tick, strict_content=content_adapter is not None)
     outcome, code, requests, metrics, verified = "FAIL", "OBSERVATION_REJECTED", 0, {}, False
     artifact_sha = None
     try:
@@ -262,16 +271,18 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
         verify_discovered_tools(await runner.ports.desktop.discover_tools())
         run.recorder.record(run.state, RunPhase.PLANNING)
         if save_only:
-            await run.expect_document(original + NOTE)
+            await run.expect_document(original + note)
         elif reopen:
-            await run.expect_document(original)
+            reopened_body = await run.expect_document(original)
+            if content_adapter is not None:
+                artifact_sha = content_adapter.record_reopened(reopened_body)
         else:
             editor = await run.observe()
             observed = await run.text()
-            if normalized(observed) != normalized(original):
+            if not equal(observed, original):
                 raise ValueError("INITIAL_DOCUMENT_MISMATCH")
         if reopen:
-            if normalized(NOTE) not in normalized(original):
+            if content_adapter is None and normalized(note) not in normalized(original):
                 raise ValueError("SAVED_NOTE_MISSING")
         elif not save_only:
             shot = await run.call("screenshot", {})
@@ -280,6 +291,8 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
             frame = shot.images[0]
             context = dict(scope=scope, generation=run.generation, epoch=run.state.observation_epoch,
                            editor=editor, document_sha256=sha(original.encode()), image_sha256=sha(frame.data))
+            if content_adapter is not None:
+                context["content_task_sha256"] = content_adapter.task.task_sha256
             request = dict(version=1, request_id=run.state.run_id,
                            context_digest=sha(json.dumps(context, sort_keys=True).encode()),
                            image_base64=base64.b64encode(frame.data).decode())
@@ -293,30 +306,46 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
             code = "PROPOSAL_REJECTED"
             point = pixel_point(response["raw_output"], (frame.width, frame.height), editor, api.parse)
             code = "REVALIDATION_REJECTED"
-            if await run.observe() != editor or normalized(await run.text()) != normalized(original):
+            if await run.observe() != editor or not equal(await run.text(), original):
                 raise ValueError("CONTEXT_CHANGED")
             # A fresh scoped snapshot precedes every action. The click uses the
             # model's explicit pixel point; it never degrades a ref into a coordinate.
             if await run.observe() != editor:
                 raise ValueError("CONTEXT_CHANGED")
+            if content_adapter is not None:
+                content_adapter.revalidate_initial()
             code = "CLICK_REJECTED"
             await run.call("click", point, action=True)
             await run.observe(focus=True)
+            if content_adapter is not None:
+                content_adapter.revalidate_initial()
             code = "CARET_REJECTED"
             await run.call("key", {"combo": "Ctrl+End"}, action=True)
             await run.observe(focus=True)
+            if content_adapter is not None:
+                content_adapter.revalidate_initial()
+                if not equal(await run.text(), original):
+                    raise ValueError("CONTEXT_CHANGED")
             code = "WRITE_REJECTED"
-            await run.call("type", {"text": NOTE}, action=True)
+            await run.call("type", {"text": note}, action=True)
             code = "PRE_SAVE_MISMATCH"
-            await run.expect_document(original + NOTE)
+            readback = await run.expect_document(original + note)
+            if content_adapter is not None:
+                content_adapter.record_readback(readback)
         if not reopen:
             code = "SAVE_REJECTED"
+            if content_adapter is not None:
+                content_adapter.revalidate_initial()
             await run.call("key", {"combo": "Ctrl+S"}, action=True)
             code = "POST_SAVE_MISMATCH"
-            await run.expect_document(original + NOTE)
-            _wait_for_durable_document(document, NOTE)
-            verify_text(_document_text(document), original)
-        artifact_sha = sha(document.read_bytes())
+            saved_body = await run.expect_document(original + note)
+            if content_adapter is not None:
+                artifact_sha = content_adapter.wait_saved(saved_body)
+            else:
+                _wait_for_durable_document(document, note)
+                verify_text(_document_text(document), original)
+        if content_adapter is None:
+            artifact_sha = sha(document.read_bytes())
         run.unchanged()
         verified = True
         outcome, code = "PASS", ("REOPEN_READ_VERIFIED" if reopen else
@@ -338,6 +367,8 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
             outcome, code = "FAIL", "SESSION_CLEANUP_FAILED"
         finally:
             try:
+                if content_adapter is not None and outcome != "PASS":
+                    content_adapter.phase = "failed"
                 if run.recorder.phase is not RunPhase.UNKNOWN_OUTCOME:
                     phase = (RunPhase.SUCCESS if outcome == "PASS" else RunPhase.UNKNOWN_OUTCOME
                              if outcome == "UNKNOWN_OUTCOME" else RunPhase.FAILED)
@@ -345,15 +376,19 @@ async def probe(scope, document, api=None, *, reopen=False, save_only=False, tic
             finally:
                 run.prepared.close()
     record = read_run_record(runner.config.state_dir, run.state.run_id)["state"]
-    return dict(version=1, run_id=run.state.run_id, outcome=outcome, code=code,
+    receipt = dict(version=1, run_id=run.state.run_id, outcome=outcome, code=code,
                 phase=record["phase"], model_requests=requests, metrics=metrics,
                 tool_calls=record["budgets"]["tool_calls_used"],
                 host_model_turns=record["budgets"]["model_turns_used"],
                 side_effects=record["budgets"]["side_effects_used"],
                 approval_requests=runner.ports.approvals.requests,
                 content_verified=verified, artifact_sha256=artifact_sha,
-                fixed_note_sha256=sha(NOTE.encode()), reopened=reopen, save_only=save_only,
+                fixed_note_sha256=sha(NOTE.encode()) if content_adapter is None else None,
+                reopened=reopen, save_only=save_only,
                 raw_observations_exported=False)
+    if content_adapter is not None:
+        receipt.update(version=2, content_handoff=content_adapter.receipt())
+    return receipt
 
 
 def main(argv=None):

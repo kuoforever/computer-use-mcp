@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import runpy
 from types import SimpleNamespace
+from xml.etree import ElementTree
+import zipfile
 
 import pytest
 
@@ -13,6 +15,8 @@ from computer_use_agent.runner import AgentRunner, RunnerPorts
 from computer_use_agent.trace import read_run_record
 from computer_use_agent.types import ToolResult, ToolResultStatus, DispatchCertainty, ImageContent
 from computer_use_mcp import SUPPORTED_SAFETY_BASELINES
+from computer_use_agent.content_handoff import ContentProfile, HostContentContext, candidate_digest, text_digest
+from computer_use_agent.word_content_adapter import WordContentAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
 P = runpy.run_path(str(ROOT / "scripts/probe_gui_word.py"))
@@ -20,7 +24,43 @@ H = runpy.run_path(str(Path(__file__).with_name("test_gui_host_source.py")))
 W = runpy.run_path(str(Path(__file__).with_name("test_public_web_word.py")))
 
 
-def execute(tmp_path, monkeypatch, fault=""):
+def append_exact(document, note):
+    """Synthetic DOCX writer for tests; production continues to use the Runner."""
+    text = P["_document_text"](document) + note
+    namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(document) as package:
+        entries = [(i, package.read(i.filename)) for i in package.infolist()]
+    root = ElementTree.fromstring(next(raw for i, raw in entries if i.filename == "word/document.xml"))
+    body = root.find(namespace + "body")
+    for child in list(body):
+        if child.tag != namespace + "sectPr":
+            body.remove(child)
+    for index, line in enumerate(text.split("\n")):
+        p = ElementTree.Element(namespace + "p")
+        r = ElementTree.SubElement(p, namespace + "r")
+        ElementTree.SubElement(r, namespace + "t").text = line
+        body.insert(index, p)
+    with zipfile.ZipFile(document, "w") as package:
+        for info, raw in entries:
+            package.writestr(info, ElementTree.tostring(root) if info.filename == "word/document.xml" else raw)
+
+
+def make_adapter(document, content):
+    initial = P["_document_text"](document)
+    c = dict(version=1, task_id="word-content-test", profile_id="word-summary-v1", operation="append_text",
+             sources=[dict(source_id="synthetic", content_sha256=text_digest("Synthetic source"))],
+             target=dict(target_id="test-document", initial_text_sha256=text_digest(initial)),
+             content=dict(text=content, sha256=text_digest(content)),
+             acceptance=dict(expected_text_sha256=text_digest(initial + content),
+                             checks=["readback", "saved", "reopened"]))
+    raw = json.dumps(c).encode()
+    host = HostContentContext("word-content-test", "test-document",
+                              {"synthetic": text_digest("Synthetic source")}, initial, candidate_digest(raw))
+    return WordContentAdapter(raw, profile=ContentProfile("word-summary-v1", 900, 16000),
+                              host=host, document=document)
+
+
+def execute(tmp_path, monkeypatch, fault="", *, content_case=False, adapter=None, existing_document=None):
     host, desktop, driver, sessions = H["setup"](tmp_path, monkeypatch)
     # This transport fake deliberately has no native baseline attestation.
     # Simulate the real server's advertised baselines for this Host-boundary test.
@@ -34,13 +74,18 @@ def execute(tmp_path, monkeypatch, fault=""):
         config = replace(config, policy=replace(config.policy, mode="read_only"))
     permit = P["WordPermit"]()
     runner = AgentRunner(config, RunnerPorts(host.ports.provider, desktop, permit))
-    document = tmp_path / "gui-word-test.docx"
-    document.write_bytes(P["_packaged_template_bytes"]())
-    if fault.startswith("reopen"):
+    document = existing_document or tmp_path / "gui-word-test.docx"
+    if existing_document is None:
+        document.write_bytes(P["_packaged_template_bytes"]())
+    if fault.startswith("reopen") and not content_case:
         W["_append_note"](document, P["NOTE"])
+    note = "\nReviewed synthetic content.\nSecond line stays exact." if content_case else P["NOTE"]
+    if content_case and adapter is None:
+        adapter = make_adapter(document, note)
     original = P["_document_text"](document)
     state = dict(actions=[], model=0, tick=7,
                  pending=P["NOTE"] if fault in {"save_only", "save_only_bad"} else "", snapshots=0)
+    state["adapter"] = adapter
 
     async def call(c):
         text, images = "", ()
@@ -59,6 +104,8 @@ def execute(tmp_path, monkeypatch, fault=""):
                 body += " unexpected"
             if fault == "write" and state["pending"]:
                 body = original
+            if fault == "whitespace" and state["pending"]:
+                body = body.replace("\n", " ")
             if fault == "save_only_bad":
                 body += "wrong"
             if fault == "reopen_bad":
@@ -82,7 +129,8 @@ def execute(tmp_path, monkeypatch, fault=""):
             if c.name == "type":
                 state["pending"] = c.arguments["text"]
             if c.name == "key" and c.arguments == {"combo": "Ctrl+S"}:
-                W["_append_note"](document, state["pending"])
+                if fault != "no_save":
+                    (append_exact if content_case else W["_append_note"])(document, state["pending"])
             state["tick"] += 1  # Legitimate injected OS input.
         return ToolResult(c.identity, c.name, ToolResultStatus.SUCCESS,
                           DispatchCertainty.DISPATCHED, sanitized_text=text, images=images)
@@ -93,6 +141,8 @@ def execute(tmp_path, monkeypatch, fault=""):
 
     def worker(api, request):
         state["model"] += 1
+        if fault == "disk_drift":
+            append_exact(document, "Unexpected disk change")
         if fault == "input":
             state["tick"] += 1
         return dict(version=1, status="OK", request_id=request["request_id"],
@@ -105,15 +155,63 @@ def execute(tmp_path, monkeypatch, fault=""):
 
     result = asyncio.run(P["probe"]("314", document, api, runner=runner,
                                     tick=lambda: state["tick"], worker=worker,
-                                    save_only=fault.startswith("save_only"), reopen=fault.startswith("reopen")))
+                                    save_only=fault.startswith("save_only"), reopen=fault.startswith("reopen"),
+                                    content_adapter=adapter))
     assert len(sessions) == 1 and desktop.closed and not runner.ports.provider.calls
     assert "private" not in str(result)
     return result, state, document
 
 
+def test_reviewed_content_save_and_separate_reopen_use_existing_runner(tmp_path, monkeypatch):
+    result, state, document = execute(tmp_path, monkeypatch, content_case=True)
+    adapter = state["adapter"]
+    assert result["outcome"] == "PASS", result
+    assert result["version"] == 2
+    assert state["actions"][2] == ("type", {"text": adapter.task.content})
+    assert result["approval_requests"] == result["side_effects"] == 4
+    assert result["tool_calls"] == 22
+    assert adapter.phase == "saved"
+    assert not result["content_handoff"]["complete_content_verified"]
+    assert adapter.task.content not in json.dumps(result)
+    reopened, reads, _ = execute(tmp_path, monkeypatch, "reopen", content_case=True,
+                                  adapter=adapter, existing_document=document)
+    assert reopened["outcome"] == "PASS", reopened
+    assert reopened["content_handoff"]["complete_content_verified"]
+    assert reopened["artifact_sha256"] == result["artifact_sha256"]
+    assert reads["model"] == 0 and not reads["actions"]
+    assert reopened["tool_calls"] == 2
+    with pytest.raises(ValueError, match="WORD_ATTEMPT_CONSUMED"):
+        adapter.begin(document, reopen=True, save_only=False)
+
+
+@pytest.mark.parametrize("fault,count", [("disk_drift", 0), ("content", 0), ("policy", 0),
+                                         ("budget", 0), ("unknown", 1), ("whitespace", 3), ("write", 3)])
+def test_reviewed_content_failures_never_retry_or_save_bad_text(tmp_path, monkeypatch, fault, count):
+    result, state, document = execute(tmp_path, monkeypatch, fault, content_case=True)
+    assert result["outcome"] != "PASS"
+    assert len(state["actions"]) == count
+    assert state["adapter"].phase == "failed"
+    with pytest.raises(ValueError, match="WORD_ATTEMPT_CONSUMED"):
+        state["adapter"].begin(document, reopen=False, save_only=False)
+
+
+def test_reviewed_reopen_requires_the_exact_saved_artifact(tmp_path, monkeypatch):
+    _, state, document = execute(tmp_path, monkeypatch, content_case=True)
+    adapter = state["adapter"]
+    # Even equal text with different package bytes invalidates the saved receipt.
+    with zipfile.ZipFile(document, "a") as package:
+        package.writestr("extra.txt", "changed")
+    with pytest.raises(ValueError, match="WORD_ARTIFACT_CHANGED"):
+        adapter.begin(document, reopen=True, save_only=False)
+    assert adapter.phase == "reopening"
+    with pytest.raises(ValueError, match="WORD_ATTEMPT_CONSUMED"):
+        adapter.begin(document, reopen=True, save_only=False)
+
+
 def test_word_sequence_uses_host_wal_approval_and_durable_readback(tmp_path, monkeypatch):
     result, state, document = execute(tmp_path, monkeypatch)
     assert result["outcome"] == "PASS", result
+    assert result["version"] == 1 and "content_handoff" not in result
     assert state["model"] == result["model_requests"] == 1
     assert state["actions"] == [("click", {"x": 500, "y": 400}),
         ("key", {"combo": "Ctrl+End"}), ("type", {"text": P["NOTE"]}), ("key", {"combo": "Ctrl+S"})]
