@@ -225,3 +225,51 @@ offline before a newly scoped invocation. More tokens may extend unsuitable outp
 they do not guarantee a valid summary. Do not replay this consumed request or
 weaken acceptance. Browser capture and generated-content Word integration remain
 pending, with no additional training or cloud route active.
+
+## GDA-GUI-011 doubled-budget control
+
+Activated by the owner's 2026-09-08 continuation after Runtime #415/model #106
+merged and cleaned. A separate response-v4 worker and parent preserve all older
+workers, parents and receipts. The same source/model/adapter/prompt, greedy seed
+and loading configuration are retained. Only the generation budget envelope and
+interface/request identities change: 768 tokens, 90-second soft generation stop,
+120-second checked generation cap, 240-second process timeout. Input 4096 tokens,
+output 4096 bytes, allocated memory 15 GB, EOS and three-bullet/factual acceptance
+stay fixed. This is a joint budget intervention, not an isolated token effect.
+
+Request `public-source-summary-budget-20260908` pins worker SHA-256
+`6ddd3bf1bf92d30b8dae2e0dc0a24cdb56c8c6828f50f090cfffbdc633c000fd`
+and the unchanged 2026-09-07 reference. Validate threshold flags, version binding,
+strict resources, shape-vs-fact separation, process timeout and no-retry behavior
+offline before the one invocation. Exclusive directory creation consumes the
+new attempt. Successful raw output stays local for source-grounded review; failed
+prose is discarded. Safe receipts contain numeric metadata/hashes only. No browser,
+Word, cloud, training, promotion or automatic Full Cycle export is activated.
+
+Result: the sole control is consumed. The [safe receipt](evidence/public-source-summary-budget-2026-09-08.json)
+records `EOS_CHECK` / `GENERATION_INCOMPLETE`, 320 input tokens, 768 output tokens,
+56.657 seconds generation, 9,122,767,872 peak allocated bytes and 3,685 output
+UTF-8 bytes. Token threshold true, time threshold false, EOS absent; byte, memory
+and checked-time limits passed. This budget doubling did not yield completion
+on the fixed reference. It does not prove general summarization inability or
+identify the unseen output as repetition, reasoning, tool calls or wrong facts.
+Failed prose was discarded; shape and factual quality remain unassessable.
+One model request, no retry, desktop call, provider turn or side effect occurred.
+
+Validation: 8 new offline budget/control tests passed before inference, plus
+18 historical worker, 7 completion-parent and 9 stage-parent tests. Ruff and docs
+consistency (13 reviewed tools; 9 tests) passed. Direct old/new code review found
+only budget-envelope and interface/request identity changes in worker/parent,
+plus explicit budget metadata in the safe receipt. The source, prompt and old
+code/receipt files remain unchanged. Runtime executable code is unchanged.
+
+Stop budget escalation. After scoped publication and cleanup, the exact next
+action is an offline review of the existing summary-to-GUI handoff contract,
+following the owner's previously accepted future planner/local-GUI split.
+The summary producer must supply source-bound content and pass separate factual
+review; the local GUI model proposes bounded actions against actual observations.
+Runtime alone validates and executes them. Existing synthetic Word success does
+not establish source-summary integration, and the experimental LoRA's failed
+admission gate remains failed. This review activates no cloud model, credential,
+desktop run, model search or further training. Producer choice and actual browser
+capture remain pending; never substitute handwritten prose as model-summary evidence.
